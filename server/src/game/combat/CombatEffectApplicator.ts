@@ -30,12 +30,26 @@ import {
     HITMARK_DISEASE,
     HITMARK_HEAL,
     HITMARK_POISON,
-    HITMARK_REFLECT,
     HITMARK_REGEN,
     HITMARK_VENOM,
     HitEffectType,
     resolveHitEffect,
 } from "./HitEffects";
+import {
+    OSRS_HITSPLAT_DAMAGE_MAX_ME,
+    OSRS_HITSPLAT_DAMAGE_MAX_ME_CYAN,
+    OSRS_HITSPLAT_DAMAGE_MAX_ME_ORANGE,
+    OSRS_HITSPLAT_DAMAGE_MAX_ME_POISE,
+    OSRS_HITSPLAT_DAMAGE_MAX_ME_WHITE,
+    OSRS_HITSPLAT_DAMAGE_MAX_ME_YELLOW,
+    OSRS_HITSPLAT_DAMAGE_ME_CYAN,
+    OSRS_HITSPLAT_DAMAGE_ME_ORANGE,
+    OSRS_HITSPLAT_DAMAGE_ME_POISE,
+    OSRS_HITSPLAT_DAMAGE_ME_WHITE,
+    OSRS_HITSPLAT_DAMAGE_ME_YELLOW,
+    OSRS_HITSPLAT_POISON,
+    OSRS_HITSPLAT_POISON_MAX,
+} from "./OsrsHitsplatIds";
 import { getSpellBaseXp } from "./SpellXpData";
 
 // =============================================================================
@@ -62,13 +76,6 @@ function normalizeHitsplatAmount(amount: number): number {
 /**
  * Resolve damage hitsplat style (normal vs max hit indicator).
  */
-const HITSPLAT_DAMAGE_MAX = 43;
-const HITSPLAT_DAMAGE_MAX_CYAN = 44;
-const HITSPLAT_DAMAGE_MAX_ORANGE = 45;
-const HITSPLAT_DAMAGE_MAX_YELLOW = 46;
-const HITSPLAT_DAMAGE_MAX_WHITE = 47;
-const HITSPLAT_DAMAGE_MAX_POISE = 55;
-
 function resolveDamageStyle(styleRaw: number, amount: number, maxHitRaw?: number): number {
     const style = Number.isFinite(styleRaw) ? styleRaw : HITMARK_DAMAGE;
     const dealt = normalizeHitsplatAmount(amount);
@@ -81,26 +88,40 @@ function resolveDamageStyle(styleRaw: number, amount: number, maxHitRaw?: number
     }
 
     switch (style) {
-        case HITSPLAT_DAMAGE_MAX:
-        case HITSPLAT_DAMAGE_MAX_CYAN:
-        case HITSPLAT_DAMAGE_MAX_ORANGE:
-        case HITSPLAT_DAMAGE_MAX_YELLOW:
-        case HITSPLAT_DAMAGE_MAX_WHITE:
-        case HITSPLAT_DAMAGE_MAX_POISE:
+        case OSRS_HITSPLAT_DAMAGE_MAX_ME:
+        case OSRS_HITSPLAT_DAMAGE_MAX_ME_CYAN:
+        case OSRS_HITSPLAT_DAMAGE_MAX_ME_ORANGE:
+        case OSRS_HITSPLAT_DAMAGE_MAX_ME_YELLOW:
+        case OSRS_HITSPLAT_DAMAGE_MAX_ME_WHITE:
+        case OSRS_HITSPLAT_DAMAGE_MAX_ME_POISE:
             return style;
-        case 18:
-            return HITSPLAT_DAMAGE_MAX_CYAN;
-        case 20:
-            return HITSPLAT_DAMAGE_MAX_ORANGE;
-        case 22:
-            return HITSPLAT_DAMAGE_MAX_YELLOW;
-        case 24:
-            return HITSPLAT_DAMAGE_MAX_WHITE;
-        case 53:
-            return HITSPLAT_DAMAGE_MAX_POISE;
+        case OSRS_HITSPLAT_DAMAGE_ME_CYAN:
+            return OSRS_HITSPLAT_DAMAGE_MAX_ME_CYAN;
+        case OSRS_HITSPLAT_DAMAGE_ME_ORANGE:
+            return OSRS_HITSPLAT_DAMAGE_MAX_ME_ORANGE;
+        case OSRS_HITSPLAT_DAMAGE_ME_YELLOW:
+            return OSRS_HITSPLAT_DAMAGE_MAX_ME_YELLOW;
+        case OSRS_HITSPLAT_DAMAGE_ME_WHITE:
+            return OSRS_HITSPLAT_DAMAGE_MAX_ME_WHITE;
+        case OSRS_HITSPLAT_DAMAGE_ME_POISE:
+            return OSRS_HITSPLAT_DAMAGE_MAX_ME_POISE;
         default:
-            return HITSPLAT_DAMAGE_MAX;
+            return OSRS_HITSPLAT_DAMAGE_MAX_ME;
     }
+}
+
+function resolvePoisonStyle(styleRaw: number, amount: number, maxHitRaw?: number): number {
+    const style = Number.isFinite(styleRaw) ? styleRaw : HITMARK_POISON;
+    const dealt = normalizeHitsplatAmount(amount);
+    const maxHit =
+        maxHitRaw !== undefined && Number.isFinite(maxHitRaw) ? Math.max(0, maxHitRaw) : -1;
+    const isMaxHit = maxHit > 0 && dealt >= maxHit;
+
+    if (isMaxHit && (style | 0) === OSRS_HITSPLAT_POISON) {
+        return OSRS_HITSPLAT_POISON_MAX;
+    }
+
+    return style >= 0 ? style : HITMARK_POISON;
 }
 
 // =============================================================================
@@ -179,7 +200,7 @@ export class CombatEffectApplicator {
                 }
                 const next = npc.applyDamage(amount);
                 return {
-                    style: HITMARK_POISON,
+                    style: resolvePoisonStyle(styleRaw, amount, maxHitRaw),
                     amount,
                     hpCurrent: next.current,
                     hpMax: next.max,
@@ -284,10 +305,7 @@ export class CombatEffectApplicator {
                 // OSRS parity: Record hit for flinch mechanics tracking
                 // Reference: docs/npc-behavior.md, docs/combat-formulas.md
                 npc.recordHit(tick);
-                const style =
-                    effect.type === HitEffectType.Reflect
-                        ? HITMARK_REFLECT
-                        : resolveDamageStyle(styleRaw, dealt, maxHitRaw);
+                const style = resolveDamageStyle(styleRaw, dealt, maxHitRaw);
                 return {
                     style,
                     amount: dealt,
@@ -352,10 +370,7 @@ export class CombatEffectApplicator {
                         hpMax: max,
                     };
                 }
-                const style =
-                    effect.type === HitEffectType.Reflect
-                        ? HITMARK_REFLECT
-                        : resolveDamageStyle(styleRaw, dealt, maxHitRaw);
+                const style = resolveDamageStyle(styleRaw, dealt, maxHitRaw);
                 return {
                     style,
                     amount: dealt,

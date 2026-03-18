@@ -245,6 +245,17 @@ export class HitsplatOverlay implements Overlay {
             }
             const textInfo = this.digits ? this.buildTextTexture(numberText, col) : undefined;
             centerWorld[1] = anchorY;
+            const primaryBgParts = useType
+                ? this.getDefinitionBackgroundParts(useType)
+                : this.bgParts;
+            const primarySprite = useType
+                ? this.getDefinitionSingleSprite(useType) ?? this.getSpriteTextureForEntry(entry)
+                : this.getSpriteTextureForEntry(entry);
+            const primaryBaseWidth = primaryBgParts
+                ? primaryBgParts.left.w + primaryBgParts.mid.w + primaryBgParts.right.w
+                : primarySprite
+                ? primarySprite.w
+                : this.width;
 
             for (let i = 0; i < count; i++) {
                 const pIdx = order[(variant + i) % order.length];
@@ -253,16 +264,15 @@ export class HitsplatOverlay implements Overlay {
                 const cx = ((stackDxBase[pIdx] * resolvedScale) | 0) + animXOffset;
                 const topY = ((stackDyBase[pIdx] * resolvedScale) | 0) + baseTop + animYOffset;
 
-                if (this.bgParts) {
-                    const lw = (this.bgParts.left.w * resolvedScale) | 0;
-                    const lh = (this.bgParts.left.h * resolvedScale) | 0;
-                    const rw = (this.bgParts.right.w * resolvedScale) | 0;
+                if (primaryBgParts) {
+                    const lw = (primaryBgParts.left.w * resolvedScale) | 0;
+                    const lh = (primaryBgParts.left.h * resolvedScale) | 0;
+                    const rw = (primaryBgParts.right.w * resolvedScale) | 0;
                     // OSRS Parity: Calculate actual total width from sprites, not hardcoded
                     // Reference: class386.java calculates var51 = left + middle*n + right
                     const middleWidth =
-                        ((this.width - this.bgParts.left.w - this.bgParts.right.w) *
-                            resolvedScale) |
-                        0;
+                        ((primaryBaseWidth - primaryBgParts.left.w - primaryBgParts.right.w) *
+                            resolvedScale) | 0;
                     const totalWidth = lw + middleWidth + rw;
                     const lx = cx - (totalWidth >> 1);
                     const ly = topY;
@@ -286,18 +296,17 @@ export class HitsplatOverlay implements Overlay {
                     this.positions!.data(quadVerts);
                     this.drawCall!.uniform("u_screenSize", this.screenSize)
                         .uniform("u_centerWorld", centerWorld)
-                        .texture("u_sprite", this.bgParts.left.tex)
+                        .texture("u_sprite", primaryBgParts.left.tex)
                         .draw();
 
                     const mw =
-                        ((this.width - this.bgParts.left.w - this.bgParts.right.w) *
-                            resolvedScale) |
-                        0;
-                    const mh = (this.bgParts.mid.h * resolvedScale) | 0;
+                        ((primaryBaseWidth - primaryBgParts.left.w - primaryBgParts.right.w) *
+                            resolvedScale) | 0;
+                    const mh = (primaryBgParts.mid.h * resolvedScale) | 0;
                     const mx0 = lx + lw;
-                    for (let px = 0; px < mw; px += this.bgParts.mid.w * resolvedScale) {
+                    for (let px = 0; px < mw; px += primaryBgParts.mid.w * resolvedScale) {
                         const x = mx0 + px;
-                        const w = Math.min(this.bgParts.mid.w * resolvedScale, mw - px) | 0;
+                        const w = Math.min(primaryBgParts.mid.w * resolvedScale, mw - px) | 0;
                         quadVerts[0] = x;
                         quadVerts[1] = ly;
                         quadVerts[2] = x;
@@ -316,11 +325,11 @@ export class HitsplatOverlay implements Overlay {
                         this.positions!.data(quadVerts);
                         this.drawCall!.uniform("u_screenSize", this.screenSize)
                             .uniform("u_centerWorld", centerWorld)
-                            .texture("u_sprite", this.bgParts.mid.tex)
+                            .texture("u_sprite", primaryBgParts.mid.tex)
                             .draw();
                     }
 
-                    const rh = (this.bgParts.right.h * resolvedScale) | 0;
+                    const rh = (primaryBgParts.right.h * resolvedScale) | 0;
                     const rx = lx + lw + mw;
                     quadVerts[0] = rx;
                     quadVerts[1] = ly;
@@ -340,10 +349,10 @@ export class HitsplatOverlay implements Overlay {
                     this.positions!.data(quadVerts);
                     this.drawCall!.uniform("u_screenSize", this.screenSize)
                         .uniform("u_centerWorld", centerWorld)
-                        .texture("u_sprite", this.bgParts.right.tex)
+                        .texture("u_sprite", primaryBgParts.right.tex)
                         .draw();
                 } else {
-                    const sprite = this.getSpriteTextureForEntry(entry);
+                    const sprite = primarySprite;
                     if (!sprite) continue;
                     const w = (sprite.w * resolvedScale) | 0;
                     const hq = (sprite.h * resolvedScale) | 0;
@@ -407,12 +416,14 @@ export class HitsplatOverlay implements Overlay {
                 // Secondary hitsplat renders to the right of primary with 2px gap
                 if (type2Def && numberText2 !== undefined) {
                     // Calculate position: right of primary hitsplat with 2px gap
-                    const primaryWidth = this.bgParts
-                        ? ((this.bgParts.left.w +
-                              (this.width - this.bgParts.left.w - this.bgParts.right.w) +
-                              this.bgParts.right.w) *
+                    const primaryWidth = primaryBgParts
+                        ? ((primaryBgParts.left.w +
+                              (primaryBaseWidth - primaryBgParts.left.w - primaryBgParts.right.w) +
+                              primaryBgParts.right.w) *
                               resolvedScale) |
                           0
+                        : primarySprite
+                        ? (primarySprite.w * resolvedScale) | 0
                         : this.width * resolvedScale;
                     const secondaryXOffset = ((primaryWidth >> 1) + 2) | 0;
                     const scx = cx + secondaryXOffset;
@@ -607,6 +618,45 @@ export class HitsplatOverlay implements Overlay {
         } catch {
             return undefined;
         }
+    }
+
+    private getDefinitionBackgroundParts(
+        def?: HitSplatType,
+    ):
+        | {
+              left: { tex: Texture; w: number; h: number };
+              mid: { tex: Texture; w: number; h: number };
+              right: { tex: Texture; w: number; h: number };
+          }
+        | undefined {
+        if (!def) return undefined;
+        if (def.leftSpriteId < 0 || def.middleSpriteId < 0 || def.rightSpriteId < 0) {
+            return undefined;
+        }
+        const left = this.textureFromSpriteId(def.leftSpriteId);
+        const mid = this.textureFromSpriteId(def.middleSpriteId);
+        const right = this.textureFromSpriteId(def.rightSpriteId);
+        if (!left || !mid || !right) return undefined;
+        return { left, mid, right };
+    }
+
+    private getDefinitionSingleSprite(
+        def?: HitSplatType,
+    ): { tex: Texture; w: number; h: number } | undefined {
+        if (!def) return undefined;
+        if (def.middleSpriteId >= 0) {
+            const mid = this.textureFromSpriteId(def.middleSpriteId);
+            if (mid) return mid;
+        }
+        if (def.leftSpriteId >= 0) {
+            const left = this.textureFromSpriteId(def.leftSpriteId);
+            if (left) return left;
+        }
+        if (def.rightSpriteId >= 0) {
+            const right = this.textureFromSpriteId(def.rightSpriteId);
+            if (right) return right;
+        }
+        return undefined;
     }
 
     /**

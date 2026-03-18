@@ -1,12 +1,22 @@
-export const HITMARK_BLOCK = 0;
-export const HITMARK_DAMAGE = 1;
-export const HITMARK_POISON = 2;
-export const HITMARK_DISEASE = 3;
-export const HITMARK_VENOM = 4;
-export const HITMARK_REFLECT = 5;
-export const HITMARK_PRAYER_SPLASH = 6;
+import {
+    HITSPLAT_STYLE_BLOCK,
+    HITSPLAT_STYLE_DAMAGE,
+    OSRS_HITSPLAT_DISEASE,
+    OSRS_HITSPLAT_HEAL,
+    OSRS_HITSPLAT_POISON,
+    OSRS_HITSPLAT_VENOM,
+} from "./OsrsHitsplatIds";
+
+export const HITMARK_BLOCK = HITSPLAT_STYLE_BLOCK;
+export const HITMARK_DAMAGE = HITSPLAT_STYLE_DAMAGE;
+export const HITMARK_POISON = OSRS_HITSPLAT_POISON;
+export const HITMARK_DISEASE = OSRS_HITSPLAT_DISEASE;
+export const HITMARK_VENOM = OSRS_HITSPLAT_VENOM;
+// Internal-only semantic styles. Do not overlap cache hitsplat ids.
+export const HITMARK_REFLECT = 1005;
+export const HITMARK_PRAYER_SPLASH = 1006;
 export const HITMARK_REGEN = 7;
-export const HITMARK_HEAL = 8;
+export const HITMARK_HEAL = OSRS_HITSPLAT_HEAL;
 
 export enum HitEffectType {
     Block = "block",

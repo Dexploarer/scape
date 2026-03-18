@@ -10,6 +10,7 @@ import type { WebSocket } from "ws";
 
 import type { ProjectileLaunch } from "../../../../../src/shared/projectiles/ProjectileLaunch";
 import { HITMARK_BLOCK, HITMARK_HEAL, HITMARK_REGEN } from "../../combat/HitEffects";
+import type { HitsplatSourceType } from "../../combat/OsrsHitsplatIds";
 import type { PlayerState } from "../../player";
 import type { ActionEffect, HitsplatEffect } from "../types";
 
@@ -25,6 +26,8 @@ export interface HitsplatBroadcast {
     style: number;
     type2?: number;
     damage2?: number;
+    sourceType?: HitsplatSourceType;
+    sourcePlayerId?: number;
     hpCurrent: number;
     hpMax: number;
     tick?: number;
@@ -264,6 +267,8 @@ export class EffectDispatcher {
             style: effect.style,
             type2: effect.type2,
             damage2: effect.damage2,
+            sourceType: effect.sourceType,
+            sourcePlayerId: effect.sourcePlayerId,
             hpCurrent,
             hpMax,
             tick: effect.tick,

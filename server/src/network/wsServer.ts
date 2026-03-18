@@ -256,6 +256,7 @@ import {
     HITMARK_HEAL,
     HITMARK_REGEN,
 } from "../game/combat/HitEffects";
+import { resolveHitsplatTypeForObserver } from "../game/combat/OsrsHitsplatIds";
 import {
     getWildernessLevel,
     isInLMS,
@@ -3538,6 +3539,7 @@ export class WSServer {
                         targetId: player.id,
                         damage: event.amount,
                         style: event.style,
+                        sourceType: "status",
                         hpCurrent: event.hpCurrent,
                         hpMax: event.hpMax,
                     });
@@ -4137,7 +4139,35 @@ export class WSServer {
                     payload.type2 = event.type2;
                     payload.damage2 = event.damage2;
                 }
-                this.broadcast(encodeMessage({ type: "hitsplat", payload }));
+                this.players?.forEach((sock, player) => {
+                    const resolvedPayload = {
+                        ...payload,
+                        style: resolveHitsplatTypeForObserver(
+                            payload.style,
+                            player.id,
+                            event.targetType,
+                            event.targetId,
+                            event.sourcePlayerId,
+                            event.sourceType,
+                        ),
+                        type2:
+                            payload.type2 !== undefined
+                                ? resolveHitsplatTypeForObserver(
+                                      payload.type2,
+                                      player.id,
+                                      event.targetType,
+                                      event.targetId,
+                                      event.sourcePlayerId,
+                                      event.sourceType,
+                                  )
+                                : undefined,
+                    };
+                    this.sendWithGuard(
+                        sock,
+                        encodeMessage({ type: "hitsplat", payload: resolvedPayload }),
+                        "hitsplat",
+                    );
+                });
             }
             for (const npcEvent of frame.npcEffectEvents) {
                 const hitsplat = npcEvent.hitsplat;
@@ -5612,6 +5642,8 @@ export class WSServer {
                         targetId: npc.id,
                         damage: result.amount,
                         style: result.style,
+                        sourceType: "player",
+                        sourcePlayerId: player.id,
                         hpCurrent: result.hpCurrent,
                         hpMax: result.hpMax,
                     });
@@ -5636,6 +5668,8 @@ export class WSServer {
                         targetId: target.id,
                         damage: baseDamage,
                         style: HITMARK_DAMAGE,
+                        sourceType: "player",
+                        sourcePlayerId: player.id,
                         hpCurrent: result.current,
                         hpMax: result.max,
                     });
@@ -8786,6 +8820,8 @@ export class WSServer {
                 targetId: extra.id,
                 damage: result.amount,
                 style: result.style,
+                sourceType: "player",
+                sourcePlayerId: opts.player.id,
                 tick: opts.hitsplatTick,
                 ...hpFields,
             });

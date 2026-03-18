@@ -6,6 +6,10 @@
  *
  * Reference: `class353.updateNpcs` + `PcmPlayer.method846` + `UrlRequester.method2903`
  */
+import {
+    resolveHitsplatTypeForObserver,
+    type HitsplatSourceType,
+} from "../../game/combat/OsrsHitsplatIds";
 import type { NpcState, NpcUpdateDelta } from "../../game/npc";
 import type { PlayerState } from "../../game/player";
 import { BitWriter } from "../BitWriter";
@@ -44,6 +48,8 @@ export interface NpcTickFrameData {
         damage: number;
         type2?: number;
         damage2?: number;
+        sourceType?: HitsplatSourceType;
+        sourcePlayerId?: number;
         tick?: number;
         delayTicks?: number;
     }>;
@@ -124,6 +130,7 @@ export class NpcPacketEncoder {
 
         // Process hitsplats
         const { hits: hitsByNpc } = this.processHitsplats(
+            player,
             frame,
             desiredSet,
             loopCycle,
@@ -447,6 +454,7 @@ export class NpcPacketEncoder {
      * Process hitsplats from frame data.
      */
     private processHitsplats(
+        player: PlayerState,
         frame: NpcTickFrameData,
         desiredSet: Set<number>,
         loopCycle: number,
@@ -470,9 +478,29 @@ export class NpcPacketEncoder {
             const hasSecondary = type2Raw >= 0 && damage2Raw >= 0;
             const entry = hitsByNpc.get(npcId) ?? [];
             entry.push({
-                type: this.clampHitsplatTypeId(evt.style ?? 0),
+                type: this.clampHitsplatTypeId(
+                    resolveHitsplatTypeForObserver(
+                        evt.style,
+                        player.id,
+                        evt.targetType,
+                        evt.targetId,
+                        evt.sourcePlayerId,
+                        evt.sourceType,
+                    ),
+                ),
                 damage: Math.max(0, evt.damage),
-                type2: hasSecondary ? this.clampHitsplatTypeId(type2Raw) : undefined,
+                type2: hasSecondary
+                    ? this.clampHitsplatTypeId(
+                          resolveHitsplatTypeForObserver(
+                              type2Raw,
+                              player.id,
+                              evt.targetType,
+                              evt.targetId,
+                              evt.sourcePlayerId,
+                              evt.sourceType,
+                          ),
+                      )
+                    : undefined,
                 damage2: hasSecondary ? this.clampUShortSmart(damage2Raw) : undefined,
                 delayCycles,
             });

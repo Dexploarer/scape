@@ -12,6 +12,10 @@ import {
     deltaToRunDirection,
     directionToDelta,
 } from "../../../../src/shared/Direction";
+import {
+    resolveHitsplatTypeForObserver,
+    type HitsplatSourceType,
+} from "../../game/combat/OsrsHitsplatIds";
 import type { PlayerAppearance, PlayerState } from "../../game/player";
 import { BitWriter } from "../BitWriter";
 import { PlayerSyncSession } from "../PlayerSyncSession";
@@ -68,6 +72,8 @@ export interface PlayerTickFrameData {
         damage: number;
         type2?: number;
         damage2?: number;
+        sourceType?: HitsplatSourceType;
+        sourcePlayerId?: number;
         tick?: number;
         delayTicks?: number;
     }>;
@@ -257,7 +263,16 @@ export class PlayerPacketEncoder {
             if (evt.targetType !== "player") continue;
             const pid = evt.targetId;
             if (pid < 0) continue;
-            const type = this.clampHitsplatTypeId(evt.style ?? 0);
+            const type = this.clampHitsplatTypeId(
+                resolveHitsplatTypeForObserver(
+                    evt.style,
+                    player.id,
+                    evt.targetType,
+                    evt.targetId,
+                    evt.sourcePlayerId,
+                    evt.sourceType,
+                ),
+            );
             const damage = this.clampUShortSmart(evt.damage);
             const evtTick = evt.tick ?? frame.tick;
             const extraDelayTicks = evt.delayTicks !== undefined ? Math.max(0, evt.delayTicks) : 0;
@@ -269,10 +284,22 @@ export class PlayerPacketEncoder {
             const hasSecondary = type2Raw >= 0 && damage2Raw >= 0;
             const entry = markMask(pid, PLAYER_MASKS.HIT);
             if (!entry.hitsplats) entry.hitsplats = [];
+            const type2 = hasSecondary
+                ? this.clampHitsplatTypeId(
+                      resolveHitsplatTypeForObserver(
+                          type2Raw,
+                          player.id,
+                          evt.targetType,
+                          evt.targetId,
+                          evt.sourcePlayerId,
+                          evt.sourceType,
+                      ),
+                  )
+                : undefined;
             entry.hitsplats.push({
                 type,
                 damage,
-                type2: hasSecondary ? this.clampHitsplatTypeId(type2Raw) : undefined,
+                type2,
                 damage2: hasSecondary ? this.clampUShortSmart(damage2Raw) : undefined,
                 delayCycles: delayCycles,
             });

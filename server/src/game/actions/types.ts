@@ -1,4 +1,5 @@
 import type { ProjectileLaunch } from "../../../../src/shared/projectiles/ProjectileLaunch";
+import type { HitsplatSourceType } from "../combat/OsrsHitsplatIds";
 import { PlayerState } from "../player";
 import type { CoreActionPayloadByKind } from "./actionPayloads";
 import type { SkillActionPayloadByKind } from "./skillActionPayloads";
@@ -52,6 +53,8 @@ export type HitsplatEffect = {
     type2?: number;
     /** Secondary hitsplat value (`var4` in Actor.addHitSplat), optional. */
     damage2?: number;
+    sourceType?: HitsplatSourceType;
+    sourcePlayerId?: number;
     hpCurrent?: number;
     hpMax?: number;
     tick?: number;

@@ -1,4 +1,5 @@
 import type { SkillSyncUpdate } from "../player";
+import type { HitsplatSourceType } from "../combat/OsrsHitsplatIds";
 
 /**
  * Chat message types for broadcast scheduling.
@@ -27,6 +28,8 @@ export interface HitsplatBroadcast {
     style: number;
     type2?: number;
     damage2?: number;
+    sourceType?: HitsplatSourceType;
+    sourcePlayerId?: number;
     hpCurrent: number;
     hpMax: number;
     tick?: number;

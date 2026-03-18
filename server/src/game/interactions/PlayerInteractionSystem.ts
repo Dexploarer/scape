@@ -669,6 +669,9 @@ export class PlayerInteractionSystem {
         if (npc.getHitpoints() <= 0 || npc.isDead(currentTick)) {
             return { ok: false, message: "npc_dead" };
         }
+        if (npc.isPlayerFollower?.() === true) {
+            return { ok: false, message: "npc_unattackable" };
+        }
 
         // Block interactions during tutorial
         if (!me.canInteract()) {

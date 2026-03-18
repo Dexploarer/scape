@@ -590,6 +590,9 @@ export class CombatActionHandler {
         if (npc.level !== player.level) {
             return { ok: false, reason: "different_plane" };
         }
+        if (npc.isPlayerFollower?.() === true) {
+            return { ok: false, reason: "npc_unattackable" };
+        }
 
         const effects: ActionEffect[] = [];
         const reach = Math.max(1, this.services.getPlayerAttackReach(player));
@@ -1179,6 +1182,9 @@ export class CombatActionHandler {
         }
         if (npc.level !== player.level) {
             return { ok: false, reason: "different_plane" };
+        }
+        if (npc.isPlayerFollower?.() === true) {
+            return { ok: false, reason: "npc_unattackable" };
         }
 
         const effects: ActionEffect[] = [];
@@ -2390,6 +2396,9 @@ export class CombatActionHandler {
         }
         if (npc.level !== companion.level || npc.level !== player.level) {
             return { ok: false, reason: "different_plane" };
+        }
+        if (npc.isPlayerFollower?.() === true) {
+            return { ok: false, reason: "npc_unattackable" };
         }
         if (npc.getHitpoints() <= 0 || npc.isDead(tick)) {
             return { ok: false, reason: "npc_dead" };

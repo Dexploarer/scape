@@ -141,6 +141,11 @@ export class CombatEffectApplicator {
         const current = npc.getHitpoints();
         const max = npc.getMaxHitpoints();
 
+        // Followers are cosmetic companions, not combat participants.
+        if (npc.isPlayerFollower?.() === true) {
+            return { style: HITMARK_BLOCK, amount: 0, hpCurrent: current, hpMax: max };
+        }
+
         switch (effect.type) {
             case HitEffectType.Block:
             case HitEffectType.PrayerSplash:

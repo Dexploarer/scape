@@ -249,7 +249,7 @@ import {
     type StyleMode,
     calculateCombatXp,
 } from "../game/combat/CombatXp";
-import type { DropEligibility } from "../game/combat/DamageTracker";
+import type { DamageType, DropEligibility } from "../game/combat/DamageTracker";
 import {
     HITMARK_BLOCK,
     HITMARK_DAMAGE,
@@ -5596,16 +5596,24 @@ export class WSServer {
         if (this.npcManager) {
             const nearbyNpcs = this.npcManager.getNearby(playerX, playerY, playerLevel, 1);
             for (const npc of nearbyNpcs) {
-                if (npc.getHitpoints() <= 0) continue;
-                const result = npc.applyDamage(baseDamage);
+                const result = this.applyPlayerDamageToNpc(
+                    player,
+                    npc,
+                    baseDamage,
+                    HITMARK_DAMAGE,
+                    tick,
+                    "other",
+                    baseDamage,
+                );
+                if (!result) continue;
                 if (this.activeFrame) {
                     this.activeFrame.hitsplats.push({
                         targetType: "npc",
                         targetId: npc.id,
-                        damage: baseDamage,
-                        style: HITMARK_DAMAGE,
-                        hpCurrent: result.current,
-                        hpMax: result.max,
+                        damage: result.amount,
+                        style: result.style,
+                        hpCurrent: result.hpCurrent,
+                        hpMax: result.hpMax,
                     });
                 }
             }
@@ -8758,14 +8766,17 @@ export class WSServer {
         const splashDamage = Math.max(1, Math.floor(opts.baseDamage / 2));
         if (!(splashDamage > 0)) return;
         for (const extra of extras) {
-            if (remaining-- <= 0) break;
-            if (extra.getHitpoints() <= 0) continue;
-            const result = combatEffectApplicator.applyNpcHitsplat(
+            if (remaining <= 0) break;
+            const result = this.applyPlayerDamageToNpc(
+                opts.player,
                 extra,
-                opts.style,
                 splashDamage,
+                opts.style,
                 opts.currentTick,
+                "magic",
             );
+            if (!result) continue;
+            remaining--;
             const hpFields =
                 result.amount > 0 ? { hpCurrent: result.hpCurrent, hpMax: result.hpMax } : {};
             opts.effects.push({
@@ -8795,6 +8806,120 @@ export class WSServer {
                 });
             }
         }
+    }
+
+    private applyPlayerDamageToNpc(
+        player: PlayerState,
+        npc: NpcState,
+        damage: number,
+        style: number,
+        tick: number,
+        damageType: DamageType,
+        maxHit?: number,
+    ): { amount: number; style: number; hpCurrent: number; hpMax: number } | undefined {
+        if (npc.isPlayerFollower?.() === true) return undefined;
+        if (npc.getHitpoints() <= 0 || npc.isDead(tick)) return undefined;
+
+        const result = combatEffectApplicator.applyNpcHitsplat(npc, style, damage, tick, maxHit);
+        if (result.amount > 0) {
+            this.combatController?.recordDamage(player, npc, result.amount, damageType, tick);
+        }
+        if (result.hpCurrent <= 0) {
+            this.handleNpcDeathOutsidePrimaryCombat(player, npc, tick);
+        }
+        return result;
+    }
+
+    private handleNpcDeathOutsidePrimaryCombat(
+        player: PlayerState,
+        npc: NpcState,
+        tick: number,
+    ): void {
+        if (npc.isPlayerFollower?.() === true || npc.isDead(tick)) {
+            return;
+        }
+
+        logger.info(`[combat] NPC ${npc.id} (type ${npc.typeId}) died`);
+        npc.clearInteractionTarget();
+
+        const eligibility = this.combatController?.getDropEligibility?.(npc);
+        const inWilderness = isInWilderness(npc.tileX, npc.tileY);
+        const pendingDrops = this.rollNpcDrops(npc, eligibility).map((drop) => ({
+            ...drop,
+            isWilderness: inWilderness,
+        }));
+
+        const deathSeq = this.getNpcCombatSequences(npc.typeId)?.death;
+        if (deathSeq !== undefined && deathSeq >= 0) {
+            npc.queueOneShotSeq(deathSeq);
+            this.broadcastNpcSequence(npc, deathSeq);
+            npc.popPendingSeq();
+        }
+
+        const deathSoundId = this.getNpcDeathSoundId(npc.typeId);
+        if (deathSoundId !== undefined && deathSoundId > 0) {
+            this.withDirectSendBypass("combat_npc_death_sound", () =>
+                this.broadcastSound(
+                    {
+                        soundId: deathSoundId,
+                        x: npc.tileX,
+                        y: npc.tileY,
+                        level: npc.level,
+                        delay: COMBAT_SOUND_DELAY_MS,
+                    },
+                    "combat_npc_death_sound",
+                ),
+            );
+        }
+
+        this.players?.clearInteractionsWithNpc(npc.id);
+
+        const affectedPlayerIds = new Set<number>([player.id]);
+        const npcTargetPlayerId = npc.getCombatTargetPlayerId();
+        if (npcTargetPlayerId !== undefined && npcTargetPlayerId >= 0) {
+            affectedPlayerIds.add(npcTargetPlayerId);
+        }
+        for (const affectedPlayerId of affectedPlayerIds) {
+            this.actionScheduler.cancelActions(affectedPlayerId, (action) => {
+                const actionNpcId =
+                    action.kind === "combat.attack" ||
+                    action.kind === "combat.playerHit" ||
+                    action.kind === "combat.npcRetaliate"
+                        ? (
+                              action.data as
+                                  | CombatAttackActionData
+                                  | CombatPlayerHitActionData
+                                  | CombatNpcRetaliateActionData
+                          ).npcId
+                        : undefined;
+                return (
+                    actionNpcId === npc.id &&
+                    (action.groups.includes("combat.attack") ||
+                        action.groups.includes("combat.retaliate") ||
+                        action.groups.includes("combat.hit"))
+                );
+            });
+        }
+
+        const RESPAWN_DELAY_TICKS = 17;
+        const deathDelayTicks = this.estimateNpcDespawnDelayTicksFromSeq(deathSeq);
+        const despawnTick = tick + Math.max(1, deathDelayTicks);
+        const respawnTick = Math.max(tick + RESPAWN_DELAY_TICKS, despawnTick + 1);
+        try {
+            npc.markDeadUntil(despawnTick, tick);
+        } catch {}
+        const queued =
+            this.npcManager?.queueDeath?.(npc.id, despawnTick, respawnTick, pendingDrops) ?? false;
+        if (!queued) {
+            logger.warn(
+                `[combat] Failed to queue NPC respawn (npc=${npc.id}, respawnTick=${respawnTick})`,
+            );
+        }
+
+        this.combatController?.cleanupNpc?.(npc);
+
+        const killerId = eligibility?.primaryLooter?.id ?? player.id;
+        this.leagueTaskManager?.onNpcKill(killerId, npc.typeId);
     }
 
     private ensureEquipArray(p: PlayerState): number[] {

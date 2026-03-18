@@ -1,0 +1,17 @@
+{
+  "name": "OSRS Client",
+  "short_name": "osrs-typescript",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0d0c1c",
+  "theme_color": "#0d0c1c",
+  "description": "RuneScape typescript client rebuilt for the web.",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    }
+  ]
+}

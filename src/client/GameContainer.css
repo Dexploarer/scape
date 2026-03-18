@@ -1,0 +1,144 @@
+.game-container-root {
+    display: flex;
+    width: 100%;
+    height: 100%;
+}
+
+.game-viewport {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.game-canvas-shell {
+    position: absolute;
+    inset: 0;
+}
+
+.game-canvas-stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.game-viewport-mobile {
+    --mobile-safe-top: max(10px, env(safe-area-inset-top, 0px));
+    --mobile-safe-right: max(12px, env(safe-area-inset-right, 0px));
+    --mobile-safe-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+    --mobile-safe-left: max(12px, env(safe-area-inset-left, 0px));
+    --mobile-hud-right-gap: 10px;
+}
+
+.game-viewport-mobile .game-canvas-shell {
+    box-sizing: border-box;
+    padding-left: var(--mobile-safe-left);
+    padding-right: var(--mobile-safe-right);
+}
+
+.game-viewport-mobile .hud.left-top,
+.game-viewport-mobile .hud.right-top,
+.game-viewport-mobile .hud.left-bottom,
+.game-viewport-mobile .hud.right-bottom {
+    padding: 0;
+}
+
+.game-viewport-mobile .hud.left-top {
+    top: var(--mobile-safe-top);
+    left: var(--mobile-safe-left);
+}
+
+.game-viewport-mobile .hud.right-top {
+    top: var(--mobile-safe-top);
+    right: var(--mobile-safe-right);
+    padding-right: var(--mobile-hud-right-gap);
+}
+
+.game-viewport-mobile .hud.left-bottom {
+    left: var(--mobile-safe-left);
+    bottom: var(--mobile-safe-bottom);
+}
+
+.game-viewport-mobile .hud.right-bottom {
+    right: var(--mobile-safe-right);
+    bottom: var(--mobile-safe-bottom);
+    padding-right: var(--mobile-hud-right-gap);
+}
+
+.overlay-container {
+    display: flex;
+    position: absolute;
+    top: 0;
+    left: 0;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.hud.left-top {
+    position: absolute;
+    padding: 10px;
+}
+.hud.left-bottom {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    padding: 10px;
+}
+.hud.right-top {
+    position: absolute;
+    padding: 10px;
+    right: 0;
+}
+
+.hud.right-bottom {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    padding: 10px;
+}
+
+.tile-label {
+    color: #fff;
+    font-size: 12px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.35);
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.skill-status {
+    margin-top: 8px;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    max-width: 180px;
+}
+
+.skill-status .label {
+    font-size: 11px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #f4fbff;
+}
+
+.skill-status .detail {
+    font-size: 10px;
+    color: #c9e8ff;
+    margin-top: 2px;
+    line-height: 1.2;
+}
+
+/* Place Leva controls panel on the left instead of the default right */
+.leva-left > div {
+    left: 10px !important;
+    right: auto !important;
+    top: 36px !important; /* push down so it doesn't cover top-left preview */
+}

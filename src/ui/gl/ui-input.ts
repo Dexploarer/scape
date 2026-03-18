@@ -1,0 +1,123 @@
+/**
+ * Minimal UI input bridge for GL widgets.
+ *
+ * This file provides a bridge between InputManager (OSRS-parity input) and
+ * ClickRegistry (GL widget hit testing). It does NOT register its own event
+ * listeners - all input comes through InputManager.
+ */
+import { ClickMode, InputManager } from "../../client/InputManager";
+import { ClickRegistry } from "./click-registry";
+import type { GLRenderer } from "./renderer";
+
+export class UIInputBridge {
+    private clicks: ClickRegistry;
+    private lastClickMode3: number = ClickMode.NONE;
+    private lastClickMode2: number = ClickMode.NONE;
+    private menuHandler?: (x: number, y: number) => void;
+    // When true, suppress the next pointer-up transition for the current click.
+    // Used when a handler consumes the click on mousedown (OSRS menu parity).
+    private suppressUpUntilRelease: boolean = false;
+
+    constructor() {
+        this.clicks = new ClickRegistry();
+    }
+
+    getClicks(): ClickRegistry {
+        return this.clicks;
+    }
+
+    /**
+     * Reset click tracking state. Call this when a click has been consumed
+     * by a handler to prevent further processing.
+     */
+    consumeClick(): void {
+        this.suppressUpUntilRelease = true;
+        this.clicks.cancelActiveClick();
+    }
+
+    setMenuHandler(fn: (x: number, y: number) => void) {
+        this.menuHandler = fn;
+    }
+
+    /**
+     * Called at start of each frame to reset transient click targets
+     */
+    beginFrame() {
+        this.clicks.beginFrame();
+    }
+
+    /**
+     * Process input from InputManager and feed it to ClickRegistry.
+     * Call this once per frame after beginFrame().
+     */
+    processInput(input: InputManager): void {
+        const { mouseX, mouseY, clickMode2, clickMode3, saveClickX, saveClickY } = input;
+
+        // Update hover state
+        if (mouseX >= 0 && mouseY >= 0) {
+            this.clicks.onPointerMove(mouseX, mouseY);
+        }
+
+        // Handle clicks based on clickMode3 (single-frame pulse)
+        if (clickMode3 !== ClickMode.NONE && this.lastClickMode3 === ClickMode.NONE) {
+            // New click this frame
+            if (clickMode3 === ClickMode.LEFT) {
+                this.clicks.onPointerDown(saveClickX, saveClickY);
+            } else if (clickMode3 === ClickMode.RIGHT) {
+                // Right click opens menu
+                this.menuHandler?.(saveClickX, saveClickY);
+            }
+        }
+
+        // OSRS parity: release is tracked by clickMode2 (held state), not clickMode3 (pulse).
+        // clickMode3 returns to NONE the frame after mousedown even while held.
+        if (this.lastClickMode2 === ClickMode.LEFT && clickMode2 === ClickMode.NONE) {
+            if (!this.suppressUpUntilRelease) {
+                this.clicks.onPointerUp(mouseX, mouseY);
+            } else {
+                // Consume exactly one up-transition, then clear.
+                this.suppressUpUntilRelease = false;
+            }
+        }
+
+        // If a click was consumed but the button is not held, clear suppression to avoid latching forever.
+        if (this.suppressUpUntilRelease && clickMode2 === ClickMode.NONE) {
+            this.suppressUpUntilRelease = false;
+        }
+
+        // Update tracking state
+        this.lastClickMode3 = clickMode3;
+        this.lastClickMode2 = clickMode2;
+    }
+
+    /**
+     * Get current pointer position from InputManager
+     */
+    getPointerPos(input: InputManager): { x: number; y: number } {
+        return { x: input.mouseX, y: input.mouseY };
+    }
+}
+
+/**
+ * Get or create a UIInputBridge for a GL renderer.
+ * Stores the bridge on the canvas for reuse across frames.
+ */
+export function ensureInputBridge(glr: GLRenderer): UIInputBridge {
+    const canvas = glr.canvas as any;
+    if (!canvas.__inputBridge) {
+        canvas.__inputBridge = new UIInputBridge();
+    }
+    return canvas.__inputBridge;
+}
+
+// Legacy compatibility - maps to new system
+export function ensureInput(
+    glr: GLRenderer,
+    _scheduleRender: () => void,
+    _eventsCanvas?: HTMLCanvasElement,
+): UIInputBridge {
+    return ensureInputBridge(glr);
+}
+
+// Re-export for compatibility
+export { UIInputBridge as UIInput };

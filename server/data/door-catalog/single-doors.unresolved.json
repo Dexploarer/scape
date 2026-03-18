@@ -1,0 +1,5242 @@
+{
+  "generatedAt": "2026-02-27T02:39:38.324Z",
+  "cache": {
+    "name": "osrs-235_2025-12-17",
+    "game": "oldschool",
+    "environment": "live",
+    "revision": 235,
+    "timestamp": "2025-12-17T11:45:07.048006Z",
+    "size": 167034533
+  },
+  "options": {
+    "maxDistance": 3,
+    "mapPassEnabled": true,
+    "mapMinCount": 2,
+    "mapMinPairSupport": 4,
+    "mapDominantPairMinRatio": 3,
+    "mapMaxX": 256,
+    "mapMaxY": 256,
+    "wallModelTypes": [
+      0,
+      1,
+      2,
+      3,
+      9
+    ],
+    "doorNameHints": [
+      "door",
+      "gate",
+      "grill",
+      "portcullis",
+      "trapdoor"
+    ],
+    "singleOutPath": "/mnt/c/Users/User/Desktop/osrs-typescript-remake/server/data/doors/single-doors.json",
+    "unresolvedOutPath": "/mnt/c/Users/User/Desktop/osrs-typescript-remake/server/data/doors/single-doors.unresolved.json"
+  },
+  "totals": {
+    "locCount": 60620,
+    "openOrCloseCandidates": 1868,
+    "wallDoorCandidates": 1147,
+    "ignoredNonWall": 691,
+    "ignoredNonDoorName": 30
+  },
+  "grouping": {
+    "fingerprintGroups": 304,
+    "acceptedGroups": 62,
+    "unresolvedGroups": 242,
+    "unresolvedReasonCounts": {
+      "missing-opened-side": 175,
+      "missing-closed-side": 14,
+      "distance-exceeds-threshold": 16,
+      "side-count-mismatch": 37
+    }
+  },
+  "mapPass": {
+    "enabled": true,
+    "minCountThreshold": 2,
+    "minPairSupportThreshold": 4,
+    "dominantPairMinRatio": 3,
+    "maxMapX": 256,
+    "maxMapY": 256,
+    "candidateIdCount": 945,
+    "mapSquaresWithLocArchive": 2856,
+    "mapSquaresWithLocData": 2543,
+    "totalLocPlacementsDecoded": 4623083,
+    "matchedCandidatePlacements": 2515,
+    "matchedCandidateIds": 652,
+    "groupsResolvedByMap": 0,
+    "groupsPartiallyResolvedByMap": 8,
+    "groupsResolvedByPattern": 1,
+    "mapResolvedPairCount": 16,
+    "patternResolvedPairCount": 2
+  },
+  "pairing": {
+    "pairCount": 117,
+    "maxDistanceThreshold": 3
+  },
+  "unresolvedGroups": [
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        34553
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"alchemical door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[36435]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        34554
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"alchemical door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[36443]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2922
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"ancient gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[1727]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2913
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"ancient gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[1771]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2912
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"ancient gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[1809]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2923
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"ancient gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[1815]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2255,
+        2256
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"ancient metal gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[1509,1511]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        8740,
+        8741
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"ardougne wall door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[8364]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        779,
+        4807
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"bamboo door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":false,\"t\":[0],\"m\":[4007]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        14974
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"bamboo door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[4723]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2032
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"bedroom door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[15236]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        26461
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"big door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[33151]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2599
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"blue door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[9476,9477]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        28794
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"bronze door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[14889]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        1281
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"cage door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[31260]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2240,
+        2241
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"carved doors\",\"sx\":2,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[1,10],\"m\":[607,611]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        24060,
+        24062
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"castle door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[11661]}"
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        24061,
+        24063
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"castle door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[11662]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        24059,
+        24064
+      ],
+      "openedIds": [
+        24065,
+        24066
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 24059,
+          "opened": 24065,
+          "distance": 6
+        },
+        {
+          "closed": 24064,
+          "opened": 24066,
+          "distance": 2
+        }
+      ],
+      "fingerprint": "{\"n\":\"castle door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[639]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        3463
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"cell door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":false,\"t\":[0],\"m\":[609]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        58097
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"cell door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[609]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        9562,
+        9563,
+        35795,
+        38012,
+        38013,
+        39402
+      ],
+      "openedIds": [
+        9564
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 9562,
+          "opened": 9564,
+          "distance": 2
+        }
+      ],
+      "fingerprint": "{\"n\":\"cell door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[9480]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        41801
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"cell door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[3543]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        31953,
+        31954
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"cell gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[609]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        53281
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"cell gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[9480]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        2786,
+        2787,
+        2788,
+        2789
+      ],
+      "openedIds": [
+        20087,
+        20088,
+        20089,
+        20090
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 2786,
+          "opened": 20087,
+          "distance": 17301
+        },
+        {
+          "closed": 2787,
+          "opened": 20088,
+          "distance": 17301
+        },
+        {
+          "closed": 2788,
+          "opened": 20089,
+          "distance": 17301
+        },
+        {
+          "closed": 2789,
+          "opened": 20090,
+          "distance": 17301
+        }
+      ],
+      "fingerprint": "{\"n\":\"city gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[20319]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        12723,
+        12725
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"colony gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[14889]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        49128
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"diamond gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[48742]}"
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        13008,
+        13009
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":0,\"proj\":false,\"t\":[0],\"m\":[13228]}"
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        13108,
+        13110
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":0,\"proj\":false,\"t\":[0],\"m\":[13239]}"
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        4251,
+        52389
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":0,\"proj\":false,\"t\":[0],\"m\":[4338]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        11763
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":false,\"t\":[0],\"m\":[5189]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        13006,
+        13007
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[13228]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        22007
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[22972]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        24759
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[26048]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        28456,
+        28457,
+        28458,
+        28459,
+        28460,
+        28461,
+        28462,
+        28463,
+        33570,
+        33572
+      ],
+      "openedIds": [
+        28464,
+        28465,
+        28466,
+        28467,
+        28468,
+        28469,
+        28470,
+        28471
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 28456,
+          "opened": 28464,
+          "distance": 8
+        },
+        {
+          "closed": 28457,
+          "opened": 28465,
+          "distance": 8
+        },
+        {
+          "closed": 28458,
+          "opened": 28466,
+          "distance": 8
+        },
+        {
+          "closed": 28459,
+          "opened": 28467,
+          "distance": 8
+        },
+        {
+          "closed": 28460,
+          "opened": 28468,
+          "distance": 8
+        },
+        {
+          "closed": 28461,
+          "opened": 28469,
+          "distance": 8
+        },
+        {
+          "closed": 28462,
+          "opened": 28470,
+          "distance": 8
+        },
+        {
+          "closed": 28463,
+          "opened": 28471,
+          "distance": 8
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[30746]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        553
+      ],
+      "openedIds": [
+        778
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 553,
+          "opened": 778,
+          "distance": 225
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[31252]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        777
+      ],
+      "openedIds": [
+        954
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 777,
+          "opened": 954,
+          "distance": 177
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[31271]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        34463
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[36474]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        34464
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[36480]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        60018
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[4528]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        50513,
+        50514
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[50489]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        5172
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[609]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        5174
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[616]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        21243
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[21629]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        43960,
+        43961,
+        43962,
+        43963
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[44501]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        1546,
+        1549,
+        1551,
+        1991,
+        8820,
+        23555
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[609]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        1543,
+        2000,
+        2002,
+        4636,
+        4637,
+        4638,
+        4640,
+        10325,
+        11196,
+        11197,
+        11724,
+        12348
+      ],
+      "openedIds": [
+        1544,
+        4639,
+        10327
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 1543,
+          "opened": 1544,
+          "distance": 1
+        },
+        {
+          "closed": 2000,
+          "opened": 4639,
+          "distance": 2639
+        },
+        {
+          "closed": 2002,
+          "opened": 10327,
+          "distance": 8325
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,1,2,3,9],\"m\":[574,575,576,634,635]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        53897
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,10],\"m\":[53667,53668]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        59,
+        92,
+        2705,
+        2706,
+        3747,
+        17316,
+        20925,
+        25642,
+        25718,
+        25799,
+        46863
+      ],
+      "openedIds": [
+        17317,
+        25643,
+        25719,
+        25800,
+        46864
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 59,
+          "opened": 17317,
+          "distance": 17258
+        },
+        {
+          "closed": 92,
+          "opened": 25643,
+          "distance": 25551
+        },
+        {
+          "closed": 2705,
+          "opened": 25719,
+          "distance": 23014
+        },
+        {
+          "closed": 2706,
+          "opened": 25800,
+          "distance": 23094
+        },
+        {
+          "closed": 3747,
+          "opened": 46864,
+          "distance": 43117
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[14928,14929]}",
+      "mapRefinement": {
+        "placedClosed": [
+          {
+            "id": 59,
+            "count": 1
+          },
+          {
+            "id": 92,
+            "count": 1
+          },
+          {
+            "id": 1540,
+            "count": 63
+          },
+          {
+            "id": 2705,
+            "count": 2
+          },
+          {
+            "id": 2706,
+            "count": 2
+          },
+          {
+            "id": 3747,
+            "count": 1
+          },
+          {
+            "id": 17316,
+            "count": 2
+          },
+          {
+            "id": 20925,
+            "count": 1
+          },
+          {
+            "id": 25642,
+            "count": 7
+          },
+          {
+            "id": 25718,
+            "count": 14
+          },
+          {
+            "id": 25799,
+            "count": 1
+          },
+          {
+            "id": 46863,
+            "count": 4
+          }
+        ],
+        "placedOpened": [
+          {
+            "id": 1541,
+            "count": 14
+          }
+        ],
+        "eligibleClosed": [
+          {
+            "id": 1540,
+            "count": 63
+          },
+          {
+            "id": 2705,
+            "count": 2
+          },
+          {
+            "id": 2706,
+            "count": 2
+          },
+          {
+            "id": 17316,
+            "count": 2
+          },
+          {
+            "id": 25642,
+            "count": 7
+          },
+          {
+            "id": 25718,
+            "count": 14
+          },
+          {
+            "id": 46863,
+            "count": 4
+          }
+        ],
+        "eligibleOpened": [
+          {
+            "id": 1541,
+            "count": 14
+          }
+        ],
+        "resolvedPairs": [
+          {
+            "closed": 1540,
+            "opened": 1541,
+            "distance": 1
+          }
+        ]
+      }
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        3,
+        4,
+        24,
+        81,
+        82,
+        93,
+        99,
+        102,
+        1722,
+        1726,
+        1804,
+        2034,
+        2036,
+        2054,
+        2069,
+        2184,
+        2338,
+        2399,
+        2427,
+        2428,
+        2429,
+        2430,
+        2431,
+        2526,
+        2528,
+        2537,
+        2595,
+        2621,
+        2622,
+        2626,
+        2627,
+        2628,
+        2863,
+        3270,
+        3745,
+        3746,
+        4962,
+        7222,
+        7259,
+        8786,
+        8787,
+        8789,
+        8818,
+        9398,
+        9709,
+        9710,
+        9716,
+        9721,
+        9722,
+        9723,
+        9724,
+        10045,
+        10260,
+        11483,
+        11719,
+        11720,
+        11723,
+        11725,
+        11727,
+        11728,
+        11777,
+        12444,
+        13001,
+        14749,
+        15759,
+        20817,
+        23338,
+        23378,
+        24052,
+        24054,
+        24056,
+        24364,
+        24366,
+        24958,
+        25418,
+        25716,
+        25819,
+        29066,
+        30164,
+        30167,
+        30364,
+        30365,
+        30366,
+        34927,
+        35932,
+        37940,
+        37941,
+        37961,
+        40178,
+        40325,
+        46253,
+        54706,
+        56147,
+        56149,
+        56376
+      ],
+      "openedIds": [
+        3271,
+        7260,
+        8791,
+        8819,
+        10261,
+        11776,
+        12445,
+        13002,
+        14750,
+        23339,
+        24053,
+        24055,
+        24363,
+        24365,
+        25417,
+        25717,
+        25820,
+        34929,
+        46254,
+        56148,
+        56150,
+        56377
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 3,
+          "opened": 3271,
+          "distance": 3268
+        },
+        {
+          "closed": 4,
+          "opened": 7260,
+          "distance": 7256
+        },
+        {
+          "closed": 24,
+          "opened": 8791,
+          "distance": 8767
+        },
+        {
+          "closed": 81,
+          "opened": 8819,
+          "distance": 8738
+        },
+        {
+          "closed": 82,
+          "opened": 10261,
+          "distance": 10179
+        },
+        {
+          "closed": 93,
+          "opened": 11776,
+          "distance": 11683
+        },
+        {
+          "closed": 99,
+          "opened": 12445,
+          "distance": 12346
+        },
+        {
+          "closed": 102,
+          "opened": 13002,
+          "distance": 12900
+        },
+        {
+          "closed": 1722,
+          "opened": 14750,
+          "distance": 13028
+        },
+        {
+          "closed": 1726,
+          "opened": 23339,
+          "distance": 21613
+        },
+        {
+          "closed": 1804,
+          "opened": 24053,
+          "distance": 22249
+        },
+        {
+          "closed": 2034,
+          "opened": 24055,
+          "distance": 22021
+        },
+        {
+          "closed": 2036,
+          "opened": 24363,
+          "distance": 22327
+        },
+        {
+          "closed": 2054,
+          "opened": 24365,
+          "distance": 22311
+        },
+        {
+          "closed": 2069,
+          "opened": 25417,
+          "distance": 23348
+        },
+        {
+          "closed": 2184,
+          "opened": 25717,
+          "distance": 23533
+        },
+        {
+          "closed": 2338,
+          "opened": 25820,
+          "distance": 23482
+        },
+        {
+          "closed": 2399,
+          "opened": 34929,
+          "distance": 32530
+        },
+        {
+          "closed": 2427,
+          "opened": 46254,
+          "distance": 43827
+        },
+        {
+          "closed": 2428,
+          "opened": 56148,
+          "distance": 53720
+        },
+        {
+          "closed": 2429,
+          "opened": 56150,
+          "distance": 53721
+        },
+        {
+          "closed": 2430,
+          "opened": 56377,
+          "distance": 53947
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[9476,9477]}",
+      "mapRefinement": {
+        "placedClosed": [
+          {
+            "id": 3,
+            "count": 1
+          },
+          {
+            "id": 24,
+            "count": 1
+          },
+          {
+            "id": 81,
+            "count": 2
+          },
+          {
+            "id": 82,
+            "count": 1
+          },
+          {
+            "id": 93,
+            "count": 1
+          },
+          {
+            "id": 99,
+            "count": 1
+          },
+          {
+            "id": 102,
+            "count": 1
+          },
+          {
+            "id": 1535,
+            "count": 268
+          },
+          {
+            "id": 1722,
+            "count": 5
+          },
+          {
+            "id": 1804,
+            "count": 1
+          },
+          {
+            "id": 2034,
+            "count": 1
+          },
+          {
+            "id": 2036,
+            "count": 2
+          },
+          {
+            "id": 2054,
+            "count": 1
+          },
+          {
+            "id": 2069,
+            "count": 1
+          },
+          {
+            "id": 2184,
+            "count": 1
+          },
+          {
+            "id": 2338,
+            "count": 1
+          },
+          {
+            "id": 2399,
+            "count": 1
+          },
+          {
+            "id": 2427,
+            "count": 1
+          },
+          {
+            "id": 2429,
+            "count": 1
+          },
+          {
+            "id": 2430,
+            "count": 1
+          },
+          {
+            "id": 2431,
+            "count": 1
+          },
+          {
+            "id": 2526,
+            "count": 1
+          },
+          {
+            "id": 2528,
+            "count": 1
+          },
+          {
+            "id": 2537,
+            "count": 1
+          },
+          {
+            "id": 2595,
+            "count": 1
+          },
+          {
+            "id": 2621,
+            "count": 1
+          },
+          {
+            "id": 2622,
+            "count": 1
+          },
+          {
+            "id": 2626,
+            "count": 1
+          },
+          {
+            "id": 2627,
+            "count": 1
+          },
+          {
+            "id": 2628,
+            "count": 1
+          },
+          {
+            "id": 2863,
+            "count": 1
+          },
+          {
+            "id": 3270,
+            "count": 1
+          },
+          {
+            "id": 3745,
+            "count": 1
+          },
+          {
+            "id": 3746,
+            "count": 1
+          },
+          {
+            "id": 4962,
+            "count": 1
+          },
+          {
+            "id": 7222,
+            "count": 11
+          },
+          {
+            "id": 7259,
+            "count": 1
+          },
+          {
+            "id": 8787,
+            "count": 1
+          },
+          {
+            "id": 8789,
+            "count": 1
+          },
+          {
+            "id": 9398,
+            "count": 1
+          },
+          {
+            "id": 9709,
+            "count": 1
+          },
+          {
+            "id": 9710,
+            "count": 1
+          },
+          {
+            "id": 9716,
+            "count": 1
+          },
+          {
+            "id": 9721,
+            "count": 1
+          },
+          {
+            "id": 9722,
+            "count": 1
+          },
+          {
+            "id": 9723,
+            "count": 1
+          },
+          {
+            "id": 10045,
+            "count": 2
+          },
+          {
+            "id": 10260,
+            "count": 1
+          },
+          {
+            "id": 11719,
+            "count": 2
+          },
+          {
+            "id": 11720,
+            "count": 2
+          },
+          {
+            "id": 11723,
+            "count": 1
+          },
+          {
+            "id": 11727,
+            "count": 3
+          },
+          {
+            "id": 11728,
+            "count": 1
+          },
+          {
+            "id": 11775,
+            "count": 43
+          },
+          {
+            "id": 11777,
+            "count": 1
+          },
+          {
+            "id": 12444,
+            "count": 3
+          },
+          {
+            "id": 13001,
+            "count": 4
+          },
+          {
+            "id": 14749,
+            "count": 32
+          },
+          {
+            "id": 15759,
+            "count": 4
+          },
+          {
+            "id": 20817,
+            "count": 2
+          },
+          {
+            "id": 23338,
+            "count": 3
+          },
+          {
+            "id": 23378,
+            "count": 1
+          },
+          {
+            "id": 24050,
+            "count": 11
+          },
+          {
+            "id": 24057,
+            "count": 22
+          },
+          {
+            "id": 24369,
+            "count": 11
+          },
+          {
+            "id": 24958,
+            "count": 2
+          },
+          {
+            "id": 25418,
+            "count": 1
+          },
+          {
+            "id": 25716,
+            "count": 1
+          },
+          {
+            "id": 25819,
+            "count": 6
+          },
+          {
+            "id": 30164,
+            "count": 1
+          },
+          {
+            "id": 30167,
+            "count": 1
+          },
+          {
+            "id": 30364,
+            "count": 1
+          },
+          {
+            "id": 30365,
+            "count": 1
+          },
+          {
+            "id": 30366,
+            "count": 1
+          },
+          {
+            "id": 37940,
+            "count": 1
+          },
+          {
+            "id": 37941,
+            "count": 1
+          },
+          {
+            "id": 37961,
+            "count": 1
+          },
+          {
+            "id": 40178,
+            "count": 1
+          },
+          {
+            "id": 46253,
+            "count": 1
+          },
+          {
+            "id": 54706,
+            "count": 1
+          },
+          {
+            "id": 56376,
+            "count": 1
+          }
+        ],
+        "placedOpened": [
+          {
+            "id": 1536,
+            "count": 30
+          },
+          {
+            "id": 10261,
+            "count": 2
+          },
+          {
+            "id": 11774,
+            "count": 13
+          },
+          {
+            "id": 24051,
+            "count": 9
+          },
+          {
+            "id": 24055,
+            "count": 2
+          },
+          {
+            "id": 24058,
+            "count": 5
+          },
+          {
+            "id": 24363,
+            "count": 4
+          },
+          {
+            "id": 24368,
+            "count": 3
+          }
+        ],
+        "eligibleClosed": [
+          {
+            "id": 81,
+            "count": 2
+          },
+          {
+            "id": 1535,
+            "count": 268
+          },
+          {
+            "id": 1722,
+            "count": 5
+          },
+          {
+            "id": 2036,
+            "count": 2
+          },
+          {
+            "id": 7222,
+            "count": 11
+          },
+          {
+            "id": 10045,
+            "count": 2
+          },
+          {
+            "id": 11719,
+            "count": 2
+          },
+          {
+            "id": 11720,
+            "count": 2
+          },
+          {
+            "id": 11727,
+            "count": 3
+          },
+          {
+            "id": 11775,
+            "count": 43
+          },
+          {
+            "id": 12444,
+            "count": 3
+          },
+          {
+            "id": 13001,
+            "count": 4
+          },
+          {
+            "id": 14749,
+            "count": 32
+          },
+          {
+            "id": 15759,
+            "count": 4
+          },
+          {
+            "id": 20817,
+            "count": 2
+          },
+          {
+            "id": 23338,
+            "count": 3
+          },
+          {
+            "id": 24050,
+            "count": 11
+          },
+          {
+            "id": 24057,
+            "count": 22
+          },
+          {
+            "id": 24369,
+            "count": 11
+          },
+          {
+            "id": 24958,
+            "count": 2
+          },
+          {
+            "id": 25819,
+            "count": 6
+          }
+        ],
+        "eligibleOpened": [
+          {
+            "id": 1536,
+            "count": 30
+          },
+          {
+            "id": 10261,
+            "count": 2
+          },
+          {
+            "id": 11774,
+            "count": 13
+          },
+          {
+            "id": 24051,
+            "count": 9
+          },
+          {
+            "id": 24055,
+            "count": 2
+          },
+          {
+            "id": 24058,
+            "count": 5
+          },
+          {
+            "id": 24363,
+            "count": 4
+          },
+          {
+            "id": 24368,
+            "count": 3
+          }
+        ],
+        "resolvedPairs": [
+          {
+            "closed": 1535,
+            "opened": 1536,
+            "distance": 1
+          },
+          {
+            "closed": 11775,
+            "opened": 11774,
+            "distance": 1
+          },
+          {
+            "closed": 24050,
+            "opened": 24051,
+            "distance": 1
+          },
+          {
+            "closed": 24057,
+            "opened": 24058,
+            "distance": 1
+          },
+          {
+            "closed": 24369,
+            "opened": 24368,
+            "distance": 1
+          }
+        ]
+      }
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        10418,
+        10419,
+        10420,
+        10421,
+        10423,
+        10425,
+        10427,
+        10429
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[10174]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        11064,
+        11066,
+        11151
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[10965]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        11057
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[10966]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        11068,
+        11070,
+        11152
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[10967]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        11053
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[10968]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        11055
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[10969]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        11051
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[10970]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        136
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[11471]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        22,
+        131,
+        11470
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[11474]}"
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        11471
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[11475]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        44059,
+        44060
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[11873]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        13348
+      ],
+      "openedIds": [
+        13354
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 13348,
+          "opened": 13354,
+          "distance": 6
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[12205]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        13344
+      ],
+      "openedIds": [
+        13350
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 13344,
+          "opened": 13350,
+          "distance": 6
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[12206]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        13346
+      ],
+      "openedIds": [
+        13352
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 13346,
+          "opened": 13352,
+          "distance": 6
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[12207]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        13349
+      ],
+      "openedIds": [
+        13355
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 13349,
+          "opened": 13355,
+          "distance": 6
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[12208]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        13345
+      ],
+      "openedIds": [
+        13351
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 13345,
+          "opened": 13351,
+          "distance": 6
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[12209]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        13347
+      ],
+      "openedIds": [
+        13353
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 13347,
+          "opened": 13353,
+          "distance": 6
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[12210]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        13107,
+        13109
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[13239]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        1805,
+        2861,
+        23056,
+        24686,
+        32464,
+        32465,
+        53100,
+        53101,
+        54695
+      ],
+      "openedIds": [
+        24685,
+        53102,
+        53103
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 1805,
+          "opened": 24685,
+          "distance": 22880
+        },
+        {
+          "closed": 2861,
+          "opened": 53102,
+          "distance": 50241
+        },
+        {
+          "closed": 23056,
+          "opened": 53103,
+          "distance": 30047
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[15236]}",
+      "mapRefinement": {
+        "placedClosed": [
+          {
+            "id": 1805,
+            "count": 1
+          },
+          {
+            "id": 2861,
+            "count": 1
+          },
+          {
+            "id": 11773,
+            "count": 114
+          },
+          {
+            "id": 24686,
+            "count": 3
+          },
+          {
+            "id": 32464,
+            "count": 2
+          },
+          {
+            "id": 53100,
+            "count": 2
+          },
+          {
+            "id": 53101,
+            "count": 2
+          },
+          {
+            "id": 54695,
+            "count": 1
+          }
+        ],
+        "placedOpened": [
+          {
+            "id": 11772,
+            "count": 35
+          }
+        ],
+        "eligibleClosed": [
+          {
+            "id": 11773,
+            "count": 114
+          },
+          {
+            "id": 24686,
+            "count": 3
+          },
+          {
+            "id": 32464,
+            "count": 2
+          },
+          {
+            "id": 53100,
+            "count": 2
+          },
+          {
+            "id": 53101,
+            "count": 2
+          }
+        ],
+        "eligibleOpened": [
+          {
+            "id": 11772,
+            "count": 35
+          }
+        ],
+        "resolvedPairs": [
+          {
+            "closed": 11773,
+            "opened": 11772,
+            "distance": 1
+          }
+        ]
+      }
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        24306,
+        24309,
+        24315,
+        39507
+      ],
+      "openedIds": [
+        24307,
+        24310,
+        24316
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 24306,
+          "opened": 24307,
+          "distance": 1
+        },
+        {
+          "closed": 24309,
+          "opened": 24310,
+          "distance": 1
+        },
+        {
+          "closed": 24315,
+          "opened": 24316,
+          "distance": 1
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[15338]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        10043,
+        24312
+      ],
+      "openedIds": [
+        24313
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 10043,
+          "opened": 24313,
+          "distance": 14270
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[15339]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        16902
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[16563]}"
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        16903
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[16564]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        16774,
+        16776
+      ],
+      "openedIds": [
+        16777
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 16774,
+          "opened": 16777,
+          "distance": 3
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[16605]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        17601,
+        18091,
+        18092
+      ],
+      "openedIds": [
+        18032
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 17601,
+          "opened": 18032,
+          "distance": 431
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[17614]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        17600,
+        17973
+      ],
+      "openedIds": [
+        18031
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 17600,
+          "opened": 18031,
+          "distance": 431
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[17615]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        18057
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[17743]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        18047
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[17863]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        18702,
+        18703
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[18668]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        2397,
+        2398,
+        11783,
+        32562,
+        44784,
+        50048
+      ],
+      "openedIds": [
+        11782,
+        44785
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 2397,
+          "opened": 11782,
+          "distance": 9385
+        },
+        {
+          "closed": 2398,
+          "opened": 44785,
+          "distance": 42387
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[20643]}",
+      "mapRefinement": {
+        "placedClosed": [
+          {
+            "id": 2397,
+            "count": 1
+          },
+          {
+            "id": 2398,
+            "count": 1
+          },
+          {
+            "id": 11780,
+            "count": 25
+          },
+          {
+            "id": 11783,
+            "count": 5
+          },
+          {
+            "id": 32562,
+            "count": 1
+          },
+          {
+            "id": 44784,
+            "count": 1
+          },
+          {
+            "id": 50048,
+            "count": 2
+          }
+        ],
+        "placedOpened": [
+          {
+            "id": 11778,
+            "count": 6
+          }
+        ],
+        "eligibleClosed": [
+          {
+            "id": 11780,
+            "count": 25
+          },
+          {
+            "id": 11783,
+            "count": 5
+          },
+          {
+            "id": 50048,
+            "count": 2
+          }
+        ],
+        "eligibleOpened": [
+          {
+            "id": 11778,
+            "count": 6
+          }
+        ],
+        "resolvedPairs": [
+          {
+            "closed": 11780,
+            "opened": 11778,
+            "distance": 2
+          }
+        ]
+      }
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        21170
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[21677]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        21167
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[21724]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        21065,
+        21160,
+        21162,
+        21164
+      ],
+      "openedIds": [
+        21161
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 21065,
+          "opened": 21161,
+          "distance": 96
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[21755]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        21169,
+        21171
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[21765]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        24565,
+        24567
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[25086]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        2862,
+        24816
+      ],
+      "openedIds": [
+        24815
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 2862,
+          "opened": 24815,
+          "distance": 21953
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[26063]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        9319
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[27076]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        9316
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[27078]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        9318
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[27083]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        9317
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[27099]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        34926,
+        35931
+      ],
+      "openedIds": [
+        34928
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 34926,
+          "opened": 34928,
+          "distance": 2
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[3197]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        30112,
+        30113,
+        30114,
+        30115,
+        30116,
+        30117,
+        30118,
+        30119
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[32338]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        32052
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[35000]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        33491
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[36259]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        37455,
+        37457
+      ],
+      "openedIds": [
+        37456,
+        39882
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 37455,
+          "opened": 37456,
+          "distance": 1
+        },
+        {
+          "closed": 37457,
+          "opened": 39882,
+          "distance": 2425
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[40857]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        41870
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[42350]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        4148,
+        4165,
+        4166,
+        4696,
+        7373,
+        21340
+      ],
+      "openedIds": [
+        4697,
+        7374,
+        21342
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 4148,
+          "opened": 4697,
+          "distance": 549
+        },
+        {
+          "closed": 4165,
+          "opened": 7374,
+          "distance": 3209
+        },
+        {
+          "closed": 4166,
+          "opened": 21342,
+          "distance": 17176
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[4336]}",
+      "mapRefinement": {
+        "placedClosed": [
+          {
+            "id": 4148,
+            "count": 1
+          },
+          {
+            "id": 4165,
+            "count": 1
+          },
+          {
+            "id": 4166,
+            "count": 1
+          },
+          {
+            "id": 4247,
+            "count": 9
+          },
+          {
+            "id": 4696,
+            "count": 5
+          },
+          {
+            "id": 21340,
+            "count": 1
+          },
+          {
+            "id": 21341,
+            "count": 3
+          }
+        ],
+        "placedOpened": [
+          {
+            "id": 4248,
+            "count": 2
+          },
+          {
+            "id": 21343,
+            "count": 3
+          }
+        ],
+        "eligibleClosed": [
+          {
+            "id": 4247,
+            "count": 9
+          },
+          {
+            "id": 4696,
+            "count": 5
+          },
+          {
+            "id": 21341,
+            "count": 3
+          }
+        ],
+        "eligibleOpened": [
+          {
+            "id": 4248,
+            "count": 2
+          },
+          {
+            "id": 21343,
+            "count": 3
+          }
+        ],
+        "resolvedPairs": [
+          {
+            "closed": 4247,
+            "opened": 4248,
+            "distance": 1
+          },
+          {
+            "closed": 21341,
+            "opened": 21343,
+            "distance": 2
+          }
+        ]
+      }
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        4250,
+        52388
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[4337]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        43087
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[43767]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        2108,
+        2111,
+        5183,
+        5186,
+        6624,
+        6625
+      ],
+      "openedIds": [
+        2112,
+        2113,
+        5187,
+        5188,
+        6626,
+        6627
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 2108,
+          "opened": 2112,
+          "distance": 4
+        },
+        {
+          "closed": 2111,
+          "opened": 2113,
+          "distance": 2
+        },
+        {
+          "closed": 5183,
+          "opened": 5187,
+          "distance": 4
+        },
+        {
+          "closed": 5186,
+          "opened": 5188,
+          "distance": 2
+        },
+        {
+          "closed": 6624,
+          "opened": 6626,
+          "distance": 2
+        },
+        {
+          "closed": 6625,
+          "opened": 6627,
+          "distance": 2
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[4474]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        50152,
+        50528,
+        50529
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[50426]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        52594,
+        52597,
+        52600,
+        52602,
+        52604,
+        52605,
+        52607,
+        52608,
+        55096,
+        55097,
+        56507,
+        56509,
+        56513,
+        56528,
+        56539
+      ],
+      "openedIds": [
+        52596,
+        52599,
+        52601,
+        52603,
+        52606,
+        52609,
+        56540
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 52594,
+          "opened": 52596,
+          "distance": 2
+        },
+        {
+          "closed": 52597,
+          "opened": 52599,
+          "distance": 2
+        },
+        {
+          "closed": 52600,
+          "opened": 52601,
+          "distance": 1
+        },
+        {
+          "closed": 52602,
+          "opened": 52603,
+          "distance": 1
+        },
+        {
+          "closed": 52604,
+          "opened": 52606,
+          "distance": 2
+        },
+        {
+          "closed": 52605,
+          "opened": 52609,
+          "distance": 4
+        },
+        {
+          "closed": 52607,
+          "opened": 56540,
+          "distance": 3933
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[51803]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        2406,
+        5244,
+        7274,
+        7302,
+        7317,
+        7320,
+        7323,
+        7326,
+        7354,
+        10431,
+        11616,
+        12657,
+        15056,
+        15204,
+        17114,
+        18168,
+        28651,
+        28783
+      ],
+      "openedIds": [
+        5245,
+        11617,
+        15205,
+        17115
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 2406,
+          "opened": 5245,
+          "distance": 2839
+        },
+        {
+          "closed": 5244,
+          "opened": 11617,
+          "distance": 6373
+        },
+        {
+          "closed": 7274,
+          "opened": 15205,
+          "distance": 7931
+        },
+        {
+          "closed": 7302,
+          "opened": 17115,
+          "distance": 9813
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[5189]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        56632,
+        56634
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[52139]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        5453,
+        5454
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[5363]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        60221,
+        60222,
+        60228
+      ],
+      "openedIds": [
+        60223,
+        60224
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 60221,
+          "opened": 60223,
+          "distance": 2
+        },
+        {
+          "closed": 60222,
+          "opened": 60224,
+          "distance": 2
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[58427]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        6977
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[5912]}",
+      "mapRefinement": {
+        "placedClosed": [
+          {
+            "id": 6106,
+            "count": 13
+          },
+          {
+            "id": 6108,
+            "count": 11
+          },
+          {
+            "id": 6977,
+            "count": 1
+          }
+        ],
+        "placedOpened": [
+          {
+            "id": 6107,
+            "count": 6
+          },
+          {
+            "id": 6109,
+            "count": 3
+          }
+        ],
+        "eligibleClosed": [
+          {
+            "id": 6106,
+            "count": 13
+          },
+          {
+            "id": 6108,
+            "count": 11
+          }
+        ],
+        "eligibleOpened": [
+          {
+            "id": 6107,
+            "count": 6
+          },
+          {
+            "id": 6109,
+            "count": 3
+          }
+        ],
+        "resolvedPairs": [
+          {
+            "closed": 6106,
+            "opened": 6107,
+            "distance": 1
+          },
+          {
+            "closed": 6108,
+            "opened": 6109,
+            "distance": 1
+          }
+        ]
+      }
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        58281
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[59656]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        58280
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[59657]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        6238,
+        6240
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[6068]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        2631,
+        5501,
+        8788,
+        11726,
+        34844
+      ],
+      "openedIds": [
+        1547,
+        1550,
+        1552,
+        8821
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 2631,
+          "opened": 1552,
+          "distance": 1079
+        },
+        {
+          "closed": 5501,
+          "opened": 8821,
+          "distance": 3320
+        },
+        {
+          "closed": 8788,
+          "opened": 1550,
+          "distance": 7238
+        },
+        {
+          "closed": 11726,
+          "opened": 1547,
+          "distance": 10179
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[609]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        2546,
+        2548,
+        2624,
+        2625,
+        10262,
+        10264,
+        14751,
+        14752,
+        25825,
+        25827,
+        37937,
+        37938,
+        37963,
+        37964
+      ],
+      "openedIds": [
+        2547,
+        2549,
+        10263,
+        10265,
+        14753,
+        14754,
+        25826,
+        25828,
+        26205
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 2546,
+          "opened": 2547,
+          "distance": 1
+        },
+        {
+          "closed": 2548,
+          "opened": 2549,
+          "distance": 1
+        },
+        {
+          "closed": 2624,
+          "opened": 10263,
+          "distance": 7639
+        },
+        {
+          "closed": 2625,
+          "opened": 10265,
+          "distance": 7640
+        },
+        {
+          "closed": 10262,
+          "opened": 14753,
+          "distance": 4491
+        },
+        {
+          "closed": 10264,
+          "opened": 14754,
+          "distance": 4490
+        },
+        {
+          "closed": 14751,
+          "opened": 25826,
+          "distance": 11075
+        },
+        {
+          "closed": 14752,
+          "opened": 25828,
+          "distance": 11076
+        },
+        {
+          "closed": 25825,
+          "opened": 26205,
+          "distance": 380
+        }
+      ],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[639]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        17911,
+        17912,
+        20679,
+        20698
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[6623]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        7231,
+        7232,
+        7233,
+        7234
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[7570]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        9565
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[9480]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        48266,
+        48267,
+        48278,
+        48279
+      ],
+      "openedIds": [
+        48270,
+        48271,
+        48282,
+        48283
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 48266,
+          "opened": 48270,
+          "distance": 4
+        },
+        {
+          "closed": 48267,
+          "opened": 48271,
+          "distance": 4
+        },
+        {
+          "closed": 48278,
+          "opened": 48282,
+          "distance": 4
+        },
+        {
+          "closed": 48279,
+          "opened": 48283,
+          "distance": 4
+        }
+      ],
+      "fingerprint": "{\"n\":\"doors\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[48796]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        50511
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"doors\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[50454]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        50510
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"doors\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[50455]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        7256
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"doorway\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[7567]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        4710
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"doorway\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[4007]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        49130
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"dragonstone gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[48742]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        1725
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"dungeon door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[9476,9477]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        49124
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"emerald gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[48742]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2602
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"exit door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[9476,9477]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        27445
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"farm door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[37239]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        19206,
+        19207
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate of war\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,10],\"m\":[15613,15614]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        53921
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":false,\"t\":[0,10],\"m\":[53881,53883]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        53899,
+        53922
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":false,\"t\":[0],\"m\":[53624]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        11951,
+        11952,
+        11953,
+        11954,
+        24564
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0,2],\"m\":[18595,35759]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        1730,
+        1731,
+        2438,
+        3725,
+        3726,
+        4311,
+        4312,
+        8810,
+        8811,
+        44920,
+        44921
+      ],
+      "openedIds": [
+        8812,
+        8813
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 1730,
+          "opened": 8812,
+          "distance": 7082
+        },
+        {
+          "closed": 1731,
+          "opened": 8813,
+          "distance": 7082
+        }
+      ],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0,1,9],\"m\":[966,967,968]}",
+      "mapRefinement": {
+        "placedClosed": [
+          {
+            "id": 1558,
+            "count": 20
+          },
+          {
+            "id": 1560,
+            "count": 20
+          },
+          {
+            "id": 2438,
+            "count": 2
+          },
+          {
+            "id": 3725,
+            "count": 1
+          },
+          {
+            "id": 3726,
+            "count": 1
+          },
+          {
+            "id": 4311,
+            "count": 1
+          },
+          {
+            "id": 4312,
+            "count": 1
+          },
+          {
+            "id": 8810,
+            "count": 1
+          },
+          {
+            "id": 8811,
+            "count": 1
+          },
+          {
+            "id": 44920,
+            "count": 4
+          },
+          {
+            "id": 44921,
+            "count": 4
+          }
+        ],
+        "placedOpened": [],
+        "eligibleClosed": [
+          {
+            "id": 1558,
+            "count": 20
+          },
+          {
+            "id": 1560,
+            "count": 20
+          },
+          {
+            "id": 2438,
+            "count": 2
+          },
+          {
+            "id": 44920,
+            "count": 4
+          },
+          {
+            "id": 44921,
+            "count": 4
+          }
+        ],
+        "eligibleOpened": [],
+        "resolvedPairs": [
+          {
+            "closed": 1558,
+            "opened": 3727,
+            "distance": 2169
+          },
+          {
+            "closed": 1560,
+            "opened": 3728,
+            "distance": 2168
+          }
+        ]
+      }
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        89,
+        90,
+        94,
+        95,
+        1568,
+        1569,
+        1600,
+        1601,
+        1727,
+        1728,
+        2154,
+        2155,
+        3506,
+        3507,
+        9717,
+        9718,
+        9719,
+        9720,
+        23552,
+        23554,
+        37948,
+        37952,
+        37953,
+        37954,
+        39657,
+        39658
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0,9],\"m\":[1509,1511]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2394
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[1298]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        15604,
+        15605
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[15401]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        2050,
+        15510,
+        15514,
+        24560
+      ],
+      "openedIds": [
+        15511,
+        15515
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 2050,
+          "opened": 15511,
+          "distance": 13461
+        },
+        {
+          "closed": 15510,
+          "opened": 15515,
+          "distance": 5
+        }
+      ],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[25029]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        2051,
+        15512,
+        15516,
+        24561
+      ],
+      "openedIds": [
+        15513,
+        15517
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 2051,
+          "opened": 15513,
+          "distance": 13462
+        },
+        {
+          "closed": 15512,
+          "opened": 15517,
+          "distance": 5
+        }
+      ],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[25030]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        11766,
+        11767
+      ],
+      "openedIds": [
+        11770,
+        11771
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 11766,
+          "opened": 11770,
+          "distance": 4
+        },
+        {
+          "closed": 11767,
+          "opened": 11771,
+          "distance": 4
+        }
+      ],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[25036]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        26081,
+        26082
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[27467]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        26131
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[27535]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        26130
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[27540]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        20850
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[41110]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        20849
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[41111]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        53443,
+        53445
+      ],
+      "openedIds": [
+        53446
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 53443,
+          "opened": 53446,
+          "distance": 3
+        }
+      ],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[54022]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        41600,
+        41877,
+        41902,
+        48301,
+        48774,
+        49657,
+        50051,
+        54364,
+        54365
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[609]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        883,
+        1561,
+        1562,
+        12816,
+        12817,
+        12986,
+        12987,
+        20847,
+        20848,
+        23917
+      ],
+      "openedIds": [
+        1563,
+        1564,
+        12988,
+        12989,
+        23918,
+        23919
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 883,
+          "opened": 1563,
+          "distance": 680
+        },
+        {
+          "closed": 1561,
+          "opened": 1564,
+          "distance": 3
+        },
+        {
+          "closed": 1562,
+          "opened": 12988,
+          "distance": 11426
+        },
+        {
+          "closed": 12816,
+          "opened": 12989,
+          "distance": 173
+        },
+        {
+          "closed": 12817,
+          "opened": 23918,
+          "distance": 11101
+        },
+        {
+          "closed": 12986,
+          "opened": 23919,
+          "distance": 10933
+        }
+      ],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[7371]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        39510,
+        39512,
+        41861,
+        50861,
+        52821
+      ],
+      "openedIds": [
+        41862
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 39510,
+          "opened": 41862,
+          "distance": 2352
+        }
+      ],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[9480]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        166,
+        167,
+        2439,
+        9470,
+        9708,
+        30165,
+        30166
+      ],
+      "openedIds": [
+        1559,
+        1567
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 166,
+          "opened": 1559,
+          "distance": 1393
+        },
+        {
+          "closed": 167,
+          "opened": 1567,
+          "distance": 1400
+        }
+      ],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,1,9],\"m\":[966,967,968]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        2039,
+        2041,
+        2058,
+        2060,
+        2115,
+        2116,
+        2391,
+        2392,
+        2432,
+        2433,
+        2673,
+        2674,
+        2814,
+        2815,
+        2865,
+        2866,
+        6451,
+        6452,
+        11721,
+        11722,
+        44050,
+        44051,
+        44052,
+        44053
+      ],
+      "openedIds": [
+        1571,
+        1572
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 2039,
+          "opened": 1572,
+          "distance": 467
+        },
+        {
+          "closed": 2041,
+          "opened": 1571,
+          "distance": 470
+        }
+      ],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[1509,1511]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        47,
+        48
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[14353]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        52,
+        53,
+        28851,
+        28852
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[14356]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2685,
+        2686,
+        2687,
+        2688
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[19288]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        20045,
+        20046
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[20319]}"
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        20049,
+        20050
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[20320]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        44036,
+        44038,
+        44040,
+        44042,
+        44043
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[20797]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        21172
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[21565]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        11987,
+        12617,
+        12639,
+        12719
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[22246]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        24536
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[25369]}"
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        26133
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[27535]}"
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        26132
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[27540]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        14979,
+        14980,
+        14981,
+        14982,
+        14983
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[3334]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        34469,
+        34470,
+        34473,
+        34474
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[36483]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        46601,
+        46602,
+        46603,
+        46660,
+        49098,
+        49120
+      ],
+      "openedIds": [
+        46661
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 46601,
+          "opened": 46661,
+          "distance": 60
+        }
+      ],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[47007]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        46658,
+        49118,
+        49138,
+        49140
+      ],
+      "openedIds": [
+        46659
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 46658,
+          "opened": 46659,
+          "distance": 1
+        }
+      ],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[47020]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        50149,
+        50150,
+        50537
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[50613]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        53441
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[54022]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        37,
+        38,
+        2623,
+        3444,
+        3445,
+        26760,
+        29486,
+        29487,
+        29488,
+        29489,
+        32534
+      ],
+      "openedIds": [
+        41602,
+        41904
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 37,
+          "opened": 41602,
+          "distance": 41565
+        },
+        {
+          "closed": 38,
+          "opened": 41904,
+          "distance": 41866
+        }
+      ],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[609]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        9140,
+        9141
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[9081]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        42529
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[9480]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        10172,
+        44916
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[9872]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        10318
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"gates\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0,2,3,9],\"m\":[3531,3532,3533,3534]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        1762,
+        6943
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"glass door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[37222]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2601
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"green door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[9476,9477]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        7255
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"grill\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[7567]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        11665,
+        14910
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"guild door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[9476,9477]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        9038,
+        9039
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"hardwood grove doors\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,2,3,9,10],\"m\":[2192,2202,2203,2204,2205]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        15658,
+        15660
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"heavy door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,10],\"m\":[15379,15380]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        49599
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"heavy door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[49743]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2199,
+        2200
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"kitchen gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[1509,1511]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        1517,
+        3743,
+        17089
+      ],
+      "openedIds": [
+        1520,
+        17090
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 1517,
+          "opened": 1520,
+          "distance": 3
+        },
+        {
+          "closed": 3743,
+          "opened": 17090,
+          "distance": 13347
+        }
+      ],
+      "fingerprint": "{\"n\":\"large door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[14930,14931]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        134,
+        135,
+        30110,
+        30111
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"large door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[11472]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        2416,
+        5667,
+        25804,
+        25806,
+        25813,
+        25814
+      ],
+      "openedIds": [
+        2417,
+        25805,
+        25807,
+        25815,
+        25816,
+        26207
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 2416,
+          "opened": 2417,
+          "distance": 1
+        },
+        {
+          "closed": 5667,
+          "opened": 25805,
+          "distance": 20138
+        },
+        {
+          "closed": 25804,
+          "opened": 25807,
+          "distance": 3
+        },
+        {
+          "closed": 25806,
+          "opened": 25815,
+          "distance": 9
+        },
+        {
+          "closed": 25813,
+          "opened": 25816,
+          "distance": 3
+        },
+        {
+          "closed": 25814,
+          "opened": 26207,
+          "distance": 393
+        }
+      ],
+      "fingerprint": "{\"n\":\"large door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[25086]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        3489,
+        3490
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"large door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[3544]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        39251,
+        39253
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"large door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[40489]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        4629,
+        4631
+      ],
+      "openedIds": [
+        4630
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 4629,
+          "opened": 4630,
+          "distance": 1
+        }
+      ],
+      "fingerprint": "{\"n\":\"large door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[4602]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        4632,
+        4633
+      ],
+      "openedIds": [
+        4634
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 4632,
+          "opened": 4634,
+          "distance": 2
+        }
+      ],
+      "fingerprint": "{\"n\":\"large door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[4603]}"
+    },
+    {
+      "reason": "distance-exceeds-threshold",
+      "closedIds": [
+        53313,
+        53314
+      ],
+      "openedIds": [
+        53317,
+        53318
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 53313,
+          "opened": 53317,
+          "distance": 4
+        },
+        {
+          "closed": 53314,
+          "opened": 53318,
+          "distance": 4
+        }
+      ],
+      "fingerprint": "{\"n\":\"large door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[53885]}"
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        1512,
+        1516
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"large door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[594]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        1511,
+        1513
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"large door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[633]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        71,
+        72,
+        73,
+        74,
+        4423,
+        4424,
+        4427,
+        4428,
+        4963,
+        4964,
+        12349,
+        12350,
+        17091,
+        17093,
+        25594,
+        25595,
+        25638,
+        25640,
+        25748,
+        25750,
+        25788,
+        25790,
+        30387,
+        30388
+      ],
+      "openedIds": [
+        4425,
+        4426,
+        4429,
+        4430,
+        17092,
+        17094,
+        25639,
+        25641,
+        25789,
+        25791
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 71,
+          "opened": 4425,
+          "distance": 4354
+        },
+        {
+          "closed": 72,
+          "opened": 4426,
+          "distance": 4354
+        },
+        {
+          "closed": 73,
+          "opened": 4429,
+          "distance": 4356
+        },
+        {
+          "closed": 74,
+          "opened": 4430,
+          "distance": 4356
+        },
+        {
+          "closed": 4423,
+          "opened": 17092,
+          "distance": 12669
+        },
+        {
+          "closed": 4424,
+          "opened": 17094,
+          "distance": 12670
+        },
+        {
+          "closed": 4427,
+          "opened": 25639,
+          "distance": 21212
+        },
+        {
+          "closed": 4428,
+          "opened": 25641,
+          "distance": 21213
+        },
+        {
+          "closed": 4963,
+          "opened": 25789,
+          "distance": 20826
+        },
+        {
+          "closed": 4964,
+          "opened": 25791,
+          "distance": 20827
+        }
+      ],
+      "fingerprint": "{\"n\":\"large door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[639]}",
+      "mapRefinement": {
+        "placedClosed": [
+          {
+            "id": 71,
+            "count": 2
+          },
+          {
+            "id": 72,
+            "count": 2
+          },
+          {
+            "id": 73,
+            "count": 2
+          },
+          {
+            "id": 74,
+            "count": 2
+          },
+          {
+            "id": 1521,
+            "count": 28
+          },
+          {
+            "id": 1524,
+            "count": 28
+          },
+          {
+            "id": 4423,
+            "count": 2
+          },
+          {
+            "id": 4424,
+            "count": 2
+          },
+          {
+            "id": 4427,
+            "count": 2
+          },
+          {
+            "id": 4428,
+            "count": 2
+          },
+          {
+            "id": 4963,
+            "count": 3
+          },
+          {
+            "id": 4964,
+            "count": 3
+          },
+          {
+            "id": 12349,
+            "count": 2
+          },
+          {
+            "id": 12350,
+            "count": 2
+          },
+          {
+            "id": 17091,
+            "count": 4
+          },
+          {
+            "id": 17093,
+            "count": 4
+          },
+          {
+            "id": 25594,
+            "count": 1
+          },
+          {
+            "id": 25595,
+            "count": 1
+          },
+          {
+            "id": 25638,
+            "count": 2
+          },
+          {
+            "id": 25640,
+            "count": 2
+          },
+          {
+            "id": 25748,
+            "count": 1
+          },
+          {
+            "id": 25750,
+            "count": 1
+          },
+          {
+            "id": 25788,
+            "count": 1
+          },
+          {
+            "id": 25790,
+            "count": 1
+          },
+          {
+            "id": 30387,
+            "count": 1
+          },
+          {
+            "id": 30388,
+            "count": 1
+          }
+        ],
+        "placedOpened": [
+          {
+            "id": 1522,
+            "count": 2
+          },
+          {
+            "id": 1525,
+            "count": 2
+          }
+        ],
+        "eligibleClosed": [
+          {
+            "id": 71,
+            "count": 2
+          },
+          {
+            "id": 72,
+            "count": 2
+          },
+          {
+            "id": 73,
+            "count": 2
+          },
+          {
+            "id": 74,
+            "count": 2
+          },
+          {
+            "id": 1521,
+            "count": 28
+          },
+          {
+            "id": 1524,
+            "count": 28
+          },
+          {
+            "id": 4423,
+            "count": 2
+          },
+          {
+            "id": 4424,
+            "count": 2
+          },
+          {
+            "id": 4427,
+            "count": 2
+          },
+          {
+            "id": 4428,
+            "count": 2
+          },
+          {
+            "id": 4963,
+            "count": 3
+          },
+          {
+            "id": 4964,
+            "count": 3
+          },
+          {
+            "id": 12349,
+            "count": 2
+          },
+          {
+            "id": 12350,
+            "count": 2
+          },
+          {
+            "id": 17091,
+            "count": 4
+          },
+          {
+            "id": 17093,
+            "count": 4
+          },
+          {
+            "id": 25638,
+            "count": 2
+          },
+          {
+            "id": 25640,
+            "count": 2
+          }
+        ],
+        "eligibleOpened": [
+          {
+            "id": 1522,
+            "count": 2
+          },
+          {
+            "id": 1525,
+            "count": 2
+          }
+        ],
+        "resolvedPairs": [
+          {
+            "closed": 1521,
+            "opened": 1522,
+            "distance": 1
+          },
+          {
+            "closed": 1524,
+            "opened": 1525,
+            "distance": 1
+          }
+        ]
+      }
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        32404,
+        32405,
+        32406,
+        32407,
+        48724,
+        48725
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"large doors\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[6623]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2896,
+        2897
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"legends guild door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[593]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        7454
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"locked door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[37239]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        51998
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"locked door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[51803]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        20837,
+        20838
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"locked door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[609]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        24293,
+        24294
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"locked door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[27606]}"
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        11624,
+        11625
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"longhall door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[18550]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        11620,
+        11621
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"longhall door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[639]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2600
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"magenta door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[9476,9477]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2407
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"magic door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[9476,9477]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        1732,
+        1733
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"magic guild door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[639]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        38071
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"mausoleum door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[40413]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        25876
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"metal door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":false,\"t\":[0],\"m\":[27408]}"
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        25877
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"metal door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[27408]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        50517,
+        50518
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"metal doors\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[50419]}"
+    },
+    {
+      "reason": "side-count-mismatch",
+      "closedIds": [
+        49742,
+        49889
+      ],
+      "openedIds": [
+        49743
+      ],
+      "bothIds": [],
+      "tentativePairs": [
+        {
+          "closed": 49742,
+          "opened": 49743,
+          "distance": 1
+        }
+      ],
+      "fingerprint": "{\"n\":\"metal gate\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[49723]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2259,
+        2260
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"metal gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0,9],\"m\":[1509,1511]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2675,
+        2676,
+        2690,
+        2691
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"mine door entrance\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[639]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        25341,
+        32208
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"mithril door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[26771]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        6871,
+        6872
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"ogre stone door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[6791]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        53902
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"old battered door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,10],\"m\":[53667,53668]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        49132
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"onyx gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[48742]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2597
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"orange door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[9476,9477]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        12467,
+        12468
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"pen door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[13739]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        10553
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"portcullis\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[10259]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2143,
+        2144,
+        2689,
+        2692
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"prison door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[609]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        79,
+        80
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"prison gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0],\"m\":[609]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2881
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"prison gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[609]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2596
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"red door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[9476,9477]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        17009,
+        17100
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"rickety door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,10],\"m\":[15609,15610]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        49126
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"ruby gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[48742]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        49122
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"sapphire gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[48742]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        4108
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"solid black door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[41770]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        4106
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"solid bronze door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[41770]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        53365,
+        53366,
+        53478,
+        53479
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"solid door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[53994]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        41210
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"solid gold door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[41770]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        4109
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"solid silver door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[41770]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        4107
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"solid steel door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[41770]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        19915,
+        19917
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"stone door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[20004]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        19914,
+        19916
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"stone door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[20018]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        19918
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"stone door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[20019]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        3810
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"storeroom door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[3802]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2337,
+        2339,
+        2411
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"sturdy door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[9476,9477]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        34842,
+        34843
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"temple door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[609]}"
+    },
+    {
+      "reason": "missing-closed-side",
+      "closedIds": [],
+      "openedIds": [
+        5888,
+        5890
+      ],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"tent door\",\"sx\":1,\"sy\":1,\"clip\":0,\"proj\":false,\"t\":[0],\"m\":[5711]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        5887,
+        5889
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"tent door\",\"sx\":1,\"sy\":1,\"clip\":1,\"proj\":true,\"t\":[0],\"m\":[5710]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        4672
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"throne room door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[14930,14931]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2246,
+        2247,
+        2248,
+        2249,
+        2250
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"tomb doors\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[1762]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        21814
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"tower door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[22755]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        15984
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"waiting room door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0],\"m\":[4007]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        4132,
+        4133,
+        5060,
+        5061
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"wooden doors\",\"sx\":2,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[1,10],\"m\":[607,611]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2261,
+        2262
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"wooden gate\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":false,\"t\":[0,1,9],\"m\":[966,967,968]}"
+    },
+    {
+      "reason": "missing-opened-side",
+      "closedIds": [
+        2598
+      ],
+      "openedIds": [],
+      "bothIds": [],
+      "tentativePairs": [],
+      "fingerprint": "{\"n\":\"yellow door\",\"sx\":1,\"sy\":1,\"clip\":2,\"proj\":true,\"t\":[0,9],\"m\":[9476,9477]}"
+    }
+  ]
+}

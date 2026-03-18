@@ -1,0 +1,259 @@
+import { LoginIndex } from "./GameState";
+
+const STORAGE_KEY_TITLE_MUSIC_DISABLED = "osrs:titleMusicDisabled";
+
+/**
+ * Login state instance class.
+ * Holds all mutable state for the login screen.
+ * Matches reference client Login.java fields.
+ */
+export class LoginState {
+    constructor() {
+        // Load persisted settings from localStorage
+        this.loadPersistedSettings();
+    }
+
+    /** Load settings that should persist between sessions */
+    private loadPersistedSettings(): void {
+        try {
+            const musicDisabled = localStorage.getItem(STORAGE_KEY_TITLE_MUSIC_DISABLED);
+            if (musicDisabled !== null) {
+                this.titleMusicDisabled = musicDisabled === "true";
+            }
+        } catch {
+            // localStorage not available (e.g., private browsing)
+        }
+    }
+
+    /** Save title music disabled setting to localStorage */
+    saveTitleMusicSetting(): void {
+        try {
+            localStorage.setItem(STORAGE_KEY_TITLE_MUSIC_DISABLED, String(this.titleMusicDisabled));
+        } catch {
+            // localStorage not available
+        }
+    }
+    // ========== UI Dialog State ==========
+
+    /** Current login screen index (which dialog to show) */
+    loginIndex: LoginIndex = LoginIndex.WELCOME;
+
+    // ========== Network Protocol State ==========
+
+    /** Network handshake state (0-22, matches reference loginState) */
+    networkState: number = 0;
+
+    // ========== Credentials ==========
+
+    /** Username/email input */
+    username: string = "";
+
+    /** Password input */
+    password: string = "";
+
+    /** Authenticator OTP code */
+    otp: string = "";
+
+    /** Display name (for Jagex accounts) */
+    displayName: string = "";
+
+    // ========== Response Messages ==========
+
+    /** Response line 0 (title/header) */
+    response0: string = "";
+
+    /** Response line 1 */
+    response1: string = "";
+
+    /** Response line 2 */
+    response2: string = "";
+
+    /** Response line 3 */
+    response3: string = "";
+
+    // ========== UI State ==========
+
+    /** Current focused login field (0=username, 1=password) */
+    currentLoginField: number = 0;
+
+    /** Remember username checkbox state */
+    rememberUsername: boolean = true;
+
+    /** Remember username checkbox hover state */
+    rememberUsernameHover: boolean = false;
+
+    /** Hide username checkbox state */
+    isUsernameHidden: boolean = false;
+
+    /** Hide username checkbox hover state */
+    hideUsernameHover: boolean = false;
+
+    /** Trust this computer checkbox state (authenticator) */
+    trustComputer: boolean = false;
+
+    /** Trust checkbox hover state */
+    trustComputerHover: boolean = false;
+
+    /** Ban type (-1 = not banned) */
+    banType: number = -1;
+
+    /** Login field type (1=normal, 2=having trouble) */
+    loginFieldType: number = 1;
+
+    // ========== Date of Birth ==========
+
+    /** DOB input fields (8 digits: DD/MM/YYYY) */
+    dobFields: (string | null)[] = new Array(8).fill(null);
+
+    /** Current DOB field index */
+    dobFieldIndex: number = 0;
+
+    /** DOB entry available (desktop only) */
+    dobEntryAvailable: boolean = true;
+
+    // ========== World Select ==========
+
+    /** World selection overlay open */
+    worldSelectOpen: boolean = false;
+
+    /** Hovered world ID (not index - survives re-sorting) */
+    hoveredWorldId: number = -1;
+
+    /** Current world select page */
+    worldSelectPage: number = 0;
+
+    /** Total world select pages */
+    worldSelectPagesCount: number = 1;
+
+    /** Selected world ID */
+    worldId: number = 1;
+
+    /** World request loading state */
+    worldRequestLoading: boolean = false;
+
+    // ========== Mobile World Select ==========
+
+    /** Scroll offset for mobile world select list view (in pixels) */
+    mobileWorldSelectScrollOffset: number = 0;
+
+    /** Touch scroll velocity for momentum scrolling */
+    mobileWorldSelectScrollVelocity: number = 0;
+
+    /** Filter text for mobile world search */
+    mobileWorldSelectFilter: string = "";
+
+    /** Virtual keyboard is currently visible */
+    virtualKeyboardVisible: boolean = false;
+
+    // ========== Client Flags ==========
+
+    /** Client language (0=EN) - world select only shows for English */
+    clientLanguage: number = 0;
+
+    /** Whether client is on mobile (affects DOB screen) */
+    onMobile: boolean = false;
+
+    /** Title music disabled */
+    titleMusicDisabled: boolean = false;
+
+    // ========== Loading State ==========
+
+    /** Loading progress percentage (0-100) */
+    loadingPercent: number = 10;
+
+    /** Loading status text */
+    loadingText: string = "";
+
+    // ========== Download State ==========
+
+    /** Download progress current bytes */
+    downloadCurrent: number = 0;
+
+    /** Download progress total bytes */
+    downloadTotal: number = 0;
+
+    /** Download progress label (optional custom text) */
+    downloadLabel: string = "";
+
+    // ========== Methods ==========
+
+    /**
+     * Reset all login state to defaults.
+     */
+    reset(): void {
+        this.loginIndex = LoginIndex.WELCOME;
+        this.networkState = 0;
+        this.username = "";
+        this.password = "";
+        this.otp = "";
+        this.displayName = "";
+        this.response0 = "";
+        this.response1 = "";
+        this.response2 = "";
+        this.response3 = "";
+        this.currentLoginField = 0;
+        this.worldSelectOpen = false;
+        this.hoveredWorldId = -1;
+        this.worldSelectPage = 0;
+        this.banType = -1;
+        this.dobFields = new Array(8).fill(null);
+        this.dobFieldIndex = 0;
+        this.trustComputer = false;
+        this.trustComputerHover = false;
+        this.loadingPercent = 10;
+        this.loadingText = "";
+        // Download state
+        this.downloadCurrent = 0;
+        this.downloadTotal = 0;
+        this.downloadLabel = "";
+        // Mobile state
+        this.mobileWorldSelectScrollOffset = 0;
+        this.mobileWorldSelectScrollVelocity = 0;
+        this.mobileWorldSelectFilter = "";
+        this.virtualKeyboardVisible = false;
+    }
+
+    /**
+     * Set response messages for display.
+     */
+    setResponse(r0: string, r1: string, r2: string, r3: string): void {
+        this.response0 = r0;
+        this.response1 = r1;
+        this.response2 = r2;
+        this.response3 = r3;
+    }
+
+    /**
+     * Prompt for credentials - switch to login form.
+     */
+    promptCredentials(preserveUsername: boolean = true): void {
+        this.loginIndex = LoginIndex.LOGIN_FORM;
+        if (!preserveUsername) {
+            this.username = "";
+            this.password = "";
+        }
+        this.currentLoginField = this.username.length > 0 ? 1 : 0;
+        this.setResponse("", "Enter your username & password.", "", "");
+    }
+
+    /**
+     * Get masked password string for display.
+     */
+    getMaskedPassword(): string {
+        return "*".repeat(this.password.length);
+    }
+
+    /**
+     * Get masked OTP string for display.
+     */
+    getMaskedOtp(): string {
+        return "*".repeat(this.otp.length);
+    }
+
+    /**
+     * Check if credentials are valid for login attempt.
+     */
+    canAttemptLogin(): boolean {
+        return this.username.trim().length > 0 && this.password.length > 0;
+    }
+}

@@ -1,0 +1,1484 @@
+{
+  "version": 1,
+  "definitions": {
+    "singleDoors": [
+      {
+        "closed": 1518,
+        "opened": 1519
+      },
+      {
+        "closed": 1521,
+        "opened": 1522
+      },
+      {
+        "closed": 1524,
+        "opened": 1525
+      },
+      {
+        "closed": 1535,
+        "opened": 1536
+      },
+      {
+        "closed": 1540,
+        "opened": 1541
+      },
+      {
+        "closed": 1558,
+        "opened": 1559
+      },
+      {
+        "closed": 1560,
+        "opened": 1567
+      },
+      {
+        "closed": 1584,
+        "opened": 1585
+      },
+      {
+        "closed": 1586,
+        "opened": 1587
+      },
+      {
+        "closed": 2100,
+        "opened": 2101
+      },
+      {
+        "closed": 2102,
+        "opened": 2103
+      },
+      {
+        "closed": 2104,
+        "opened": 2105
+      },
+      {
+        "closed": 3763,
+        "opened": 3764
+      },
+      {
+        "closed": 3776,
+        "opened": 3777
+      },
+      {
+        "closed": 4247,
+        "opened": 4248
+      },
+      {
+        "closed": 6100,
+        "opened": 6101
+      },
+      {
+        "closed": 6102,
+        "opened": 6103
+      },
+      {
+        "closed": 6104,
+        "opened": 6105
+      },
+      {
+        "closed": 6106,
+        "opened": 6107
+      },
+      {
+        "closed": 6108,
+        "opened": 6109
+      },
+      {
+        "closed": 6110,
+        "opened": 6111
+      },
+      {
+        "closed": 6112,
+        "opened": 6113
+      },
+      {
+        "closed": 6114,
+        "opened": 6115
+      },
+      {
+        "closed": 6975,
+        "opened": 6976
+      },
+      {
+        "closed": 7452,
+        "opened": 7453
+      },
+      {
+        "closed": 8695,
+        "opened": 8696
+      },
+      {
+        "closed": 11773,
+        "opened": 11772
+      },
+      {
+        "closed": 11775,
+        "opened": 11774
+      },
+      {
+        "closed": 11780,
+        "opened": 11778
+      },
+      {
+        "closed": 12045,
+        "opened": 12046
+      },
+      {
+        "closed": 12047,
+        "opened": 12048
+      },
+      {
+        "closed": 12446,
+        "opened": 12447
+      },
+      {
+        "closed": 12448,
+        "opened": 12449
+      },
+      {
+        "closed": 13015,
+        "opened": 13017
+      },
+      {
+        "closed": 13016,
+        "opened": 13018
+      },
+      {
+        "closed": 13094,
+        "opened": 13095
+      },
+      {
+        "closed": 13096,
+        "opened": 13097
+      },
+      {
+        "closed": 13100,
+        "opened": 13102
+      },
+      {
+        "closed": 13101,
+        "opened": 13103
+      },
+      {
+        "closed": 13118,
+        "opened": 13120
+      },
+      {
+        "closed": 13119,
+        "opened": 13121
+      },
+      {
+        "closed": 13314,
+        "opened": 13315
+      },
+      {
+        "closed": 13317,
+        "opened": 13318
+      },
+      {
+        "closed": 13320,
+        "opened": 13321
+      },
+      {
+        "closed": 13323,
+        "opened": 13324
+      },
+      {
+        "closed": 13326,
+        "opened": 13327
+      },
+      {
+        "closed": 14233,
+        "opened": 14234
+      },
+      {
+        "closed": 14235,
+        "opened": 14236
+      },
+      {
+        "closed": 14237,
+        "opened": 14238
+      },
+      {
+        "closed": 14239,
+        "opened": 14240
+      },
+      {
+        "closed": 14241,
+        "opened": 14242
+      },
+      {
+        "closed": 14243,
+        "opened": 14244
+      },
+      {
+        "closed": 16778,
+        "opened": 16779
+      },
+      {
+        "closed": 18489,
+        "opened": 18490
+      },
+      {
+        "closed": 18698,
+        "opened": 18699
+      },
+      {
+        "closed": 18700,
+        "opened": 18701
+      },
+      {
+        "closed": 21341,
+        "opened": 21343
+      },
+      {
+        "closed": 21397,
+        "opened": 21398
+      },
+      {
+        "closed": 21399,
+        "opened": 21401
+      },
+      {
+        "closed": 21400,
+        "opened": 21402
+      },
+      {
+        "closed": 21403,
+        "opened": 21404
+      },
+      {
+        "closed": 21405,
+        "opened": 21406
+      },
+      {
+        "closed": 21505,
+        "opened": 21506
+      },
+      {
+        "closed": 21507,
+        "opened": 21508
+      },
+      {
+        "closed": 21600,
+        "opened": 21601
+      },
+      {
+        "closed": 22435,
+        "opened": 22436
+      },
+      {
+        "closed": 22437,
+        "opened": 22438
+      },
+      {
+        "closed": 22779,
+        "opened": 22778
+      },
+      {
+        "closed": 22914,
+        "opened": 22913
+      },
+      {
+        "closed": 22921,
+        "opened": 22920
+      },
+      {
+        "closed": 23216,
+        "opened": 23217
+      },
+      {
+        "closed": 23340,
+        "opened": 23341
+      },
+      {
+        "closed": 23342,
+        "opened": 23343
+      },
+      {
+        "closed": 23972,
+        "opened": 23973
+      },
+      {
+        "closed": 24050,
+        "opened": 24051
+      },
+      {
+        "closed": 24057,
+        "opened": 24058
+      },
+      {
+        "closed": 24318,
+        "opened": 24319
+      },
+      {
+        "closed": 24369,
+        "opened": 24368
+      },
+      {
+        "closed": 27084,
+        "opened": 27086
+      },
+      {
+        "closed": 27085,
+        "opened": 27087
+      },
+      {
+        "closed": 27443,
+        "opened": 27444
+      },
+      {
+        "closed": 27485,
+        "opened": 27487
+      },
+      {
+        "closed": 27486,
+        "opened": 27488
+      },
+      {
+        "closed": 28479,
+        "opened": 28482
+      },
+      {
+        "closed": 28480,
+        "opened": 28481
+      },
+      {
+        "closed": 33556,
+        "opened": 33557
+      },
+      {
+        "closed": 36253,
+        "opened": 36254
+      },
+      {
+        "closed": 37463,
+        "opened": 37464
+      },
+      {
+        "closed": 37465,
+        "opened": 37466
+      },
+      {
+        "closed": 39372,
+        "opened": 39373
+      },
+      {
+        "closed": 39406,
+        "opened": 39408
+      },
+      {
+        "closed": 39481,
+        "opened": 39482
+      },
+      {
+        "closed": 40858,
+        "opened": 40859
+      },
+      {
+        "closed": 40860,
+        "opened": 40861
+      },
+      {
+        "closed": 42116,
+        "opened": 42117
+      },
+      {
+        "closed": 42118,
+        "opened": 42119
+      },
+      {
+        "closed": 42120,
+        "opened": 42121
+      },
+      {
+        "closed": 42122,
+        "opened": 42123
+      },
+      {
+        "closed": 42124,
+        "opened": 42125
+      },
+      {
+        "closed": 42126,
+        "opened": 42127
+      },
+      {
+        "closed": 48254,
+        "opened": 48256
+      },
+      {
+        "closed": 48255,
+        "opened": 48257
+      },
+      {
+        "closed": 48258,
+        "opened": 48260
+      },
+      {
+        "closed": 48259,
+        "opened": 48261
+      },
+      {
+        "closed": 48262,
+        "opened": 48264
+      },
+      {
+        "closed": 48274,
+        "opened": 48276
+      },
+      {
+        "closed": 48286,
+        "opened": 48287
+      },
+      {
+        "closed": 48289,
+        "opened": 48291
+      },
+      {
+        "closed": 48290,
+        "opened": 48292
+      },
+      {
+        "closed": 53322,
+        "opened": 53321
+      },
+      {
+        "closed": 53893,
+        "opened": 53894
+      },
+      {
+        "closed": 56158,
+        "opened": 56160
+      },
+      {
+        "closed": 56159,
+        "opened": 56161
+      },
+      {
+        "closed": 58062,
+        "opened": 58063
+      },
+      {
+        "closed": 58064,
+        "opened": 58065
+      },
+      {
+        "closed": 58116,
+        "opened": 58117
+      },
+      {
+        "closed": 58276,
+        "opened": 58277
+      }
+    ],
+    "doubleDoors": [
+      {
+        "closed": {
+          "left": 1521,
+          "right": 1524
+        },
+        "opened": {
+          "left": 1522,
+          "right": 1525
+        }
+      },
+      {
+        "closed": {
+          "left": 1558,
+          "right": 1560
+        },
+        "opened": {
+          "left": 1559,
+          "right": 1567
+        }
+      },
+      {
+        "closed": {
+          "left": 12045,
+          "right": 12047
+        },
+        "opened": {
+          "left": 12046,
+          "right": 12048
+        }
+      },
+      {
+        "closed": {
+          "left": 14233,
+          "right": 14235
+        },
+        "opened": {
+          "left": 14234,
+          "right": 14236
+        }
+      },
+      {
+        "closed": {
+          "left": 21403,
+          "right": 21405
+        },
+        "opened": {
+          "left": 21404,
+          "right": 21406
+        }
+      },
+      {
+        "closed": {
+          "left": 28479,
+          "right": 28480
+        },
+        "opened": {
+          "left": 28482,
+          "right": 28481
+        }
+      },
+      {
+        "closed": {
+          "left": 42124,
+          "right": 42126
+        },
+        "opened": {
+          "left": 42125,
+          "right": 42127
+        }
+      },
+      {
+        "closed": {
+          "left": 48289,
+          "right": 48290
+        },
+        "opened": {
+          "left": 48291,
+          "right": 48292
+        }
+      }
+    ],
+    "gates": [
+      {
+        "closed": {
+          "hinge": 52,
+          "extension": 53
+        },
+        "opened": {
+          "hinge": 28851,
+          "extension": 28852
+        },
+        "openStyle": "center"
+      },
+      {
+        "closed": {
+          "hinge": 1558,
+          "extension": 1560
+        },
+        "opened": {
+          "hinge": 1559,
+          "extension": 1567
+        }
+      },
+      {
+        "closed": {
+          "hinge": 1561,
+          "extension": 1562
+        },
+        "opened": {
+          "hinge": 1563,
+          "extension": 1564
+        }
+      },
+      {
+        "closed": {
+          "hinge": 1727,
+          "extension": 1728
+        },
+        "opened": {
+          "hinge": 1572,
+          "extension": 1571
+        },
+        "openStyle": "center"
+      },
+      {
+        "closed": {
+          "hinge": 2685,
+          "extension": 2686
+        },
+        "opened": {
+          "hinge": 2687,
+          "extension": 2688
+        }
+      },
+      {
+        "closed": {
+          "hinge": 2786,
+          "extension": 2787
+        },
+        "opened": {
+          "hinge": 20087,
+          "extension": 20088
+        }
+      },
+      {
+        "closed": {
+          "hinge": 2922,
+          "extension": 2923
+        },
+        "opened": {
+          "hinge": 2924,
+          "extension": 2925
+        }
+      },
+      {
+        "closed": {
+          "hinge": 8810,
+          "extension": 8811
+        },
+        "opened": {
+          "hinge": 8812,
+          "extension": 8813
+        }
+      },
+      {
+        "closed": {
+          "hinge": 11766,
+          "extension": 11767
+        },
+        "opened": {
+          "hinge": 11770,
+          "extension": 11771
+        }
+      },
+      {
+        "closed": {
+          "hinge": 12986,
+          "extension": 12987
+        },
+        "opened": {
+          "hinge": 12988,
+          "extension": 12989
+        }
+      },
+      {
+        "closed": {
+          "hinge": 14233,
+          "extension": 14235
+        },
+        "opened": {
+          "hinge": 14234,
+          "extension": 14236
+        }
+      },
+      {
+        "closed": {
+          "hinge": 15514,
+          "extension": 15516
+        },
+        "opened": {
+          "hinge": 15511,
+          "extension": 15513
+        }
+      },
+      {
+        "closed": {
+          "hinge": 21403,
+          "extension": 21405
+        },
+        "opened": {
+          "hinge": 21404,
+          "extension": 21406
+        }
+      },
+      {
+        "closed": {
+          "hinge": 26130,
+          "extension": 26131
+        },
+        "opened": {
+          "hinge": 26132,
+          "extension": 26133
+        }
+      },
+      {
+        "closed": {
+          "hinge": 29486,
+          "extension": 29487
+        },
+        "opened": {
+          "hinge": 41602,
+          "extension": 41904
+        }
+      }
+    ]
+  },
+  "runtimeTileMappings": {
+    "version": 1,
+    "generatedAt": "2026-03-03T16:22:12.886Z",
+    "entries": [
+      {
+        "level": 0,
+        "x": 2088,
+        "y": 3909,
+        "pairs": [
+          {
+            "closed": 16776,
+            "opened": 16777,
+            "count": 1,
+            "lastObserved": "2026-02-27T16:06:00.150Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2088,
+        "y": 3910,
+        "pairs": [
+          {
+            "closed": 16776,
+            "opened": 16777,
+            "count": 1,
+            "lastObserved": "2026-02-27T16:06:00.150Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2474,
+        "y": 3364,
+        "pairs": [
+          {
+            "closed": 8810,
+            "opened": 8812,
+            "count": 1,
+            "lastObserved": "2026-02-27T06:03:17.893Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2474,
+        "y": 3365,
+        "pairs": [
+          {
+            "closed": 8810,
+            "opened": 8812,
+            "count": 3,
+            "lastObserved": "2026-02-27T06:03:18.941Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2475,
+        "y": 3364,
+        "pairs": [
+          {
+            "closed": 8811,
+            "opened": 8812,
+            "count": 1,
+            "lastObserved": "2026-02-27T06:03:16.537Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2475,
+        "y": 3365,
+        "pairs": [
+          {
+            "closed": 8811,
+            "opened": 8812,
+            "count": 3,
+            "lastObserved": "2026-02-27T06:03:19.537Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2575,
+        "y": 3298,
+        "pairs": [
+          {
+            "closed": 2546,
+            "opened": 2547,
+            "count": 1,
+            "lastObserved": "2026-02-27T16:02:18.947Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2575,
+        "y": 3299,
+        "pairs": [
+          {
+            "closed": 2548,
+            "opened": 2547,
+            "count": 1,
+            "lastObserved": "2026-02-27T16:02:17.740Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2576,
+        "y": 3298,
+        "pairs": [
+          {
+            "closed": 2546,
+            "opened": 2547,
+            "count": 1,
+            "lastObserved": "2026-02-27T16:02:18.947Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2576,
+        "y": 3299,
+        "pairs": [
+          {
+            "closed": 2548,
+            "opened": 2547,
+            "count": 1,
+            "lastObserved": "2026-02-27T16:02:17.739Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2650,
+        "y": 3469,
+        "pairs": [
+          {
+            "closed": 52,
+            "opened": 1559,
+            "count": 1,
+            "lastObserved": "2026-02-27T04:42:25.054Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2650,
+        "y": 3470,
+        "pairs": [
+          {
+            "closed": 52,
+            "opened": 1559,
+            "count": 1,
+            "lastObserved": "2026-02-27T04:42:25.054Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2665,
+        "y": 3241,
+        "pairs": [
+          {
+            "closed": 1517,
+            "opened": 1516,
+            "count": 1,
+            "lastObserved": "2026-02-27T04:32:49.066Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2666,
+        "y": 3241,
+        "pairs": [
+          {
+            "closed": 1517,
+            "opened": 1516,
+            "count": 1,
+            "lastObserved": "2026-02-27T04:32:49.066Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2701,
+        "y": 3476,
+        "pairs": [
+          {
+            "closed": 25819,
+            "opened": 25820,
+            "count": 5,
+            "lastObserved": "2026-02-27T08:49:31.066Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2701,
+        "y": 3477,
+        "pairs": [
+          {
+            "closed": 25819,
+            "opened": 25820,
+            "count": 5,
+            "lastObserved": "2026-02-27T08:49:31.066Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2709,
+        "y": 3487,
+        "pairs": [
+          {
+            "closed": 2416,
+            "opened": 2417,
+            "count": 5,
+            "lastObserved": "2026-02-27T08:49:15.470Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2709,
+        "y": 3488,
+        "pairs": [
+          {
+            "closed": 2416,
+            "opened": 2417,
+            "count": 5,
+            "lastObserved": "2026-02-27T08:49:15.470Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2710,
+        "y": 3486,
+        "pairs": [
+          {
+            "closed": 25814,
+            "opened": 26207,
+            "count": 3,
+            "lastObserved": "2026-02-27T08:49:13.661Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2710,
+        "y": 3487,
+        "pairs": [
+          {
+            "closed": 25814,
+            "opened": 26207,
+            "count": 3,
+            "lastObserved": "2026-02-27T08:49:13.661Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2712,
+        "y": 3283,
+        "pairs": [
+          {
+            "closed": 18168,
+            "opened": 18032,
+            "count": 2,
+            "lastObserved": "2026-02-27T08:02:51.511Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2713,
+        "y": 3283,
+        "pairs": [
+          {
+            "closed": 18168,
+            "opened": 18032,
+            "count": 2,
+            "lastObserved": "2026-02-27T08:02:51.511Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2713,
+        "y": 3482,
+        "pairs": [
+          {
+            "closed": 25819,
+            "opened": 25820,
+            "count": 26,
+            "lastObserved": "2026-02-27T08:49:12.475Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2713,
+        "y": 3483,
+        "pairs": [
+          {
+            "closed": 25819,
+            "opened": 25820,
+            "count": 26,
+            "lastObserved": "2026-02-27T08:49:12.475Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2723,
+        "y": 3275,
+        "pairs": [
+          {
+            "closed": 18168,
+            "opened": 18032,
+            "count": 1,
+            "lastObserved": "2026-02-27T08:03:17.317Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2723,
+        "y": 3276,
+        "pairs": [
+          {
+            "closed": 18168,
+            "opened": 18032,
+            "count": 1,
+            "lastObserved": "2026-02-27T08:03:17.317Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2729,
+        "y": 3276,
+        "pairs": [
+          {
+            "closed": 18168,
+            "opened": 18032,
+            "count": 1,
+            "lastObserved": "2026-02-27T08:03:19.721Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2730,
+        "y": 3276,
+        "pairs": [
+          {
+            "closed": 18168,
+            "opened": 18032,
+            "count": 1,
+            "lastObserved": "2026-02-27T08:03:19.721Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2730,
+        "y": 3292,
+        "pairs": [
+          {
+            "closed": 18168,
+            "opened": 18032,
+            "count": 1,
+            "lastObserved": "2026-02-27T08:03:10.111Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2731,
+        "y": 3292,
+        "pairs": [
+          {
+            "closed": 18168,
+            "opened": 18032,
+            "count": 1,
+            "lastObserved": "2026-02-27T08:03:10.111Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2763,
+        "y": 3401,
+        "pairs": [
+          {
+            "closed": 72,
+            "opened": 1512,
+            "count": 1,
+            "lastObserved": "2026-02-27T15:54:01.101Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2763,
+        "y": 3402,
+        "pairs": [
+          {
+            "closed": 71,
+            "opened": 1512,
+            "count": 1,
+            "lastObserved": "2026-02-27T15:54:04.545Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2764,
+        "y": 3401,
+        "pairs": [
+          {
+            "closed": 72,
+            "opened": 1512,
+            "count": 1,
+            "lastObserved": "2026-02-27T15:54:01.101Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2764,
+        "y": 3402,
+        "pairs": [
+          {
+            "closed": 71,
+            "opened": 1512,
+            "count": 1,
+            "lastObserved": "2026-02-27T15:54:04.545Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2767,
+        "y": 3288,
+        "pairs": [
+          {
+            "closed": 18168,
+            "opened": 18032,
+            "count": 2,
+            "lastObserved": "2026-02-27T08:02:44.916Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2768,
+        "y": 3288,
+        "pairs": [
+          {
+            "closed": 18168,
+            "opened": 18032,
+            "count": 2,
+            "lastObserved": "2026-02-27T08:02:44.916Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2774,
+        "y": 3187,
+        "pairs": [
+          {
+            "closed": 2627,
+            "opened": 2549,
+            "count": 6,
+            "lastObserved": "2026-02-27T08:02:29.306Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2774,
+        "y": 3188,
+        "pairs": [
+          {
+            "closed": 2627,
+            "opened": 2549,
+            "count": 6,
+            "lastObserved": "2026-02-27T08:02:29.306Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2935,
+        "y": 3450,
+        "pairs": [
+          {
+            "closed": 1727,
+            "opened": 1572,
+            "count": 1,
+            "lastObserved": "2026-02-27T04:25:53.873Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2935,
+        "y": 3451,
+        "pairs": [
+          {
+            "closed": 1727,
+            "opened": 1572,
+            "count": 2,
+            "lastObserved": "2026-02-27T04:25:53.873Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 2936,
+        "y": 3451,
+        "pairs": [
+          {
+            "closed": 1727,
+            "opened": 1572,
+            "count": 7,
+            "lastObserved": "2026-02-27T04:24:52.061Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3078,
+        "y": 3435,
+        "pairs": [
+          {
+            "closed": 11621,
+            "opened": 11624,
+            "count": 1,
+            "lastObserved": "2026-02-27T08:50:22.666Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3078,
+        "y": 3436,
+        "pairs": [
+          {
+            "closed": 11621,
+            "opened": 11624,
+            "count": 1,
+            "lastObserved": "2026-02-27T08:50:22.666Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3079,
+        "y": 3435,
+        "pairs": [
+          {
+            "closed": 11620,
+            "opened": 11624,
+            "count": 4,
+            "lastObserved": "2026-02-27T15:53:51.943Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3079,
+        "y": 3436,
+        "pairs": [
+          {
+            "closed": 11620,
+            "opened": 11624,
+            "count": 4,
+            "lastObserved": "2026-02-27T15:53:51.943Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3097,
+        "y": 3107,
+        "pairs": [
+          {
+            "closed": 9398,
+            "opened": 8821,
+            "count": 3,
+            "lastObserved": "2026-02-27T07:52:37.128Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3098,
+        "y": 3107,
+        "pairs": [
+          {
+            "closed": 9398,
+            "opened": 8821,
+            "count": 1,
+            "lastObserved": "2026-02-27T07:52:35.338Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3264,
+        "y": 3441,
+        "pairs": [
+          {
+            "closed": 24567,
+            "opened": 24685,
+            "count": 1,
+            "lastObserved": "2026-02-27T08:50:34.672Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3264,
+        "y": 3442,
+        "pairs": [
+          {
+            "closed": 24567,
+            "opened": 24685,
+            "count": 1,
+            "lastObserved": "2026-02-27T08:50:34.672Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3265,
+        "y": 3441,
+        "pairs": [
+          {
+            "closed": 24565,
+            "opened": 24685,
+            "count": 1,
+            "lastObserved": "2026-02-27T08:50:35.870Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3265,
+        "y": 3442,
+        "pairs": [
+          {
+            "closed": 24565,
+            "opened": 24685,
+            "count": 1,
+            "lastObserved": "2026-02-27T08:50:35.870Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3549,
+        "y": 6110,
+        "pairs": [
+          {
+            "closed": 29069,
+            "opened": 29072,
+            "count": 2,
+            "lastObserved": "2026-03-03T16:22:06.685Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3550,
+        "y": 6110,
+        "pairs": [
+          {
+            "closed": 29069,
+            "opened": 29072,
+            "count": 2,
+            "lastObserved": "2026-03-03T16:22:06.685Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3553,
+        "y": 6109,
+        "pairs": [
+          {
+            "closed": 29069,
+            "opened": 29072,
+            "count": 1,
+            "lastObserved": "2026-03-03T16:22:07.882Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3553,
+        "y": 6110,
+        "pairs": [
+          {
+            "closed": 29069,
+            "opened": 29072,
+            "count": 1,
+            "lastObserved": "2026-03-03T16:22:07.882Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3553,
+        "y": 6113,
+        "pairs": [
+          {
+            "closed": 29069,
+            "opened": 29072,
+            "count": 1,
+            "lastObserved": "2026-03-03T16:22:10.882Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3554,
+        "y": 6113,
+        "pairs": [
+          {
+            "closed": 29069,
+            "opened": 29072,
+            "count": 1,
+            "lastObserved": "2026-03-03T16:22:10.882Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3674,
+        "y": 3471,
+        "pairs": [
+          {
+            "closed": 5244,
+            "opened": 5245,
+            "count": 1,
+            "lastObserved": "2026-03-03T09:15:46.469Z"
+          }
+        ]
+      },
+      {
+        "level": 0,
+        "x": 3674,
+        "y": 3472,
+        "pairs": [
+          {
+            "closed": 5244,
+            "opened": 5245,
+            "count": 1,
+            "lastObserved": "2026-03-03T09:15:46.469Z"
+          }
+        ]
+      }
+    ]
+  }
+}

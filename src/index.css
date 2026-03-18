@@ -1,0 +1,102 @@
+@font-face {
+    font-family: "OSRS Bold";
+    src: url(./media/RuneScape-Bold-12.ttf);
+}
+@font-face {
+    font-family: "OSRS Small";
+    src: url(./media/RuneScape-Plain-11.ttf);
+}
+
+html,
+body,
+#root {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
+        "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+    background-color: black;
+
+    -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none; /* Safari */
+    -khtml-user-select: none; /* Konqueror HTML */
+    -moz-user-select: none; /* Old versions of Firefox */
+    -ms-user-select: none; /* Internet Explorer/Edge */
+    user-select: none; /* Non-prefixed version, currently
+                                  supported by Chrome, Edge, Opera and Firefox */
+}
+
+.max-height {
+    height: 100%;
+}
+
+#root {
+    overflow: hidden;
+}
+
+.App {
+    position: fixed;
+    inset: 0;
+    width: var(--app-vw, 100vw);
+    height: var(--app-vh, 100dvh);
+    overflow: hidden;
+    background: black;
+}
+
+.App.ios-safari-force-landscape {
+    width: var(--ios-safari-landscape-w, var(--app-vw, 100vw));
+    height: var(--ios-safari-landscape-h, var(--app-vh, 100dvh));
+}
+
+.App.ios-safari-force-landscape.ios-safari-force-landscape-rotated {
+    top: 50%;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    width: var(--ios-safari-landscape-w, var(--app-vh, 100dvh));
+    height: var(--ios-safari-landscape-h, var(--app-vw, 100vw));
+    transform: translate(-50%, -50%) rotate(90deg);
+    transform-origin: center center;
+}
+
+canvas {
+    outline: none;
+    border: none;
+    display: block;
+}
+
+.center-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.content-text {
+    font-family: ui-monospace, SFMono-Regular, Menlo, "Roboto Mono", monospace;
+    font-weight: bold;
+    color: white;
+    text-shadow: 1px 1px 0 black;
+}
+
+.flex {
+    display: flex;
+    flex: 1;
+}
+
+.align-right {
+    justify-content: right;
+}
+
+.rs-border {
+    border: 6px solid;
+    border-image: url(./media/interface-border.png) 6 / 6px / 0px repeat;
+}
+
+.rs-background {
+    background-image: url(./media/interface-bg.png);
+}

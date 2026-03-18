@@ -1,0 +1,70 @@
+/* OSRS Loading Bar - matches GameEngine.java drawInitial() */
+/* Bar size: 304x34, progress area: 300x30 at offset (2,2) */
+/* Color: #8C1111 (RGB 140, 17, 17) - dark red */
+
+.loading-bar-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.loading-bar-title {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    font-weight: bold;
+    color: white;
+    text-align: center;
+}
+
+.loading-bar {
+    /* Outer container: 304x34 with red border */
+    position: relative;
+    width: 304px;
+    height: 34px;
+    box-sizing: border-box;
+    /* Outer red border */
+    border: 1px solid #8c1111;
+}
+
+.loading-bar-inner {
+    /* Inner black border: positioned at (1,1) with size 302x32 */
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    width: 302px;
+    height: 32px;
+    box-sizing: border-box;
+    border: 1px solid black;
+    background-color: black;
+}
+
+.loading-bar-progress {
+    /* Progress fill: red, at (2,2) relative to outer, max 300x30 */
+    /* Since we're inside inner which is at (1,1), offset is (1,1) from inner = (2,2) from outer */
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    height: 30px;
+    /* Width set dynamically: percent * 3 pixels, max 300 */
+    background-color: #8c1111;
+}
+
+.loading-bar-text {
+    /* Text: white, Helvetica Bold 13pt, centered */
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 304px;
+    height: 34px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    font-weight: bold;
+    color: white;
+    z-index: 1;
+    /* Text positioned at y=22 from top in 34px height = roughly centered */
+    padding-top: 2px;
+}

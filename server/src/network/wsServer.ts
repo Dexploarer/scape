@@ -466,7 +466,6 @@ import {
 } from "../game/tick/TickPhaseOrchestrator";
 import { GameTicker, TickEvent } from "../game/ticker";
 import { TradeManager } from "../game/trade/TradeManager";
-import { LiveDirectorSystem, type LiveDirectorSystemServices } from "../gm";
 import { PathService } from "../pathfinding/PathService";
 import { RectAdjacentRouteStrategy } from "../pathfinding/legacy/pathfinder/RouteStrategy";
 import { CollisionFlag } from "../pathfinding/legacy/pathfinder/flag/CollisionFlag";
@@ -1229,7 +1228,6 @@ export interface WSServerOptions {
     ticker: GameTicker;
     pathService?: PathService;
     npcManager?: NpcManager;
-    liveDirectorConfigPath?: string;
     // Optional: reuse an already-initialized cache environment to avoid double loading
     cacheEnv?: CacheEnv;
 }
@@ -1285,7 +1283,6 @@ export class WSServer {
     private fishingSpotMap: Map<number, string> = new Map();
     private gatheringSystem!: GatheringSystemManager;
     private equipmentHandler!: EquipmentHandler;
-    private liveDirector?: LiveDirectorSystem;
     private tickOrchestrator!: TickPhaseOrchestrator;
     private broadcastScheduler = new BroadcastScheduler();
     private messageRouter!: MessageRouter;
@@ -2347,8 +2344,6 @@ export class WSServer {
             this.gatheringSystem = this.createGatheringSystem();
             // Initialize EquipmentHandler
             this.equipmentHandler = this.createEquipmentHandler();
-            // Initialize Live Director system
-            this.liveDirector = this.createLiveDirectorSystem(opts.liveDirectorConfigPath);
             // Initialize TickPhaseOrchestrator
             this.tickOrchestrator = this.createTickOrchestrator();
             // Initialize MessageRouter
@@ -3913,7 +3908,6 @@ export class WSServer {
     }
 
     private runPostEffectsPhase(frame: TickFrame): void {
-        this.liveDirector?.processTick(frame.tick);
         // Process all gathering skill respawns via the unified system
         if (this.gatheringSystem) {
             this.gatheringSystem.processTick(frame.tick);
@@ -8066,128 +8060,6 @@ export class WSServer {
         return new EquipmentHandler(services);
     }
 
-    /**
-     * Create the LiveDirectorSystem with server integrations.
-     */
-    private createLiveDirectorSystem(configPathOverride?: string): LiveDirectorSystem | undefined {
-        const configPath = configPathOverride ?? "server/data/live-director/config.json";
-        const services: LiveDirectorSystemServices = {
-            getOnlinePlayerCount: () => {
-                let count = 0;
-                this.players?.forEach(() => {
-                    count++;
-                });
-                this.players?.forEachBot(() => {
-                    count++;
-                });
-                return count;
-            },
-            getNpcCount: () => {
-                let count = 0;
-                this.npcManager?.forEach(() => {
-                    count++;
-                });
-                return count;
-            },
-            queueGlobalGameMessage: (text: string) =>
-                this.queueChatMessage({
-                    messageType: "game",
-                    text: String(text ?? ""),
-                }),
-            random: () => Math.random(),
-            now: () => Date.now(),
-        };
-
-        try {
-            return new LiveDirectorSystem(configPath, services);
-        } catch (err) {
-            logger.warn(`[director] failed to initialize live director from ${configPath}`, err);
-            return undefined;
-        }
-    }
-
-    private handleLiveDirectorCommand(
-        player: PlayerState,
-        command: string,
-        args: string[],
-    ): string {
-        if (!this.liveDirector) {
-            return "Live Director is unavailable.";
-        }
-
-        const normalizedCommand = command.trim().toLowerCase();
-        const actor = `player:${player.id}`;
-
-        if (normalizedCommand.length === 0 || normalizedCommand === "status") {
-            const status = this.liveDirector.getStatusSnapshot();
-            const active = status.activeEvent
-                ? `${status.activeEvent.templateId} (${status.activeEvent.phase})`
-                : "none";
-            return (
-                `Director status: enabled=${status.enabled} auto=${status.autoDirectorEnabled} ` +
-                `season=${status.seasonId} prompt=${status.promptVersion} active=${active}`
-            );
-        }
-
-        if (normalizedCommand === "start") {
-            const templateId = String(args[0] ?? "").trim();
-            if (!templateId) {
-                return "Usage: ::ld start <templateId>";
-            }
-            const result = this.liveDirector.startTemplate(
-                templateId,
-                actor,
-                "manual operator command",
-            );
-            return result.message;
-        }
-
-        if (normalizedCommand === "stop") {
-            const result = this.liveDirector.stopActive(actor, "manual operator command");
-            return result.message;
-        }
-
-        if (normalizedCommand === "reload") {
-            const result = this.liveDirector.reload(actor);
-            return result.message;
-        }
-
-        if (normalizedCommand === "season") {
-            const seasonId = String(args[0] ?? "").trim();
-            if (!seasonId) {
-                return "Usage: ::ld season <seasonId>";
-            }
-            const result = this.liveDirector.setSeason(seasonId, actor);
-            return result.message;
-        }
-
-        if (normalizedCommand === "auto") {
-            const mode = String(args[0] ?? "")
-                .trim()
-                .toLowerCase();
-            if (mode !== "on" && mode !== "off") {
-                return "Usage: ::ld auto on|off";
-            }
-            const result = this.liveDirector.setAutoDirectorEnabled(mode === "on", actor);
-            return result.message;
-        }
-
-        if (normalizedCommand === "audit") {
-            const entries = this.liveDirector.getRecentAudit(3);
-            if (entries.length === 0) return "No director audit entries yet.";
-            return entries
-                .map(
-                    (entry) =>
-                        `${entry.action}:${entry.result}${
-                            entry.templateId ? `:${entry.templateId}` : ""
-                        }`,
-                )
-                .join(" | ");
-        }
-
-        return "Usage: ::ld status|start|stop|reload|season|auto|audit";
-    }
-
     private handleVoteCommand(player: PlayerState, args: string[]): string {
         const mode = String(args[0] ?? "")
             .trim()
@@ -8360,8 +8232,6 @@ export class WSServer {
             queueChatMessage: (msg) => this.queueChatMessage(msg),
             getPublicChatPlayerType: (player) => this.getPublicChatPlayerType(player),
             enqueueLevelUpPopup: (player, data) => this.enqueueLevelUpPopup(player, data),
-            handleLiveDirectorCommand: (player, command, args) =>
-                this.handleLiveDirectorCommand(player, command, args),
             handleVoteCommand: (player, args) => this.handleVoteCommand(player, args),
 
             // Debug

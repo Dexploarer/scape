@@ -67,7 +67,6 @@ async function main() {
         ticker,
         pathService,
         npcManager,
-        liveDirectorConfigPath: path.resolve("server/data/live-director/config.json"),
         cacheEnv, // reuse cache env to avoid double initialization
     });
     logger.info("Boot: WebSocket server constructed");

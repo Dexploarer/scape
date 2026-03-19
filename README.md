@@ -1,6 +1,6 @@
 # xrsps-typescript
 
-xRSPS is intended to explore a browser-first custom-server platform in a similar spirit to Jagex's abandoned Project Zanaris.
+xRSPS is intended to explore OSRS in a similar spirit to Jagex's abandoned Project Zanaris.
 
 This project contains:
 
@@ -10,7 +10,7 @@ This project contains:
 
 ## Status
 
-This is an active work-in-progress project, not a finished game.
+This is an active work-in-progress community project, not intended to be a finished game.
 
 ## Tech Stack
 

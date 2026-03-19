@@ -575,6 +575,15 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     // ECS is authoritative for actors (NPCs and Players migrated)
     actorRenderCount: number = 0;
     actorRenderData: Uint16Array = new Uint16Array(16 * 4);
+    // Per-frame tile marker cache mirroring OSRS scene submission dedupe.
+    // Only exact tile-centered actors participate; NPCs only when size == 1.
+    private frameActorTileSelectionId: number = -1;
+    private frameActorTileSelectionBuilt: boolean = false;
+    private frameWinningActorByTile: Map<
+        number,
+        { kind: "player" | "npc"; id: number; priority: number }
+    > = new Map();
+    private frameActorSelectionSeenNpcIds: Set<number> = new Set();
     // Double-buffered actor data textures to avoid GPU sync issues
     private actorDataTextures: [Texture | undefined, Texture | undefined] = [undefined, undefined];
     private actorDataCurrentIndex: number = 0;
@@ -5785,12 +5794,14 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     const controlledId = this.osrsClient.controlledPlayerServerId | 0;
                     const controlledIdx = peHs.getIndexForServerId(controlledId);
                     playerAnchorIdx = controlledIdx !== undefined ? controlledIdx : 0;
-                    const px = peHs.getX(playerAnchorIdx) | 0;
-                    const py = peHs.getY(playerAnchorIdx) | 0;
-                    playerWorldX = px / 128.0;
-                    playerWorldZ = py / 128.0;
-                    playerLevel = peHs.getLevel(playerAnchorIdx) | 0;
-                    playerRawLevel = playerLevel;
+                    if (this.shouldRenderPlayerIndex(playerAnchorIdx)) {
+                        const px = peHs.getX(playerAnchorIdx) | 0;
+                        const py = peHs.getY(playerAnchorIdx) | 0;
+                        playerWorldX = px / 128.0;
+                        playerWorldZ = py / 128.0;
+                        playerLevel = peHs.getLevel(playerAnchorIdx) | 0;
+                        playerRawLevel = playerLevel;
+                    }
                 }
             } catch {}
 
@@ -5865,6 +5876,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 if (count > 0) {
                     for (let i = 0; i < count; i++) {
                         if (overheadTexts.length >= overheadTextMaxEntries) break;
+                        if (!this.shouldRenderPlayerIndex(i)) continue;
                         const chatState = pe.getOverheadChat(i);
                         if (!chatState) continue;
                         const px = pe.getX(i) | 0;
@@ -5919,6 +5931,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 if (count > 0) {
                     for (let i = 0; i < count; i++) {
                         if (overheadPrayers.length >= overheadPrayerMaxEntries) break;
+                        if (!this.shouldRenderPlayerIndex(i)) continue;
                         const headIconPrayer = pe.getHeadIconPrayer(i);
                         if (headIconPrayer < 0) continue;
 
@@ -5956,6 +5969,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         ) {
                             break;
                         }
+                        if (!this.shouldRenderPlayerIndex(i)) continue;
 
                         // Get server ID for this player
                         const serverId = pe.getServerIdForIndex?.(i);
@@ -6071,6 +6085,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                             }
                             const ecsId = map.npcEntityIds[j] | 0;
                             if (ecsId <= 0 || seen.has(ecsId)) continue;
+                            if (!this.shouldRenderNpcFromMap(map, ecsId)) continue;
                             if (!npcEcs.isActive(ecsId)) continue;
                             seen.add(ecsId);
                             const localX = npcEcs.getX(ecsId) | 0;
@@ -9135,7 +9150,178 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
     }
 
-    private shouldRenderNpcFromMap(map: WebGLMapSquare, ecsId: number): boolean {
+    private resetActorTileSelectionFrameIfNeeded(): void {
+        const frameId = (this.stats?.frameCount ?? 0) | 0;
+        if (frameId === this.frameActorTileSelectionId) {
+            return;
+        }
+
+        this.frameActorTileSelectionId = frameId;
+        this.frameActorTileSelectionBuilt = false;
+        this.frameWinningActorByTile.clear();
+        this.frameActorSelectionSeenNpcIds.clear();
+    }
+
+    private getActorTileSelectionKey(tileX: number, tileY: number, plane: number): number {
+        return (
+            ((plane & 0x3) * 0x40000000 + ((tileX & 0x7fff) * 0x8000 + (tileY & 0x7fff))) >>>
+            0
+        );
+    }
+
+    private shouldReplaceTileWinner(
+        current: { kind: "player" | "npc"; id: number; priority: number },
+        kind: "player" | "npc",
+        id: number,
+        priority: number,
+    ): boolean {
+        if ((priority | 0) !== (current.priority | 0)) {
+            return (priority | 0) > (current.priority | 0);
+        }
+
+        if (kind !== current.kind) {
+            return kind === "player";
+        }
+
+        return (id | 0) < (current.id | 0);
+    }
+
+    private registerActorTileCandidate(
+        kind: "player" | "npc",
+        id: number,
+        tileX: number,
+        tileY: number,
+        plane: number,
+        priority: number,
+    ): void {
+        const key = this.getActorTileSelectionKey(tileX | 0, tileY | 0, plane | 0);
+        const current = this.frameWinningActorByTile.get(key);
+        if (
+            current &&
+            !this.shouldReplaceTileWinner(current, kind, id | 0, priority | 0)
+        ) {
+            return;
+        }
+
+        this.frameWinningActorByTile.set(key, {
+            kind,
+            id: id | 0,
+            priority: priority | 0,
+        });
+    }
+
+    private ensureActorTileSelectionForFrame(): void {
+        this.resetActorTileSelectionFrameIfNeeded();
+        if (this.frameActorTileSelectionBuilt) {
+            return;
+        }
+
+        this.frameActorTileSelectionBuilt = true;
+
+        const pe = this.osrsClient.playerEcs;
+        const playerCount = pe.size?.() ?? (pe as any).size?.() ?? 0;
+        const renderSelf = this.osrsClient.renderSelf !== false;
+        const controlledServerId = this.osrsClient.controlledPlayerServerId | 0;
+        const controlledPid =
+            controlledServerId > 0 ? pe.getIndexForServerId(controlledServerId) : undefined;
+
+        for (let pid = 0; pid < playerCount; pid++) {
+            if (!renderSelf && controlledPid !== undefined && (pid | 0) === (controlledPid | 0)) {
+                continue;
+            }
+            if (!this.isPlayerSceneTileMarkerCandidate(pid)) {
+                continue;
+            }
+
+            const tileX = (pe.getX(pid) >> 7) | 0;
+            const tileY = (pe.getY(pid) >> 7) | 0;
+            const plane = pe.getLevel(pid) | 0;
+            const priority =
+                controlledPid !== undefined && (pid | 0) === (controlledPid | 0) ? 2 : 1;
+            this.registerActorTileCandidate(
+                "player",
+                pid | 0,
+                tileX,
+                tileY,
+                plane,
+                priority,
+            );
+        }
+
+        const npcEcs = this.osrsClient.npcEcs;
+        const seenNpcIds = this.frameActorSelectionSeenNpcIds;
+        for (let i = 0; i < this.mapManager.visibleMapCount; i++) {
+            const map = this.mapManager.visibleMaps[i];
+            const ids = map?.npcEntityIds;
+            if (!ids || ids.length === 0) {
+                continue;
+            }
+
+            for (let j = 0; j < ids.length; j++) {
+                const ecsId = ids[j] | 0;
+                if (seenNpcIds.has(ecsId)) {
+                    continue;
+                }
+                if (!this.shouldRenderNpcOwnershipFromMap(map, ecsId)) {
+                    continue;
+                }
+                if (!this.isNpcSceneTileMarkerCandidate(ecsId)) {
+                    continue;
+                }
+
+                seenNpcIds.add(ecsId);
+                const tileX = (npcEcs.getWorldX(ecsId) >> 7) | 0;
+                const tileY = (npcEcs.getWorldY(ecsId) >> 7) | 0;
+                const plane = npcEcs.getLevel(ecsId) | 0;
+                this.registerActorTileCandidate("npc", ecsId, tileX, tileY, plane, 0);
+            }
+        }
+    }
+
+    private isPlayerSceneTileMarkerCandidate(pid: number): boolean {
+        const pe = this.osrsClient.playerEcs;
+        const px = pe.getX(pid) | 0;
+        const py = pe.getY(pid) | 0;
+        return (px & 127) === 64 && (py & 127) === 64;
+    }
+
+    private isNpcSceneTileMarkerCandidate(ecsId: number): boolean {
+        const npcEcs = this.osrsClient.npcEcs;
+        if ((npcEcs.getSize(ecsId) | 0) !== 1) {
+            return false;
+        }
+
+        const worldX = npcEcs.getWorldX(ecsId) | 0;
+        const worldY = npcEcs.getWorldY(ecsId) | 0;
+        return (worldX & 127) === 64 && (worldY & 127) === 64;
+    }
+
+    shouldRenderPlayerIndex(pid: number): boolean {
+        const renderSelf = this.osrsClient.renderSelf !== false;
+        const controlledServerId = this.osrsClient.controlledPlayerServerId | 0;
+        const controlledPid =
+            controlledServerId > 0
+                ? this.osrsClient.playerEcs.getIndexForServerId(controlledServerId)
+                : undefined;
+        if (!renderSelf && controlledPid !== undefined && (pid | 0) === (controlledPid | 0)) {
+            return false;
+        }
+        if (!this.isPlayerSceneTileMarkerCandidate(pid)) {
+            return true;
+        }
+
+        this.ensureActorTileSelectionForFrame();
+        const pe = this.osrsClient.playerEcs;
+        const tileKey = this.getActorTileSelectionKey(
+            (pe.getX(pid) >> 7) | 0,
+            (pe.getY(pid) >> 7) | 0,
+            pe.getLevel(pid) | 0,
+        );
+        const winner = this.frameWinningActorByTile.get(tileKey);
+        return winner?.kind === "player" && (winner.id | 0) === (pid | 0);
+    }
+
+    private shouldRenderNpcOwnershipFromMap(map: WebGLMapSquare, ecsId: number): boolean {
         const ecs = this.osrsClient.npcEcs;
         if (!ecs.isActive(ecsId) || !ecs.isLinked(ecsId)) return false;
 
@@ -9159,6 +9345,25 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         return true;
     }
 
+    shouldRenderNpcFromMap(map: WebGLMapSquare, ecsId: number): boolean {
+        if (!this.shouldRenderNpcOwnershipFromMap(map, ecsId)) {
+            return false;
+        }
+        if (!this.isNpcSceneTileMarkerCandidate(ecsId)) {
+            return true;
+        }
+
+        this.ensureActorTileSelectionForFrame();
+        const npcEcs = this.osrsClient.npcEcs;
+        const tileKey = this.getActorTileSelectionKey(
+            (npcEcs.getWorldX(ecsId) >> 7) | 0,
+            (npcEcs.getWorldY(ecsId) >> 7) | 0,
+            npcEcs.getLevel(ecsId) | 0,
+        );
+        const winner = this.frameWinningActorByTile.get(tileKey);
+        return winner?.kind === "npc" && (winner.id | 0) === (ecsId | 0);
+    }
+
     /**
      * Render-side NPC updates that depend on loaded animation frames (per-map caches).
      *
@@ -9175,7 +9380,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             for (let j = 0; j < ids.length; j++) {
                 const id = ids[j] | 0;
                 if (!ecs.isActive(id) || !ecs.isLinked(id)) continue;
-                if (!this.shouldRenderNpcFromMap(map, id)) continue;
+                if (!this.shouldRenderNpcOwnershipFromMap(map, id)) continue;
 
                 const walkingNow = ecs.shouldUseWalkAnim(id);
                 const movementOrientation = walkingNow ? ecs.getCurrentStepRot(id) : undefined;

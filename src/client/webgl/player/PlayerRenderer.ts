@@ -30,7 +30,6 @@ export class PlayerRenderer {
     private slotsBuffer: number[] = [];
     private frameRenderSelectionId: number = -1;
     private frameRenderPlayersByMap: Map<number, number[]> = new Map();
-    private frameDrawnCenterTiles: Set<number> = new Set();
     // Per-frame alpha counts captured during opaque pass; used to gate alpha pass work.
     private framePlayerAlphaCounts: Map<number, number> = new Map();
     // PERF: Cached Map for alpha pass batch groups to avoid per-frame allocation
@@ -2152,7 +2151,6 @@ export class PlayerRenderer {
         if (frameId === this.frameRenderSelectionId) return;
         this.frameRenderSelectionId = frameId;
         this.frameRenderPlayersByMap.clear();
-        this.frameDrawnCenterTiles.clear();
         this.framePlayerAlphaCounts.clear();
     }
 
@@ -2185,14 +2183,8 @@ export class PlayerRenderer {
             ) {
                 continue;
             }
-
-            // OSRS parity: if a player is exactly centered on a tile, only draw one actor for that tile per viewport pass.
-            if ((px & 127) === 64 && (py & 127) === 64) {
-                const tileKey = ((tileX & 0xffff) << 16) | (tileY & 0xffff);
-                if (this.frameDrawnCenterTiles.has(tileKey)) {
-                    continue;
-                }
-                this.frameDrawnCenterTiles.add(tileKey);
+            if (!this.renderer.shouldRenderPlayerIndex(pid)) {
+                continue;
             }
 
             out.push(pid | 0);

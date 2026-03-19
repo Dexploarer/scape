@@ -263,6 +263,7 @@ export class GfxManager {
             const py = (pe.getY?.(i) ?? 0) | 0;
             const tileX = (px / 128) | 0;
             const tileY = (py / 128) | 0;
+            if (!this.renderer.shouldRenderPlayerIndex(i)) continue;
             if (getMapIndexFromTile(tileX) === mapX && getMapIndexFromTile(tileY) === mapY)
                 pidsInMap.push(i);
         }
@@ -300,6 +301,7 @@ export class GfxManager {
         for (let slot = 0; slot < ids.length; slot++) {
             const ecsId = ids[slot] | 0;
             if (!ecs.isActive?.(ecsId) || !ecs.isLinked?.(ecsId)) continue;
+            if (!this.renderer.shouldRenderNpcFromMap(map, ecsId)) continue;
             const sid = ecs.getServerId?.(ecsId);
             if (typeof sid !== "number" || sid <= 0) continue;
             sidToInfo.set(sid | 0, { ecsId, slot });

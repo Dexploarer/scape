@@ -1336,6 +1336,11 @@ export class NpcManager {
     }
 
     private shouldRecoverToSpawn(npc: NpcState): boolean {
+        // Player followers are transient companions, not ambient roamers.
+        // Their summon tile is not a "home" that they should recover back to.
+        if (npc.isPlayerFollower()) {
+            return false;
+        }
         if (npc.isRecoveringToSpawn()) {
             if (
                 npc.level === npc.spawnLevel &&

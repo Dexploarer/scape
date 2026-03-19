@@ -576,9 +576,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     // ECS is authoritative for actors (NPCs and Players migrated)
     actorRenderCount: number = 0;
     actorRenderData: Uint16Array = new Uint16Array(16 * 4);
-    // Per-frame tile marker cache mirroring OSRS scene submission dedupe.
-    // Only exact tile-centered actors participate; NPCs only when size == 1.
-    // Phase order: local player, first-priority NPCs, other players, default NPCs, last NPCs.
+    // OSRS parity: mirror sceneDrawCycleMarker/tileDrawCycleMarkers submission dedupe
+    // for tile-centered single-tile actors. Submission order matches the deob actor pass.
     private frameActorTileSelectionId: number = -1;
     private frameActorTileSelectionBuilt: boolean = false;
     private frameWinningActorByTile: Map<
@@ -9198,7 +9197,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
 
         this.frameWinningActorByTile.set(key, {
-            kind,
+            kind: kind,
             id: id | 0,
             priority: priority | 0,
         });
@@ -9353,9 +9352,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     shouldRenderPlayerIndex(pid: number): boolean {
-        if (!this.renderPlayers) {
-            return false;
-        }
         const renderSelf = this.osrsClient.renderSelf !== false;
         const controlledServerId = this.osrsClient.controlledPlayerServerId | 0;
         const controlledPid =

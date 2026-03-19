@@ -57,6 +57,12 @@ export class GLRenderer {
     private static readonly SOLID_BATCH_RECT_CAPACITY = 2048;
     private solidBatchData = new Float32Array(GLRenderer.SOLID_BATCH_RECT_CAPACITY * 36);
     private solidBatchFloatCount = 0;
+    private textureBatchData = new Float32Array(16 * 256);
+    private textureBatchQuadCount = 0;
+    private textureBatchTex: Texture | null = null;
+    private textureBatchTintStrength = 0;
+    private textureBatchTintColor: [number, number, number] = [0, 0, 0];
+    private textureBatchAlpha = 1;
 
     constructor(canvas: HTMLCanvasElement) {
         const gl = createGL(canvas);
@@ -207,6 +213,8 @@ void main(){
     clear(r = 0.043, g = 0.059, b = 0.078, a = 1) {
         const gl = this.gl;
         this.solidBatchFloatCount = 0;
+        this.textureBatchQuadCount = 0;
+        this.textureBatchTex = null;
         gl.clearColor(r, g, b, a);
         gl.clear(gl.COLOR_BUFFER_BIT);
     }
@@ -231,9 +239,11 @@ void main(){
 
     flush() {
         this.flushSolidBatch();
+        this.flushTextureBatch();
     }
 
     drawRect(x: number, y: number, w: number, h: number, color: [number, number, number, number]) {
+        this.flushTextureBatch();
         this.appendSolidRect(x, y, w, h, color);
     }
 
@@ -251,6 +261,7 @@ void main(){
         colorBot: [number, number, number, number],
     ) {
         const gl = this.gl;
+        this.flushTextureBatch();
         this.flushSolidBatch();
         // PERF: Reuse cached array instead of allocating new Float32Array
         const verts = this.gradVerts;
@@ -324,47 +335,15 @@ void main(){
         flipY = false,
         alpha = 1,
     ) {
-        const gl = this.gl;
+        if (!tex?.tex) return;
+
         this.flushSolidBatch();
-        gl.useProgram(this.progTex);
-        gl.uniformMatrix4fv(this.uProj_tex, false, this.proj);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, tex.tex);
-        gl.uniform1i(this.uSampler_tex, 0);
-        // Tint settings (default to no tint)
-        gl.uniform3f(this.uTintColor_tex, tintColor[0], tintColor[1], tintColor[2]);
-        gl.uniform1f(this.uTintStrength_tex, tintStrength);
-        // Alpha (overall opacity, 0-1)
-        gl.uniform1f(this.uAlpha_tex, alpha);
         // UV coordinates with flip support
         const u0 = flipX ? uScale : 0;
         const u1 = flipX ? 0 : uScale;
         const v0 = flipY ? vScale : 0;
         const v1 = flipY ? 0 : vScale;
-        // PERF: Reuse cached array instead of allocating new Float32Array
-        const verts = this.texVerts;
-        verts[0] = x;
-        verts[1] = y;
-        verts[2] = u0;
-        verts[3] = v0;
-        verts[4] = x + w;
-        verts[5] = y;
-        verts[6] = u1;
-        verts[7] = v0;
-        verts[8] = x + w;
-        verts[9] = y + h;
-        verts[10] = u1;
-        verts[11] = v1;
-        verts[12] = x;
-        verts[13] = y + h;
-        verts[14] = u0;
-        verts[15] = v1;
-        gl.bindVertexArray(this.vaoTex);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-        gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
-        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-        this.perfDrawCalls++;
-        this.perfTextureDrawCalls++;
+        this.appendTextureQuad(tex, x, y, x + w, y + h, u0, v0, u1, v1, tintStrength, tintColor, alpha);
     }
 
     drawTextureQuads(
@@ -377,23 +356,15 @@ void main(){
     ) {
         if (!tex?.tex || quadCount <= 0) return;
 
-        const gl = this.gl;
         this.flushSolidBatch();
-        this.ensureTextureIndexCapacity(quadCount);
-        gl.useProgram(this.progTex);
-        gl.uniformMatrix4fv(this.uProj_tex, false, this.proj);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, tex.tex);
-        gl.uniform1i(this.uSampler_tex, 0);
-        gl.uniform3f(this.uTintColor_tex, tintColor[0], tintColor[1], tintColor[2]);
-        gl.uniform1f(this.uTintStrength_tex, tintStrength);
-        gl.uniform1f(this.uAlpha_tex, alpha);
-        gl.bindVertexArray(this.vaoTex);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-        gl.bufferData(gl.ARRAY_BUFFER, vertices.subarray(0, quadCount * 16), gl.DYNAMIC_DRAW);
-        gl.drawElements(gl.TRIANGLES, quadCount * 6, gl.UNSIGNED_SHORT, 0);
-        this.perfDrawCalls++;
-        this.perfTextureDrawCalls++;
+        this.appendTextureQuads(
+            tex,
+            vertices.subarray(0, quadCount * 16),
+            quadCount,
+            tintStrength,
+            tintColor,
+            alpha,
+        );
     }
 
     /**
@@ -425,6 +396,7 @@ void main(){
         alpha = 1,
     ) {
         const gl = this.gl;
+        this.flushTextureBatch();
         this.flushSolidBatch();
         gl.useProgram(this.progTex);
         gl.uniformMatrix4fv(this.uProj_tex, false, this.proj);
@@ -514,6 +486,7 @@ void main(){
         angleScale: number = 65536,
     ) {
         const gl = this.gl;
+        this.flushTextureBatch();
         this.flushSolidBatch();
         gl.useProgram(this.progMasked);
         gl.uniformMatrix4fv(this.uProj_masked, false, this.proj);
@@ -647,6 +620,111 @@ void main(){
         this.solidBatchFloatCount = o;
     }
 
+    private appendTextureQuad(
+        tex: Texture,
+        x0: number,
+        y0: number,
+        x1: number,
+        y1: number,
+        u0: number,
+        v0: number,
+        u1: number,
+        v1: number,
+        tintStrength: number,
+        tintColor: [number, number, number],
+        alpha: number,
+    ) {
+        this.prepareTextureBatch(tex, 1, tintStrength, tintColor, alpha);
+        const data = this.textureBatchData;
+        const offset = this.textureBatchQuadCount * 16;
+        data[offset + 0] = x0;
+        data[offset + 1] = y0;
+        data[offset + 2] = u0;
+        data[offset + 3] = v0;
+        data[offset + 4] = x1;
+        data[offset + 5] = y0;
+        data[offset + 6] = u1;
+        data[offset + 7] = v0;
+        data[offset + 8] = x1;
+        data[offset + 9] = y1;
+        data[offset + 10] = u1;
+        data[offset + 11] = v1;
+        data[offset + 12] = x0;
+        data[offset + 13] = y1;
+        data[offset + 14] = u0;
+        data[offset + 15] = v1;
+        this.textureBatchQuadCount++;
+    }
+
+    private appendTextureQuads(
+        tex: Texture,
+        vertices: Float32Array,
+        quadCount: number,
+        tintStrength: number,
+        tintColor: [number, number, number],
+        alpha: number,
+    ) {
+        this.prepareTextureBatch(tex, quadCount, tintStrength, tintColor, alpha);
+        const offset = this.textureBatchQuadCount * 16;
+        this.textureBatchData.set(vertices, offset);
+        this.textureBatchQuadCount += quadCount;
+    }
+
+    private prepareTextureBatch(
+        tex: Texture,
+        addQuads: number,
+        tintStrength: number,
+        tintColor: [number, number, number],
+        alpha: number,
+    ) {
+        if (
+            this.textureBatchQuadCount > 0 &&
+            !this.canReuseTextureBatch(tex, tintStrength, tintColor, alpha)
+        ) {
+            this.flushTextureBatch();
+        }
+        if (this.textureBatchQuadCount === 0) {
+            this.textureBatchTex = tex;
+            this.textureBatchTintStrength = tintStrength;
+            this.textureBatchTintColor[0] = tintColor[0];
+            this.textureBatchTintColor[1] = tintColor[1];
+            this.textureBatchTintColor[2] = tintColor[2];
+            this.textureBatchAlpha = alpha;
+        }
+        this.ensureTextureBatchCapacity(addQuads);
+    }
+
+    private canReuseTextureBatch(
+        tex: Texture,
+        tintStrength: number,
+        tintColor: [number, number, number],
+        alpha: number,
+    ): boolean {
+        return (
+            this.textureBatchTex === tex &&
+            this.textureBatchTintStrength === tintStrength &&
+            this.textureBatchAlpha === alpha &&
+            this.textureBatchTintColor[0] === tintColor[0] &&
+            this.textureBatchTintColor[1] === tintColor[1] &&
+            this.textureBatchTintColor[2] === tintColor[2]
+        );
+    }
+
+    private ensureTextureBatchCapacity(addQuads: number) {
+        const requiredQuads = this.textureBatchQuadCount + addQuads;
+        const currentQuads = this.textureBatchData.length / 16;
+        if (requiredQuads <= currentQuads) return;
+
+        let nextQuads = Math.max(1, currentQuads);
+        while (nextQuads < requiredQuads) {
+            nextQuads <<= 1;
+        }
+
+        const next = new Float32Array(nextQuads * 16);
+        next.set(this.textureBatchData.subarray(0, this.textureBatchQuadCount * 16));
+        this.textureBatchData = next;
+    }
+
     private flushSolidBatch() {
         if (this.solidBatchFloatCount === 0) return;
 
@@ -664,6 +742,38 @@ void main(){
         this.perfDrawCalls++;
         this.perfSolidDrawCalls++;
         this.solidBatchFloatCount = 0;
+    }
+
+    private flushTextureBatch() {
+        if (this.textureBatchQuadCount === 0 || !this.textureBatchTex?.tex) return;
+
+        const gl = this.gl;
+        this.ensureTextureIndexCapacity(this.textureBatchQuadCount);
+        gl.useProgram(this.progTex);
+        gl.uniformMatrix4fv(this.uProj_tex, false, this.proj);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.textureBatchTex.tex);
+        gl.uniform1i(this.uSampler_tex, 0);
+        gl.uniform3f(
+            this.uTintColor_tex,
+            this.textureBatchTintColor[0],
+            this.textureBatchTintColor[1],
+            this.textureBatchTintColor[2],
+        );
+        gl.uniform1f(this.uTintStrength_tex, this.textureBatchTintStrength);
+        gl.uniform1f(this.uAlpha_tex, this.textureBatchAlpha);
+        gl.bindVertexArray(this.vaoTex);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+        gl.bufferData(
+            gl.ARRAY_BUFFER,
+            this.textureBatchData.subarray(0, this.textureBatchQuadCount * 16),
+            gl.DYNAMIC_DRAW,
+        );
+        gl.drawElements(gl.TRIANGLES, this.textureBatchQuadCount * 6, gl.UNSIGNED_SHORT, 0);
+        this.perfDrawCalls++;
+        this.perfTextureDrawCalls++;
+        this.textureBatchQuadCount = 0;
+        this.textureBatchTex = null;
     }
 
     private ensureTextureIndexCapacity(quadCount: number) {

@@ -14,12 +14,14 @@ export class UIInputBridge {
     private lastClickMode3: number = ClickMode.NONE;
     private lastClickMode2: number = ClickMode.NONE;
     private menuHandler?: (x: number, y: number) => void;
+    private canvas?: HTMLCanvasElement;
     // When true, suppress the next pointer-up transition for the current click.
     // Used when a handler consumes the click on mousedown (OSRS menu parity).
     private suppressUpUntilRelease: boolean = false;
 
-    constructor() {
+    constructor(canvas?: HTMLCanvasElement) {
         this.clicks = new ClickRegistry();
+        this.canvas = canvas;
     }
 
     getClicks(): ClickRegistry {
@@ -39,6 +41,18 @@ export class UIInputBridge {
         this.menuHandler = fn;
     }
 
+    private transformPoint(x: number, y: number): { x: number; y: number } {
+        const canvasAny = this.canvas as any;
+        const scaleXRaw = Number(canvasAny?.__uiInputScaleX ?? 1);
+        const scaleYRaw = Number(canvasAny?.__uiInputScaleY ?? 1);
+        const scaleX = Number.isFinite(scaleXRaw) && scaleXRaw > 0 ? scaleXRaw : 1;
+        const scaleY = Number.isFinite(scaleYRaw) && scaleYRaw > 0 ? scaleYRaw : 1;
+        return {
+            x: Math.round(x * scaleX),
+            y: Math.round(y * scaleY),
+        };
+    }
+
     /**
      * Called at start of each frame to reset transient click targets
      */
@@ -52,20 +66,22 @@ export class UIInputBridge {
      */
     processInput(input: InputManager): void {
         const { mouseX, mouseY, clickMode2, clickMode3, saveClickX, saveClickY } = input;
+        const mousePos = this.transformPoint(mouseX, mouseY);
+        const clickPos = this.transformPoint(saveClickX, saveClickY);
 
         // Update hover state
         if (mouseX >= 0 && mouseY >= 0) {
-            this.clicks.onPointerMove(mouseX, mouseY);
+            this.clicks.onPointerMove(mousePos.x, mousePos.y);
         }
 
         // Handle clicks based on clickMode3 (single-frame pulse)
         if (clickMode3 !== ClickMode.NONE && this.lastClickMode3 === ClickMode.NONE) {
             // New click this frame
             if (clickMode3 === ClickMode.LEFT) {
-                this.clicks.onPointerDown(saveClickX, saveClickY);
+                this.clicks.onPointerDown(clickPos.x, clickPos.y);
             } else if (clickMode3 === ClickMode.RIGHT) {
                 // Right click opens menu
-                this.menuHandler?.(saveClickX, saveClickY);
+                this.menuHandler?.(clickPos.x, clickPos.y);
             }
         }
 
@@ -73,7 +89,7 @@ export class UIInputBridge {
         // clickMode3 returns to NONE the frame after mousedown even while held.
         if (this.lastClickMode2 === ClickMode.LEFT && clickMode2 === ClickMode.NONE) {
             if (!this.suppressUpUntilRelease) {
-                this.clicks.onPointerUp(mouseX, mouseY);
+                this.clicks.onPointerUp(mousePos.x, mousePos.y);
             } else {
                 // Consume exactly one up-transition, then clear.
                 this.suppressUpUntilRelease = false;
@@ -94,7 +110,7 @@ export class UIInputBridge {
      * Get current pointer position from InputManager
      */
     getPointerPos(input: InputManager): { x: number; y: number } {
-        return { x: input.mouseX, y: input.mouseY };
+        return this.transformPoint(input.mouseX, input.mouseY);
     }
 }
 
@@ -105,7 +121,7 @@ export class UIInputBridge {
 export function ensureInputBridge(glr: GLRenderer): UIInputBridge {
     const canvas = glr.canvas as any;
     if (!canvas.__inputBridge) {
-        canvas.__inputBridge = new UIInputBridge();
+        canvas.__inputBridge = new UIInputBridge(glr.canvas);
     }
     return canvas.__inputBridge;
 }

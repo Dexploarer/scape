@@ -480,7 +480,11 @@ export function registerClientOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.MOBILE_SETFPS, (ctx) => {
-        ctx.intStackSize--;
+        const fps = ctx.intStack[--ctx.intStackSize] | 0;
+        const osrsClient = (ctx.widgetManager as any).osrsClient;
+        if (osrsClient?.setTargetFps) {
+            osrsClient.setTargetFps(fps);
+        }
     });
 
     handlers.set(Opcodes.MOBILE_OPENSTORE, (ctx) => {});

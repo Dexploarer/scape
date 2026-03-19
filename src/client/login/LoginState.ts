@@ -1,6 +1,17 @@
 import { LoginIndex } from "./GameState";
+import { isIosStandalonePwa } from "../../util/DeviceUtil";
 
 const STORAGE_KEY_TITLE_MUSIC_DISABLED = "osrs:titleMusicDisabled";
+const STORAGE_KEY_IOS_PWA_LOGIN_STATE = "osrs:iosPwaLoginState";
+const IOS_PWA_LOGIN_STATE_VERSION = 1;
+
+type PersistedIosPwaLoginState = {
+    version: number;
+    username: string;
+    password: string;
+    rememberUsername: boolean;
+    isUsernameHidden: boolean;
+};
 
 /**
  * Login state instance class.
@@ -11,6 +22,7 @@ export class LoginState {
     constructor() {
         // Load persisted settings from localStorage
         this.loadPersistedSettings();
+        this.loadPersistedLoginState();
     }
 
     /** Load settings that should persist between sessions */
@@ -31,6 +43,79 @@ export class LoginState {
             localStorage.setItem(STORAGE_KEY_TITLE_MUSIC_DISABLED, String(this.titleMusicDisabled));
         } catch {
             // localStorage not available
+        }
+    }
+
+    private supportsPersistedLoginState(): boolean {
+        return (
+            isIosStandalonePwa() &&
+            typeof window !== "undefined" &&
+            typeof window.localStorage !== "undefined"
+        );
+    }
+
+    private loadPersistedLoginState(): void {
+        if (!this.supportsPersistedLoginState()) {
+            return;
+        }
+
+        try {
+            const raw = window.localStorage.getItem(STORAGE_KEY_IOS_PWA_LOGIN_STATE);
+            if (!raw) {
+                return;
+            }
+
+            const parsed = JSON.parse(raw) as Partial<PersistedIosPwaLoginState>;
+            if (parsed.version !== IOS_PWA_LOGIN_STATE_VERSION) {
+                return;
+            }
+
+            if (typeof parsed.rememberUsername === "boolean") {
+                this.rememberUsername = parsed.rememberUsername;
+            }
+            if (typeof parsed.isUsernameHidden === "boolean") {
+                this.isUsernameHidden = parsed.isUsernameHidden;
+            }
+
+            if (!this.rememberUsername) {
+                this.username = "";
+                this.password = "";
+                return;
+            }
+
+            if (typeof parsed.username === "string") {
+                this.username = parsed.username.slice(0, 320);
+            }
+            if (typeof parsed.password === "string") {
+                this.password = parsed.password.slice(0, 20);
+            }
+
+            if (this.username.length > 0 || this.password.length > 0) {
+                this.loginIndex = LoginIndex.LOGIN_FORM;
+                this.currentLoginField = this.username.length > 0 ? 1 : 0;
+                this.setResponse("", "Enter your username & password.", "", "");
+            }
+        } catch {
+            // localStorage unavailable or corrupted
+        }
+    }
+
+    savePersistedLoginState(): void {
+        if (!this.supportsPersistedLoginState()) {
+            return;
+        }
+
+        try {
+            const payload: PersistedIosPwaLoginState = {
+                version: IOS_PWA_LOGIN_STATE_VERSION,
+                username: this.rememberUsername ? this.username.slice(0, 320) : "",
+                password: this.rememberUsername ? this.password.slice(0, 20) : "",
+                rememberUsername: this.rememberUsername,
+                isUsernameHidden: this.isUsernameHidden,
+            };
+            window.localStorage.setItem(STORAGE_KEY_IOS_PWA_LOGIN_STATE, JSON.stringify(payload));
+        } catch {
+            // localStorage unavailable
         }
     }
     // ========== UI Dialog State ==========
@@ -211,6 +296,7 @@ export class LoginState {
         this.mobileWorldSelectScrollVelocity = 0;
         this.mobileWorldSelectFilter = "";
         this.virtualKeyboardVisible = false;
+        this.loadPersistedLoginState();
     }
 
     /**

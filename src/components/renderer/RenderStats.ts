@@ -33,6 +33,16 @@ export class RenderStats {
     // Output resolution
     width: number = 0;
     height: number = 0;
+    sceneWidth: number = 0;
+    sceneHeight: number = 0;
+
+    // Frame pacing / scheduler diagnostics
+    frameBudgetMs: number = 0;
+    callbackDeltaMs: number = 0;
+    limiterSkippedCallbacks: number = 0;
+    limiterSkipDebtMs: number = 0;
+    estimatedRefreshHz: number = 0;
+    usedTimeoutScheduler: boolean = false;
 
     // Camera + Player debug fields
     cameraPosX: number = 0;
@@ -47,6 +57,36 @@ export class RenderStats {
     playerTileY: number = 0;
     playerLevel: number = 0;
 
+    private lastCallbackTime: DOMHighResTimeStamp | undefined;
+    private pendingLimiterSkippedCallbacks: number = 0;
+    private pendingLimiterSkipDebtMs: number = 0;
+
+    noteFrameCallback(
+        time: DOMHighResTimeStamp,
+        opts?: { viaTimeout?: boolean; frameBudgetMs?: number },
+    ): void {
+        const delta = this.lastCallbackTime === undefined ? 0 : time - this.lastCallbackTime;
+        this.lastCallbackTime = time;
+        this.callbackDeltaMs = delta > 0 ? delta : 0;
+        this.usedTimeoutScheduler = !!opts?.viaTimeout;
+        this.frameBudgetMs = Math.max(0, opts?.frameBudgetMs ?? 0);
+
+        // Track the active display cadence from visible RAF callbacks.
+        if (!opts?.viaTimeout && delta >= 4 && delta <= 40) {
+            const hz = 1000 / delta;
+            if (this.estimatedRefreshHz <= 0) {
+                this.estimatedRefreshHz = hz;
+            } else {
+                this.estimatedRefreshHz = this.estimatedRefreshHz * 0.85 + hz * 0.15;
+            }
+        }
+    }
+
+    noteLimiterSkip(skipDebtMs: number): void {
+        this.pendingLimiterSkippedCallbacks++;
+        this.pendingLimiterSkipDebtMs += Math.max(0, skipDebtMs);
+    }
+
     getDeltaTime(time: DOMHighResTimeStamp): number {
         return time - (this.lastFrameTime ?? time);
     }
@@ -55,6 +95,10 @@ export class RenderStats {
         this.frameTime = this.getDeltaTime(time);
         this.lastFrameTime = time;
         this.frameTimeStart = performance.now();
+        this.limiterSkippedCallbacks = this.pendingLimiterSkippedCallbacks;
+        this.limiterSkipDebtMs = this.pendingLimiterSkipDebtMs;
+        this.pendingLimiterSkippedCallbacks = 0;
+        this.pendingLimiterSkipDebtMs = 0;
 
         // 1-second average FPS
         this.fpsFrameCount++;

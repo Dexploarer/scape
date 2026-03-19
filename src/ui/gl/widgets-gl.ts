@@ -1023,8 +1023,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         const cAny: any = glr.canvas as any;
         const uii = (cAny.__ui = cAny.__ui || {});
         if (inputManager) {
-            uii.mouseX = inputManager.mouseX;
-            uii.mouseY = inputManager.mouseY;
+            const pointer = input.getPointerPos(inputManager);
+            uii.mouseX = pointer.x | 0;
+            uii.mouseY = pointer.y | 0;
         }
     } catch {}
     // Mirror UI state from host canvas so overlays can read entries set by the map renderer

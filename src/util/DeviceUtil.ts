@@ -40,6 +40,21 @@ export function checkSafari(): boolean {
 export const isSafari = checkSafari();
 export const isIosSafari = isIos && isSafari;
 
+type NavigatorWithStandalone = Navigator & { standalone?: boolean };
+
+export function isStandaloneDisplayMode(): boolean {
+    if (typeof window === "undefined") return false;
+    const nav = window.navigator as NavigatorWithStandalone;
+    const isStandaloneMedia =
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(display-mode: standalone)").matches;
+    return isStandaloneMedia || nav.standalone === true;
+}
+
+export function isIosStandalonePwa(): boolean {
+    return isIos && isStandaloneDisplayMode();
+}
+
 function getForcedLandscapeViewportSize():
     | {
           width: number;

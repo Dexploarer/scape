@@ -1,22 +1,19 @@
 import {
-    DrawCall,
     App as PicoApp,
-    PicoGL,
     Program,
-    Texture,
-    VertexArray,
-    VertexBuffer,
 } from "picogl";
 
 import { profiler } from "../../client/webgl/PerformanceProfiler";
 import { CacheIndex } from "../../rs/cache/CacheIndex";
 import { CacheSystem } from "../../rs/cache/CacheSystem";
 import { BitmapFont } from "../../rs/font/BitmapFont";
+import { isTouchDevice } from "../../util/DeviceUtil";
 import { GLRenderer } from "../gl/renderer";
 import { getChooseOptionMenuRect } from "../gl/choose-option";
 import {
     GLRenderOpts,
     beginWidgetUiFrame,
+    detachGLUI,
     processWidgetUiInput,
     renderWidgetTreeGL,
 } from "../gl/widgets-gl";
@@ -62,21 +59,11 @@ type DirtyRect = {
 export class WidgetsOverlay implements Overlay {
     private app!: PicoApp;
     private glRenderer?: GLRenderer;
-    private offscreenCanvas?: HTMLCanvasElement;
+    private overlayCanvas?: HTMLCanvasElement;
+    private overlayScaleX: number = 1;
+    private overlayScaleY: number = 1;
     private widgetEntries: WidgetRenderEntry[] = [];
     private visible: Map<number, boolean> = new Map();
-    private drawCall?: DrawCall;
-    private vertexArray?: VertexArray;
-    private positions?: VertexBuffer;
-    private uvs?: VertexBuffer;
-
-    // PERF: Cached texture to avoid create/delete every frame
-    private cachedTexture?: Texture;
-    private cachedTextureWidth: number = 0;
-    private cachedTextureHeight: number = 0;
-
-    // PERF: Cached tint array to avoid allocation every frame
-    private readonly whiteTint = new Float32Array([1, 1, 1, 1]);
 
     // PERF: Cached arrays and objects to avoid per-frame allocations
     private cachedRootSources: any[] = [];
@@ -89,9 +76,6 @@ export class WidgetsOverlay implements Overlay {
     private lastRootSignature: string = "";
     private rootSetChanged: boolean = true;
 
-    // Scratch canvas used for dirty-region texture uploads.
-    private uploadScratchCanvas?: HTMLCanvasElement;
-    private uploadScratchCtx?: CanvasRenderingContext2D | null;
     private lastMenuVisualSignature: string = "";
     private lastMenuVisualRect?: DirtyRect;
 
@@ -105,9 +89,11 @@ export class WidgetsOverlay implements Overlay {
     public enabled: boolean = true;
 
     constructor(
-        private program: Program,
+        program: Program,
         private ctx: WidgetsContext,
-    ) {}
+    ) {
+        void program;
+    }
 
     /**
      * Get the GL canvas where the click registry is stored.
@@ -118,124 +104,71 @@ export class WidgetsOverlay implements Overlay {
     }
 
     dispose(): void {
-        // Clean up resources
-        if (this.cachedTexture) {
+        if (this.glRenderer) {
             try {
-                this.cachedTexture.delete();
+                detachGLUI(this.glRenderer);
             } catch {}
-            this.cachedTexture = undefined;
         }
         this.glRenderer = undefined;
-        this.offscreenCanvas = undefined;
-        this.uploadScratchCanvas = undefined;
-        this.uploadScratchCtx = undefined;
+        if (this.overlayCanvas?.parentElement) {
+            try {
+                this.overlayCanvas.parentElement.removeChild(this.overlayCanvas);
+            } catch {}
+        }
+        this.overlayCanvas = undefined;
+        this.rootSetChanged = true;
+        this.lastRootSignature = "";
+        this.lastMenuVisualSignature = "";
+        this.lastMenuVisualRect = undefined;
     }
 
     init(args: OverlayInitArgs): void {
+        this.dispose();
         this.app = args.app;
 
-        // Create offscreen canvas for widget rendering
-        this.offscreenCanvas = document.createElement("canvas");
-        this.offscreenCanvas.width = this.app.width;
-        this.offscreenCanvas.height = this.app.height;
+        // Render widgets into a real transparent overlay canvas stacked above the
+        // scene canvas so we avoid re-uploading and re-compositing a full-screen
+        // widget texture every frame.
+        this.overlayCanvas = document.createElement("canvas");
+        this.overlayCanvas.width = this.app.width;
+        this.overlayCanvas.height = this.app.height;
+        this.overlayCanvas.style.position = "absolute";
+        this.overlayCanvas.style.inset = "0";
+        this.overlayCanvas.style.width = "100%";
+        this.overlayCanvas.style.height = "100%";
+        this.overlayCanvas.style.pointerEvents = "none";
+        this.overlayCanvas.style.background = "transparent";
+        this.attachOverlayCanvas();
 
         // Initialize GL renderer for widgets
         try {
-            this.glRenderer = new GLRenderer(this.offscreenCanvas);
-            this.glRenderer.resize(this.app.width, this.app.height);
+            this.glRenderer = new GLRenderer(this.overlayCanvas);
+            const overlaySize = this.getOverlayRenderSize();
+            this.glRenderer.resize(overlaySize.width, overlaySize.height);
         } catch (e) {
             console.error("Failed to initialize GLRenderer for widgets:", e);
         }
-
-        // Create a simple fullscreen quad shader if the provided one doesn't work
-        const vsSource = `#version 300 es
-            layout(location=0) in vec2 a_position;
-            layout(location=1) in vec2 a_texCoord;
-            out vec2 v_uv;
-            void main() {
-                gl_Position = vec4(a_position, 0.0, 1.0);
-                v_uv = a_texCoord;
-            }`;
-
-        const fsSource = `#version 300 es
-            precision mediump float;
-            in vec2 v_uv;
-            uniform sampler2D u_sprite;
-            uniform vec4 u_tint;
-            out vec4 fragColor;
-            void main() {
-                vec4 c = texture(u_sprite, v_uv);
-                if (c.a < 0.01) discard;
-                fragColor = vec4(c.rgb * u_tint.rgb, c.a * u_tint.a);
-            }`;
-
-        // Try to create our own simple shader
-        try {
-            const simpleProgram = this.app.createProgram(vsSource, fsSource);
-            if (simpleProgram) {
-                this.program = simpleProgram;
-            }
-        } catch (e) {
-            console.warn("Failed to create simple widget shader, using provided program");
-        }
-
-        // Setup fullscreen quad in NDC coordinates
-        const positions = new Float32Array([
-            -1,
-            -1, // bottom-left
-            -1,
-            1, // top-left
-            1,
-            1, // top-right
-            -1,
-            -1, // bottom-left
-            1,
-            1, // top-right
-            1,
-            -1, // bottom-right
-        ]);
-
-        const uvs = new Float32Array([
-            0,
-            1, // bottom-left UV
-            0,
-            0, // top-left UV
-            1,
-            0, // top-right UV
-            0,
-            1, // bottom-left UV
-            1,
-            0, // top-right UV
-            1,
-            1, // bottom-right UV
-        ]);
-
-        this.positions = this.app.createVertexBuffer(PicoGL.FLOAT, 2, positions);
-        this.uvs = this.app.createVertexBuffer(PicoGL.FLOAT, 2, uvs);
-
-        this.vertexArray = this.app
-            .createVertexArray()
-            .vertexAttributeBuffer(0, this.positions)
-            .vertexAttributeBuffer(1, this.uvs);
-
-        this.drawCall = this.app.createDrawCall(this.program, this.vertexArray);
     }
 
     update(args: OverlayUpdateArgs): void {
-        if (!this.glRenderer || !this.offscreenCanvas) {
+        void args;
+        if (!this.glRenderer || !this.overlayCanvas) {
             console.warn("WidgetsOverlay: No GL renderer or canvas");
             return;
         }
 
+        this.attachOverlayCanvas();
+
         // Update canvas size if needed
+        const overlaySize = this.getOverlayRenderSize();
         if (
-            this.offscreenCanvas.width !== this.app.width ||
-            this.offscreenCanvas.height !== this.app.height
+            this.overlayCanvas.width !== overlaySize.width ||
+            this.overlayCanvas.height !== overlaySize.height
         ) {
-            this.offscreenCanvas.width = this.app.width;
-            this.offscreenCanvas.height = this.app.height;
-            this.glRenderer.resize(this.app.width, this.app.height);
-            console.log(`WidgetsOverlay: Resized to ${this.app.width}x${this.app.height}`);
+            this.overlayCanvas.width = overlaySize.width;
+            this.overlayCanvas.height = overlaySize.height;
+            this.glRenderer.resize(overlaySize.width, overlaySize.height);
+            console.log(`WidgetsOverlay: Resized to ${overlaySize.width}x${overlaySize.height}`);
         }
 
         // PERF: Reuse cached array instead of allocating new one each frame
@@ -319,8 +252,8 @@ export class WidgetsOverlay implements Overlay {
         // Update only the fields that may change each frame
         const baseRenderOpts = this.cachedBaseRenderOpts;
         baseRenderOpts.spriteIndex = spriteIndex as CacheIndex;
-        baseRenderOpts.hostW = this.app.width;
-        baseRenderOpts.hostH = this.app.height;
+        baseRenderOpts.hostW = overlaySize.width;
+        baseRenderOpts.hostH = overlaySize.height;
         baseRenderOpts.hostCanvas = hostCanvas || undefined;
         baseRenderOpts.widgetManager = this.ctx.getWidgetManager?.();
         baseRenderOpts.game = this.ctx.getGameContext?.();
@@ -349,23 +282,23 @@ export class WidgetsOverlay implements Overlay {
             ...baseRenderOpts,
             rootOffsetX:
                 typeof (root as any).__widgetRenderOffsetX === "number"
-                    ? (root as any).__widgetRenderOffsetX | 0
+                    ? Math.round(Number((root as any).__widgetRenderOffsetX) * this.overlayScaleX)
                     : 0,
             rootOffsetY:
                 typeof (root as any).__widgetRenderOffsetY === "number"
-                    ? (root as any).__widgetRenderOffsetY | 0
+                    ? Math.round(Number((root as any).__widgetRenderOffsetY) * this.overlayScaleY)
                     : 0,
             rootScale:
                 typeof (root as any).__widgetRenderScale === "number"
-                    ? Number((root as any).__widgetRenderScale)
+                    ? Number((root as any).__widgetRenderScale) * this.overlayScaleX
                     : 1.0,
             rootScaleX:
                 typeof (root as any).__widgetRenderScaleX === "number"
-                    ? Number((root as any).__widgetRenderScaleX)
+                    ? Number((root as any).__widgetRenderScaleX) * this.overlayScaleX
                     : undefined,
             rootScaleY:
                 typeof (root as any).__widgetRenderScaleY === "number"
-                    ? Number((root as any).__widgetRenderScaleY)
+                    ? Number((root as any).__widgetRenderScaleY) * this.overlayScaleY
                     : undefined,
             skipTooltip: true,
         };
@@ -373,10 +306,12 @@ export class WidgetsOverlay implements Overlay {
     }
 
     private clampRectToCanvas(x: number, y: number, w: number, h: number): DirtyRect | undefined {
+        const canvasW = this.glRenderer?.width ?? this.app.width;
+        const canvasH = this.glRenderer?.height ?? this.app.height;
         const x0 = Math.max(0, x | 0);
         const y0 = Math.max(0, y | 0);
-        const x1 = Math.min(this.app.width, (x | 0) + Math.max(0, w | 0));
-        const y1 = Math.min(this.app.height, (y | 0) + Math.max(0, h | 0));
+        const x1 = Math.min(canvasW, (x | 0) + Math.max(0, w | 0));
+        const y1 = Math.min(canvasH, (y | 0) + Math.max(0, h | 0));
         if (x1 <= x0 || y1 <= y0) return undefined;
         return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
     }
@@ -385,10 +320,10 @@ export class WidgetsOverlay implements Overlay {
         const rootIndex = root && typeof root.rootIndex === "number" ? root.rootIndex | 0 : -1;
         if (rootIndex < 0 || rootIndex >= widgetManager.rootWidgetCount) return undefined;
         return this.clampRectToCanvas(
-            widgetManager.rootWidgetXs[rootIndex] | 0,
-            widgetManager.rootWidgetYs[rootIndex] | 0,
-            widgetManager.rootWidgetWidths[rootIndex] | 0,
-            widgetManager.rootWidgetHeights[rootIndex] | 0,
+            Math.round((widgetManager.rootWidgetXs[rootIndex] | 0) * this.overlayScaleX),
+            Math.round((widgetManager.rootWidgetYs[rootIndex] | 0) * this.overlayScaleY),
+            Math.round((widgetManager.rootWidgetWidths[rootIndex] | 0) * this.overlayScaleX),
+            Math.round((widgetManager.rootWidgetHeights[rootIndex] | 0) * this.overlayScaleY),
         );
     }
 
@@ -429,100 +364,74 @@ export class WidgetsOverlay implements Overlay {
     private clearOffscreenRect(rect: DirtyRect): void {
         if (!this.glRenderer) return;
         const gl = this.glRenderer.gl;
+        const canvasW = this.glRenderer.width | 0;
+        const canvasH = this.glRenderer.height | 0;
         gl.enable(gl.SCISSOR_TEST);
-        gl.scissor(rect.x, this.app.height - (rect.y + rect.h), rect.w, rect.h);
+        gl.scissor(rect.x, canvasH - (rect.y + rect.h), rect.w, rect.h);
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.scissor(0, 0, this.app.width, this.app.height);
+        gl.scissor(0, 0, canvasW, canvasH);
     }
 
-    private ensureCachedTexture(needsNewTexture: boolean): void {
-        if (!this.offscreenCanvas) return;
-        if (!needsNewTexture) return;
-        if (this.cachedTexture) {
+    private attachOverlayCanvas(): void {
+        const overlayCanvas = this.overlayCanvas;
+        if (!overlayCanvas) return;
+        const hostCanvas = this.app?.gl?.canvas as HTMLCanvasElement | undefined;
+        const parent = hostCanvas?.parentElement;
+        if (!parent) return;
+        if (overlayCanvas.parentElement === parent) return;
+        if (overlayCanvas.parentElement) {
             try {
-                this.cachedTexture.delete();
+                overlayCanvas.parentElement.removeChild(overlayCanvas);
             } catch {}
         }
-        this.cachedTexture = this.app.createTexture2D(this.offscreenCanvas as any, {
-            flipY: false,
-            minFilter: PicoGL.NEAREST,
-            magFilter: PicoGL.NEAREST,
-            wrapS: PicoGL.CLAMP_TO_EDGE,
-            wrapT: PicoGL.CLAMP_TO_EDGE,
-        });
-        this.cachedTextureWidth = this.app.width;
-        this.cachedTextureHeight = this.app.height;
+        parent.appendChild(overlayCanvas);
     }
 
-    private uploadTextureFull(): void {
-        if (!this.cachedTexture || !this.offscreenCanvas) return;
-        const gl = this.app.gl;
-        gl.bindTexture(gl.TEXTURE_2D, (this.cachedTexture as any).texture);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.offscreenCanvas);
-    }
-
-    private uploadTextureRects(rects: DirtyRect[]): void {
-        if (!this.cachedTexture || !this.offscreenCanvas || rects.length === 0) return;
-        const gl = this.app.gl;
-        gl.bindTexture(gl.TEXTURE_2D, (this.cachedTexture as any).texture);
-
-        for (const rect of rects) {
-            if (
-                rect.w === this.app.width &&
-                rect.h === this.app.height &&
-                rect.x === 0 &&
-                rect.y === 0
-            ) {
-                gl.texSubImage2D(
-                    gl.TEXTURE_2D,
-                    0,
-                    0,
-                    0,
-                    gl.RGBA,
-                    gl.UNSIGNED_BYTE,
-                    this.offscreenCanvas,
-                );
-                continue;
-            }
-            if (!this.uploadScratchCanvas) {
-                this.uploadScratchCanvas = document.createElement("canvas");
-                this.uploadScratchCtx = this.uploadScratchCanvas.getContext("2d", {
-                    alpha: true,
-                    desynchronized: true,
-                });
-            }
-            const scratch = this.uploadScratchCanvas;
-            if (!scratch || !this.uploadScratchCtx) {
-                gl.texSubImage2D(
-                    gl.TEXTURE_2D,
-                    0,
-                    0,
-                    0,
-                    gl.RGBA,
-                    gl.UNSIGNED_BYTE,
-                    this.offscreenCanvas,
-                );
-                return;
-            }
-            if (scratch.width !== rect.w || scratch.height !== rect.h) {
-                scratch.width = rect.w;
-                scratch.height = rect.h;
-            }
-            this.uploadScratchCtx.clearRect(0, 0, rect.w, rect.h);
-            this.uploadScratchCtx.drawImage(
-                this.offscreenCanvas,
-                rect.x,
-                rect.y,
-                rect.w,
-                rect.h,
-                0,
-                0,
-                rect.w,
-                rect.h,
-            );
-            gl.texSubImage2D(gl.TEXTURE_2D, 0, rect.x, rect.y, gl.RGBA, gl.UNSIGNED_BYTE, scratch);
+    private getOverlayRenderSize(): { width: number; height: number } {
+        const hostCanvas = this.app?.gl?.canvas as HTMLCanvasElement | undefined;
+        const cssWidth =
+            hostCanvas?.clientWidth || hostCanvas?.offsetWidth || hostCanvas?.getBoundingClientRect().width || 0;
+        const cssHeight =
+            hostCanvas?.clientHeight ||
+            hostCanvas?.offsetHeight ||
+            hostCanvas?.getBoundingClientRect().height ||
+            0;
+        const safeCssWidth = Math.max(1, Math.round(cssWidth || this.app.width || 1));
+        const safeCssHeight = Math.max(1, Math.round(cssHeight || this.app.height || 1));
+        const mainScaleX = Math.max(1, (this.app.width || 1) / safeCssWidth);
+        const mainScaleY = Math.max(1, (this.app.height || 1) / safeCssHeight);
+        const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+        const targetUiScale = isTouchDevice ? Math.max(1, Math.min(dpr, 2)) : mainScaleX;
+        this.overlayScaleX = Math.max(1, targetUiScale / mainScaleX);
+        this.overlayScaleY = Math.max(1, targetUiScale / mainScaleY);
+        if (this.overlayCanvas) {
+            const canvasAny = this.overlayCanvas as any;
+            canvasAny.__uiInputScaleX = this.overlayScaleX;
+            canvasAny.__uiInputScaleY = this.overlayScaleY;
         }
+        return {
+            width: Math.max(1, Math.round(this.app.width * this.overlayScaleX)),
+            height: Math.max(1, Math.round(this.app.height * this.overlayScaleY)),
+        };
+    }
+
+    private clearOverlayCanvas(): void {
+        if (!this.glRenderer) return;
+        this.glRenderer.clear(0, 0, 0, 0);
+    }
+
+    private getMenuAnchorPoint(menu: any): { x: number; y: number } {
+        if (menu?.source === "widgets") {
+            return {
+                x: (menu?.x ?? 0) | 0,
+                y: (menu?.y ?? 0) | 0,
+            };
+        }
+        return {
+            x: Math.round(((menu?.x ?? 0) | 0) * this.overlayScaleX),
+            y: Math.round(((menu?.y ?? 0) | 0) * this.overlayScaleY),
+        };
     }
 
     private getMenuVisualState(
@@ -540,7 +449,19 @@ export class WidgetsOverlay implements Overlay {
             return { signature: "closed" };
         }
         const fontLoader = this.ctx.getFontLoader?.() || (() => undefined);
-        const rect = getChooseOptionMenuRect(fontLoader, menu, this.app.width, this.app.height);
+        const hostW = this.glRenderer?.width || this.app.width;
+        const hostH = this.glRenderer?.height || this.app.height;
+        const anchor = this.getMenuAnchorPoint(menu);
+        const rect = getChooseOptionMenuRect(
+            fontLoader,
+            {
+                ...menu,
+                x: anchor.x,
+                y: anchor.y,
+            },
+            hostW,
+            hostH,
+        );
         const mx = (sharedUi?.mouseX ?? 0) | 0;
         const my = (sharedUi?.mouseY ?? 0) | 0;
         const clickMode3 = (inputManager?.clickMode3 ?? 0) | 0;
@@ -564,17 +485,16 @@ export class WidgetsOverlay implements Overlay {
         }
 
         if (!this.enabled) {
-            return;
-        }
-        if (!this.drawCall) {
+            this.clearOverlayCanvas();
             return;
         }
 
-        if (!this.glRenderer || !this.offscreenCanvas) {
+        if (!this.glRenderer || !this.overlayCanvas) {
             return;
         }
 
         if (this.widgetEntries.length === 0) {
+            this.clearOverlayCanvas();
             return;
         }
 
@@ -582,15 +502,10 @@ export class WidgetsOverlay implements Overlay {
             // Share a single UI state bag between host canvas (world) and offscreen widget canvas (widgets/menu).
             // This keeps Choose Option + shared UI callbacks/state consistent across both passes.
             const hostCanvasAny = this.app.gl.canvas as any;
-            const offscreenAny = this.offscreenCanvas as any;
-            const sharedUi = (hostCanvasAny.__ui = hostCanvasAny.__ui || offscreenAny.__ui || {});
-            offscreenAny.__ui = sharedUi;
-
-            // PERF: Check if we need to invalidate the cached texture due to resize
-            const needsNewTexture =
-                !this.cachedTexture ||
-                this.cachedTextureWidth !== this.app.width ||
-                this.cachedTextureHeight !== this.app.height;
+            const overlayCanvasAny = this.overlayCanvas as any;
+            const sharedUi = (hostCanvasAny.__ui =
+                hostCanvasAny.__ui || overlayCanvasAny.__ui || {});
+            overlayCanvasAny.__ui = sharedUi;
 
             // Check dirty state from widget manager
             const widgetManager = this.ctx.getWidgetManager?.();
@@ -621,14 +536,12 @@ export class WidgetsOverlay implements Overlay {
             const menuVisualState = this.getMenuVisualState(sharedUi, inputManager);
             const menuVisualDirty = menuVisualState.signature !== this.lastMenuVisualSignature;
 
-            // Force a full redraw only for root set changes or texture recreation.
-            // Open menus now redraw via dirty menu rects instead of forcing a full widget pass.
-            const forceFullRedraw = this.rootSetChanged || needsNewTexture;
+            // Force a full redraw only for root set changes.
+            const forceFullRedraw = this.rootSetChanged;
             const shouldRedraw = anyDirty || forceFullRedraw || menuVisualDirty;
 
             // PERF: Track timing breakdown within WidgetsOverlay
             let renderTime = 0;
-            let uploadTime = 0;
 
             if (shouldRedraw) {
                 let renderFull = forceFullRedraw || !widgetManager;
@@ -711,20 +624,8 @@ export class WidgetsOverlay implements Overlay {
                 }
                 renderTime = performance.now() - t1;
 
-                const t2 = performance.now();
-                this.ensureCachedTexture(needsNewTexture);
-                if (this.cachedTexture) {
-                    if (renderFull) {
-                        this.uploadTextureFull();
-                    } else {
-                        this.uploadTextureRects(dirtyRects);
-                    }
-                }
-                uploadTime = performance.now() - t2;
-
                 // PERF: Log timing breakdown every second
                 this.accumulatedRenderTime += renderTime;
-                this.accumulatedUploadTime += uploadTime;
                 this.accumulatedFrames++;
 
                 this.lastMenuVisualSignature = menuVisualState.signature;
@@ -737,14 +638,11 @@ export class WidgetsOverlay implements Overlay {
             if (logElapsed > 1000) {
                 const total = this.accumulatedRenderTime + this.accumulatedUploadTime;
                 if (profiler.enabled && profiler.verbose && total > 0.1) {
-                    const renderPct = ((this.accumulatedRenderTime / total) * 100).toFixed(0);
-                    const uploadPct = ((this.accumulatedUploadTime / total) * 100).toFixed(0);
                     console.log(
                         `[PERF] WidgetsOverlay breakdown (${
                             this.accumulatedFrames
                         } frames, ${total.toFixed(1)}ms): ` +
-                            `render=${this.accumulatedRenderTime.toFixed(1)}ms (${renderPct}%), ` +
-                            `upload=${this.accumulatedUploadTime.toFixed(1)}ms (${uploadPct}%)`,
+                            `render=${this.accumulatedRenderTime.toFixed(1)}ms`,
                     );
                 }
                 this.accumulatedRenderTime = 0;
@@ -753,44 +651,9 @@ export class WidgetsOverlay implements Overlay {
                 this.lastBreakdownLogTime = logNow;
             }
 
-            // Draw cached texture (always, even if not dirty - it has valid content)
-            if (!this.cachedTexture) {
-                return;
-            }
-
             // Process input against the current click target registry.
             // Targets are rebuilt on full redraws and persisted across partial/clean frames.
             processWidgetUiInput(this.glRenderer, inputManager);
-
-            // PERF: Cache viewport dimensions instead of querying GL state (causes GPU stall)
-            // We know we're rendering to the main canvas at full size
-            const viewportW = this.app.width;
-            const viewportH = this.app.height;
-
-            // Draw to the default (screen) framebuffer
-            this.app.defaultDrawFramebuffer();
-            // Set viewport to full screen
-            this.app.viewport(0, 0, viewportW, viewportH);
-
-            // Enable blending for transparency
-            this.app.enable(PicoGL.BLEND);
-            this.app.blendFunc(PicoGL.SRC_ALPHA, PicoGL.ONE_MINUS_SRC_ALPHA);
-
-            // Disable depth testing for UI overlay
-            this.app.disable(PicoGL.DEPTH_TEST);
-            // Disable face culling for screen-space quad
-            this.app.disable(PicoGL.CULL_FACE);
-
-            // Draw the fullscreen quad with the cached widget texture
-            this.drawCall
-                .texture("u_sprite", this.cachedTexture)
-                .uniform("u_tint", this.whiteTint)
-                .primitive(PicoGL.TRIANGLES)
-                .draw();
-
-            // PERF: No viewport restore needed - we set it to full screen which is the expected state
-
-            // PERF: Do NOT delete texture - keep it cached for next frame
 
             // IMPORTANT: Clear dirty flags AFTER draw, so next frame starts clean.
             // Dirty flags set during the NEXT frame's tick will be visible to NEXT frame's draw.

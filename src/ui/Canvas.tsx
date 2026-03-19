@@ -27,5 +27,11 @@ export function Canvas({ renderer }: CanvasProps): JSX.Element {
         };
     }, [renderer]);
 
-    return <div ref={divRef} style={{ width: "100%", height: "100%" }} tabIndex={0} />;
+    return (
+        <div
+            ref={divRef}
+            style={{ position: "relative", width: "100%", height: "100%" }}
+            tabIndex={0}
+        />
+    );
 }

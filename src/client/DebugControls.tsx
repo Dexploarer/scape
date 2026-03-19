@@ -19,6 +19,7 @@ import {
     getRendererName,
 } from "./GameRenderers";
 import { OsrsClient } from "./OsrsClient";
+import { profiler } from "./webgl/PerformanceProfiler";
 
 interface OsrsClientControlsProps {
     renderer: GameRenderer;
@@ -414,11 +415,23 @@ export const DebugControls = memo(
                             },
                         },
                         "Fps Limit": {
-                            value: renderer.fpsLimit,
-                            min: 1,
+                            value: osrsClient.targetFps,
+                            min: 0,
                             max: 999,
                             onChange: (v: number) => {
-                                renderer.fpsLimit = v;
+                                osrsClient.setTargetFps(v);
+                            },
+                        },
+                        Profiler: {
+                            value: profiler.enabled,
+                            onChange: (v: boolean) => {
+                                profiler.enabled = !!v;
+                            },
+                        },
+                        "Profiler Verbose": {
+                            value: profiler.verbose,
+                            onChange: (v: boolean) => {
+                                profiler.verbose = !!v;
                             },
                         },
                         ...rendererSchema,

@@ -643,6 +643,12 @@ function parseDebugPayload(jsonStr: string): Extract<RoutedMessage, { type: "deb
                 snapshot: parsed.snapshot,
             };
         }
+        if (kind === "perf_snapshot" && parsed.snapshot && typeof parsed.snapshot === "object") {
+            return {
+                kind,
+                snapshot: parsed.snapshot,
+            };
+        }
         if (kind === "set_var") {
             return {
                 kind,

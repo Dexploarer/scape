@@ -19,7 +19,14 @@ export class OverlayManager {
     }
 
     update(args: OverlayUpdateArgs): void {
+        if (!profiler.enabled) {
+            for (const ov of this.overlays) ov.update(args);
+            return;
+        }
+
+        const start = performance.now();
         for (const ov of this.overlays) ov.update(args);
+        profiler.recordGauge("overlayUpdateMs", performance.now() - start);
     }
 
     draw(phase: RenderPhase): void {

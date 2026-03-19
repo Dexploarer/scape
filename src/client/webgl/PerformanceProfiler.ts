@@ -1,3 +1,5 @@
+import type { PerformanceProfilerSnapshot } from "../../shared/debug/PerfSnapshot";
+
 /**
  * Performance profiler that tracks timing for various render phases
  * and logs stats every second to help diagnose performance issues.
@@ -34,6 +36,8 @@ export class PerformanceProfiler {
     // GPU stats
     private drawCalls: number = 0;
     private triangles: number = 0;
+    private gpuTimeMs: number = 0;
+    private gpuSamples: number[] = [];
 
     // Allocation tracking
     private allocations: Map<string, number> = new Map();
@@ -50,6 +54,7 @@ export class PerformanceProfiler {
     // History for trend detection
     private fpsHistory: number[] = [];
     private readonly MAX_HISTORY = 60; // 60 seconds of history
+    private lastSnapshot: PerformanceProfilerSnapshot | null = null;
 
     constructor() {
         this.reset();
@@ -64,6 +69,8 @@ export class PerformanceProfiler {
         this.phases.clear();
         this.drawCalls = 0;
         this.triangles = 0;
+        this.gpuTimeMs = 0;
+        this.gpuSamples.length = 0;
         this.allocations.clear();
         this.gauges.clear();
     }
@@ -118,6 +125,12 @@ export class PerformanceProfiler {
         this.triangles += triangleCount;
     }
 
+    recordGpuTime(ms: number): void {
+        if (!this.enabled || !Number.isFinite(ms) || ms < 0) return;
+        this.gpuTimeMs += ms;
+        this.gpuSamples.push(ms);
+    }
+
     recordAllocation(type: string, count: number = 1): void {
         if (!this.enabled) return;
         this.allocations.set(type, (this.allocations.get(type) ?? 0) + count);
@@ -153,6 +166,108 @@ export class PerformanceProfiler {
             Math.max(0, Math.floor(clamped * (sorted.length - 1))),
         );
         return sorted[idx];
+    }
+
+    private cloneSnapshot(snapshot: PerformanceProfilerSnapshot): PerformanceProfilerSnapshot {
+        return {
+            ...snapshot,
+            gpu: snapshot.gpu ? { ...snapshot.gpu } : undefined,
+            memory: snapshot.memory ? { ...snapshot.memory } : undefined,
+            phases: Object.fromEntries(
+                Object.entries(snapshot.phases).map(([name, phase]) => [name, { ...phase }]),
+            ),
+            gauges: Object.fromEntries(
+                Object.entries(snapshot.gauges).map(([name, gauge]) => [name, { ...gauge }]),
+            ),
+            allocations: { ...snapshot.allocations },
+        };
+    }
+
+    private buildSnapshot(source: "current" | "last"): PerformanceProfilerSnapshot | null {
+        if (this.frameCount <= 0 || this.totalFrameTime <= 0 || this.frameSamples.length <= 0) {
+            return null;
+        }
+
+        const avgFrameTime = this.totalFrameTime / this.frameCount;
+        const snapshot: PerformanceProfilerSnapshot = {
+            source,
+            enabled: this.enabled,
+            verbose: this.verbose,
+            intervalFrames: this.frameCount,
+            avgFrameMs: avgFrameTime,
+            p95FrameMs: this.percentile(this.frameSamples, 0.95),
+            p99FrameMs: this.percentile(this.frameSamples, 0.99),
+            minFrameMs: Number.isFinite(this.minFrameTime) ? this.minFrameTime : 0,
+            maxFrameMs: this.maxFrameTime,
+            fps: avgFrameTime > 0 ? 1000 / avgFrameTime : 0,
+            fpsTrend: this.getFpsTrend(),
+            drawCalls: this.drawCalls,
+            triangles: this.triangles,
+            phases: {},
+            gauges: {},
+            allocations: {},
+        };
+
+        for (const [name, phase] of this.phases.entries()) {
+            const avg = phase.count > 0 ? phase.total / phase.count : 0;
+            const last = phase.samples.length > 0 ? phase.samples[phase.samples.length - 1] : 0;
+            snapshot.phases[name] = {
+                avg,
+                min: phase.samples.length > 0 ? Math.min(...phase.samples) : 0,
+                max: phase.max,
+                last,
+                samples: phase.samples.length,
+                p95: this.percentile(phase.samples, 0.95),
+                pct: this.totalFrameTime > 0 ? (phase.total / this.totalFrameTime) * 100 : 0,
+            };
+        }
+
+        for (const [name, gauge] of this.gauges.entries()) {
+            snapshot.gauges[name] = {
+                avg: gauge.count > 0 ? gauge.total / gauge.count : 0,
+                min: Number.isFinite(gauge.min) ? gauge.min : 0,
+                max: Number.isFinite(gauge.max) ? gauge.max : 0,
+                last: gauge.last,
+                samples: gauge.count,
+            };
+        }
+
+        for (const [name, count] of this.allocations.entries()) {
+            snapshot.allocations[name] = count;
+        }
+
+        if (this.gpuSamples.length > 0) {
+            snapshot.gpu = {
+                avgMs: this.gpuTimeMs / this.gpuSamples.length,
+                p95Ms: this.percentile(this.gpuSamples, 0.95),
+                samples: this.gpuSamples.length,
+            };
+        }
+
+        if ((performance as any).memory) {
+            const mem = (performance as any).memory;
+            snapshot.memory = {
+                heapUsedMb: mem.usedJSHeapSize / 1024 / 1024,
+                heapTotalMb: mem.totalJSHeapSize / 1024 / 1024,
+                heapGrowthMb: this.heapGrowth,
+            };
+        }
+
+        return snapshot;
+    }
+
+    getDebugSnapshot(): PerformanceProfilerSnapshot | null {
+        const current = this.buildSnapshot("current");
+        if (current) {
+            return this.cloneSnapshot(current);
+        }
+        if (!this.lastSnapshot) {
+            return null;
+        }
+        return this.cloneSnapshot({
+            ...this.lastSnapshot,
+            source: "last",
+        });
     }
 
     private logStats(): void {
@@ -264,6 +379,16 @@ export class PerformanceProfiler {
             );
         }
 
+        if (this.gpuSamples.length > 0) {
+            const avgGpu = this.gpuTimeMs / this.gpuSamples.length;
+            const p95Gpu = this.percentile(this.gpuSamples, 0.95);
+            console.log(
+                `%c[PERF]%c GPU: avg ${avgGpu.toFixed(2)}ms (p95 ${p95Gpu.toFixed(2)}ms)`,
+                "color: #4CAF50; font-weight: bold",
+                "color: inherit",
+            );
+        }
+
         if (phaseStrs.length > 0) {
             console.log(
                 `%c[PERF]%c Phases: ${phaseStrs.join(" | ")}`,
@@ -317,6 +442,11 @@ export class PerformanceProfiler {
                             : ""),
                 );
             }
+        }
+
+        const snapshot = this.buildSnapshot("current");
+        if (snapshot) {
+            this.lastSnapshot = this.cloneSnapshot(snapshot);
         }
 
         // Reset for next second

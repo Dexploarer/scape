@@ -296,7 +296,7 @@ const CHATBOX_DIALOG_GROUP_IDS = new Set([231, 217, 193, 11]);
 const MIN_RENDER_DISTANCE = 25;
 const MAX_RENDER_DISTANCE = 90;
 const DEFAULT_RENDER_DISTANCE = MIN_RENDER_DISTANCE;
-const DEFAULT_FPS_LIMIT = isTouchDevice ? 60 : 240;
+const DEFAULT_FPS_LIMIT = 240;
 const MOBILE_MAX_RESIDENT_MAPS = 48;
 const MAP_SQUARE_SIZE_TILES = 64;
 const MAP_SQUARE_CENTER_TO_EDGE_TILES = 32;
@@ -519,6 +519,9 @@ export class OsrsClient {
     lodDistance: number = DEFAULT_LOD_DISTANCE;
 
     targetFps: number = DEFAULT_FPS_LIMIT;
+    // 0 = browser profile default scene scale, otherwise explicit override scale.
+    mobilePerfResolutionScale: number = 0;
+    mobileEffectiveResolutionScale: number = 1;
 
     tooltips: boolean = !isTouchDevice;
     /**
@@ -8415,7 +8418,11 @@ export class OsrsClient {
     handleLoginKeyInput(key: string, char: string): boolean {
         if (!this.isOnLoginScreen()) return false;
 
-        return this.loginRenderer.handleKeyInput(this.loginState, key, char);
+        const handled = this.loginRenderer.handleKeyInput(this.loginState, key, char);
+        if (handled && this.loginState.loginIndex === LoginIndex.LOGIN_FORM) {
+            this.loginState.savePersistedLoginState();
+        }
+        return handled;
     }
 
     /**
@@ -8459,8 +8466,8 @@ export class OsrsClient {
                 this.loginState.promptCredentials();
                 if (isMobileMode) {
                     this.loginState.onMobile = true;
-                    this.loginState.currentLoginField = 0;
-                    this.loginState.virtualKeyboardVisible = true;
+                    this.loginState.currentLoginField = this.loginState.username.length > 0 ? 1 : 0;
+                    this.loginState.virtualKeyboardVisible = !this.loginState.canAttemptLogin();
                 } else {
                     this.loginState.virtualKeyboardVisible = false;
                 }
@@ -8487,6 +8494,7 @@ export class OsrsClient {
                 }
                 // Start connecting
                 this.loginState.virtualKeyboardVisible = false;
+                this.loginState.savePersistedLoginState();
                 this.updateGameState(GameState.CONNECTING);
                 return "connect";
 
@@ -8532,10 +8540,12 @@ export class OsrsClient {
 
             case "toggle_remember":
                 this.loginState.rememberUsername = !this.loginState.rememberUsername;
+                this.loginState.savePersistedLoginState();
                 return undefined;
 
             case "toggle_hide_username":
                 this.loginState.isUsernameHidden = !this.loginState.isUsernameHidden;
+                this.loginState.savePersistedLoginState();
                 return undefined;
 
             case "toggle_trust":
@@ -8631,6 +8641,7 @@ export class OsrsClient {
             this.loginState.username = username;
             this.loginState.password = password;
             this.loginState.loginIndex = LoginIndex.LOGIN_FORM;
+            this.loginState.savePersistedLoginState();
             this.updateGameState(GameState.CONNECTING);
             sendLogin(username.trim(), password);
         } catch {}
@@ -8645,6 +8656,8 @@ export class OsrsClient {
      * race conditions where handshake arrives before this method is called.
      */
     onLoginSuccess(): void {
+        this.loginState.savePersistedLoginState();
+
         // OSRS parity: First show "Loading - please wait." (gameState 25)
         // The game world renders in the background while this message is shown
         this.updateGameState(GameState.LOADING_GAME);
@@ -9434,6 +9447,32 @@ export class OsrsClient {
             this.playerEcs.setRunSpeedMultiplier?.(0.85);
         } catch (error) {
             console.log("[OsrsClient] Failed to apply movement speed multipliers", { error });
+        }
+    }
+
+    setTargetFps(limit: number): void {
+        const next = Number.isFinite(limit) ? Math.max(0, limit | 0) : 0;
+        this.targetFps = next;
+        try {
+            if (this.renderer) {
+                this.renderer.fpsLimit = next;
+            }
+        } catch (error) {
+            console.log("[OsrsClient] Failed to set FPS limit", { error, next });
+        }
+    }
+
+    setMobilePerfResolutionScale(scale: number): void {
+        const next =
+            !Number.isFinite(scale) || scale <= 0 ? 0 : Math.max(0.25, Math.min(1, scale));
+        this.mobilePerfResolutionScale = next;
+        try {
+            this.renderer?.forceResize?.();
+        } catch (error) {
+            console.log("[OsrsClient] Failed to apply mobile perf resolution scale", {
+                error,
+                next,
+            });
         }
     }
 

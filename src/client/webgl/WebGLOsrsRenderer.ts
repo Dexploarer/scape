@@ -85,6 +85,7 @@ import { layoutWidgets } from "../../ui/widgets/layout/WidgetLayout";
 import { collectWidgetsAtPoint } from "../../ui/widgets/menu/utils";
 import {
     getCanvasCssSize,
+    isIos,
     isMobileMode,
     isTouchDevice,
     isWebGL2Supported,
@@ -171,7 +172,7 @@ import {
     createPlayerProgram,
     createProjectileProgram,
 } from "./shaders/Shaders";
-import { resolveFogRange, resolveNextEffectiveRenderDistanceTiles } from "./RenderDistancePolicy";
+import { resolveFogRange } from "./RenderDistancePolicy";
 
 const MAX_TEXTURES = 1024;
 const TEXTURE_SIZE = 128;
@@ -249,6 +250,68 @@ function getMaxAnisotropy(mode: TextureFilterMode): number {
             return 1;
     }
 }
+
+type BrowserQualityProfileKey = "desktop" | "mobile-touch" | "ios-safari";
+
+interface BrowserQualityProfile {
+    key: BrowserQualityProfileKey;
+    label: string;
+    defaultSceneScale: number;
+    fxaaEnabled: boolean;
+    renderDistanceCap: number;
+    lodThresholdCap: number;
+    groundItemOverlayMaxEntries: number;
+    groundItemOverlayRadius: number;
+    hitsplatMaxEntries: number;
+    healthBarMaxEntries: number;
+    overheadTextMaxEntries: number;
+    overheadPrayerMaxEntries: number;
+}
+
+const DESKTOP_QUALITY_PROFILE: BrowserQualityProfile = {
+    key: "desktop",
+    label: "Desktop",
+    defaultSceneScale: 1,
+    fxaaEnabled: false,
+    renderDistanceCap: 90,
+    lodThresholdCap: 90,
+    groundItemOverlayMaxEntries: 40,
+    groundItemOverlayRadius: 12,
+    hitsplatMaxEntries: MAX_HIT_ENTRIES,
+    healthBarMaxEntries: 256,
+    overheadTextMaxEntries: 256,
+    overheadPrayerMaxEntries: 256,
+};
+
+const MOBILE_TOUCH_QUALITY_PROFILE: BrowserQualityProfile = {
+    key: "mobile-touch",
+    label: "Mobile Browser",
+    defaultSceneScale: 1,
+    fxaaEnabled: false,
+    renderDistanceCap: 20,
+    lodThresholdCap: 14,
+    groundItemOverlayMaxEntries: 24,
+    groundItemOverlayRadius: 10,
+    hitsplatMaxEntries: 128,
+    healthBarMaxEntries: 96,
+    overheadTextMaxEntries: 48,
+    overheadPrayerMaxEntries: 32,
+};
+
+const IOS_SAFARI_QUALITY_PROFILE: BrowserQualityProfile = {
+    key: "ios-safari",
+    label: "iPhone Safari",
+    defaultSceneScale: 1,
+    fxaaEnabled: false,
+    renderDistanceCap: 18,
+    lodThresholdCap: 12,
+    groundItemOverlayMaxEntries: 20,
+    groundItemOverlayRadius: 8,
+    hitsplatMaxEntries: 96,
+    healthBarMaxEntries: 72,
+    overheadTextMaxEntries: 32,
+    overheadPrayerMaxEntries: 24,
+};
 
 function optimizeAssumingFlatsHaveSameFirstAndLastData(gl: WebGL2RenderingContext) {
     const epv = gl.getExtension("WEBGL_provoking_vertex");
@@ -342,8 +405,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     colorTarget?: Renderbuffer;
     depthTarget?: Renderbuffer;
     framebuffer?: Framebuffer;
+    private sceneRenderWidth: number = 1;
+    private sceneRenderHeight: number = 1;
 
     textureColorTarget?: Texture;
+    textureDepthTarget?: Renderbuffer;
     textureFramebuffer?: Framebuffer;
 
     // Textures
@@ -564,6 +630,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     private effectiveGroundItemOverlayFrame: number = -1;
     private effectiveGroundItemOverlayRadius: number = 12;
     private effectiveGroundItemOverlayRadiusFrame: number = -1;
+    private activeQualityProfile: BrowserQualityProfile = DESKTOP_QUALITY_PROFILE;
+    private activeQualityProfileKey: BrowserQualityProfileKey = DESKTOP_QUALITY_PROFILE.key;
     private frameRoofFilteredRangeCount: number = 0;
     private frameRoofTotalRangeCount: number = 0;
     private roofFilteredDrawIndices: number[] = [];
@@ -773,14 +841,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     private getMobileGameplayUiScale(
         cssW: number,
         cssH: number,
-        bufW: number,
-        bufH: number,
+        _bufW: number,
+        _bufH: number,
     ): number {
         const safeCssW = Math.max(1, cssW);
         const safeCssH = Math.max(1, cssH);
-        const sceneScaleX = bufW / safeCssW;
-        const sceneScaleY = bufH / safeCssH;
-        const sceneScale = Math.max(1, Math.min(sceneScaleX, sceneScaleY));
         const shortestCssEdge = Math.max(1, Math.min(safeCssW, safeCssH));
         const viewportT = clamp(
             (shortestCssEdge - WebGLOsrsRenderer.MOBILE_GAMEPLAY_UI_PHONE_EDGE) /
@@ -794,7 +859,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             (WebGLOsrsRenderer.MOBILE_GAMEPLAY_UI_MAX_SCALE -
                 WebGLOsrsRenderer.MOBILE_GAMEPLAY_UI_MIN_SCALE) *
                 viewportT;
-        return Math.max(1, Math.min(sceneScale, desiredUiScale));
+        return Math.max(1, desiredUiScale);
     }
 
     private computeUiRenderMetrics(
@@ -877,7 +942,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         if (isLoginLikeState && !isMobileMode) {
             return 1;
         }
-        const maxScale = isLoginLikeState ? 3 : 2;
+        const maxScale = isLoginLikeState ? 3 : isIos ? 1 : 2;
         const targetScale = Math.min(dpr, maxScale);
 
         const safeCssWidth = Number.isFinite(cssWidth) ? Math.max(1, cssWidth) : 1;
@@ -890,6 +955,95 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         const cappedScale = Math.sqrt(maxPixelCount / (safeCssWidth * safeCssHeight));
         return Math.max(1, Math.min(targetScale, cappedScale));
+    }
+
+    private resolveBrowserQualityProfile(): BrowserQualityProfile {
+        if (!isTouchDevice) {
+            return DESKTOP_QUALITY_PROFILE;
+        }
+        if (isIos) {
+            return IOS_SAFARI_QUALITY_PROFILE;
+        }
+        return MOBILE_TOUCH_QUALITY_PROFILE;
+    }
+
+    private syncBrowserQualityProfile(): BrowserQualityProfile {
+        const profile = this.resolveBrowserQualityProfile();
+        this.activeQualityProfile = profile;
+        if (this.activeQualityProfileKey !== profile.key) {
+            this.activeQualityProfileKey = profile.key;
+            this.fxaaEnabled = profile.fxaaEnabled;
+            if ((this.osrsClient.mobilePerfResolutionScale ?? 0) <= 0) {
+                this.needsFramebufferUpdate = true;
+            }
+        }
+        return profile;
+    }
+
+    getActiveQualityProfileKey(): string {
+        return this.syncBrowserQualityProfile().key;
+    }
+
+    getActiveQualityProfileLabel(): string {
+        return this.syncBrowserQualityProfile().label;
+    }
+
+    private getSceneResolutionScale(): number {
+        if (!isTouchDevice || this.osrsClient.isOnLoginScreen()) {
+            this.osrsClient.mobileEffectiveResolutionScale = 1;
+            return 1;
+        }
+        const profile = this.syncBrowserQualityProfile();
+        const override = this.osrsClient.mobilePerfResolutionScale;
+        const scale =
+            override > 0
+                ? Math.max(0.5, Math.min(1, override))
+                : Math.max(0.5, Math.min(1, profile.defaultSceneScale || 1));
+        this.osrsClient.mobileEffectiveResolutionScale = scale;
+        return scale;
+    }
+
+    private getSceneRenderSize(): { width: number; height: number } {
+        const scale = this.getSceneResolutionScale();
+        return {
+            width: Math.max(1, Math.round(this.app.width * scale)),
+            height: Math.max(1, Math.round(this.app.height * scale)),
+        };
+    }
+
+    private syncSceneFramebufferSize(): void {
+        if (!this.app) {
+            return;
+        }
+        const desired = this.getSceneRenderSize();
+        if (
+            (desired.width | 0) !== (this.sceneRenderWidth | 0) ||
+            (desired.height | 0) !== (this.sceneRenderHeight | 0)
+        ) {
+            this.needsFramebufferUpdate = true;
+        }
+    }
+
+    private scaleViewportRectToSceneBuffer(rect: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    }): { x: number; y: number; width: number; height: number } {
+        const sceneWidth = Math.max(1, this.sceneRenderWidth | 0);
+        const sceneHeight = Math.max(1, this.sceneRenderHeight | 0);
+        const appWidth = Math.max(1, this.app.width | 0);
+        const appHeight = Math.max(1, this.app.height | 0);
+        return {
+            x: Math.max(0, Math.round((rect.x / appWidth) * sceneWidth)),
+            y: Math.max(0, Math.round((rect.y / appHeight) * sceneHeight)),
+            width: Math.max(1, Math.round((rect.width / appWidth) * sceneWidth)),
+            height: Math.max(1, Math.round((rect.height / appHeight) * sceneHeight)),
+        };
+    }
+
+    shouldUseDirectTextureScenePass(): boolean {
+        return false;
     }
 
     private resolveLoginFieldAt(y: number): 0 | 1 | undefined {
@@ -1162,6 +1316,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         } else {
             state.password = raw.slice(0, 20);
         }
+        state.savePersistedLoginState();
     }
 
     private onMobileLoginInput = (_event: Event): void => {
@@ -1198,6 +1353,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             if (state.canAttemptLogin()) {
                 state.virtualKeyboardVisible = false;
                 this.syncMobileLoginInput(false);
+                state.savePersistedLoginState();
                 this.osrsClient.updateGameState(GameState.CONNECTING);
                 sendLogin(state.username.trim(), state.password);
             } else {
@@ -4116,14 +4272,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     initFramebuffers(): void {
         this.initFramebuffer();
-
-        this.textureColorTarget = this.app.createTexture2D(this.app.width, this.app.height, {
-            minFilter: PicoGL.LINEAR,
-            magFilter: PicoGL.LINEAR,
-        });
-        this.textureFramebuffer = this.app
-            .createFramebuffer()
-            .colorTarget(0, this.textureColorTarget);
+        this.initTextureFramebuffer();
     }
 
     initFramebuffer(): void {
@@ -4131,20 +4280,24 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.colorTarget?.delete();
         this.depthTarget?.delete();
 
+        const sceneSize = this.getSceneRenderSize();
+        this.sceneRenderWidth = sceneSize.width | 0;
+        this.sceneRenderHeight = sceneSize.height | 0;
+
         let samples = 0;
         if (this.msaaEnabled) {
             samples = this.gl.getParameter(PicoGL.MAX_SAMPLES);
         }
 
         this.colorTarget = this.app.createRenderbuffer(
-            this.app.width,
-            this.app.height,
+            this.sceneRenderWidth,
+            this.sceneRenderHeight,
             PicoGL.RGBA8,
             samples,
         );
         this.depthTarget = this.app.createRenderbuffer(
-            this.app.width,
-            this.app.height,
+            this.sceneRenderWidth,
+            this.sceneRenderHeight,
             PicoGL.DEPTH_COMPONENT24,
             samples,
         );
@@ -4154,6 +4307,26 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             .depthTarget(this.depthTarget);
 
         this.needsFramebufferUpdate = false;
+    }
+
+    private initTextureFramebuffer(width: number = this.app.width, height: number = this.app.height): void {
+        this.textureFramebuffer?.delete();
+        this.textureColorTarget?.delete();
+        this.textureDepthTarget?.delete();
+        this.textureColorTarget = this.app.createTexture2D(width, height, {
+            minFilter: PicoGL.LINEAR,
+            magFilter: PicoGL.LINEAR,
+        });
+        this.textureDepthTarget = this.app.createRenderbuffer(
+            width,
+            height,
+            PicoGL.DEPTH_COMPONENT24,
+            0,
+        );
+        this.textureFramebuffer = this.app
+            .createFramebuffer()
+            .colorTarget(0, this.textureColorTarget)
+            .depthTarget(this.textureDepthTarget);
     }
 
     override initCache(): void {
@@ -5193,6 +5366,60 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.fxaaEnabled = enabled;
     }
 
+    private finishRenderFrame(
+        camera: any,
+        deltaTime: number,
+        showDebugTimer: boolean,
+        profileGpuTimer: boolean,
+    ): void {
+        profiler.endFrame(deltaTime);
+
+        let geoBytes = 0;
+        for (const map of this.mapManager.mapSquares.values()) {
+            geoBytes += (map.interleavedBuffer as any)?.byteLength ?? 0;
+            geoBytes += (map.indexBuffer as any)?.byteLength ?? 0;
+        }
+        try {
+            const pr: any = this.playerRenderer as any;
+            const vbo = pr.getInterleavedBuffer?.();
+            const ibo = pr.getIndexBuffer?.();
+            if (vbo) geoBytes += (vbo as any).byteLength ?? 0;
+            if (ibo) geoBytes += (ibo as any).byteLength ?? 0;
+        } catch {}
+        this.stats.geometryGpuBytes = geoBytes;
+
+        this.stats.texturesLoaded = this.loadedTextureIds.size;
+        this.stats.texturesTotal = this.textureIds.length;
+        this.stats.width = this.app.width | 0;
+        this.stats.height = this.app.height | 0;
+        this.stats.sceneWidth = this.sceneRenderWidth | 0;
+        this.stats.sceneHeight = this.sceneRenderHeight | 0;
+
+        this.stats.cameraPosX = camera.getPosX();
+        this.stats.cameraPosY = camera.getPosY();
+        this.stats.cameraPosZ = camera.getPosZ();
+        this.stats.cameraPitchRS = camera.pitch | 0;
+        this.stats.cameraYawRS = camera.getYaw() | 0;
+        this.stats.cameraRollRS = 0;
+
+        const debugPlayerIndex = this.getControlledPlayerEcsIndex();
+        if (debugPlayerIndex !== undefined) {
+            this.stats.playerTileX = (this.osrsClient.playerEcs.getX(debugPlayerIndex) / 128) | 0;
+            this.stats.playerTileY = (this.osrsClient.playerEcs.getY(debugPlayerIndex) / 128) | 0;
+            this.stats.playerLevel = this.osrsClient.playerEcs.getLevel(debugPlayerIndex) | 0;
+        }
+
+        if ((showDebugTimer || profileGpuTimer) && this.timer.ready()) {
+            profiler.recordGpuTime(this.timer.gpuTime);
+        }
+
+        if (showDebugTimer && this.timer.ready()) {
+            this.osrsClient.debugText = `Frame Time GL: ${this.timer.gpuTime.toFixed(
+                2,
+            )}ms\n JS: ${this.timer.cpuTime.toFixed(2)}ms`;
+        }
+    }
+
     setLoadObjs(enabled: boolean): void {
         const updated = this.loadObjs !== enabled;
         this.loadObjs = enabled;
@@ -5229,15 +5456,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             // Trigger framebuffer recreation
             this.needsFramebufferUpdate = true;
 
-            // Recreate texture framebuffers with new dimensions
-            if (this.textureColorTarget && this.textureFramebuffer) {
-                this.textureColorTarget.delete();
-                this.textureColorTarget = this.app.createTexture2D(width, height, {
-                    minFilter: PicoGL.LINEAR,
-                    magFilter: PicoGL.LINEAR,
-                });
-                this.textureFramebuffer.colorTarget(0, this.textureColorTarget);
-            }
+            this.initTextureFramebuffer(width, height);
         } catch (e) {
             console.warn("[webgl] onResize error", e);
         }
@@ -5256,8 +5475,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this._frameIndices = 0;
         this._frameBatches = 0;
         const showDebugTimer = this.osrsClient.inputManager.isKeyDown("KeyY");
+        const profileGpuTimer = profiler.enabled;
 
-        if (showDebugTimer) {
+        if (showDebugTimer || profileGpuTimer) {
             this.timer.start();
         }
 
@@ -5361,6 +5581,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     const { loginState } = this.osrsClient;
                     if (loginState.canAttemptLogin()) {
                         // Update game state to CONNECTING (hides buttons)
+                        loginState.savePersistedLoginState();
                         this.osrsClient.updateGameState(GameState.CONNECTING);
                         sendLogin(loginState.username.trim(), loginState.password);
                     } else {
@@ -5396,6 +5617,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 if (action === "connect") {
                     // Send login message
                     const { loginState } = this.osrsClient;
+                    loginState.savePersistedLoginState();
                     sendLogin(loginState.username.trim(), loginState.password);
                 }
                 // Clear click mode to prevent further processing
@@ -5463,6 +5685,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
 
         // ========== Game Resource Checks ==========
+        this.syncSceneFramebufferSize();
         if (this.needsFramebufferUpdate) {
             this.initFramebuffer();
         }
@@ -5482,9 +5705,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
 
         if (resized) {
-            this.framebuffer.resize();
-            this.textureFramebuffer.resize();
-
             this.resolutionUni[0] = this.app.width;
             this.resolutionUni[1] = this.app.height;
         }
@@ -5508,10 +5728,16 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.app.disable(PicoGL.CULL_FACE);
         }
 
+        const directTextureScenePass = this.shouldUseDirectTextureScenePass();
+        const sceneFramebuffer = directTextureScenePass
+            ? this.textureFramebuffer!
+            : this.framebuffer!;
+
         this.app.enable(PicoGL.DEPTH_TEST);
         this.app.depthMask(true);
 
-        this.app.drawFramebuffer(this.framebuffer);
+        this.app.drawFramebuffer(sceneFramebuffer);
+        this.app.viewport(0, 0, this.sceneRenderWidth | 0, this.sceneRenderHeight | 0);
 
         profiler.startPhase("tick");
         // Dynamic path always uses current appearance; no NPC fallback rebuild
@@ -5535,6 +5761,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const camWidth = Math.max(1, this.app.width || this.canvas.width || 1);
         const camHeight = Math.max(1, this.app.height || this.canvas.height || 1);
         const sceneViewport = this.getSceneViewportWidgetRect();
+        const sceneFramebufferViewport = this.scaleViewportRectToSceneBuffer(sceneViewport);
         camera.update(
             camWidth,
             camHeight,
@@ -5543,7 +5770,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             sceneViewport.width,
             sceneViewport.height,
         );
-        this.clearSceneFramebuffer();
+        this.clearSceneFramebuffer(sceneFramebufferViewport);
         // OSRS parity: keep CS2-visible viewport zoom in sync with the viewport widget size
         // (Client.viewportZoom; i.e., Rasterizer3D.get3dZoom()) so scripts and widget models scale correctly.
         try {
@@ -5695,10 +5922,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.frameRoofFilteredRangeCount = 0;
         this.frameRoofTotalRangeCount = 0;
 
-        this.app.disable(PicoGL.BLEND);
-        profiler.startPhase("opaque");
         let passStartIndices = this._frameIndices;
         let passStartBatches = this._frameBatches;
+        this.app.disable(PicoGL.BLEND);
+        profiler.startPhase("opaque");
+        passStartIndices = this._frameIndices;
+        passStartBatches = this._frameBatches;
         this.renderOpaquePass();
         opaqueIndices = Math.max(0, this._frameIndices - passStartIndices);
         opaqueBatches = Math.max(0, this._frameBatches - passStartBatches);
@@ -5726,7 +5955,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         transparentNpcIndices = Math.max(0, this._frameIndices - passStartIndices);
         transparentNpcBatches = Math.max(0, this._frameBatches - passStartBatches);
         profiler.endPhase();
-        // Players transparent (draw regardless of dynamic path)
         profiler.startPhase("transpPlayer");
         passStartIndices = this._frameIndices;
         passStartBatches = this._frameBatches;
@@ -5739,12 +5967,27 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.drawSceneTileOverlays(time, deltaTime);
         } catch {}
 
-        // Can't sample from renderbuffer so blit to a texture for sampling.
-        this.app.readFramebuffer(this.framebuffer);
-
-        this.app.drawFramebuffer(this.textureFramebuffer);
-        this.gl.readBuffer(PicoGL.COLOR_ATTACHMENT0);
-        this.app.blitFramebuffer(PicoGL.COLOR_BUFFER_BIT);
+        // Can't sample from the scene renderbuffer, so only blit when the scene pass
+        // didn't already render directly into the texture framebuffer.
+        profiler.startPhase("blit");
+        if (!directTextureScenePass) {
+            this.app.readFramebuffer(this.framebuffer);
+            this.app.drawFramebuffer(this.textureFramebuffer);
+            this.gl.readBuffer(PicoGL.COLOR_ATTACHMENT0);
+            this.app.blitFramebuffer(PicoGL.COLOR_BUFFER_BIT, {
+                srcStartX: 0,
+                srcStartY: 0,
+                srcEndX: this.sceneRenderWidth | 0,
+                srcEndY: this.sceneRenderHeight | 0,
+                dstStartX: 0,
+                dstStartY: 0,
+                dstEndX: this.app.width | 0,
+                dstEndY: this.app.height | 0,
+                filter: PicoGL.LINEAR,
+            });
+        }
+        this.app.viewport(0, 0, this.app.width | 0, this.app.height | 0);
+        profiler.endPhase();
 
         // Restore baseline camera before actor2d-style overlays (OSRS drawEntities restore semantics).
         if (cameraShakeApplied) {
@@ -5761,8 +6004,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             );
         }
 
-        // Update overlays and draw pre-present overlays (e.g., hitsplats) into frame texture
-        profiler.startPhase("overlays");
+        // Update overlays and draw pre-present overlays (e.g., hitsplats) into frame texture.
+        profiler.startPhase("overlayFrame");
         try {
             this.resetHealthBarOutput();
             this.resetHitsplatOutput();
@@ -6256,12 +6499,14 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 this.overlayManager?.draw(RenderPhase.ToFrameTexture);
             }
         } catch {}
+        profiler.endPhase();
 
         this.app.disable(PicoGL.DEPTH_TEST);
         this.app.depthMask(false);
 
         this.app.disable(PicoGL.BLEND);
 
+        profiler.startPhase("present");
         this.app.clearMask(PicoGL.COLOR_BUFFER_BIT | PicoGL.DEPTH_BUFFER_BIT);
         this.app.clearColor(0.0, 0.0, 0.0, 1.0);
         this.app.defaultDrawFramebuffer().clear();
@@ -6274,8 +6519,10 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.frameDrawCall.texture("u_frame", this.textureFramebuffer.colorAttachments[0]);
             this.frameDrawCall.draw();
         }
+        profiler.endPhase();
 
-        // Update and draw overlays (post-present)
+        // Update and draw overlays (post-present).
+        profiler.startPhase("overlayPost");
         try {
             const playerLevel = this.getPlayerBasePlane() | 0;
             const playerRawLevel = this.getPlayerRawPlane() | 0;
@@ -6528,7 +6775,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.updateCustomLabels();
         profiler.endPhase();
 
-        if (showDebugTimer) {
+        if (showDebugTimer || profileGpuTimer) {
             this.timer.end();
         }
 
@@ -6559,6 +6806,20 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         profiler.recordDrawCall(this.stats.drawBatches | 0, this.stats.trianglesSubmitted);
         profiler.recordGauge("visibleMaps", this.stats.visibleMaps);
         profiler.recordGauge("loadedMaps", this.stats.loadedMaps);
+        profiler.recordGauge("fpsLimit", this.stats.frameBudgetMs > 0 ? 1000 / this.stats.frameBudgetMs : 0);
+        profiler.recordGauge("frameBudgetMs", this.stats.frameBudgetMs);
+        profiler.recordGauge("callbackDeltaMs", this.stats.callbackDeltaMs);
+        profiler.recordGauge("estimatedRefreshHz", this.stats.estimatedRefreshHz);
+        profiler.recordGauge("limiterSkippedCallbacks", this.stats.limiterSkippedCallbacks);
+        profiler.recordGauge("limiterSkipDebtMs", this.stats.limiterSkipDebtMs);
+        profiler.recordGauge("timeoutScheduler", this.stats.usedTimeoutScheduler ? 1 : 0);
+        profiler.recordGauge("frameJsMs", Math.max(0, performance.now() - this.stats.frameTimeStart));
+        profiler.recordGauge("resolutionScale", this.osrsClient.mobileEffectiveResolutionScale || 1);
+        profiler.recordGauge("canvasPixelsMp", (this.app.width * this.app.height) / 1_000_000);
+        profiler.recordGauge(
+            "scenePixelsMp",
+            (this.sceneRenderWidth * this.sceneRenderHeight) / 1_000_000,
+        );
         profiler.recordGauge(
             "queuedMaps",
             ((this.mapsToLoad.length | 0) + (this.getPendingStreamMapCount() | 0)) | 0,
@@ -6598,51 +6859,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         profiler.recordGauge("batchTranspNpc", transparentNpcBatches | 0);
         profiler.recordGauge("batchTranspPlayer", transparentPlayerBatches | 0);
         profiler.recordGauge("batchUntracked", untrackedPassBatches | 0);
-        profiler.endFrame(deltaTime);
-
-        // Geometry memory: sum resident map geometry + player buffers if present
-        let geoBytes = 0;
-        for (const map of this.mapManager.mapSquares.values()) {
-            geoBytes += (map.interleavedBuffer as any)?.byteLength ?? 0;
-            geoBytes += (map.indexBuffer as any)?.byteLength ?? 0;
-        }
-        try {
-            const pr: any = this.playerRenderer as any;
-            const vbo = pr.getInterleavedBuffer?.();
-            const ibo = pr.getIndexBuffer?.();
-            if (vbo) geoBytes += (vbo as any).byteLength ?? 0;
-            if (ibo) geoBytes += (ibo as any).byteLength ?? 0;
-        } catch {}
-        this.stats.geometryGpuBytes = geoBytes;
-
-        // Textures
-        this.stats.texturesLoaded = this.loadedTextureIds.size;
-        this.stats.texturesTotal = this.textureIds.length;
-
-        // Output size
-        this.stats.width = this.app.width | 0;
-        this.stats.height = this.app.height | 0;
-
-        // Camera + Player debug stats
-        this.stats.cameraPosX = camera.getPosX();
-        this.stats.cameraPosY = camera.getPosY();
-        this.stats.cameraPosZ = camera.getPosZ();
-        this.stats.cameraPitchRS = camera.pitch | 0;
-        this.stats.cameraYawRS = camera.getYaw() | 0;
-        this.stats.cameraRollRS = 0; // roll not used; OSRS-style roll is 0
-
-        const debugPlayerIndex = this.getControlledPlayerEcsIndex();
-        if (debugPlayerIndex !== undefined) {
-            this.stats.playerTileX = (this.osrsClient.playerEcs.getX(debugPlayerIndex) / 128) | 0;
-            this.stats.playerTileY = (this.osrsClient.playerEcs.getY(debugPlayerIndex) / 128) | 0;
-            this.stats.playerLevel = this.osrsClient.playerEcs.getLevel(debugPlayerIndex) | 0;
-        }
-
-        if (showDebugTimer && this.timer.ready()) {
-            this.osrsClient.debugText = `Frame Time GL: ${this.timer.gpuTime.toFixed(
-                2,
-            )}ms\n JS: ${this.timer.cpuTime.toFixed(2)}ms`;
-        }
+        this.finishRenderFrame(camera, deltaTime, showDebugTimer, profileGpuTimer);
 
         // Emote timers are advanced per-tick above.
     }
@@ -7354,20 +7571,21 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         };
     }
 
-    private clearSceneFramebuffer(): void {
+    private clearSceneFramebuffer(viewportRect: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    }): void {
         this.app.clearColor(0.0, 0.0, 0.0, 1.0);
         this.app.clear();
 
-        const camera = this.osrsClient.camera;
-        const left = Math.max(0, camera.viewportXOffset | 0);
-        const top = Math.max(0, camera.viewportYOffset | 0);
-        const right = Math.min(
-            this.app.width | 0,
-            (camera.viewportXOffset + camera.viewportWidth) | 0,
-        );
+        const left = Math.max(0, viewportRect.x | 0);
+        const top = Math.max(0, viewportRect.y | 0);
+        const right = Math.min(this.sceneRenderWidth | 0, (viewportRect.x + viewportRect.width) | 0);
         const bottom = Math.min(
-            this.app.height | 0,
-            (camera.viewportYOffset + camera.viewportHeight) | 0,
+            this.sceneRenderHeight | 0,
+            (viewportRect.y + viewportRect.height) | 0,
         );
         const width = Math.max(0, right - left);
         const height = Math.max(0, bottom - top);
@@ -7376,7 +7594,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
 
         this.gl.enable(this.gl.SCISSOR_TEST);
-        this.gl.scissor(left, (this.app.height | 0) - bottom, width, height);
+        this.gl.scissor(left, (this.sceneRenderHeight | 0) - bottom, width, height);
         this.gl.clearColor(this.skyColor[0], this.skyColor[1], this.skyColor[2], this.skyColor[3]);
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
         this.gl.disable(this.gl.SCISSOR_TEST);
@@ -10352,29 +10570,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     private resolveEffectiveRenderDistanceTiles(frameId: number): number {
         const base = clamp(this.osrsClient.renderDistance | 0, 25, 90);
-        if (!isTouchDevice) {
-            this.effectiveRenderDistanceTiles = base;
-            this.effectiveRenderDistanceFrame = frameId | 0;
-            return base;
-        }
         if ((this.effectiveRenderDistanceFrame | 0) === (frameId | 0)) {
             return this.effectiveRenderDistanceTiles | 0;
         }
-        if ((this.effectiveRenderDistanceTiles | 0) <= 0) {
-            this.effectiveRenderDistanceTiles = base;
-        }
-
-        const mobilePressure = this.getMobilePressureTier();
-        const triangles = this.stats.trianglesSubmitted | 0;
-        const batches = this.stats.drawBatches | 0;
-        this.effectiveRenderDistanceTiles = resolveNextEffectiveRenderDistanceTiles({
-            baseRenderDistance: base,
-            currentEffectiveRenderDistance: this.effectiveRenderDistanceTiles | 0,
-            isTouchDevice,
-            mobilePressure,
-            triangles,
-            batches,
-        });
+        const profile = this.syncBrowserQualityProfile();
+        const target = isTouchDevice ? Math.min(base, profile.renderDistanceCap | 0) : base;
+        this.effectiveRenderDistanceTiles = Math.max(0, target | 0);
         this.effectiveRenderDistanceFrame = frameId | 0;
         return this.effectiveRenderDistanceTiles | 0;
     }
@@ -10383,55 +10584,17 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         return this.resolveEffectiveRenderDistanceTiles(this.stats.frameCount | 0);
     }
 
-    private getMobilePressureTier(): number {
-        if (!isTouchDevice) return 0;
-        const triangles = this.stats.trianglesSubmitted | 0;
-        const batches = this.stats.drawBatches | 0;
-        if (triangles >= 1_600_000 || batches >= 1400) return 3;
-        if (triangles >= 1_300_000 || batches >= 1100) return 2;
-        if (triangles >= 1_000_000 || batches >= 900) return 1;
-        return 0;
-    }
-
     private resolveEffectiveLodThresholdTiles(frameId: number): number {
         const renderDistance = this.getFrameRenderDistanceTiles() | 0;
         const base = clamp(this.osrsClient.lodDistance | 0, 0, Math.max(0, renderDistance));
-        if (base <= 0) {
-            this.effectiveLodThresholdTiles = 0;
-            this.effectiveLodThresholdFrame = frameId | 0;
-            return 0;
-        }
         if ((this.effectiveLodThresholdFrame | 0) === (frameId | 0)) {
             return this.effectiveLodThresholdTiles | 0;
         }
-        if ((this.effectiveLodThresholdTiles | 0) <= 0 && base > 0) {
-            this.effectiveLodThresholdTiles = base;
-        }
-
-        let target = base;
-        const triangles = this.stats.trianglesSubmitted | 0;
-        const batches = this.stats.drawBatches | 0;
-
-        if (triangles >= 1_000_000 || batches >= 900) {
-            target = Math.min(target, Math.max(10, base - 3));
-        }
-        if (triangles >= 1_300_000 || batches >= 1100) {
-            target = Math.min(target, Math.max(8, base - 6));
-        }
-        if (triangles >= 1_600_000 || batches >= 1400) {
-            target = Math.min(target, Math.max(6, base - 9));
-        }
-
-        const floor = Math.max(1, Math.min(10, base));
-        target = Math.max(floor, Math.min(base, target));
-        const current = Math.max(floor, Math.min(base, this.effectiveLodThresholdTiles | 0));
-        if (target < current) {
-            this.effectiveLodThresholdTiles = Math.max(target, current - 1);
-        } else if (target > current) {
-            this.effectiveLodThresholdTiles = Math.min(target, current + 1);
-        } else {
-            this.effectiveLodThresholdTiles = current;
-        }
+        const profile = this.syncBrowserQualityProfile();
+        const target = isTouchDevice
+            ? Math.min(base, Math.max(0, Math.min(renderDistance, profile.lodThresholdCap | 0)))
+            : base;
+        this.effectiveLodThresholdTiles = Math.max(0, target | 0);
         this.effectiveLodThresholdFrame = frameId | 0;
         return this.effectiveLodThresholdTiles | 0;
     }
@@ -10444,25 +10607,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         if ((this.effectiveGroundItemOverlayFrame | 0) === (frameId | 0)) {
             return this.effectiveGroundItemOverlayMaxEntries | 0;
         }
-        let target = 40;
-        const mobilePressure = this.getMobilePressureTier();
-        if (isTouchDevice) {
-            if (mobilePressure >= 1) target = 24;
-            if (mobilePressure >= 2) target = 16;
-            if (mobilePressure >= 3) target = 12;
-        } else {
-            const triangles = this.stats.trianglesSubmitted | 0;
-            const batches = this.stats.drawBatches | 0;
-            if (triangles >= 1_000_000 || batches >= 900) {
-                target = 32;
-            }
-            if (triangles >= 1_300_000 || batches >= 1100) {
-                target = 24;
-            }
-            if (triangles >= 1_600_000 || batches >= 1400) {
-                target = 16;
-            }
-        }
+        const profile = this.syncBrowserQualityProfile();
+        const target = isTouchDevice ? profile.groundItemOverlayMaxEntries | 0 : 40;
         this.effectiveGroundItemOverlayMaxEntries = target;
         this.effectiveGroundItemOverlayFrame = frameId | 0;
         return target;
@@ -10476,13 +10622,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         if ((this.effectiveGroundItemOverlayRadiusFrame | 0) === (frameId | 0)) {
             return this.effectiveGroundItemOverlayRadius | 0;
         }
-        let target = 12;
-        if (isTouchDevice) {
-            const mobilePressure = this.getMobilePressureTier();
-            if (mobilePressure >= 1) target = 10;
-            if (mobilePressure >= 2) target = 8;
-            if (mobilePressure >= 3) target = 6;
-        }
+        const profile = this.syncBrowserQualityProfile();
+        const target = isTouchDevice ? profile.groundItemOverlayRadius | 0 : 12;
         this.effectiveGroundItemOverlayRadius = target;
         this.effectiveGroundItemOverlayRadiusFrame = frameId | 0;
         return target;
@@ -10494,38 +10635,22 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     private getFrameHitsplatMaxEntries(): number {
         if (!isTouchDevice) return MAX_HIT_ENTRIES;
-        const mobilePressure = this.getMobilePressureTier();
-        if (mobilePressure >= 3) return 72;
-        if (mobilePressure >= 2) return 96;
-        if (mobilePressure >= 1) return 128;
-        return 160;
+        return this.syncBrowserQualityProfile().hitsplatMaxEntries | 0;
     }
 
     private getFrameHealthBarMaxEntries(): number {
         if (!isTouchDevice) return 256;
-        const mobilePressure = this.getMobilePressureTier();
-        if (mobilePressure >= 3) return 48;
-        if (mobilePressure >= 2) return 64;
-        if (mobilePressure >= 1) return 96;
-        return 128;
+        return this.syncBrowserQualityProfile().healthBarMaxEntries | 0;
     }
 
     private getFrameOverheadTextMaxEntries(): number {
         if (!isTouchDevice) return 256;
-        const mobilePressure = this.getMobilePressureTier();
-        if (mobilePressure >= 3) return 24;
-        if (mobilePressure >= 2) return 32;
-        if (mobilePressure >= 1) return 48;
-        return 64;
+        return this.syncBrowserQualityProfile().overheadTextMaxEntries | 0;
     }
 
     private getFrameOverheadPrayerMaxEntries(): number {
         if (!isTouchDevice) return 256;
-        const mobilePressure = this.getMobilePressureTier();
-        if (mobilePressure >= 3) return 20;
-        if (mobilePressure >= 2) return 28;
-        if (mobilePressure >= 1) return 32;
-        return 40;
+        return this.syncBrowserQualityProfile().overheadPrayerMaxEntries | 0;
     }
 
     private updateAnimatedDrawRanges(
@@ -12743,6 +12868,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         this.textureColorTarget?.delete();
         this.textureColorTarget = undefined;
+
+        this.textureDepthTarget?.delete();
+        this.textureDepthTarget = undefined;
 
         // Textures
         this.textureArray?.delete();

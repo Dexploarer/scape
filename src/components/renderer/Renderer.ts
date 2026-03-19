@@ -48,6 +48,7 @@ export abstract class Renderer {
     private _resizeObs?: ResizeObserver;
     private _timeoutId?: ReturnType<typeof setTimeout>;
     private _useTimeout: boolean = false;
+    private _framePacingDebtMs: number = 0;
 
     constructor() {
         this.canvas = document.createElement("canvas");
@@ -62,6 +63,7 @@ export abstract class Renderer {
 
     start() {
         this.running = true;
+        this._framePacingDebtMs = 0;
         this._updateVisibilityMode();
         this._scheduleNextFrame();
         if (this.runInBackground) {
@@ -71,6 +73,7 @@ export abstract class Renderer {
 
     stop() {
         this.running = false;
+        this._framePacingDebtMs = 0;
         document.removeEventListener("visibilitychange", this._onVisibilityChange);
         if (this.animationId !== undefined) {
             cancelAnimationFrame(this.animationId);
@@ -114,6 +117,15 @@ export abstract class Renderer {
         this._useTimeout = this.runInBackground && document.hidden;
     }
 
+    private _recordSchedulerCallback(
+        time: DOMHighResTimeStamp,
+        viaTimeout: boolean,
+        fpsLimit: number,
+    ) {
+        const budgetMs = fpsLimit > 0 ? 1000 / fpsLimit : 0;
+        this.stats.noteFrameCallback(time, { viaTimeout, frameBudgetMs: budgetMs });
+    }
+
     protected getEffectiveFpsLimit(): number {
         const raw = Number(this.fpsLimit);
         if (!Number.isFinite(raw)) return 0;
@@ -125,7 +137,6 @@ export abstract class Renderer {
         if (!this.running) return;
         const fpsLimit = this.getEffectiveFpsLimit();
         if (this._useTimeout) {
-            // Use setTimeout when tab is hidden to bypass RAF throttling
             const targetMs = fpsLimit > 0 ? 1000 / fpsLimit : 16;
             this._timeoutId = setTimeout(() => {
                 this._timeoutId = undefined;
@@ -168,6 +179,10 @@ export abstract class Renderer {
                 return;
             }
 
+            const fpsLimit = this.getEffectiveFpsLimit();
+            const usingTimeoutScheduler = this._useTimeout;
+            this._recordSchedulerCallback(time, usingTimeoutScheduler, fpsLimit);
+
             const resized = resizeCanvas(this);
             if (resized) {
                 if (isResizeDebug()) {
@@ -178,14 +193,25 @@ export abstract class Renderer {
             }
 
             const deltaTime = this.stats.getDeltaTime(time);
-            const fpsLimit = this.getEffectiveFpsLimit();
 
-            // Skip FPS limiting when using setTimeout (already throttled)
-            if (!this._useTimeout && fpsLimit > 0 && deltaTime > 0) {
-                const tolerance = 1;
-                if (deltaTime < 1000 / fpsLimit - tolerance) {
+            if (usingTimeoutScheduler) {
+                this._framePacingDebtMs = 0;
+            }
+
+            // Pace capped rendering from raw callback cadence rather than rendered-frame delta.
+            // This avoids 90Hz->60fps aliasing without depending on foreground setTimeout timers.
+            if (!usingTimeoutScheduler && fpsLimit > 0 && this.stats.lastFrameTime !== undefined) {
+                const frameBudgetMs = 1000 / fpsLimit;
+                const callbackDeltaMs = Math.max(0, this.stats.callbackDeltaMs);
+                this._framePacingDebtMs = Math.min(
+                    frameBudgetMs * 2,
+                    this._framePacingDebtMs + callbackDeltaMs,
+                );
+                if (this._framePacingDebtMs < frameBudgetMs) {
+                    this.stats.noteLimiterSkip(frameBudgetMs - this._framePacingDebtMs);
                     return;
                 }
+                this._framePacingDebtMs = Math.max(0, this._framePacingDebtMs - frameBudgetMs);
             }
 
             this.stats.update(time);
@@ -217,6 +243,7 @@ export abstract class Renderer {
     forceImmediateRender(): void {
         if (!this.running) return;
         const time = performance.now();
+        this._framePacingDebtMs = 0;
         const resized = resizeCanvas(this);
         if (resized) {
             this.onResize(this.canvas.width, this.canvas.height);

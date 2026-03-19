@@ -6,6 +6,7 @@
  */
 import type { WebSocket } from "ws";
 
+import type { ClientPerfSnapshot } from "../../../src/shared/debug/PerfSnapshot";
 import { MAX_REAL_LEVEL, SkillId, getXpForLevel } from "../../../src/rs/skill/skills";
 import {
     MODIFIER_FLAG_CTRL,
@@ -44,6 +45,33 @@ const DEBUG_SCROLL_OPTIONS = [
     "Yanille",
     "Zanaris",
 ];
+
+function formatPerfNumber(value: number | undefined, digits: number = 1): string {
+    if (!Number.isFinite(value)) {
+        return "?";
+    }
+    return (value as number).toFixed(digits);
+}
+
+function buildPerfSummary(snapshot: ClientPerfSnapshot | undefined): string {
+    const render = snapshot?.render;
+    const gpu = snapshot?.profiler?.gpu;
+    return [
+        `fps=${formatPerfNumber(render?.fps)}`,
+        `js=${formatPerfNumber(render?.jsTimeMs)}ms`,
+        `cap=${formatPerfNumber(render?.fpsLimit, 0)}`,
+        `profile=${render?.qualityProfile ?? "unknown"}`,
+        `direct=${render?.directScenePass ? 1 : 0}`,
+        `scale=${formatPerfNumber(render?.resolutionScale, 2)}x`,
+        `refresh=${formatPerfNumber(render?.estimatedRefreshHz)}Hz`,
+        `callback=${formatPerfNumber(render?.callbackDeltaMs)}ms`,
+        `skip=${formatPerfNumber(render?.limiterSkippedCallbacks, 0)}`,
+        `timeout=${render?.timeoutScheduler ? 1 : 0}`,
+        `gpu=${gpu ? `${formatPerfNumber(gpu.avgMs)}ms` : "n/a"}`,
+        `size=${render?.width ?? 0}x${render?.height ?? 0}`,
+        `scene=${render?.sceneWidth ?? 0}x${render?.sceneHeight ?? 0}`,
+    ].join(" ");
+}
 
 // ============================================================================
 // Payload Interfaces
@@ -964,6 +992,21 @@ export function registerMessageHandlers(
                         targetPlayerIds: [target.id],
                     });
                 }
+            }
+        } else if (kind === "perf_snapshot") {
+            const target = ctx.player;
+            const snapshot = payload.snapshot as ClientPerfSnapshot | undefined;
+            const who = target ? `player=${target.id} name=${target.name}` : "player=unknown";
+            logger.info(`[perf] ${who} ${buildPerfSummary(snapshot)}`);
+            if (snapshot) {
+                logger.info(`[perf] ${who} snapshot=${JSON.stringify(snapshot)}`);
+            }
+            if (target) {
+                services.queueChatMessage({
+                    messageType: "game",
+                    text: "Performance snapshot sent to server log.",
+                    targetPlayerIds: [target.id],
+                });
             }
         }
     });

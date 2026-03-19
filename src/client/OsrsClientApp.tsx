@@ -16,7 +16,7 @@ import {
     removeCacheManifestEntry,
     writeCacheManifestEntry,
 } from "../util/CacheManifest";
-import { isIos, isTouchDevice } from "../util/DeviceUtil";
+import { isIos, isStandaloneDisplayMode, isTouchDevice } from "../util/DeviceUtil";
 import {
     describeStorageShortfall,
     ensurePersistentStorage,
@@ -47,8 +47,6 @@ const cachesPromise = fetchCacheList();
 declare const module: any;
 
 type LoginUnsubscriber = () => void;
-type NavigatorWithStandalone = Navigator & { standalone?: boolean };
-
 function readWorkerPoolNonce(): number {
     if (typeof window === "undefined") return 0;
     const value = window.__rsWorkerPoolNonce;
@@ -59,15 +57,6 @@ function incrementWorkerPoolNonce(): void {
     if (typeof window === "undefined") return;
     const current = readWorkerPoolNonce();
     window.__rsWorkerPoolNonce = (current + 1) | 0;
-}
-
-function isStandaloneDisplayMode(): boolean {
-    if (typeof window === "undefined") return false;
-    const nav = window.navigator as NavigatorWithStandalone;
-    const isStandaloneMedia =
-        typeof window.matchMedia === "function" &&
-        window.matchMedia("(display-mode: standalone)").matches;
-    return isStandaloneMedia || nav.standalone === true;
 }
 
 function hasCacheStorage(): boolean {

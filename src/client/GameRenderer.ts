@@ -2,7 +2,6 @@ import { Schema } from "leva/dist/declarations/src/types";
 
 import { Renderer } from "../components/renderer/Renderer";
 import { SceneBuilder } from "../rs/scene/SceneBuilder";
-import { isTouchDevice } from "../util/DeviceUtil";
 import { clamp } from "../util/MathUtil";
 import { ProjectionType } from "./Camera";
 import { ClientState } from "./ClientState";
@@ -44,9 +43,6 @@ export abstract class GameRenderer<T extends MapSquare = MapSquare> extends Rend
         const target = Number(this.osrsClient.targetFps) | 0;
         if (target > 0) {
             limit = limit > 0 ? Math.min(limit, target) : target;
-        }
-        if (isTouchDevice) {
-            limit = limit > 0 ? Math.min(limit, 60) : 60;
         }
         try {
             if (typeof document !== "undefined" && document.hidden) {

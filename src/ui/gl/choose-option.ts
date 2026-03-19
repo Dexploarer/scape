@@ -99,6 +99,42 @@ function measureMenuText(fontLoader: FontLoader, s: string, fontId: number): num
     return result;
 }
 
+function getCanvasInputScale(canvas: HTMLCanvasElement): { x: number; y: number } {
+    const canvasAny = canvas as any;
+    const scaleXRaw = Number(canvasAny?.__uiInputScaleX ?? 1);
+    const scaleYRaw = Number(canvasAny?.__uiInputScaleY ?? 1);
+    return {
+        x: Number.isFinite(scaleXRaw) && scaleXRaw > 0 ? scaleXRaw : 1,
+        y: Number.isFinite(scaleYRaw) && scaleYRaw > 0 ? scaleYRaw : 1,
+    };
+}
+
+function scaleInputPoint(
+    canvas: HTMLCanvasElement,
+    x: number,
+    y: number,
+): { x: number; y: number } {
+    const scale = getCanvasInputScale(canvas);
+    return {
+        x: Math.round(x * scale.x),
+        y: Math.round(y * scale.y),
+    };
+}
+
+function getMenuAnchorPoint(
+    canvas: HTMLCanvasElement,
+    menu: ChooseOptionMenuLike | undefined,
+): { x: number; y: number } {
+    const source = (menu as any)?.source;
+    if (source === "widgets") {
+        return {
+            x: (menu?.x ?? 0) | 0,
+            y: (menu?.y ?? 0) | 0,
+        };
+    }
+    return scaleInputPoint(canvas, (menu?.x ?? 0) | 0, (menu?.y ?? 0) | 0);
+}
+
 export function getChooseOptionMenuRect(
     fontLoader: FontLoader,
     menu: ChooseOptionMenuLike | undefined,
@@ -269,7 +305,17 @@ export function drawChooseOptionMenu(
 
     const hostW = glr.width | 0;
     const hostH = glr.height | 0;
-    const menuRect = getChooseOptionMenuRect(opts.fontLoader, menu, hostW, hostH);
+    const anchor = getMenuAnchorPoint(canvas, menu);
+    const menuRect = getChooseOptionMenuRect(
+        opts.fontLoader,
+        {
+            ...menu,
+            x: anchor.x,
+            y: anchor.y,
+        },
+        hostW,
+        hostH,
+    );
     if (!menuRect) {
         unregisterMenuTargets(prevCount);
         return;
@@ -285,8 +331,13 @@ export function drawChooseOptionMenu(
     if (!menu.follow && globalClient?.inputManager) {
         const inputManager: any = globalClient.inputManager;
         const lastButton = (inputManager.clickMode3 | 0) as number;
-        const mx = (inputManager.mouseX | 0) as number;
-        const my = (inputManager.mouseY | 0) as number;
+        const mousePoint = scaleInputPoint(
+            canvas,
+            (inputManager.mouseX | 0) as number,
+            (inputManager.mouseY | 0) as number,
+        );
+        const mx = mousePoint.x | 0;
+        const my = mousePoint.y | 0;
 
         // Consume right-click while menu is open (OSRS: right-click does nothing when menu is open).
         if (lastButton === ClickMode.RIGHT) {
@@ -333,8 +384,13 @@ export function drawChooseOptionMenu(
 
         // Select/close on mousedown (OSRS: lastPressedX/Y).
         if (lastButton === ClickMode.LEFT) {
-            const pressX = (inputManager.saveClickX | 0) as number;
-            const pressY = (inputManager.saveClickY | 0) as number;
+            const pressPoint = scaleInputPoint(
+                canvas,
+                (inputManager.saveClickX | 0) as number,
+                (inputManager.saveClickY | 0) as number,
+            );
+            const pressX = pressPoint.x | 0;
+            const pressY = pressPoint.y | 0;
             let pickedIndex = -1;
             for (let i = 0; i < menu.entries.length; i++) {
                 const baselineY =

@@ -1,5 +1,3 @@
-// Shared message shapes between server and client
-import type { ClientPerfSnapshot } from "../../../src/shared/debug/PerfSnapshot";
 import type { ProjectileLaunch } from "../../../src/shared/projectiles/ProjectileLaunch";
 import type { WidgetAction } from "../widgets/WidgetManager";
 import type { RoutedMessage } from "./MessageRouter";
@@ -623,8 +621,7 @@ export type ClientToServer =
               | { kind: "projectiles_request"; requestId?: number }
               | { kind: "projectiles_snapshot"; requestId: number; snapshot: any }
               | { kind: "anim_request"; requestId?: number }
-              | { kind: "anim_snapshot"; requestId: number; snapshot: any }
-              | { kind: "perf_snapshot"; snapshot: ClientPerfSnapshot };
+              | { kind: "anim_snapshot"; requestId: number; snapshot: any };
       }
     | { type: "logout"; payload?: Record<string, never> };
 

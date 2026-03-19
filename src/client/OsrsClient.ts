@@ -519,8 +519,6 @@ export class OsrsClient {
     lodDistance: number = DEFAULT_LOD_DISTANCE;
 
     targetFps: number = DEFAULT_FPS_LIMIT;
-    // 0 = browser profile default scene scale, otherwise explicit override scale.
-    mobilePerfResolutionScale: number = 0;
     mobileEffectiveResolutionScale: number = 1;
 
     tooltips: boolean = !isTouchDevice;
@@ -9459,20 +9457,6 @@ export class OsrsClient {
             }
         } catch (error) {
             console.log("[OsrsClient] Failed to set FPS limit", { error, next });
-        }
-    }
-
-    setMobilePerfResolutionScale(scale: number): void {
-        const next =
-            !Number.isFinite(scale) || scale <= 0 ? 0 : Math.max(0.25, Math.min(1, scale));
-        this.mobilePerfResolutionScale = next;
-        try {
-            this.renderer?.forceResize?.();
-        } catch (error) {
-            console.log("[OsrsClient] Failed to apply mobile perf resolution scale", {
-                error,
-                next,
-            });
         }
     }
 

@@ -4,7 +4,6 @@ import { PlayerSyncContext } from "../client/sync/PlayerSyncContext";
 import type { PlayerSyncFrame } from "../client/sync/PlayerSyncTypes";
 import { PlayerUpdateDecoder } from "../client/sync/PlayerUpdateDecoder";
 import { SkillId } from "../rs/skill/skills";
-import type { ClientPerfSnapshot } from "../shared/debug/PerfSnapshot";
 import type { ProjectileLaunch } from "../shared/projectiles/ProjectileLaunch";
 import {
     VARP_AREA_SOUNDS_VOLUME,
@@ -712,8 +711,7 @@ type ClientToServer =
               | { kind: "projectiles_request"; requestId?: number }
               | { kind: "projectiles_snapshot"; requestId: number; snapshot: any }
               | { kind: "anim_request"; requestId?: number }
-              | { kind: "anim_snapshot"; requestId: number; snapshot: any }
-              | { kind: "perf_snapshot"; snapshot: ClientPerfSnapshot };
+              | { kind: "anim_snapshot"; requestId: number; snapshot: any };
       }
     | { type: "logout"; payload?: Record<string, never> };
 // Accessing process.env directly throws in browser-only bundles (e.g. toolkit/esbuild) where
@@ -721,7 +719,7 @@ type ClientToServer =
 const getEnv = (key: string): string | undefined =>
     typeof process !== "undefined" && process.env ? process.env[key] : undefined;
 
-const DEFAULT_URL = "ws://192.168.4.32:43594";
+const DEFAULT_URL = "ws://localhost:43594";
 const LOGIN_CONNECT_RETRY_DELAY_MS = 1000;
 
 let socket: WebSocket | null = null;
@@ -3030,12 +3028,6 @@ export function requestProjectileDebugSnapshot(
 ): void {
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
     send({ type: "debug", payload: { kind: "projectiles_request", requestId } } as any);
-}
-
-export function sendPerformanceDebugSnapshot(snapshot: ClientPerfSnapshot): boolean {
-    if (!socket || socket.readyState !== WebSocket.OPEN) return false;
-    send({ type: "debug", payload: { kind: "perf_snapshot", snapshot } } as any);
-    return true;
 }
 
 export function subscribePlayerSync(cb: (frame: PlayerSyncFrame) => void): () => void {

@@ -973,9 +973,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         if (this.activeQualityProfileKey !== profile.key) {
             this.activeQualityProfileKey = profile.key;
             this.fxaaEnabled = profile.fxaaEnabled;
-            if ((this.osrsClient.mobilePerfResolutionScale ?? 0) <= 0) {
-                this.needsFramebufferUpdate = true;
-            }
+            this.needsFramebufferUpdate = true;
         }
         return profile;
     }
@@ -994,11 +992,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             return 1;
         }
         const profile = this.syncBrowserQualityProfile();
-        const override = this.osrsClient.mobilePerfResolutionScale;
-        const scale =
-            override > 0
-                ? Math.max(0.5, Math.min(1, override))
-                : Math.max(0.5, Math.min(1, profile.defaultSceneScale || 1));
+        const scale = Math.max(0.5, Math.min(1, profile.defaultSceneScale || 1));
         this.osrsClient.mobileEffectiveResolutionScale = scale;
         return scale;
     }

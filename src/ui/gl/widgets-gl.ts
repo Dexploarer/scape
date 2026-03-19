@@ -3289,12 +3289,22 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 modelCacheHits++;
                 // PERF: Use cached texture + offsets, skip CPU model rendering entirely
                 const stretch = !!(w as any).stretchModel;
+                const modelScaleX =
+                    logicalWidth > 0 ? Math.max(1 / logicalWidth, width / logicalWidth) : rootScaleX;
+                const modelScaleY =
+                    logicalHeight > 0
+                        ? Math.max(1 / logicalHeight, height / logicalHeight)
+                        : rootScaleY;
                 if (stretch) {
                     glr.drawTexture(cached.tex, x, y, width, height, 1, 1);
                 } else {
-                    const drawX = x + ((width / 2) | 0) - cached.offsetX;
-                    const drawY = y + ((height / 2) | 0) - cached.offsetY;
-                    glr.drawTexture(cached.tex, drawX, drawY, cached.w, cached.h, 1, 1);
+                    const drawW = Math.max(1, Math.round(cached.w * modelScaleX));
+                    const drawH = Math.max(1, Math.round(cached.h * modelScaleY));
+                    const drawX =
+                        x + ((width / 2) | 0) - Math.round(cached.offsetX * modelScaleX);
+                    const drawY =
+                        y + ((height / 2) | 0) - Math.round(cached.offsetY * modelScaleY);
+                    glr.drawTexture(cached.tex, drawX, drawY, drawW, drawH, 1, 1);
                 }
             } else {
                 modelCacheMisses++;
@@ -3343,13 +3353,23 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     }
 
                     const stretch = !!(w as any).stretchModel;
+                    const modelScaleX =
+                        logicalWidth > 0
+                            ? Math.max(1 / logicalWidth, width / logicalWidth)
+                            : rootScaleX;
+                    const modelScaleY =
+                        logicalHeight > 0
+                            ? Math.max(1 / logicalHeight, height / logicalHeight)
+                            : rootScaleY;
                     if (stretch) {
                         glr.drawTexture(tex, x, y, width, height, 1, 1);
                     } else {
-                        const drawW = can.width;
-                        const drawH = can.height;
-                        const drawX = x + ((width / 2) | 0) - (res.offsetX | 0);
-                        const drawY = y + ((height / 2) | 0) - (res.offsetY | 0);
+                        const drawW = Math.max(1, Math.round(can.width * modelScaleX));
+                        const drawH = Math.max(1, Math.round(can.height * modelScaleY));
+                        const drawX =
+                            x + ((width / 2) | 0) - Math.round((res.offsetX | 0) * modelScaleX);
+                        const drawY =
+                            y + ((height / 2) | 0) - Math.round((res.offsetY | 0) * modelScaleY);
                         glr.drawTexture(tex, drawX, drawY, drawW, drawH, 1, 1);
                     }
                 }

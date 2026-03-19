@@ -1,13 +1,12 @@
 {
-  "name": "osrs-web-client",
+  "name": "xrsps",
   "version": "0.1.0",
-  "private": true,
+  "repository": {
+    "url": "https://github.com/xrsps/xrsps-typescript"
+  },
+  "private": false,
   "dependencies": {
     "@foxglove/wasm-bz2": "^0.1.1",
-    "@testing-library/jest-dom": "^5.14.1",
-    "@testing-library/react": "^13.0.0",
-    "@testing-library/user-event": "^13.2.1",
-    "@types/jest": "^27.0.1",
     "@types/node": "^16.7.13",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
@@ -39,10 +38,8 @@
     "xxhash-wasm": "^1.0.2"
   },
   "scripts": {
-    "toolkit": "yarn --cwd toolkit dev",
     "start": "craco start",
     "build": "craco build",
-    "test": "craco test",
     "lint": "prettier --write \"./**/*.{js,ts,jsx,tsx,css,md}\"",
     "prepare": "husky install",
     "download-caches": "node scripts/download-caches.js",
@@ -50,28 +47,14 @@
     "export-height-map": "npx tsx scripts/cache/export-height-map.ts",
     "export-items": "npx tsx scripts/cache/export-items.ts osrs-232_2025-08-27",
     "export-map-images": "npx tsx scripts/cache/export-map-images.ts --force",
-    "mcp:generate": "node -r ts-node/register/transpile-only mcp/npc-anims-categorized.ts",
-    "mcp": "node -r ts-node/register/transpile-only mcp/mcp.ts",
-    "mcp-test": "node -r ts-node/register/transpile-only mcp/tests/test.ts",
     "server:start": "npx tsx server/src/index.ts",
     "server:dev": "npx tsx watch server/src/index.ts",
     "server:build": "tsc -p server/tsconfig.json",
-    "server:build-collision": "npx tsx server/scripts/build-collision-cache.ts --include-models --force",
-    "server:analyze-doors": "node -r ts-node/register/transpile-only server/scripts/analyze-door-cache.ts",
-    "server:export-league-tasks": "npx tsx server/scripts/export-league-tasks.ts",
-    "server:test": "node -r ts-node/register/transpile-only server/scripts/run-tests.ts",
-    "server:test:movement": "npx tsx server/scripts/run-movement-tests.ts",
-    "server:autosave-stress": "npx tsx server/scripts/autosave-stress.ts",
-    "extract:projectiles": "node scripts/projectile-extract.js",
-    "test:planes": "node -r ts-node/register/transpile-only tests/plane_resolver.test.ts",
-    "test:dialog-option": "node -r ts-node/register/transpile-only tests/dialog_option.test.ts",
-    "cs2-decompile": "npx tsx --max-old-space-size=8192 scripts/cache/decompile-cs2.ts",
-    "cs2-test": "yarn ts-node --skip-project cs2-decompiler/test/test_structure.ts"
+    "server:build-collision": "npx tsx server/scripts/build-collision-cache.ts --include-models --force"
   },
   "eslintConfig": {
     "extends": [
-      "react-app",
-      "react-app/jest"
+      "react-app"
     ]
   },
   "browserslist": {

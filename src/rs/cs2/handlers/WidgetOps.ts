@@ -615,6 +615,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         };
         // Place at the specified index - this matches OSRS behavior
         parent.children[childIndex] = child;
+        ctx.widgetManager.invalidateDynamicChildrenCache(parent);
         ctx.widgetManager.registerWidget(child);
         setTargetWidget(ctx, intOp, child);
         // OSRS parity: Creating/removing children invalidates the parent for redraw.
@@ -677,6 +678,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         copy.isLayoutValid = false;
 
         parent.children[dstIndex] = copy;
+        ctx.widgetManager.invalidateDynamicChildrenCache(parent);
         ctx.widgetManager.registerWidget(copy);
         setTargetWidget(ctx, intOp, copy);
         // Parity: dynamic child list changed; mark parent dirty for redraw.
@@ -695,6 +697,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
                     const found = parent.children.indexOf(w);
                     if (found >= 0) parent.children[found] = null;
                 }
+                ctx.widgetManager.invalidateDynamicChildrenCache(parent);
             }
             ctx.widgetManager.unregisterWidgetTree(w);
             setTargetWidget(ctx, intOp, null);
@@ -719,6 +722,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             }
             // OSRS parity: set children to null, don't preserve the array
             w.children = null;
+            ctx.widgetManager.invalidateDynamicChildrenCache(w);
             // OSRS parity: invalidate parent widget for redraw.
             // Reference: FaceNormal.invalidateWidget(var3) in CC_DELETEALL.
             ctx.widgetManager.invalidateWidgetRender(w);
@@ -804,6 +808,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         if (!parent.children) parent.children = [];
         while (parent.children.length <= childIndex) parent.children.push(null);
         parent.children[childIndex] = child;
+        ctx.widgetManager.invalidateDynamicChildrenCache(parent);
         ctx.widgetManager.registerWidget(child);
         setTargetWidget(ctx, intOp, child);
         invalidateWidgetRender(ctx, parent);
@@ -894,6 +899,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         if (!parent.children) parent.children = [];
         while (parent.children.length <= childIndex) parent.children.push(null);
         parent.children[childIndex] = sibling;
+        ctx.widgetManager.invalidateDynamicChildrenCache(parent);
         ctx.widgetManager.registerWidget(sibling);
         setTargetWidget(ctx, intOp, sibling);
         invalidateWidgetRender(ctx, parent);

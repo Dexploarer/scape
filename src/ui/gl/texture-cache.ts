@@ -164,6 +164,23 @@ export class TextureCache {
         this.itemIconCanvas = itemIconCanvas;
     }
 
+    getCacheStats(): {
+        glTextures: number;
+        spriteCanvas: number;
+        urlImages: number;
+        urlPending: number;
+    } {
+        const spriteCanvasCache = (this as any).__spriteCanvasCache as
+            | Map<string, HTMLCanvasElement>
+            | undefined;
+        return {
+            glTextures: this.glr.textures.size,
+            spriteCanvas: spriteCanvasCache?.size ?? 0,
+            urlImages: this.loadedImages.size,
+            urlPending: this.pendingUrlLoads.size,
+        };
+    }
+
     getSpriteById(id: number) {
         const key = `spr:${id}`;
         const cached = this.glr.getTexture(key);

@@ -56,8 +56,27 @@ let _accumulatedWidgetClipMs = 0;
 let _accumulatedWidgetBoundsMs = 0;
 let _accumulatedWidgetSelectionMs = 0;
 let _accumulatedWidgetDeferMs = 0;
+let _accumulatedWidgetScrollbarMs = 0;
+let _accumulatedWidgetHoverMs = 0;
+let _accumulatedWidgetCompassMs = 0;
+let _accumulatedWidgetContainerScaffoldMs = 0;
+let _accumulatedWidgetScrollClampMs = 0;
+let _accumulatedWidgetPrepContentTypeMs = 0;
+let _accumulatedWidgetPrepVisibilityMs = 0;
+let _accumulatedWidgetDebugRectMs = 0;
+let _accumulatedWidgetMenuOverlayMs = 0;
+let _accumulatedWidgetStaticDispatchMs = 0;
+let _accumulatedWidgetDynamicDispatchMs = 0;
+let _accumulatedWidgetInterfaceParentDispatchMs = 0;
+let _accumulatedWidgetClickShallowMs = 0;
 let _accumulatedWidgetClickProbeMs = 0;
 let _accumulatedWidgetClickDeriveMs = 0;
+let _accumulatedWidgetClickPrimaryFindMs = 0;
+let _accumulatedWidgetClickInventoryPrimaryMs = 0;
+let _accumulatedWidgetClickPrimaryResolveMs = 0;
+let _accumulatedWidgetClickCancelSetupMs = 0;
+let _accumulatedWidgetClickMetaMs = 0;
+let _accumulatedWidgetClickTargetMs = 0;
 let _accumulatedWidgetClickRegisterMs = 0;
 let _accumulatedWidgetPasses = 0;
 let _accumulatedWidgetDrawCalls = 0;
@@ -70,6 +89,11 @@ let _accumulatedSpriteWidgets = 0;
 let _accumulatedModelWidgets = 0;
 let _accumulatedMinimapWidgets = 0;
 let _accumulatedInteractiveWidgets = 0;
+let _accumulatedContainerWidgets = 0;
+let _accumulatedLeafWidgets = 0;
+let _accumulatedStaticChildrenVisited = 0;
+let _accumulatedDynamicChildrenVisited = 0;
+let _accumulatedInterfaceParentRootsVisited = 0;
 let _accumulatedClickCandidateWidgets = 0;
 let _accumulatedClickRegisteredWidgets = 0;
 let _accumulatedCancelSelectionWidgets = 0;
@@ -198,6 +222,24 @@ function shouldProbeWidgetInteractionShallow(w: any): boolean {
         return true;
     }
 
+    return false;
+}
+
+function shouldCheckWidgetHoverVisual(w: any, isIf3: boolean): boolean {
+    if (!w) return false;
+    const type = (w.type ?? 0) | 0;
+    if (type === 3) {
+        return (
+            typeof w.mouseOverColor === "number" || typeof w.mouseOverColor2 === "number"
+        );
+    }
+    if (type === 4 || type === 8) {
+        return (
+            typeof w.mouseOverColor === "number" ||
+            typeof w.mouseOverColor2 === "number" ||
+            (isIf3 && typeof w.text2 === "string" && w.text2.length > 0)
+        );
+    }
     return false;
 }
 
@@ -767,6 +809,12 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
     let clickRegistrationMs = 0;
     let clickProbeMs = 0;
     let clickDeriveMs = 0;
+    let clickPrimaryFindMs = 0;
+    let clickInventoryPrimaryMs = 0;
+    let clickPrimaryResolveMs = 0;
+    let clickCancelSetupMs = 0;
+    let clickMetaMs = 0;
+    let clickTargetMs = 0;
     let clickRegisterMs = 0;
     let minimapMs = 0;
     let spriteMs = 0;
@@ -781,11 +829,29 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
     let boundsMs = 0;
     let selectionMs = 0;
     let deferMs = 0;
+    let scrollbarMs = 0;
+    let hoverMs = 0;
+    let compassMs = 0;
+    let containerScaffoldMs = 0;
+    let scrollClampMs = 0;
+    let prepContentTypeMs = 0;
+    let prepVisibilityMs = 0;
+    let debugRectMs = 0;
+    let menuOverlayMs = 0;
+    let staticDispatchMs = 0;
+    let dynamicDispatchMs = 0;
+    let interfaceParentDispatchMs = 0;
+    let clickShallowMs = 0;
     let textWidgets = 0;
     let spriteWidgets = 0;
     let modelWidgets = 0;
     let minimapWidgets = 0;
     let interactiveWidgets = 0;
+    let containerWidgets = 0;
+    let leafWidgets = 0;
+    let staticChildrenVisited = 0;
+    let dynamicChildrenVisited = 0;
+    let interfaceParentRootsVisited = 0;
     let clickCandidateWidgets = 0;
     let clickRegisteredWidgets = 0;
     let cancelSelectionWidgets = 0;
@@ -1299,13 +1365,12 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 if (r) return r;
             }
         }
-        // Check dynamic children
-        if (w.children) {
-            for (const c of w.children) {
-                if (c != null) {
-                    const r = findWidgetLocal(c, gid, fid);
-                    if (r) return r;
-                }
+        // Check runtime children (CC_CREATE/CC_COPY path)
+        const dynamicChildren = widgetManager?.getDynamicChildrenByParent(w) ?? EMPTY_WIDGETS;
+        for (const c of dynamicChildren) {
+            if (c != null) {
+                const r = findWidgetLocal(c, gid, fid);
+                if (r) return r;
             }
         }
         return undefined;
@@ -1762,6 +1827,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         const prepStartMs = profileWidgetRender ? performance.now() : 0;
         // OSRS PARITY: contentType-driven widget mutations applied during draw.
         // Reference: class326.method6261 (called from UserComparator5.drawInterface when contentType > 0).
+        const prepContentTypeStartMs = profileWidgetRender ? performance.now() : 0;
         try {
             const ct = ((w.contentType ?? 0) | 0) as number;
             if (ct === 324 || ct === 325) {
@@ -1827,6 +1893,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 (w as any).modelId = ct === 327 ? 0 : 1;
             }
         } catch {}
+        if (profileWidgetRender) {
+            prepContentTypeMs += performance.now() - prepContentTypeStartMs;
+        }
 
         // OSRS PARITY: Determine if this is an IF3 widget
         // Default to IF3 (modern) if not specified
@@ -1836,7 +1905,11 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         // Reference: UserComparator5.java line 88: if (!var10.isIf3 || !class59.isComponentHidden(var10))
         // IF1 widgets: Always enter the render block (visibility checked later for containers)
         // IF3 widgets: Skip if hidden
+        const prepVisibilityStartMs = profileWidgetRender ? performance.now() : 0;
         if (isIf3 && isComponentHidden(w)) {
+            if (profileWidgetRender) {
+                prepVisibilityMs += performance.now() - prepVisibilityStartMs;
+            }
             return;
         }
 
@@ -1845,7 +1918,13 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         const eff = parentVisible && selfVisible;
 
         if (!eff) {
+            if (profileWidgetRender) {
+                prepVisibilityMs += performance.now() - prepVisibilityStartMs;
+            }
             return;
+        }
+        if (profileWidgetRender) {
+            prepVisibilityMs += performance.now() - prepVisibilityStartMs;
         }
         if (profileWidgetRender) {
             prepMs += performance.now() - prepStartMs;
@@ -1895,8 +1974,11 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         const staticChildren = isContainer
             ? (widgetManager?.getStaticChildrenByParentUid(w.uid) ?? EMPTY_WIDGETS)
             : EMPTY_WIDGETS;
+        const dynamicChildren = isContainer
+            ? (widgetManager?.getDynamicChildrenByParent(w) ?? EMPTY_WIDGETS)
+            : EMPTY_WIDGETS;
         const hasStaticChildren = staticChildren.length > 0;
-        const hasChildren = !!(w.children && w.children.length);
+        const hasChildren = dynamicChildren.length > 0;
 
         // OSRS PARITY: Calculate widget clip bounds based on widget type
         // Reference: UserComparator5.drawInterface lines 142-170
@@ -2001,7 +2083,12 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         // Default click target registration based on widget actions/verb OR CS2 event handlers
         const clickRegistrationStartMs = profileWidgetRender ? performance.now() : 0;
         try {
-            if (!shouldProbeWidgetInteractionShallow(w as any)) {
+            const clickShallowStartMs = profileWidgetRender ? performance.now() : 0;
+            const shouldProbeInteraction = shouldProbeWidgetInteractionShallow(w as any);
+            if (profileWidgetRender) {
+                clickShallowMs += performance.now() - clickShallowStartMs;
+            }
+            if (!shouldProbeInteraction) {
                 // Continue with normal widget rendering; this widget does not participate in UI hit logic.
             } else {
             const clickProbeStartMs = profileWidgetRender ? performance.now() : 0;
@@ -2030,12 +2117,16 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 clickDeriveMs += performance.now() - clickDeriveStartMs;
             }
             menuEntriesTotal += entries.length | 0;
+            const clickPrimaryFindStartMs = profileWidgetRender ? performance.now() : 0;
             const primary = entries.find((e) => {
                 const lower = String(e?.option ?? "")
                     .trim()
                     .toLowerCase();
                 return !!lower && lower !== "cancel" && lower !== "examine";
             });
+            if (profileWidgetRender) {
+                clickPrimaryFindMs += performance.now() - clickPrimaryFindStartMs;
+            }
 
             if (
                 primary ||
@@ -2046,9 +2137,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 interaction.isPauseButtonWidget ||
                 interaction.hasButtonTypeInteraction
             ) {
-                const clickRegisterStartMs = profileWidgetRender ? performance.now() : 0;
                 clickCandidateWidgets++;
                 interactiveWidgets++;
+                const clickPrimaryResolveStartMs = profileWidgetRender ? performance.now() : 0;
                 let primaryOptionText = primary?.option ?? "";
                 let primaryTarget = primary?.target;
 
@@ -2056,6 +2147,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 // The CS2 scripts set actions on inventory widgets from the item definition
                 // We need to find the first non-empty, non-Drop, non-Examine action
                 if (interaction.isInventoryItem && widgetActions) {
+                    const clickInventoryPrimaryStartMs = profileWidgetRender ? performance.now() : 0;
                     const itemWidgetActions = widgetActions as (string | null | undefined)[];
                     const hasNonUseAction = widgetActions.some((action) => {
                         if (!action || typeof action !== "string") return false;
@@ -2079,6 +2171,10 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                         primaryOptionText = trimmed;
                         break;
                     }
+                    if (profileWidgetRender) {
+                        clickInventoryPrimaryMs +=
+                            performance.now() - clickInventoryPrimaryStartMs;
+                    }
                 }
 
                 // OSRS parity: Pause button widgets show "Continue" with empty target
@@ -2087,8 +2183,12 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     primaryOptionText = "Continue";
                     primaryTarget = undefined;
                 }
+                if (profileWidgetRender) {
+                    clickPrimaryResolveMs += performance.now() - clickPrimaryResolveStartMs;
+                }
 
                 // Check if widget has a Drop action (for shift-click drop)
+                const clickMetaStartMs = profileWidgetRender ? performance.now() : 0;
                 const hasDropAction =
                     interaction.isInventoryItem &&
                     !!widgetActions &&
@@ -2122,13 +2222,18 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     meta.itemId = itemId;
                     meta.slot = slot;
                 }
+                if (profileWidgetRender) {
+                    clickMetaMs += performance.now() - clickMetaStartMs;
+                }
 
                 // PERF: Get or create cached click target, update in-place
                 // OSRS-style: persist=true for performance, visibility checked at query time via widgetUid
+                const clickTargetStartMs = profileWidgetRender ? performance.now() : 0;
                 let target = clickTargetCache.get(w.uid);
                 if (!target) {
+                    const targetId = `widget:${w.uid}`;
                     const newTarget: CachedClickTarget = {
-                        id: `widget:${w.uid}`,
+                        id: targetId,
                         rect: { x, y, w: width, h: height },
                         priority: 100,
                         hoverText: primaryOptionText,
@@ -2142,6 +2247,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     };
                     clickTargetCache.set(w.uid, newTarget);
                     target = newTarget;
+                    (w as any).__clickTargetId = targetId;
                 } else {
                     // Update rect in-place
                     target.rect.x = x;
@@ -2168,8 +2274,13 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                         target.primaryOption = undefined;
                     }
                     target.menuOptionsCount = entries.length | 0;
+                    (w as any).__clickTargetId = target.id;
+                }
+                if (profileWidgetRender) {
+                    clickTargetMs += performance.now() - clickTargetStartMs;
                 }
 
+                const clickRegisterStartMs = profileWidgetRender ? performance.now() : 0;
                 clicks.register(target);
                 clickRegisteredWidgets++;
 
@@ -2189,18 +2300,20 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     clickRegisterMs += performance.now() - clickRegisterStartMs;
                 }
             } else if (ClientState.isSpellSelected || ClientState.isItemSelected === 1) {
-                const clickRegisterStartMs = profileWidgetRender ? performance.now() : 0;
                 clickCandidateWidgets++;
+                const clickCancelSetupStartMs = profileWidgetRender ? performance.now() : 0;
                 // Widget has no options, but there's an active spell/item selection.
                 // Register a click target so clicking this widget cancels the selection.
                 // This matches OSRS behavior where clicking on widgets without valid
                 // targeting options cancels spell/item selection.
                 // PERF: Reuse cached click target object, update in-place
                 // OSRS-style: persist=true for performance, visibility checked at query time via widgetUid
+                const clickTargetStartMs = profileWidgetRender ? performance.now() : 0;
                 let target = clickTargetCache.get(w.uid);
                 if (!target) {
+                    const targetId = `widget:${w.uid}`;
                     const newTarget: CachedClickTarget = {
-                        id: `widget:${w.uid}`,
+                        id: targetId,
                         rect: { x, y, w: width, h: height },
                         priority: 50,
                         hoverText: undefined,
@@ -2211,6 +2324,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     };
                     clickTargetCache.set(w.uid, newTarget);
                     target = newTarget;
+                    (w as any).__clickTargetId = targetId;
                 } else {
                     target.rect.x = x;
                     target.rect.y = y;
@@ -2220,7 +2334,14 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     target.hoverText = undefined;
                     target.primaryOption = undefined;
                     target.onClick = CANCEL_SELECTION_HANDLER;
+                    (w as any).__clickTargetId = target.id;
                 }
+                if (profileWidgetRender) {
+                    clickCancelSetupMs += performance.now() - clickCancelSetupStartMs;
+                    clickTargetMs += performance.now() - clickTargetStartMs;
+                }
+
+                const clickRegisterStartMs = profileWidgetRender ? performance.now() : 0;
                 clicks.register(target);
                 clickRegisteredWidgets++;
                 cancelSelectionWidgets++;
@@ -2238,6 +2359,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         // Reference: UserComparator5.java lines 231-238
         // IF3 widgets handle scroll bounds via CS2 scripts, IF1 clamps automatically
         if (w.type === 0 && !isIf3) {
+            const scrollClampStartMs = profileWidgetRender ? performance.now() : 0;
             const scrollH = w.scrollHeight ?? 0;
             const prevScrollY = w.scrollY ?? 0;
             if ((w.scrollY || 0) > scrollH - w.height) {
@@ -2246,12 +2368,16 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             if ((w.scrollY || 0) < 0) {
                 w.scrollY = 0;
             }
+            if (profileWidgetRender) {
+                scrollClampMs += performance.now() - scrollClampStartMs;
+            }
         }
 
         // OSRS PARITY: IF1 type 0 containers draw scrollbar when scrollHeight > height
         // Reference: UserComparator5.java lines 267-269
         // Scrollbar is drawn on the right edge of the container
         if (w.type === 0 && !isIf3 && (w.scrollHeight ?? 0) > logicalHeight) {
+            const scrollbarStartMs = profileWidgetRender ? performance.now() : 0;
             drawScrollBar(
                 glr,
                 x + width, // scrollbar is drawn at the right edge (x + width)
@@ -2264,20 +2390,33 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 rootScaleX,
                 rootScaleY,
             );
+            if (profileWidgetRender) {
+                scrollbarMs += performance.now() - scrollbarStartMs;
+            }
         }
 
         // Check if this widget is being hovered (for hover state rendering)
+        const hoverStartMs = profileWidgetRender ? performance.now() : 0;
         const widgetUid = (w.uid as number) | 0;
-        const widgetHoverId = `widget:${w.uid}`;
-        const isWidgetHovered = isIf3
-            ? clicks?.isHover?.(widgetHoverId) ?? false
-            : mousedOverIf1WidgetUid === widgetUid;
+        const hoverVisual = shouldCheckWidgetHoverVisual(w, isIf3);
+        const isWidgetHovered =
+            hoverVisual &&
+            (isIf3
+                ? (((w as any).__clickTargetId &&
+                      (clicks?.isHover?.((w as any).__clickTargetId) ?? false)) ||
+                  clicks?.isHover?.(`widget:${w.uid}`) ||
+                  false)
+                : mousedOverIf1WidgetUid === widgetUid);
+        if (profileWidgetRender) {
+            hoverMs += performance.now() - hoverStartMs;
+        }
 
         // OSRS PARITY: Special handling for compass widget (contentType 1339)
         // Reference: UserComparator5.java - compass is rendered before type-based logic
         // class520.method9265 draws WallDecoration.compass with camera yaw rotation and circular mask
         const contentType = (w as any).contentType ?? 0;
         if (contentType === 1339) {
+            const compassStartMs = profileWidgetRender ? performance.now() : 0;
             const compassSpriteId = opts.widgetManager?.compassSpriteId ?? -1;
             if (compassSpriteId >= 0) {
                 const compassTex = tc.getSpriteById(compassSpriteId);
@@ -2319,6 +2458,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                         );
                     }
                 }
+            }
+            if (profileWidgetRender) {
+                compassMs += performance.now() - compassStartMs;
             }
             // Skip normal type-based rendering for compass (OSRS uses continue)
             // But still need to traverse children, so don't return here
@@ -3350,7 +3492,13 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         }
 
         // Collect debug devoverlay bounds
-        if (opts.debug) debugRects.push({ x, y, w: width, h: height });
+        if (opts.debug) {
+            const debugRectStartMs = profileWidgetRender ? performance.now() : 0;
+            debugRects.push({ x, y, w: width, h: height });
+            if (profileWidgetRender) {
+                debugRectMs += performance.now() - debugRectStartMs;
+            }
+        }
 
         // OSRS PARITY: Only type 0 and 11 are containers that can have children
         // Reference: UserComparator5.java lines 226-264
@@ -3359,9 +3507,12 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         // Non-container types do NOT render children even if they somehow have them
         // OSRS PARITY: Only containers can have children - skip children processing for non-containers
         if (!isContainer) {
+            leafWidgets++;
             return; // Non-containers have finished rendering their content above
         }
 
+        containerWidgets++;
+        const containerScaffoldStartMs = profileWidgetRender ? performance.now() : 0;
         // OSRS PARITY: InterfaceParent (mounted sub-interface) is rendered as an additional
         // child interface layer for type 0 containers.
         const interfaceParentGroup =
@@ -3382,10 +3533,16 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             isComponentHidden(w) &&
             widgetUid !== mousedOverIf1WidgetUid
         ) {
+            if (profileWidgetRender) {
+                containerScaffoldMs += performance.now() - containerScaffoldStartMs;
+            }
             // Skip rendering children for hidden IF1 type 0 containers
             return;
         }
         if (w.type === 11 && isComponentHidden(w) && widgetUid !== mousedOverIf1WidgetUid) {
+            if (profileWidgetRender) {
+                containerScaffoldMs += performance.now() - containerScaffoldStartMs;
+            }
             // Skip rendering children for hidden type 11 containers (IF1 only reaches here)
             return;
         }
@@ -3433,6 +3590,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 // Child offset: widget position minus scroll offset
                 const cx = logicalX - (w.scrollX || 0);
                 const cy = logicalY - (w.scrollY || 0);
+                if (profileWidgetRender) {
+                    containerScaffoldMs += performance.now() - containerScaffoldStartMs;
+                }
 
                 // OSRS PARITY: Type 0 renders BOTH static and dynamic children
                 // Type 11 renders ONLY dynamic children (w.children)
@@ -3440,16 +3600,30 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 if (w.type === 0 && hasStaticChildren) {
                     for (const child of staticChildren) {
                         if (child != null) {
+                            const staticDispatchStartMs = profileWidgetRender
+                                ? performance.now()
+                                : 0;
+                            staticChildrenVisited++;
                             drawNode(child, cx, cy, eff, isSelectedHere, childClip);
+                            if (profileWidgetRender) {
+                                staticDispatchMs += performance.now() - staticDispatchStartMs;
+                            }
                         }
                     }
                 }
                 // Render dynamic children (from CC_CREATE scripts) - both type 0 and 11
                 if (hasChildren) {
-                    for (const child of w.children!) {
+                    for (const child of dynamicChildren) {
                         if (child != null) {
+                            const dynamicDispatchStartMs = profileWidgetRender
+                                ? performance.now()
+                                : 0;
+                            dynamicChildrenVisited++;
                             // Normal children use scrolled offset (cx, cy)
                             drawNode(child, cx, cy, eff, isSelectedHere, childClip);
+                            if (profileWidgetRender) {
+                                dynamicDispatchMs += performance.now() - dynamicDispatchStartMs;
+                            }
                         }
                     }
                 }
@@ -3460,6 +3634,10 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     const roots = widgetManager.getAllGroupRoots(interfaceParentGroup);
                     for (const root of roots) {
                         if (root != null) {
+                            const interfaceParentDispatchStartMs = profileWidgetRender
+                                ? performance.now()
+                                : 0;
+                            interfaceParentRootsVisited++;
                             drawNode(
                                 root as any,
                                 logicalX,
@@ -3468,6 +3646,10 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                                 isSelectedHere,
                                 childClip,
                             );
+                            if (profileWidgetRender) {
+                                interfaceParentDispatchMs +=
+                                    performance.now() - interfaceParentDispatchStartMs;
+                            }
                         }
                     }
                 }
@@ -3475,10 +3657,14 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 // OSRS PARITY: Restore scissor after drawing children
                 // Reference: UserComparator5.java line 251 - Rasterizer2D_setClip(var2, var3, var4, var5)
                 sc.pop();
+            } else if (profileWidgetRender) {
+                containerScaffoldMs += performance.now() - containerScaffoldStartMs;
             }
             if (profileWidgetRender) {
                 containerMs += performance.now() - containerStartMs;
             }
+        } else if (profileWidgetRender) {
+            containerScaffoldMs += performance.now() - containerScaffoldStartMs;
         }
     }
 
@@ -3568,6 +3754,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
 
     // GL-based context menu (Choose Option) devoverlay via component
     try {
+        const menuOverlayStartMs = profileWidgetRender ? performance.now() : 0;
         drawChooseOptionMenu(glr, {
             fontLoader: opts.fontLoader,
             requestRender: requestRender,
@@ -3578,6 +3765,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             },
             menuState: (opts.game?.osrsClient as any)?.menuState,
         });
+        if (profileWidgetRender) {
+            menuOverlayMs += performance.now() - menuOverlayStartMs;
+        }
     } catch {}
     glr.flush();
 
@@ -3618,8 +3808,27 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         _accumulatedWidgetBoundsMs += boundsMs;
         _accumulatedWidgetSelectionMs += selectionMs;
         _accumulatedWidgetDeferMs += deferMs;
+        _accumulatedWidgetScrollbarMs += scrollbarMs;
+        _accumulatedWidgetHoverMs += hoverMs;
+        _accumulatedWidgetCompassMs += compassMs;
+        _accumulatedWidgetContainerScaffoldMs += containerScaffoldMs;
+        _accumulatedWidgetScrollClampMs += scrollClampMs;
+        _accumulatedWidgetPrepContentTypeMs += prepContentTypeMs;
+        _accumulatedWidgetPrepVisibilityMs += prepVisibilityMs;
+        _accumulatedWidgetDebugRectMs += debugRectMs;
+        _accumulatedWidgetMenuOverlayMs += menuOverlayMs;
+        _accumulatedWidgetStaticDispatchMs += staticDispatchMs;
+        _accumulatedWidgetDynamicDispatchMs += dynamicDispatchMs;
+        _accumulatedWidgetInterfaceParentDispatchMs += interfaceParentDispatchMs;
+        _accumulatedWidgetClickShallowMs += clickShallowMs;
         _accumulatedWidgetClickProbeMs += clickProbeMs;
         _accumulatedWidgetClickDeriveMs += clickDeriveMs;
+        _accumulatedWidgetClickPrimaryFindMs += clickPrimaryFindMs;
+        _accumulatedWidgetClickInventoryPrimaryMs += clickInventoryPrimaryMs;
+        _accumulatedWidgetClickPrimaryResolveMs += clickPrimaryResolveMs;
+        _accumulatedWidgetClickCancelSetupMs += clickCancelSetupMs;
+        _accumulatedWidgetClickMetaMs += clickMetaMs;
+        _accumulatedWidgetClickTargetMs += clickTargetMs;
         _accumulatedWidgetClickRegisterMs += clickRegisterMs;
         _accumulatedWidgetPasses++;
         _accumulatedWidgetDrawCalls += drawCallsDelta;
@@ -3632,6 +3841,11 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         _accumulatedModelWidgets += modelWidgets;
         _accumulatedMinimapWidgets += minimapWidgets;
         _accumulatedInteractiveWidgets += interactiveWidgets;
+        _accumulatedContainerWidgets += containerWidgets;
+        _accumulatedLeafWidgets += leafWidgets;
+        _accumulatedStaticChildrenVisited += staticChildrenVisited;
+        _accumulatedDynamicChildrenVisited += dynamicChildrenVisited;
+        _accumulatedInterfaceParentRootsVisited += interfaceParentRootsVisited;
         _accumulatedClickCandidateWidgets += clickCandidateWidgets;
         _accumulatedClickRegisteredWidgets += clickRegisteredWidgets;
         _accumulatedCancelSelectionWidgets += cancelSelectionWidgets;
@@ -3656,16 +3870,44 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     _accumulatedWidgetClipMs +
                     _accumulatedWidgetBoundsMs +
                     _accumulatedWidgetSelectionMs +
-                    _accumulatedWidgetDeferMs;
+                    _accumulatedWidgetDeferMs +
+                    _accumulatedWidgetScrollbarMs +
+                    _accumulatedWidgetHoverMs +
+                    _accumulatedWidgetCompassMs +
+                    _accumulatedWidgetContainerScaffoldMs +
+                    _accumulatedWidgetScrollClampMs +
+                    _accumulatedWidgetDebugRectMs +
+                    _accumulatedWidgetMenuOverlayMs;
                 const otherMiscMs = Math.max(0, _accumulatedWidgetOtherMs - otherAccounted);
                 const clickAccounted =
+                    _accumulatedWidgetClickShallowMs +
                     _accumulatedWidgetClickProbeMs +
                     _accumulatedWidgetClickDeriveMs +
+                    _accumulatedWidgetClickPrimaryFindMs +
+                    _accumulatedWidgetClickInventoryPrimaryMs +
+                    _accumulatedWidgetClickPrimaryResolveMs +
+                    _accumulatedWidgetClickCancelSetupMs +
+                    _accumulatedWidgetClickMetaMs +
+                    _accumulatedWidgetClickTargetMs +
                     _accumulatedWidgetClickRegisterMs;
                 const clickMiscMs = Math.max(0, _accumulatedWidgetClickMs - clickAccounted);
                 const avgPerPass = (value: number) =>
                     (_accumulatedWidgetPasses > 0 ? value / _accumulatedWidgetPasses : 0).toFixed(1);
                 const pct = (value: number) => ((value / total) * 100).toFixed(0);
+                const modelCacheSize =
+                    ((canvasAny.__modelRenderCache as Map<
+                        string,
+                        { tex: any; offsetX: number; offsetY: number; w: number; h: number }
+                    > | undefined)?.size ?? 0);
+                const iconTexCacheSize =
+                    ((canvasAny.__iconTexCache as Map<number, any> | undefined)?.size ?? 0);
+                const clickTargetCacheSize =
+                    ((canvasAny.__clickTargetCache as Map<number, CachedClickTarget> | undefined)
+                        ?.size ?? 0);
+                const clickMetaCacheSize =
+                    ((canvasAny.__clickMetaMap as Map<number, WidgetClickMeta> | undefined)
+                        ?.size ?? 0);
+                const textureCacheStats = tc.getCacheStats();
                 console.log(
                     `[PERF] Widget render branches (${
                         _accumulatedWidgetPasses
@@ -3695,18 +3937,52 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                         `model ${_accumulatedModelTextureDrawCalls}, minimap ${_accumulatedMinimapTextureDrawCalls} | ` +
                         `other: rect ${_accumulatedWidgetRectMs.toFixed(1)}, line ${_accumulatedWidgetLineMs.toFixed(
                             1,
-                        )}, prep ${_accumulatedWidgetPrepMs.toFixed(1)}, layout ${_accumulatedWidgetLayoutMs.toFixed(
+                        )}, prep ${_accumulatedWidgetPrepMs.toFixed(1)} (ct ${_accumulatedWidgetPrepContentTypeMs.toFixed(
                             1,
-                        )}, clip ${_accumulatedWidgetClipMs.toFixed(1)}, bounds ${_accumulatedWidgetBoundsMs.toFixed(
+                        )}, vis ${_accumulatedWidgetPrepVisibilityMs.toFixed(
+                            1,
+                        )}), layout ${_accumulatedWidgetLayoutMs.toFixed(1)}, clip ${_accumulatedWidgetClipMs.toFixed(
+                            1,
+                        )}, bounds ${_accumulatedWidgetBoundsMs.toFixed(
                             1,
                         )}, select ${_accumulatedWidgetSelectionMs.toFixed(1)}, defer ${_accumulatedWidgetDeferMs.toFixed(
+                            1,
+                        )}, scrollbar ${_accumulatedWidgetScrollbarMs.toFixed(1)}, hover ${_accumulatedWidgetHoverMs.toFixed(
+                            1,
+                        )}, compass ${_accumulatedWidgetCompassMs.toFixed(1)}, containerScaffold ${_accumulatedWidgetContainerScaffoldMs.toFixed(
+                            1,
+                        )}, scrollClamp ${_accumulatedWidgetScrollClampMs.toFixed(
+                            1,
+                        )}, debugRect ${_accumulatedWidgetDebugRectMs.toFixed(
+                            1,
+                        )}, menuOverlay ${_accumulatedWidgetMenuOverlayMs.toFixed(
+                            1,
+                        )}, staticDispatchInclusive ${_accumulatedWidgetStaticDispatchMs.toFixed(
+                            1,
+                        )}, dynamicDispatchInclusive ${_accumulatedWidgetDynamicDispatchMs.toFixed(
+                            1,
+                        )}, ifaceDispatchInclusive ${_accumulatedWidgetInterfaceParentDispatchMs.toFixed(
                             1,
                         )}, containerInclusive ${_accumulatedWidgetContainerMs.toFixed(
                             1,
                         )}, misc ${otherMiscMs.toFixed(1)} | ` +
-                        `click: probe ${_accumulatedWidgetClickProbeMs.toFixed(
+                        `click: shallow ${_accumulatedWidgetClickShallowMs.toFixed(
+                            1,
+                        )}, probe ${_accumulatedWidgetClickProbeMs.toFixed(
                             1,
                         )}, derive ${_accumulatedWidgetClickDeriveMs.toFixed(
+                            1,
+                        )}, primaryFind ${_accumulatedWidgetClickPrimaryFindMs.toFixed(
+                            1,
+                        )}, inventoryPrimary ${_accumulatedWidgetClickInventoryPrimaryMs.toFixed(
+                            1,
+                        )}, primaryResolve ${_accumulatedWidgetClickPrimaryResolveMs.toFixed(
+                            1,
+                        )}, cancelSetup ${_accumulatedWidgetClickCancelSetupMs.toFixed(
+                            1,
+                        )}, meta ${_accumulatedWidgetClickMetaMs.toFixed(
+                            1,
+                        )}, target ${_accumulatedWidgetClickTargetMs.toFixed(
                             1,
                         )}, register ${_accumulatedWidgetClickRegisterMs.toFixed(
                             1,
@@ -3715,7 +3991,13 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                             _accumulatedTextWidgets,
                         )}, sprite ${avgPerPass(_accumulatedSpriteWidgets)}, model ${avgPerPass(
                             _accumulatedModelWidgets,
-                        )}, minimap ${avgPerPass(_accumulatedMinimapWidgets)}, interactive ${avgPerPass(
+                        )}, minimap ${avgPerPass(_accumulatedMinimapWidgets)}, containers ${avgPerPass(
+                            _accumulatedContainerWidgets,
+                        )}, leaves ${avgPerPass(_accumulatedLeafWidgets)}, staticChildren ${avgPerPass(
+                            _accumulatedStaticChildrenVisited,
+                        )}, dynamicChildren ${avgPerPass(_accumulatedDynamicChildrenVisited)}, ifaceRoots ${avgPerPass(
+                            _accumulatedInterfaceParentRootsVisited,
+                        )}, interactive ${avgPerPass(
                             _accumulatedInteractiveWidgets,
                         )}, clickCandidates ${avgPerPass(_accumulatedClickCandidateWidgets)}, clickRegistered ${avgPerPass(
                             _accumulatedClickRegisteredWidgets,
@@ -3724,7 +4006,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                             _accumulatedMenuEntries,
                         )}, modelCache hit/miss ${_accumulatedModelCacheHits}/${
                             _accumulatedModelCacheMisses
-                        }`,
+                        } | cacheSizes: clickTargets ${clickTargetCacheSize}, clickMeta ${clickMetaCacheSize}, model ${modelCacheSize}, iconTex ${iconTexCacheSize}, glTex ${textureCacheStats.glTextures}, spriteCanvas ${textureCacheStats.spriteCanvas}, urlImages ${textureCacheStats.urlImages}, urlPending ${textureCacheStats.urlPending}`,
                 );
             }
             _accumulatedWidgetRenderMs = 0;
@@ -3743,8 +4025,27 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             _accumulatedWidgetBoundsMs = 0;
             _accumulatedWidgetSelectionMs = 0;
             _accumulatedWidgetDeferMs = 0;
+            _accumulatedWidgetScrollbarMs = 0;
+            _accumulatedWidgetHoverMs = 0;
+            _accumulatedWidgetCompassMs = 0;
+            _accumulatedWidgetContainerScaffoldMs = 0;
+            _accumulatedWidgetScrollClampMs = 0;
+            _accumulatedWidgetPrepContentTypeMs = 0;
+            _accumulatedWidgetPrepVisibilityMs = 0;
+            _accumulatedWidgetDebugRectMs = 0;
+            _accumulatedWidgetMenuOverlayMs = 0;
+            _accumulatedWidgetStaticDispatchMs = 0;
+            _accumulatedWidgetDynamicDispatchMs = 0;
+            _accumulatedWidgetInterfaceParentDispatchMs = 0;
+            _accumulatedWidgetClickShallowMs = 0;
             _accumulatedWidgetClickProbeMs = 0;
             _accumulatedWidgetClickDeriveMs = 0;
+            _accumulatedWidgetClickPrimaryFindMs = 0;
+            _accumulatedWidgetClickInventoryPrimaryMs = 0;
+            _accumulatedWidgetClickPrimaryResolveMs = 0;
+            _accumulatedWidgetClickCancelSetupMs = 0;
+            _accumulatedWidgetClickMetaMs = 0;
+            _accumulatedWidgetClickTargetMs = 0;
             _accumulatedWidgetClickRegisterMs = 0;
             _accumulatedWidgetPasses = 0;
             _accumulatedWidgetDrawCalls = 0;
@@ -3757,6 +4058,11 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             _accumulatedModelWidgets = 0;
             _accumulatedMinimapWidgets = 0;
             _accumulatedInteractiveWidgets = 0;
+            _accumulatedContainerWidgets = 0;
+            _accumulatedLeafWidgets = 0;
+            _accumulatedStaticChildrenVisited = 0;
+            _accumulatedDynamicChildrenVisited = 0;
+            _accumulatedInterfaceParentRootsVisited = 0;
             _accumulatedClickCandidateWidgets = 0;
             _accumulatedClickRegisteredWidgets = 0;
             _accumulatedCancelSelectionWidgets = 0;

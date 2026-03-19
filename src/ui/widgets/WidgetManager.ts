@@ -68,6 +68,12 @@ export class WidgetManager {
     private rootsByGroup: Map<number, WidgetNode[]> = new Map();
 
     /**
+     * PERF: Cache of parentUid -> dense runtime children.
+     * Unlike `children`, this strips null gaps and excludes cache-linked IF1 children.
+     */
+    private dynamicChildrenByParent: Map<number, WidgetNode[]> = new Map();
+
+    /**
      * OSRS parity: Tracks which groups have been loaded (matches Skills.field3912 in Java client)
      * This prevents re-loading already loaded groups and allows explicit unloading
      */
@@ -511,10 +517,10 @@ export class WidgetManager {
 
         // Cascade down: If I change size, my children (who rely on my size) are now invalid
         // This includes BOTH dynamic children (from CC_CREATE) and static children (from cache)
-        if (w.children) {
-            for (const child of w.children) {
-                if (child) this.invalidateWidgetDirect(child, "layout-child");
-            }
+        const dynamicChildren = this.getDynamicChildrenByParent(w);
+        for (let i = 0; i < dynamicChildren.length; i++) {
+            const child = dynamicChildren[i];
+            if (child) this.invalidateWidgetDirect(child, "layout-child");
         }
 
         // PARITY FIX: Also invalidate static children (from cache with parentUid pointing here)
@@ -859,6 +865,71 @@ export class WidgetManager {
         return this.widgetByUid.get(uid);
     }
 
+    private isRuntimeChildNode(parentUid: number, child: WidgetNode | null | undefined): child is WidgetNode {
+        if (!child || typeof child !== "object") {
+            return false;
+        }
+        if (((child.parentUid ?? -1) | 0) !== (parentUid | 0)) {
+            return false;
+        }
+        const childIndex =
+            typeof child.childIndex === "number" ? child.childIndex | 0 : -1;
+        return childIndex >= 0 || ((child.fileId ?? 0) | 0) === -1;
+    }
+
+    private maybeInvalidateDynamicChildrenCache(widget: WidgetNode | null | undefined): void {
+        if (!widget) {
+            return;
+        }
+        const parentUid = (widget.parentUid ?? -1) | 0;
+        if (parentUid >= 0 && this.isRuntimeChildNode(parentUid, widget)) {
+            this.dynamicChildrenByParent.delete(parentUid);
+        }
+    }
+
+    invalidateDynamicChildrenCache(parent: number | WidgetNode | null | undefined): void {
+        if (typeof parent === "number") {
+            if (parent >= 0) this.dynamicChildrenByParent.delete(parent | 0);
+            return;
+        }
+        if (parent && typeof parent.uid === "number") {
+            this.dynamicChildrenByParent.delete(parent.uid | 0);
+        }
+    }
+
+    getDynamicChildrenByParent(parent: number | WidgetNode | null | undefined): WidgetNode[] {
+        const parentUid =
+            typeof parent === "number"
+                ? parent | 0
+                : parent && typeof parent.uid === "number"
+                ? parent.uid | 0
+                : -1;
+        if (parentUid < 0) {
+            return [];
+        }
+
+        const cached = this.dynamicChildrenByParent.get(parentUid);
+        if (cached) {
+            return cached;
+        }
+
+        const node: WidgetNode | null | undefined =
+            typeof parent === "number" ? this.widgetByUid.get(parentUid) : (parent ?? undefined);
+        const sparseChildren =
+            node && Array.isArray(node.children) ? node.children : null;
+        const denseChildren: WidgetNode[] = [];
+        if (sparseChildren) {
+            for (let i = 0; i < sparseChildren.length; i++) {
+                const child = sparseChildren[i];
+                if (this.isRuntimeChildNode(parentUid, child)) {
+                    denseChildren.push(child);
+                }
+            }
+        }
+        this.dynamicChildrenByParent.set(parentUid, denseChildren);
+        return denseChildren;
+    }
+
     /**
      * Allocate a unique runtime UID for a dynamically created widget.
      * OSRS does not require dynamic widgets to have a globally unique integer id,
@@ -901,6 +972,7 @@ export class WidgetManager {
     registerWidget(widget: WidgetNode): void {
         if (widget && typeof widget.uid === "number") {
             this.widgetByUid.set(widget.uid, widget);
+            this.maybeInvalidateDynamicChildrenCache(widget);
         }
     }
 
@@ -908,6 +980,8 @@ export class WidgetManager {
      * Unregister a widget (via CC_DELETE) so it's no longer found by UID
      */
     unregisterWidget(uid: number): void {
+        const widget = this.widgetByUid.get(uid);
+        this.maybeInvalidateDynamicChildrenCache(widget);
         this.widgetByUid.delete(uid);
     }
 
@@ -916,6 +990,7 @@ export class WidgetManager {
      */
     unregisterWidgetTree(widget: WidgetNode): void {
         if (!widget) return;
+        this.maybeInvalidateDynamicChildrenCache(widget);
         if (typeof widget.uid === "number") {
             this.widgetByUid.delete(widget.uid);
         }
@@ -975,6 +1050,7 @@ export class WidgetManager {
         this.widgetUidsByGroup.clear();
         this.staticChildrenByParent.clear();
         this.rootsByGroup.clear();
+        this.dynamicChildrenByParent.clear();
         this.loadedGroups = [];
         this.loader.clearCache();
 
@@ -1266,6 +1342,7 @@ export class WidgetManager {
         for (const uid of tracked) {
             // PERF: Also clean up from staticChildrenByParent index
             const widget = this.widgetByUid.get(uid);
+            this.dynamicChildrenByParent.delete(uid);
             if (widget && typeof widget.parentUid === "number" && widget.parentUid !== -1) {
                 const siblings = this.staticChildrenByParent.get(widget.parentUid);
                 if (siblings) {
@@ -1275,6 +1352,7 @@ export class WidgetManager {
                         this.staticChildrenByParent.delete(widget.parentUid);
                     }
                 }
+                this.dynamicChildrenByParent.delete(widget.parentUid);
             }
             this.widgetByUid.delete(uid);
         }
@@ -1572,11 +1650,10 @@ export class WidgetManager {
                     stack.push(staticChildren[i]);
                 }
 
-                if (Array.isArray(node.children)) {
-                    for (let i = node.children.length - 1; i >= 0; i--) {
-                        const child = node.children[i];
-                        if (child) stack.push(child);
-                    }
+                const dynamicChildren = this.getDynamicChildrenByParent(node);
+                for (let i = dynamicChildren.length - 1; i >= 0; i--) {
+                    const child = dynamicChildren[i];
+                    if (child) stack.push(child);
                 }
             }
         }
@@ -1644,11 +1721,10 @@ export class WidgetManager {
             }
 
             // Traverse dynamic children (from CC_CREATE)
-            if (Array.isArray(node.children)) {
-                for (let i = node.children.length - 1; i >= 0; i--) {
-                    const c = node.children[i];
-                    if (c) stack.push(c);
-                }
+            const dynamicChildren = this.getDynamicChildrenByParent(node);
+            for (let i = dynamicChildren.length - 1; i >= 0; i--) {
+                const c = dynamicChildren[i];
+                if (c) stack.push(c);
             }
         }
     }
@@ -1693,11 +1769,10 @@ export class WidgetManager {
             }
 
             // Traverse dynamic children (from CC_CREATE)
-            if (Array.isArray(node.children)) {
-                for (let i = node.children.length - 1; i >= 0; i--) {
-                    const c = node.children[i];
-                    if (c) stack.push(c);
-                }
+            const dynamicChildren = this.getDynamicChildrenByParent(node);
+            for (let i = dynamicChildren.length - 1; i >= 0; i--) {
+                const c = dynamicChildren[i];
+                if (c) stack.push(c);
             }
         }
 
@@ -1718,11 +1793,10 @@ export class WidgetManager {
                 }
 
                 // Traverse dynamic children (from CC_CREATE)
-                if (Array.isArray(node.children)) {
-                    for (let i = node.children.length - 1; i >= 0; i--) {
-                        const c = node.children[i];
-                        if (c) subStack.push(c);
-                    }
+                const dynamicChildren = this.getDynamicChildrenByParent(node);
+                for (let i = dynamicChildren.length - 1; i >= 0; i--) {
+                    const c = dynamicChildren[i];
+                    if (c) subStack.push(c);
                 }
             }
         }
@@ -1749,11 +1823,10 @@ export class WidgetManager {
             }
 
             // Traverse dynamic children (from CC_CREATE)
-            if (Array.isArray(node.children)) {
-                for (let i = node.children.length - 1; i >= 0; i--) {
-                    const c = node.children[i];
-                    if (c) stack.push(c);
-                }
+            const dynamicChildren = this.getDynamicChildrenByParent(node);
+            for (let i = dynamicChildren.length - 1; i >= 0; i--) {
+                const c = dynamicChildren[i];
+                if (c) stack.push(c);
             }
         }
     }

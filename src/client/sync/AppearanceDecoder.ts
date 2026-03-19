@@ -19,6 +19,7 @@
  * 12. color/texture override flags (unsigned short)
  * 13. actions (3 null-terminated strings)
  * 14. final byte
+ * 15. custom ammo quantity (signed int)
  */
 
 const EQUIPMENT_SLOTS = 12;
@@ -81,6 +82,7 @@ export interface DecodedAppearance {
     skillLevel: number;
     isHidden: boolean;
     actions: [string, string, string];
+    ammoQuantity: number;
 }
 
 /**
@@ -104,6 +106,14 @@ class AppearanceReader {
         const high = this.readUnsignedByte();
         const low = this.readUnsignedByte();
         return ((high << 8) | low) & 0xffff;
+    }
+
+    readInt(): number {
+        const b0 = this.readUnsignedByte();
+        const b1 = this.readUnsignedByte();
+        const b2 = this.readUnsignedByte();
+        const b3 = this.readUnsignedByte();
+        return ((b0 << 24) | (b1 << 16) | (b2 << 8) | b3) | 0;
     }
 
     readStringCp1252NullTerminated(): string {
@@ -280,6 +290,9 @@ export function decodeAppearanceBinary(buffer: Uint8Array): DecodedAppearance | 
             reader.readByte();
         }
 
+        // 15. Project extension: equipped ammo quantity for local equipment inventory sync.
+        const ammoQuantity = reader.hasMore() ? Math.max(0, reader.readInt()) : 0;
+
         return {
             gender,
             headIconPk,
@@ -303,6 +316,7 @@ export function decodeAppearanceBinary(buffer: Uint8Array): DecodedAppearance | 
             skillLevel,
             isHidden,
             actions,
+            ammoQuantity,
         };
     } catch (err) {
         console.warn("[AppearanceDecoder] Failed to decode binary appearance", err);

@@ -19,8 +19,10 @@
  * 12. color/texture override flags (unsigned short)
  * 13. actions (3 null-terminated strings)
  * 14. final byte
+ * 15. custom ammo quantity (signed int)
  */
 import type { PlayerAppearance } from "../../game/player";
+import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
 import { encodeCp1252 } from "./Cp1252";
 import type { PlayerAnimSet, PlayerViewSnapshot } from "./types";
 
@@ -39,6 +41,13 @@ class AppearanceWriter {
     }
 
     writeUnsignedShort(value: number): void {
+        this.buffer.push((value >> 8) & 0xff);
+        this.buffer.push(value & 0xff);
+    }
+
+    writeInt(value: number): void {
+        this.buffer.push((value >> 24) & 0xff);
+        this.buffer.push((value >> 16) & 0xff);
         this.buffer.push((value >> 8) & 0xff);
         this.buffer.push(value & 0xff);
     }
@@ -206,6 +215,10 @@ export function encodeAppearanceBinary(
 
     // 14. Final byte (appearance flags)
     writer.writeByte(0);
+
+    // 15. Project extension: authoritative equipped ammo quantity for local worn inventory sync.
+    const ammoQty = Math.max(0, appearance?.equipQty?.[EquipmentSlot.AMMO] ?? 0);
+    writer.writeInt(ammoQty);
 
     return writer.toUint8Array();
 }

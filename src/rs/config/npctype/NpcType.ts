@@ -5,6 +5,12 @@ import { BasTypeLoader } from "../bastype/BasTypeLoader";
 import { VarManager } from "../vartype/VarManager";
 import { NpcTypeLoader } from "./NpcTypeLoader";
 
+export enum NpcDrawPriority {
+    DRAW_PRIORITY_FIRST = 0,
+    DRAW_PRIORITY_DEFAULT = 1,
+    DRAW_PRIORITY_LAST = 2,
+}
+
 export class NpcType extends Type {
     name: string;
     desc?: string;
@@ -51,6 +57,7 @@ export class NpcType extends Type {
     heightScale: number;
 
     isVisible: boolean;
+    drawPriority: NpcDrawPriority;
 
     ambient: number;
     contrast: number;
@@ -118,6 +125,7 @@ export class NpcType extends Type {
         this.widthScale = 128;
         this.heightScale = 128;
         this.isVisible = false;
+        this.drawPriority = NpcDrawPriority.DRAW_PRIORITY_DEFAULT;
         this.ambient = 0;
         this.contrast = 0;
         this.headIconPrayer = -1;
@@ -256,7 +264,7 @@ export class NpcType extends Type {
         } else if (opcode === 98) {
             this.heightScale = buffer.readUnsignedShort();
         } else if (opcode === 99) {
-            this.isVisible = true;
+            this.drawPriority = NpcDrawPriority.DRAW_PRIORITY_FIRST;
         } else if (opcode === 100) {
             this.ambient = buffer.readByte();
         } else if (opcode === 101) {
@@ -326,7 +334,7 @@ export class NpcType extends Type {
             this.isClipped = false;
         } else if (opcode === 111) {
             if (this.cacheInfo.game === "oldschool") {
-                this.isFollower = true;
+                this.drawPriority = NpcDrawPriority.DRAW_PRIORITY_LAST;
             } else {
                 // hasShadow = false
             }

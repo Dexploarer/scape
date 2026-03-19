@@ -1270,29 +1270,13 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                         );
                     }
                 } else if (cmd === "whip") {
-                    const inv = sender.getInventoryEntries();
-                    let emptySlot = -1;
-                    for (let i = 0; i < inv.length; i++) {
-                        if (inv[i].itemId <= 0) {
-                            emptySlot = i;
-                            break;
-                        }
-                    }
-                    if (emptySlot >= 0) {
-                        sender.setInventorySlot(emptySlot, 4151, 1);
+                    const tx = sender.addItem(4151, 1, { assureFullInsertion: true });
+                    if (tx.completed === 1) {
                         logger.info(`[cmd] ::whip - Gave player ${sender.id} an Abyssal whip`);
                     }
                 } else if (cmd === "bond") {
-                    const inv = sender.getInventoryEntries();
-                    let emptySlot = -1;
-                    for (let i = 0; i < inv.length; i++) {
-                        if (inv[i].itemId <= 0) {
-                            emptySlot = i;
-                            break;
-                        }
-                    }
-                    if (emptySlot >= 0) {
-                        sender.setInventorySlot(emptySlot, 50000, 1);
+                    const tx = sender.addItem(50000, 1, { assureFullInsertion: true });
+                    if (tx.completed === 1) {
                         logger.info(`[cmd] ::bond - Gave player ${sender.id} a $5 Bond`);
                     }
                 } else if (cmd.startsWith("item ")) {
@@ -1300,18 +1284,12 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     const itemId = parseInt(parts[1], 10);
                     const quantity = parseInt(parts[2], 10) || 1;
                     if (Number.isFinite(itemId) && itemId > 0) {
-                        const inv = sender.getInventoryEntries();
-                        let emptySlot = -1;
-                        for (let i = 0; i < inv.length; i++) {
-                            if (inv[i].itemId <= 0) {
-                                emptySlot = i;
-                                break;
-                            }
-                        }
-                        if (emptySlot >= 0) {
-                            sender.setInventorySlot(emptySlot, itemId, quantity);
+                        const tx = sender.addItem(itemId, quantity, {
+                            assureFullInsertion: false,
+                        });
+                        if (tx.completed > 0) {
                             logger.info(
-                                `[cmd] ::item - Gave player ${sender.id} item ${itemId} x${quantity}`,
+                                `[cmd] ::item - Gave player ${sender.id} item ${itemId} x${tx.completed}`,
                             );
                         }
                     }

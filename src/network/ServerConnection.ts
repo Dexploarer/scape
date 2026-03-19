@@ -7,6 +7,7 @@ import { SkillId } from "../rs/skill/skills";
 import type { ProjectileLaunch } from "../shared/projectiles/ProjectileLaunch";
 import {
     VARP_AREA_SOUNDS_VOLUME,
+    VARP_COMBAT_TARGET_PLAYER_INDEX,
     VARP_FOLLOWER_INDEX,
     VARP_MASTER_VOLUME,
     VARP_MUSICPLAY,
@@ -2297,6 +2298,11 @@ function processServerMessage(msg: any): void {
                     const followerIndex = value === 65535 ? -1 : value & 0xffff;
                     ClientState.followerIndex = followerIndex;
                     console.log(`[varp] Follower index set to ${ClientState.followerIndex}`);
+                } else if (varpId === VARP_COMBAT_TARGET_PLAYER_INDEX) {
+                    ClientState.combatTargetPlayerIndex = value === -1 ? -1 : value & 0x7ff;
+                    console.log(
+                        `[varp] Combat target player index set to ${ClientState.combatTargetPlayerIndex}`,
+                    );
                 }
             }
         } catch (err) {

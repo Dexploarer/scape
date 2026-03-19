@@ -101,6 +101,7 @@ import {
     VARP_ATTACK_STYLE,
     VARP_AUTO_RETALIATE,
     VARP_BIOHAZARD,
+    VARP_COMBAT_TARGET_PLAYER_INDEX,
     VARP_DESERT_TREASURE,
     VARP_EADGAR_QUEST,
     VARP_FOLLOWER_INDEX,
@@ -2473,8 +2474,8 @@ export class WSServer {
                 applyAutocastState(p, 3273, 1, false); // Wind Strike
                 p.botInteraction = { kind: "playerCombat", playerId: target.id };
                 // Give runes for Wind Strike (Air + Mind)
-                p.setInventorySlot(0, 556, 10000); // Air rune
-                p.setInventorySlot(1, 558, 10000); // Mind rune
+                p.addItem(556, 10000, { assureFullInsertion: true }); // Air rune
+                p.addItem(558, 10000, { assureFullInsertion: true }); // Mind rune
             };
 
             const setupPassiveBot = (p: any) => {
@@ -3891,6 +3892,24 @@ export class WSServer {
         this.soundManager.syncMusicUnlockVarps(player, trackId);
     }
 
+    private getCombatTargetPlayerVarpValue(player: PlayerState): number {
+        const target = player.getCombatTarget();
+        if (!target || !target.isPlayer) {
+            return -1;
+        }
+        return target.id & 0x7ff;
+    }
+
+    private syncCombatTargetPlayerVarp(player: PlayerState): void {
+        const nextValue = this.getCombatTargetPlayerVarpValue(player);
+        if ((player.getVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX) | 0) === (nextValue | 0)) {
+            return;
+        }
+
+        player.setVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX, nextValue);
+        this.queueVarp(player.id, VARP_COMBAT_TARGET_PLAYER_INDEX, nextValue);
+    }
+
     private runScriptPhase(frame: TickFrame): void {
         this.scriptRuntime.queueTick(frame.tick);
         this.scriptScheduler.process(frame.tick);
@@ -3938,6 +3957,7 @@ export class WSServer {
                         view.shouldSendPos = true;
                     }
                 }
+                this.syncCombatTargetPlayerVarp(player);
                 player.attackDelay = this.pickAttackSpeed(player);
             });
             this.players.forEachBot((bot) => {
@@ -6411,6 +6431,22 @@ export class WSServer {
                 ),
             );
         }
+
+        const combatTargetPlayerIndex = this.getCombatTargetPlayerVarpValue(player);
+        player.setVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX, combatTargetPlayerIndex);
+        this.withDirectSendBypass("varp", () =>
+            this.sendWithGuard(
+                sock,
+                encodeMessage({
+                    type: "varp",
+                    payload: {
+                        varpId: VARP_COMBAT_TARGET_PLAYER_INDEX,
+                        value: combatTargetPlayerIndex,
+                    },
+                }),
+                "varp",
+            ),
+        );
 
         // Send home teleport varp with large negative value to bypass 30-minute cooldown.
         // The CS2 check is: clientclock - varp(892) >= 90000. With varp = -100000,

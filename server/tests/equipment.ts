@@ -377,6 +377,38 @@ function testEquipItemApplyAmmoEquipsStackAndSwapsStack() {
     assert.strictEqual(inv[5].quantity, 123, "previous ammo quantity swapped into clicked slot");
 }
 
+function testEquipItemApplyAmmoMergesMatchingEquippedStack() {
+    const appearance: any = {
+        gender: 0,
+        equip: new Array<number>(DEFAULT_EQUIP_SLOT_COUNT).fill(-1),
+        equipQty: new Array<number>(DEFAULT_EQUIP_SLOT_COUNT).fill(0),
+    };
+    const inv = makeEmptyInv();
+
+    ensureEquipArrayOn(appearance, DEFAULT_EQUIP_SLOT_COUNT);
+    ensureEquipQtyArrayOn(appearance, DEFAULT_EQUIP_SLOT_COUNT);
+
+    appearance.equip[EquipmentSlot.AMMO] = 882;
+    appearance.equipQty[EquipmentSlot.AMMO] = 500;
+    inv[3] = { itemId: 882, quantity: 1 };
+
+    const res = equipItemApply({
+        appearance,
+        inv,
+        slotIndex: 3,
+        itemId: 882,
+        equipSlot: EquipmentSlot.AMMO,
+        getObjType: (id) => ({ id }),
+        addItemToInventory: () => ({ slot: -1, added: 0 }),
+    });
+
+    assert.ok(res.ok);
+    assert.strictEqual(appearance.equip[EquipmentSlot.AMMO], 882);
+    assert.strictEqual(appearance.equipQty[EquipmentSlot.AMMO], 501);
+    assert.strictEqual(inv[3].itemId, -1, "matching ammo should merge instead of swapping");
+    assert.strictEqual(inv[3].quantity, 0, "source inventory stack should be consumed");
+}
+
 function testUnequipItemApplyAmmoMovesWholeStack() {
     const appearance: any = {
         gender: 0,
@@ -467,6 +499,7 @@ function main() {
     testEquipItemApplyUsesCacheWearPosConflictsForShadowLikeWeapons();
     testUnequipItemApply();
     testEquipItemApplyAmmoEquipsStackAndSwapsStack();
+    testEquipItemApplyAmmoMergesMatchingEquippedStack();
     testUnequipItemApplyAmmoMovesWholeStack();
     testConsumeEquippedAmmoApplyDecrementsAndClears();
     testConsumeEquippedAmmoApplyFailsWhenInsufficient();

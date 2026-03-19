@@ -1259,6 +1259,9 @@ export class PlayerInteractionSystem {
         try {
             me.setInteraction("player", targetPlayerId);
         } catch {}
+        const target = this.players.getById(targetPlayerId);
+        me.setCombatTarget(target ?? null);
+        me.setInteractingPlayer(target ?? null);
     }
 
     stopPlayerCombat(ws: any): void {
@@ -1268,6 +1271,8 @@ export class PlayerInteractionSystem {
         const me = this.players.get(ws);
         if (me) {
             me.clearInteraction();
+            me.removeCombatTarget();
+            me.setInteractingPlayer(null);
             me.stopAnimation();
         }
     }
@@ -1294,18 +1299,24 @@ export class PlayerInteractionSystem {
             const target = this.players.getById(interaction.playerId);
             if (!target) {
                 me.clearInteraction();
+                me.removeCombatTarget();
+                me.setInteractingPlayer(null);
                 me.stopAnimation();
                 this.interactions.delete(ws);
                 return;
             }
             if (target.level !== me.level) {
                 me.clearInteraction();
+                me.removeCombatTarget();
+                me.setInteractingPlayer(null);
                 me.stopAnimation();
                 this.interactions.delete(ws);
                 return;
             }
             if (target.getHitpointsCurrent() <= 0) {
                 me.clearInteraction();
+                me.removeCombatTarget();
+                me.setInteractingPlayer(null);
                 me.stopAnimation();
                 this.interactions.delete(ws);
                 return;
@@ -1317,6 +1328,8 @@ export class PlayerInteractionSystem {
             );
             if (chebyshevDistance > PLAYER_CHASE_DISTANCE_TILES) {
                 me.clearInteraction();
+                me.removeCombatTarget();
+                me.setInteractingPlayer(null);
                 me.stopAnimation();
                 this.interactions.delete(ws);
                 return;

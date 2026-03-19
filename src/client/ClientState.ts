@@ -199,6 +199,12 @@ export class ClientState {
      */
     static followerIndex: number = -1;
 
+    /**
+     * Active combat-target player server index.
+     * Matches the reference client's `combatTargetPlayerIndex`.
+     */
+    static combatTargetPlayerIndex: number = -1;
+
     // ========================================
     // KEYBIND STATE
     // ========================================
@@ -344,6 +350,7 @@ export class ClientState {
         this.players = new Array(2048).fill(null);
         this.npcs = new Array(32768).fill(null);
         this.localPlayerIndex = -1;
+        this.combatTargetPlayerIndex = -1;
     }
 
     /**

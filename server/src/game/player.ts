@@ -28,6 +28,7 @@ import {
     VARBIT_LEAGUE_TYPE,
     VARBIT_XPDROPS_ENABLED,
     VARP_AREA_SOUNDS_VOLUME,
+    VARP_COMBAT_TARGET_PLAYER_INDEX,
     VARP_LEAGUE_GENERAL,
     VARP_MASTER_VOLUME,
     VARP_MUSIC_VOLUME,
@@ -88,6 +89,8 @@ import { normalizePlayerAccountName } from "./state/PlayerSessionKeys";
 
 export { Actor } from "./actor";
 export { type Tile } from "./actor";
+
+const MAX_ITEM_STACK_QUANTITY = 2_147_483_647;
 
 export interface PlayerSkillState {
     id: SkillId;
@@ -232,6 +235,7 @@ const ZERO_PERSISTENT_VARPS = new Set<number>([
     VARP_AREA_SOUNDS_VOLUME,
     VARP_MASTER_VOLUME,
 ]);
+const NON_PERSISTENT_VARPS = new Set<number>([VARP_COMBAT_TARGET_PLAYER_INDEX]);
 const ZERO_PERSISTENT_VARBITS = new Set<number>([
     // Persist explicit OFF/ON state for XP drops orb/total tracker toggle.
     VARBIT_XPDROPS_ENABLED,
@@ -2341,11 +2345,11 @@ export class PlayerState extends Actor {
             if (existingSlot >= 0) {
                 const currentQty = inv[existingSlot].quantity;
                 // Check for overflow
-                if (currentQty >= Number.MAX_SAFE_INTEGER - amount) {
+                if (currentQty >= MAX_ITEM_STACK_QUANTITY - amount) {
                     if (assureFullInsertion) {
                         return { requested: amount, completed: 0, slots: [] };
                     }
-                    const canAdd = Number.MAX_SAFE_INTEGER - currentQty;
+                    const canAdd = MAX_ITEM_STACK_QUANTITY - currentQty;
                     if (canAdd <= 0) {
                         return { requested: amount, completed: 0, slots: [] };
                     }
@@ -2632,6 +2636,9 @@ export class PlayerState extends Actor {
         const varbits: Record<number, number> = {};
         const leagueTaskProgress: Record<number, number> = {};
         for (const [id, value] of this.varpValues.entries()) {
+            if (NON_PERSISTENT_VARPS.has(id)) {
+                continue;
+            }
             if (value !== 0 || ZERO_PERSISTENT_VARPS.has(id)) {
                 varps[id] = value;
             }
@@ -2777,7 +2784,7 @@ export class PlayerState extends Actor {
         if (state.varps) {
             for (const [key, value] of Object.entries(state.varps)) {
                 const id = parseInt(key, 10);
-                if (!Number.isNaN(id)) {
+                if (!Number.isNaN(id) && !NON_PERSISTENT_VARPS.has(id)) {
                     this.setVarpValue(id, value);
                 }
             }

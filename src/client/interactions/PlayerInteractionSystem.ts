@@ -7,6 +7,7 @@ import type { NpcEcs } from "../ecs/NpcEcs";
 import { computeFacingRotation } from "../utils/rotation";
 
 type InteractionMode = "follow" | "trade" | "combat";
+type InteractionTargetType = "player" | "npc";
 
 /**
  * PlayerInteractionSystem owns client-side interaction state (follow/trade) and
@@ -18,6 +19,7 @@ type InteractionMode = "follow" | "trade" | "combat";
 export class PlayerInteractionSystem {
     private active?: {
         mode: InteractionMode;
+        targetType: InteractionTargetType;
         targetServerId: number;
     };
     private activeOrigin?: "client" | "server";
@@ -27,7 +29,11 @@ export class PlayerInteractionSystem {
 
     beginFollow(targetServerId: number): void {
         if (targetServerId == null) return;
-        this.active = { mode: "follow", targetServerId: targetServerId | 0 };
+        this.active = {
+            mode: "follow",
+            targetType: "player",
+            targetServerId: targetServerId | 0,
+        };
         this.activeOrigin = "client";
         this.faceTile = undefined;
         // Set interaction index on local player so rotation system knows we're following
@@ -46,7 +52,11 @@ export class PlayerInteractionSystem {
 
     beginTrade(targetServerId: number): void {
         if (targetServerId == null) return;
-        this.active = { mode: "trade", targetServerId: targetServerId | 0 };
+        this.active = {
+            mode: "trade",
+            targetType: "player",
+            targetServerId: targetServerId | 0,
+        };
         this.activeOrigin = "client";
         this.faceTile = undefined;
         // Set interaction index on local player
@@ -62,11 +72,28 @@ export class PlayerInteractionSystem {
         } catch {}
     }
 
-    beginCombat(targetServerId: number, opts?: { tile?: { x: number; y: number } }): void {
+    beginCombat(
+        targetServerId: number,
+        opts?: { tile?: { x: number; y: number }; targetType?: InteractionTargetType },
+    ): void {
         if (targetServerId == null) return;
-        this.active = { mode: "combat", targetServerId: targetServerId | 0 };
+        this.active = {
+            mode: "combat",
+            targetType: opts?.targetType ?? "npc",
+            targetServerId: targetServerId | 0,
+        };
         this.activeOrigin = "client";
         this.faceTile = opts?.tile ? { x: opts.tile.x | 0, y: opts.tile.y | 0 } : undefined;
+        try {
+            const pe = this.mv.playerEcs;
+            const idx = pe.getIndexForServerId(this.mv.controlledPlayerServerId);
+            if (idx !== undefined) {
+                pe.setInteractionIndex(
+                    idx,
+                    encodeInteractionIndex(opts?.targetType ?? "npc", targetServerId | 0),
+                );
+            }
+        } catch {}
         try {
             this.mv.closeMenu();
         } catch {}
@@ -142,11 +169,13 @@ export class PlayerInteractionSystem {
             return;
         }
         const derivedMode: InteractionMode = decoded.type === "npc" ? "combat" : "follow";
+        const derivedTargetType: InteractionTargetType = decoded.type === "npc" ? "npc" : "player";
         const targetId = decoded.id | 0;
         if (
             this.activeOrigin === "client" &&
             this.active &&
             this.active.mode === derivedMode &&
+            this.active.targetType === derivedTargetType &&
             this.active.targetServerId === targetId
         ) {
             return;
@@ -156,11 +185,16 @@ export class PlayerInteractionSystem {
             this.activeOrigin === "server" &&
             this.active &&
             this.active.mode === derivedMode &&
+            this.active.targetType === derivedTargetType &&
             this.active.targetServerId === targetId
         ) {
             return;
         }
-        this.active = { mode: derivedMode, targetServerId: targetId };
+        this.active = {
+            mode: derivedMode,
+            targetType: derivedTargetType,
+            targetServerId: targetId,
+        };
         this.faceTile = undefined;
         this.activeOrigin = "server";
     }
@@ -180,7 +214,7 @@ export class PlayerInteractionSystem {
                     const localIdx = pe.getIndexForServerId(this.mv.controlledPlayerServerId);
                     if (localIdx !== undefined) {
                         const mode = this.active.mode;
-                        if (mode === "combat") {
+                        if (mode === "combat" && this.active.targetType === "npc") {
                             const npcPos = this.getNpcWorldPosition(this.active.targetServerId);
                             if (npcPos) {
                                 const px = pe.getX(localIdx) | 0;

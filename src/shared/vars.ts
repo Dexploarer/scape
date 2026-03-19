@@ -86,6 +86,13 @@ export const VARP_OPTION_ATTACK_PRIORITY_NPC = 1306;
  */
 export const VARP_FOLLOWER_INDEX = 447;
 
+/**
+ * Active combat-target player server index.
+ * Cache-verified from local rev 236 varp definitions: varp 1075 has client option type 19.
+ * OSRS uses this to drive `combatTargetPlayerIndex` through the varp update path.
+ */
+export const VARP_COMBAT_TARGET_PLAYER_INDEX = 1075;
+
 // ========== VARBITS (Bit-packed variables) ==========
 
 /** Side journal tab selection (quest list, achievement diary, etc.) */

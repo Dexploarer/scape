@@ -8,6 +8,7 @@ import { getItemDefinition } from "../data/items";
 import type { InventoryAddResult, PlayerAppearance } from "./player";
 
 export const DEFAULT_EQUIP_SLOT_COUNT = 14;
+const MAX_ITEM_STACK_QUANTITY = 2_147_483_647;
 
 export type InventoryEntry = { itemId: number; quantity: number };
 export type EquipQtyArray = number[];
@@ -250,6 +251,22 @@ export function equipItemApply(args: {
     const isAmmoSlot = equipSlot === EquipmentSlot.AMMO;
     const previousQty = isAmmoSlot ? Math.max(1, previousQtyRaw) : 1;
     const incomingQty = isAmmoSlot ? Math.max(1, src.quantity) : 1;
+
+    if (isAmmoSlot && previous === itemId) {
+        const add = Math.min(incomingQty, MAX_ITEM_STACK_QUANTITY - previousQty);
+        if (add <= 0) {
+            return { ok: false, reason: "inventory_full" };
+        }
+
+        equipQty[equipSlot] = previousQty + add;
+        src.quantity -= add;
+        if (src.quantity <= 0) {
+            src.itemId = -1;
+            src.quantity = 0;
+        }
+
+        return { ok: true };
+    }
 
     const conflictSlots: number[] = [];
     const pushConflictSlot = (slot: number | undefined) => {

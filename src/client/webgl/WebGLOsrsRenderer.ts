@@ -34,6 +34,7 @@ import { OsrsMenuEntry } from "../../rs/MenuEntry";
 import { MenuTargetType } from "../../rs/MenuEntry";
 import { LocModelLoader } from "../../rs/config/loctype/LocModelLoader";
 import { LocModelType } from "../../rs/config/loctype/LocModelType";
+import { NpcDrawPriority } from "../../rs/config/npctype/NpcType";
 import { NpcModelLoader } from "../../rs/config/npctype/NpcModelLoader";
 import { PlayerAppearance } from "../../rs/config/player/PlayerAppearance";
 import { PlayerModelLoader } from "../../rs/config/player/PlayerModelLoader";
@@ -577,6 +578,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     actorRenderData: Uint16Array = new Uint16Array(16 * 4);
     // Per-frame tile marker cache mirroring OSRS scene submission dedupe.
     // Only exact tile-centered actors participate; NPCs only when size == 1.
+    // Phase order: local player, first-priority NPCs, other players, default NPCs, last NPCs.
     private frameActorTileSelectionId: number = -1;
     private frameActorTileSelectionBuilt: boolean = false;
     private frameWinningActorByTile: Map<
@@ -9175,15 +9177,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         id: number,
         priority: number,
     ): boolean {
-        if ((priority | 0) !== (current.priority | 0)) {
-            return (priority | 0) > (current.priority | 0);
-        }
-
-        if (kind !== current.kind) {
-            return kind === "player";
-        }
-
-        return (id | 0) < (current.id | 0);
+        return (priority | 0) > (current.priority | 0);
     }
 
     private registerActorTileCandidate(
@@ -9225,29 +9219,59 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const controlledPid =
             controlledServerId > 0 ? pe.getIndexForServerId(controlledServerId) : undefined;
 
+        if (
+            renderSelf &&
+            controlledPid !== undefined &&
+            this.isPlayerSceneTileMarkerCandidate(controlledPid | 0)
+        ) {
+            this.registerPlayerSceneTileCandidate(controlledPid | 0, 5);
+        }
+
+        const combatTargetPid = this.getCombatTargetPlayerEcsIndex();
+        if (
+            combatTargetPid !== undefined &&
+            (combatTargetPid | 0) !== (controlledPid ?? -1) &&
+            this.isPlayerSceneTileMarkerCandidate(combatTargetPid | 0)
+        ) {
+            this.registerPlayerSceneTileCandidate(combatTargetPid | 0, 4);
+        }
+
+        this.registerNpcSceneTileCandidatesByPriority(NpcDrawPriority.DRAW_PRIORITY_FIRST, 3);
+
         for (let pid = 0; pid < playerCount; pid++) {
-            if (!renderSelf && controlledPid !== undefined && (pid | 0) === (controlledPid | 0)) {
+            if (controlledPid !== undefined && (pid | 0) === (controlledPid | 0)) {
+                continue;
+            }
+            if (combatTargetPid !== undefined && (pid | 0) === (combatTargetPid | 0)) {
                 continue;
             }
             if (!this.isPlayerSceneTileMarkerCandidate(pid)) {
                 continue;
             }
 
-            const tileX = (pe.getX(pid) >> 7) | 0;
-            const tileY = (pe.getY(pid) >> 7) | 0;
-            const plane = pe.getLevel(pid) | 0;
-            const priority =
-                controlledPid !== undefined && (pid | 0) === (controlledPid | 0) ? 2 : 1;
-            this.registerActorTileCandidate(
-                "player",
-                pid | 0,
-                tileX,
-                tileY,
-                plane,
-                priority,
-            );
+            this.registerPlayerSceneTileCandidate(pid | 0, 2);
         }
 
+        this.registerNpcSceneTileCandidatesByPriority(NpcDrawPriority.DRAW_PRIORITY_DEFAULT, 1);
+        this.registerNpcSceneTileCandidatesByPriority(NpcDrawPriority.DRAW_PRIORITY_LAST, 0);
+    }
+
+    private registerPlayerSceneTileCandidate(pid: number, priority: number): void {
+        const pe = this.osrsClient.playerEcs;
+        this.registerActorTileCandidate(
+            "player",
+            pid | 0,
+            (pe.getX(pid) >> 7) | 0,
+            (pe.getY(pid) >> 7) | 0,
+            pe.getLevel(pid) | 0,
+            priority | 0,
+        );
+    }
+
+    private registerNpcSceneTileCandidatesByPriority(
+        drawPriority: NpcDrawPriority,
+        priority: number,
+    ): void {
         const npcEcs = this.osrsClient.npcEcs;
         const seenNpcIds = this.frameActorSelectionSeenNpcIds;
         for (let i = 0; i < this.mapManager.visibleMapCount; i++) {
@@ -9268,12 +9292,19 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 if (!this.isNpcSceneTileMarkerCandidate(ecsId)) {
                     continue;
                 }
+                if ((this.getNpcSceneDrawPriority(ecsId) | 0) !== (drawPriority | 0)) {
+                    continue;
+                }
 
                 seenNpcIds.add(ecsId);
-                const tileX = (npcEcs.getWorldX(ecsId) >> 7) | 0;
-                const tileY = (npcEcs.getWorldY(ecsId) >> 7) | 0;
-                const plane = npcEcs.getLevel(ecsId) | 0;
-                this.registerActorTileCandidate("npc", ecsId, tileX, tileY, plane, 0);
+                this.registerActorTileCandidate(
+                    "npc",
+                    ecsId,
+                    (npcEcs.getWorldX(ecsId) >> 7) | 0,
+                    (npcEcs.getWorldY(ecsId) >> 7) | 0,
+                    npcEcs.getLevel(ecsId) | 0,
+                    priority | 0,
+                );
             }
         }
     }
@@ -9296,7 +9327,35 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         return (worldX & 127) === 64 && (worldY & 127) === 64;
     }
 
+    private getNpcSceneDrawPriority(ecsId: number): NpcDrawPriority {
+        const npcTypeId = this.osrsClient.npcEcs.getNpcTypeId(ecsId) | 0;
+        if (npcTypeId < 0) {
+            return NpcDrawPriority.DRAW_PRIORITY_DEFAULT;
+        }
+
+        try {
+            const base = this.osrsClient.npcTypeLoader.load(npcTypeId);
+            const transformed =
+                base.transform(this.osrsClient.varManager, this.osrsClient.npcTypeLoader) ?? base;
+            return transformed.drawPriority ?? NpcDrawPriority.DRAW_PRIORITY_DEFAULT;
+        } catch {
+            return NpcDrawPriority.DRAW_PRIORITY_DEFAULT;
+        }
+    }
+
+    private getCombatTargetPlayerEcsIndex(): number | undefined {
+        const targetServerId = ClientState.combatTargetPlayerIndex | 0;
+        if ((targetServerId | 0) < 0) {
+            return undefined;
+        }
+
+        return this.osrsClient.playerEcs.getIndexForServerId(targetServerId | 0);
+    }
+
     shouldRenderPlayerIndex(pid: number): boolean {
+        if (!this.renderPlayers) {
+            return false;
+        }
         const renderSelf = this.osrsClient.renderSelf !== false;
         const controlledServerId = this.osrsClient.controlledPlayerServerId | 0;
         const controlledPid =
@@ -11636,6 +11695,14 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                             playerServerId: sid | 0,
                             actionIndex: 0, // OPPLAYER1 - Attack
                             deprioritized,
+                            onClick: () => {
+                                try {
+                                    this.osrsClient.playerInteractionSystem.beginCombat(sid | 0, {
+                                        targetType: "player",
+                                        tile: { x: localX | 0, y: localY | 0 },
+                                    });
+                                } catch {}
+                            },
                         });
                     }
                 }

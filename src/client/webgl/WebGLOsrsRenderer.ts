@@ -3263,7 +3263,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                             const key = id | 0;
                             if (cache.has(key)) return cache.get(key);
                             const font = BitmapFont.tryLoad(cacheSystem, key);
-                            cache.set(key, font);
+                            // Do not memoize missing fonts forever. During startup the widget overlay
+                            // can probe a font before the cache data is fully ready, and a permanent
+                            // cached undefined would make all later CS2 text for that font invisible.
+                            if (font) {
+                                cache.set(key, font);
+                            }
                             return font;
                         };
                     },

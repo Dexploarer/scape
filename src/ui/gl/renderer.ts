@@ -3,6 +3,7 @@ import { createGL, createProgram } from "./gl-utils";
 type Texture = { tex: WebGLTexture; w: number; h: number };
 
 export class GLRenderer {
+    private static readonly MAX_TEXTURE_BATCH_QUADS_PER_DRAW = 16384;
     gl: WebGL2RenderingContext;
     canvas: HTMLCanvasElement;
     // Programs
@@ -748,7 +749,6 @@ void main(){
         if (this.textureBatchQuadCount === 0 || !this.textureBatchTex?.tex) return;
 
         const gl = this.gl;
-        this.ensureTextureIndexCapacity(this.textureBatchQuadCount);
         gl.useProgram(this.progTex);
         gl.uniformMatrix4fv(this.uProj_tex, false, this.proj);
         gl.activeTexture(gl.TEXTURE0);
@@ -764,14 +764,28 @@ void main(){
         gl.uniform1f(this.uAlpha_tex, this.textureBatchAlpha);
         gl.bindVertexArray(this.vaoTex);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-        gl.bufferData(
-            gl.ARRAY_BUFFER,
-            this.textureBatchData.subarray(0, this.textureBatchQuadCount * 16),
-            gl.DYNAMIC_DRAW,
-        );
-        gl.drawElements(gl.TRIANGLES, this.textureBatchQuadCount * 6, gl.UNSIGNED_SHORT, 0);
-        this.perfDrawCalls++;
-        this.perfTextureDrawCalls++;
+
+        // WebGL2 text and widget rendering can exceed 16-bit indexable quad counts on busy
+        // interfaces. Submit the batch in chunks so drawElements never addresses beyond the
+        // uploaded vertex/index data for a single call.
+        let quadOffset = 0;
+        while (quadOffset < this.textureBatchQuadCount) {
+            const quadCount = Math.min(
+                GLRenderer.MAX_TEXTURE_BATCH_QUADS_PER_DRAW,
+                this.textureBatchQuadCount - quadOffset,
+            );
+            this.ensureTextureIndexCapacity(quadCount);
+            gl.bufferData(
+                gl.ARRAY_BUFFER,
+                this.textureBatchData.subarray(quadOffset * 16, (quadOffset + quadCount) * 16),
+                gl.DYNAMIC_DRAW,
+            );
+            gl.drawElements(gl.TRIANGLES, quadCount * 6, gl.UNSIGNED_SHORT, 0);
+            this.perfDrawCalls++;
+            this.perfTextureDrawCalls++;
+            quadOffset += quadCount;
+        }
+
         this.textureBatchQuadCount = 0;
         this.textureBatchTex = null;
     }

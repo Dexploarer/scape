@@ -739,7 +739,7 @@ export class PlayerRenderer {
                 const frameRecord = frameRecords.get(group.frameIdx | 0);
                 if (!frameRecord || !(frameRecord.indexCount > 0)) continue;
 
-                const dc = frameRecord.drawCall
+                const dc = rAny.configureDrawCall(frameRecord.drawCall)
                     .uniformBlock("SceneUniforms", rAny.sceneUniformBuffer)
                     .uniform("u_timeLoaded", -1.0)
                     .texture("u_textures", rAny.textureArray)
@@ -748,10 +748,7 @@ export class PlayerRenderer {
                     .uniform("u_npcDataOffset", baseOffsetPlayer | 0)
                     .texture("u_npcDataTexture", actorDataTexture as Texture)
                     .texture("u_heightMap", map.heightMapTexture)
-                    .uniform("u_modelYOffset", -(group.yOff | 0))
-                    .texture("u_drawIdRemap", rAny.drawIdRemapTexture!)
-                    .uniform("u_useDrawIdRemap", false)
-                    .uniform("u_drawIdOverride", -1);
+                    .uniform("u_modelYOffset", -(group.yOff | 0));
 
                 for (let i = 0; i < group.slots.length; i++) {
                     dc.uniform("u_drawIdOverride", group.slots[i] | 0);
@@ -1847,15 +1844,13 @@ export class PlayerRenderer {
             group.instances.push({ slot, pid, mode });
         }
 
-        // Batched multi-draw rendering: process each batch group
-        const draw = this.drawCall as any as DrawCall;
+        // Batched rendering: process each batch group through the active draw backend.
+        const draw = r.configureDrawCall(this.drawCall as any as DrawCall);
         draw.uniform("u_mapPos", vec2.fromValues(map.mapX, map.mapY))
             .uniform("u_npcDataOffset", baseOffsetPlayer)
             .uniform("u_modelYOffset", r.playerYOffset)
             .texture("u_npcDataTexture", actorDataTexture)
-            .texture("u_heightMap", map.heightMapTexture)
-            .texture("u_drawIdRemap", r.drawIdRemapTexture!)
-            .uniform("u_useDrawIdRemap", false);
+            .texture("u_heightMap", map.heightMapTexture);
 
         r.app.disable(PicoGL.CULL_FACE);
 
@@ -2059,15 +2054,13 @@ export class PlayerRenderer {
             }
             if (alphaBatchGroups.size === 0) continue;
 
-            // Render batched alpha groups with multi-draw
-            const draw = this.drawCallAlpha as any as DrawCall;
+            // Render batched alpha groups through the active draw backend.
+            const draw = r.configureDrawCall(this.drawCallAlpha as any as DrawCall);
             draw.uniform("u_mapPos", vec2.fromValues(map.mapX, map.mapY))
                 .uniform("u_npcDataOffset", baseOffset)
                 .uniform("u_modelYOffset", r.playerYOffset)
                 .texture("u_npcDataTexture", playerDataTexture)
-                .texture("u_heightMap", map.heightMapTexture)
-                .texture("u_drawIdRemap", r.drawIdRemapTexture!)
-                .uniform("u_useDrawIdRemap", false);
+                .texture("u_heightMap", map.heightMapTexture);
 
             r.app.disable(PicoGL.CULL_FACE);
 

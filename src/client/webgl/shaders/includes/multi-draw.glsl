@@ -3,8 +3,10 @@
 #endif
 
 // Remap texture for indirect draw ID lookup
+#ifdef MULTI_DRAW
 uniform highp isampler2D u_drawIdRemap;
 uniform bool u_useDrawIdRemap;
+#endif
 // Override for single-range draws where gl_DrawID is always 0
 uniform int u_drawIdOverride;
 

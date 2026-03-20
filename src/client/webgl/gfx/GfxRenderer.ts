@@ -175,7 +175,7 @@ export class GfxRenderer {
                 );
                 if (!vaoRec) continue;
 
-                const dc: DrawCall = vaoRec.drawCall
+                const dc: DrawCall = this.renderer.configureDrawCall(vaoRec.drawCall)
                     .uniformBlock("SceneUniforms", (this.renderer as any).sceneUniformBuffer)
                     .uniform("u_timeLoaded", -1.0)
                     .texture("u_textures", (this.renderer as any).textureArray)
@@ -183,9 +183,7 @@ export class GfxRenderer {
                     .uniform("u_mapPos", vec2.fromValues(map.mapX, map.mapY))
                     .uniform("u_npcDataOffset", baseOffset | 0)
                     .texture("u_npcDataTexture", actorDataTexture)
-                    .texture("u_heightMap", map.heightMapTexture)
-                    .texture("u_drawIdRemap", (this.renderer as any).drawIdRemapTexture)
-                    .uniform("u_useDrawIdRemap", false);
+                    .texture("u_heightMap", map.heightMapTexture);
 
                 (this.renderer as any).app.disable(PicoGL.CULL_FACE);
 

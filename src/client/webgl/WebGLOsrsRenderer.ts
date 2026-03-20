@@ -144,6 +144,7 @@ import { RAD_TO_RS_UNITS, computeFacingRotation } from "../utils/rotation";
 import { AnimationFrames } from "./AnimationFrames";
 import { ChatheadFactory } from "./ChatheadFactory";
 import { DrawRange, NULL_DRAW_RANGE, newDrawRange } from "./DrawRange";
+import { createDrawBackend, type DrawBackend } from "./DrawBackend";
 import { InteractType } from "./InteractType";
 import { profiler } from "./PerformanceProfiler";
 import { PlayerChatheadFactory } from "./PlayerChatheadFactory";
@@ -428,13 +429,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     private textureMipmapsLastGenAtMs: number = 0;
     private textureMipmapsDirtyUpdates: number = 0;
 
-    // Multi-draw remap resources
-    drawIdRemapData?: Int32Array;
-    drawIdRemapTexture?: Texture;
-    multiDrawOffsets?: Int32Array;
-    multiDrawCounts?: Int32Array;
-    multiDrawInstances?: Int32Array;
-    drawIdRemapCapacity: number = 0;
+    private drawBackend?: DrawBackend;
     // Reusable array for filtered draw ranges (avoids per-frame allocation)
     private drawSubsetBuffer: DrawRange[] = [];
     // Reusable arrays for tickPass (avoids per-frame allocation)
@@ -2554,18 +2549,21 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         this.timer = this.app.createTimer();
 
-        // Get the multi-draw extension (required for this renderer)
+        // Prefer the multi-draw extension when available; fall back to explicit single draws otherwise.
         const state: any = this.app.state;
         const ext = this.gl.getExtension("WEBGL_multi_draw");
         PicoGL.WEBGL_INFO.MULTI_DRAW_INSTANCED = ext;
         state.extensions.multiDrawInstanced = ext;
 
         this.hasMultiDraw = !!ext;
+        this.drawBackend?.dispose();
+        this.drawBackend = createDrawBackend(this.hasMultiDraw);
+        this.drawBackend.init(this.app, this.gl);
 
         if (!ext) {
             console.warn(
                 "WEBGL_multi_draw extension not available! Rendering may not work correctly. " +
-                    "This renderer requires multi-draw support for optimal mobile performance.",
+                    "Falling back to single-draw rendering; this is slower but supported.",
             );
         }
 
@@ -2608,45 +2606,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.initFramebuffers();
 
         this.initTextures();
-
-        // Keep a small identity remap texture alive even on single-draw renderers so
-        // shader bindings stay valid when programs compile without MULTI_DRAW.
-        const initialCapacity = 256;
-        this.drawIdRemapCapacity = initialCapacity;
-        this.drawIdRemapData = new Int32Array(initialCapacity);
-        if (this.hasMultiDraw) {
-            this.multiDrawOffsets = new Int32Array(initialCapacity);
-            this.multiDrawCounts = new Int32Array(initialCapacity);
-            this.multiDrawInstances = new Int32Array(initialCapacity);
-        }
-        const texWidth = 16;
-        const texHeight = Math.ceil(initialCapacity / texWidth);
-        this.drawIdRemapTexture = this.app.createTexture2D(texWidth, texHeight, {
-            internalFormat: PicoGL.R32I,
-            type: PicoGL.INT,
-            minFilter: PicoGL.NEAREST,
-            magFilter: PicoGL.NEAREST,
-            wrapS: PicoGL.CLAMP_TO_EDGE,
-            wrapT: PicoGL.CLAMP_TO_EDGE,
-        });
-
-        // Initialize with identity mapping (0, 1, 2, 3, ...)
-        for (let i = 0; i < initialCapacity; i++) {
-            this.drawIdRemapData[i] = i;
-        }
-
-        this.gl.bindTexture(this.gl.TEXTURE_2D, (this.drawIdRemapTexture as any).texture);
-        this.gl.texSubImage2D(
-            this.gl.TEXTURE_2D,
-            0,
-            0,
-            0,
-            texWidth,
-            texHeight,
-            this.gl.RED_INTEGER,
-            this.gl.INT,
-            this.drawIdRemapData,
-        );
 
         console.log("Renderer init");
 
@@ -2762,15 +2721,16 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     async initShaders(): Promise<Program[]> {
+        const supportsMultiDraw = this.drawBackend?.supportsMultiDraw ?? false;
         const programs = await this.app.createPrograms(
-            createMainProgram(false, this.hasMultiDraw),
-            createMainProgram(true, this.hasMultiDraw),
-            createNpcProgram(true, this.hasMultiDraw),
-            createNpcProgram(false, this.hasMultiDraw),
-            createProjectileProgram(true, this.hasMultiDraw),
-            createProjectileProgram(false, this.hasMultiDraw),
-            createPlayerProgram(true, this.hasMultiDraw),
-            createPlayerProgram(false, this.hasMultiDraw),
+            createMainProgram(false, supportsMultiDraw),
+            createMainProgram(true, supportsMultiDraw),
+            createNpcProgram(true, supportsMultiDraw),
+            createNpcProgram(false, supportsMultiDraw),
+            createProjectileProgram(true, supportsMultiDraw),
+            createProjectileProgram(false, supportsMultiDraw),
+            createPlayerProgram(true, supportsMultiDraw),
+            createPlayerProgram(false, supportsMultiDraw),
             FRAME_PROGRAM,
             FRAME_FXAA_PROGRAM,
             // hover line program (added at end)
@@ -4244,12 +4204,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 .indexBuffer(this.dynamicNpcIndexBuffer);
 
             if (this.dynamicNpcVertexArray && this.sceneUniformBuffer) {
-                this.dynamicNpcDrawCall = this.app
-                    .createDrawCall(this.npcProgram, this.dynamicNpcVertexArray)
-                    .uniformBlock("SceneUniforms", this.sceneUniformBuffer)
-                    .drawRanges(this.dynamicNpcSingleDrawRange)
-                    .uniform("u_drawIdOverride", -1)
-                    .uniform("u_useDrawIdRemap", false);
+                this.dynamicNpcDrawCall = this.configureDrawCall(
+                    this.app
+                        .createDrawCall(this.npcProgram, this.dynamicNpcVertexArray)
+                        .uniformBlock("SceneUniforms", this.sceneUniformBuffer)
+                        .drawRanges(this.dynamicNpcSingleDrawRange),
+                );
                 if (this.textureArray) {
                     this.dynamicNpcDrawCall.texture("u_textures", this.textureArray);
                 }
@@ -10351,72 +10311,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
     }
 
-    /**
-     * Ensures the draw ID remap buffer has sufficient capacity for the given number of draw ranges.
-     * Grows the buffer if needed and updates the remap texture.
-     * @param filteredIndices Array of draw indices to remap
-     * @param drawRanges All draw ranges
-     * @returns Updated DrawCall with remap texture bound
-     */
-    private ensureDrawIdRemap(filteredIndices: number[], drawRanges: DrawRange[]): void {
-        const requiredSize = filteredIndices.length;
-
-        // Grow buffers if needed
-        if (requiredSize > this.drawIdRemapCapacity) {
-            const newCapacity = Math.max(requiredSize, this.drawIdRemapCapacity * 2, 256);
-            this.drawIdRemapCapacity = newCapacity;
-
-            // Allocate new buffers
-            this.drawIdRemapData = new Int32Array(newCapacity);
-            this.multiDrawOffsets = new Int32Array(newCapacity);
-            this.multiDrawCounts = new Int32Array(newCapacity);
-            this.multiDrawInstances = new Int32Array(newCapacity);
-
-            // Recreate texture
-            this.drawIdRemapTexture?.delete();
-
-            // Calculate texture dimensions (16-wide texture like model info)
-            const texWidth = 16;
-            const texHeight = Math.ceil(newCapacity / texWidth);
-
-            this.drawIdRemapTexture = this.app.createTexture2D(texWidth, texHeight, {
-                internalFormat: PicoGL.R32I,
-                type: PicoGL.INT,
-                minFilter: PicoGL.NEAREST,
-                magFilter: PicoGL.NEAREST,
-                wrapS: PicoGL.CLAMP_TO_EDGE,
-                wrapT: PicoGL.CLAMP_TO_EDGE,
-            });
-        }
-
-        // Fill remap data with original draw indices
-        for (let i = 0; i < filteredIndices.length; i++) {
-            const originalIndex = filteredIndices[i];
-            this.drawIdRemapData![i] = originalIndex;
-
-            const range = drawRanges[originalIndex];
-            this.multiDrawOffsets![i] = range?.[0] ?? 0;
-            this.multiDrawCounts![i] = range?.[1] ?? 0;
-            this.multiDrawInstances![i] = range?.[2] ?? 1;
-        }
-
-        // Update texture with remap data
-        if (this.drawIdRemapTexture) {
-            const texWidth = 16;
-            const texHeight = Math.ceil(this.drawIdRemapCapacity / texWidth);
-            this.gl.bindTexture(this.gl.TEXTURE_2D, (this.drawIdRemapTexture as any).texture);
-            this.gl.texSubImage2D(
-                this.gl.TEXTURE_2D,
-                0,
-                0,
-                0,
-                texWidth,
-                texHeight,
-                this.gl.RED_INTEGER,
-                this.gl.INT,
-                this.drawIdRemapData!,
-            );
-        }
+    configureDrawCall(drawCall: DrawCall): DrawCall {
+        return this.drawBackend ? this.drawBackend.configureDrawCall(drawCall) : drawCall;
     }
 
     draw(drawCall: DrawCall, drawRanges: DrawRange[], drawIndices?: number[]) {
@@ -10433,71 +10329,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this._accumulate(drawRanges);
         }
 
-        if (!this.hasMultiDraw) {
-            if (this.drawIdRemapTexture) {
-                drawCall.texture("u_drawIdRemap", this.drawIdRemapTexture);
-            }
-            drawCall.uniform("u_useDrawIdRemap", false);
-
-            if (drawIndices && drawIndices.length > 0) {
-                for (let i = 0; i < drawIndices.length; i++) {
-                    const originalIndex = drawIndices[i] | 0;
-                    const range = drawRanges[originalIndex];
-                    if (!range || (range[1] | 0) <= 0 || (range[2] | 0) <= 0) continue;
-                    drawCall.uniform("u_drawIdOverride", originalIndex);
-                    (drawCall as any).drawRanges(range);
-                    drawCall.draw();
-                }
-            } else {
-                for (let i = 0; i < drawRanges.length; i++) {
-                    const range = drawRanges[i];
-                    if (!range || (range[1] | 0) <= 0 || (range[2] | 0) <= 0) continue;
-                    drawCall.uniform("u_drawIdOverride", i);
-                    (drawCall as any).drawRanges(range);
-                    drawCall.draw();
-                }
-            }
-
-            drawCall.uniform("u_drawIdOverride", -1);
-            return;
-        }
-
-        if (drawIndices && drawIndices.length > 0) {
-            // Filtering needed: use remap texture for correct draw-ID lookup
-            this.ensureDrawIdRemap(drawIndices, drawRanges);
-
-            // Bind remap texture and enable remap mode
-            drawCall.texture("u_drawIdRemap", this.drawIdRemapTexture!);
-            drawCall.uniform("u_useDrawIdRemap", true);
-            drawCall.uniform("u_drawIdOverride", -1);
-
-            // Store original draw ranges
-            const originalOffsets = (drawCall as any).offsets;
-            const originalCounts = (drawCall as any).numElements;
-            const originalInstances = (drawCall as any).numInstances;
-
-            // Temporarily replace with filtered ranges
-            (drawCall as any).offsets = this.multiDrawOffsets;
-            (drawCall as any).numElements = this.multiDrawCounts;
-            (drawCall as any).numInstances = this.multiDrawInstances;
-            (drawCall as any).numDraws = drawIndices.length;
-
-            // Issue single multi-draw call
-            drawCall.draw();
-
-            // Restore original arrays
-            (drawCall as any).offsets = originalOffsets;
-            (drawCall as any).numElements = originalCounts;
-            (drawCall as any).numInstances = originalInstances;
-            (drawCall as any).numDraws = drawRanges.length;
-
-            // Disable remap for next draw
-            drawCall.uniform("u_useDrawIdRemap", false);
+        if (this.drawBackend) {
+            this.drawBackend.draw(drawCall, drawRanges, drawIndices);
         } else {
-            // No filtering: draw all ranges normally
-            drawCall.texture("u_drawIdRemap", this.drawIdRemapTexture!);
-            drawCall.uniform("u_useDrawIdRemap", false);
-            drawCall.uniform("u_drawIdOverride", -1);
             drawCall.draw();
         }
     }
@@ -12913,14 +12747,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.textureMaterials?.delete();
         this.textureMaterials = undefined;
 
-        // Multi-draw remap resources
-        this.drawIdRemapTexture?.delete();
-        this.drawIdRemapTexture = undefined;
-        this.drawIdRemapData = undefined;
-        this.multiDrawOffsets = undefined;
-        this.multiDrawCounts = undefined;
-        this.multiDrawInstances = undefined;
-        this.drawIdRemapCapacity = 0;
+        this.drawBackend?.dispose();
+        this.drawBackend = undefined;
 
         // Unified actor texture cleanup handled by actorDataTextureBuffer below
         for (const texture of this.actorDataTextureBuffer) {

@@ -2609,45 +2609,44 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         this.initTextures();
 
-        // Initialize multi-draw remap texture if extension is available
+        // Keep a small identity remap texture alive even on single-draw renderers so
+        // shader bindings stay valid when programs compile without MULTI_DRAW.
+        const initialCapacity = 256;
+        this.drawIdRemapCapacity = initialCapacity;
+        this.drawIdRemapData = new Int32Array(initialCapacity);
         if (this.hasMultiDraw) {
-            const initialCapacity = 256;
-            this.drawIdRemapCapacity = initialCapacity;
-            this.drawIdRemapData = new Int32Array(initialCapacity);
             this.multiDrawOffsets = new Int32Array(initialCapacity);
             this.multiDrawCounts = new Int32Array(initialCapacity);
             this.multiDrawInstances = new Int32Array(initialCapacity);
-
-            const texWidth = 16;
-            const texHeight = Math.ceil(initialCapacity / texWidth);
-
-            this.drawIdRemapTexture = this.app.createTexture2D(texWidth, texHeight, {
-                internalFormat: PicoGL.R32I,
-                type: PicoGL.INT,
-                minFilter: PicoGL.NEAREST,
-                magFilter: PicoGL.NEAREST,
-                wrapS: PicoGL.CLAMP_TO_EDGE,
-                wrapT: PicoGL.CLAMP_TO_EDGE,
-            });
-
-            // Initialize with identity mapping (0, 1, 2, 3, ...)
-            for (let i = 0; i < initialCapacity; i++) {
-                this.drawIdRemapData[i] = i;
-            }
-
-            this.gl.bindTexture(this.gl.TEXTURE_2D, (this.drawIdRemapTexture as any).texture);
-            this.gl.texSubImage2D(
-                this.gl.TEXTURE_2D,
-                0,
-                0,
-                0,
-                texWidth,
-                texHeight,
-                this.gl.RED_INTEGER,
-                this.gl.INT,
-                this.drawIdRemapData,
-            );
         }
+        const texWidth = 16;
+        const texHeight = Math.ceil(initialCapacity / texWidth);
+        this.drawIdRemapTexture = this.app.createTexture2D(texWidth, texHeight, {
+            internalFormat: PicoGL.R32I,
+            type: PicoGL.INT,
+            minFilter: PicoGL.NEAREST,
+            magFilter: PicoGL.NEAREST,
+            wrapS: PicoGL.CLAMP_TO_EDGE,
+            wrapT: PicoGL.CLAMP_TO_EDGE,
+        });
+
+        // Initialize with identity mapping (0, 1, 2, 3, ...)
+        for (let i = 0; i < initialCapacity; i++) {
+            this.drawIdRemapData[i] = i;
+        }
+
+        this.gl.bindTexture(this.gl.TEXTURE_2D, (this.drawIdRemapTexture as any).texture);
+        this.gl.texSubImage2D(
+            this.gl.TEXTURE_2D,
+            0,
+            0,
+            0,
+            texWidth,
+            texHeight,
+            this.gl.RED_INTEGER,
+            this.gl.INT,
+            this.drawIdRemapData,
+        );
 
         console.log("Renderer init");
 
@@ -2764,14 +2763,14 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     async initShaders(): Promise<Program[]> {
         const programs = await this.app.createPrograms(
-            createMainProgram(false),
-            createMainProgram(true),
-            createNpcProgram(true),
-            createNpcProgram(false),
-            createProjectileProgram(true),
-            createProjectileProgram(false),
-            createPlayerProgram(true),
-            createPlayerProgram(false),
+            createMainProgram(false, this.hasMultiDraw),
+            createMainProgram(true, this.hasMultiDraw),
+            createNpcProgram(true, this.hasMultiDraw),
+            createNpcProgram(false, this.hasMultiDraw),
+            createProjectileProgram(true, this.hasMultiDraw),
+            createProjectileProgram(false, this.hasMultiDraw),
+            createPlayerProgram(true, this.hasMultiDraw),
+            createPlayerProgram(false, this.hasMultiDraw),
             FRAME_PROGRAM,
             FRAME_FXAA_PROGRAM,
             // hover line program (added at end)
@@ -10434,7 +10433,35 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this._accumulate(drawRanges);
         }
 
-        // Always use multi-draw (no fallback)
+        if (!this.hasMultiDraw) {
+            if (this.drawIdRemapTexture) {
+                drawCall.texture("u_drawIdRemap", this.drawIdRemapTexture);
+            }
+            drawCall.uniform("u_useDrawIdRemap", false);
+
+            if (drawIndices && drawIndices.length > 0) {
+                for (let i = 0; i < drawIndices.length; i++) {
+                    const originalIndex = drawIndices[i] | 0;
+                    const range = drawRanges[originalIndex];
+                    if (!range || (range[1] | 0) <= 0 || (range[2] | 0) <= 0) continue;
+                    drawCall.uniform("u_drawIdOverride", originalIndex);
+                    (drawCall as any).drawRanges(range);
+                    drawCall.draw();
+                }
+            } else {
+                for (let i = 0; i < drawRanges.length; i++) {
+                    const range = drawRanges[i];
+                    if (!range || (range[1] | 0) <= 0 || (range[2] | 0) <= 0) continue;
+                    drawCall.uniform("u_drawIdOverride", i);
+                    (drawCall as any).drawRanges(range);
+                    drawCall.draw();
+                }
+            }
+
+            drawCall.uniform("u_drawIdOverride", -1);
+            return;
+        }
+
         if (drawIndices && drawIndices.length > 0) {
             // Filtering needed: use remap texture for correct draw-ID lookup
             this.ensureDrawIdRemap(drawIndices, drawRanges);

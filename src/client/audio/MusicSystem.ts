@@ -4,6 +4,7 @@ import { MusicBuffer } from "../../rs/audio/music/MusicBuffer";
 import { SoundTrack } from "../../rs/audio/music/SoundTrack";
 import { CacheSystem } from "../../rs/cache/CacheSystem";
 import { IndexType } from "../../rs/cache/IndexType";
+import { copyArrayBufferLike, copyArrayBufferView } from "../../util/ArrayBufferUtil";
 import { decodeOggVorbisToAudioBuffer, isOggVorbis } from "./VorbisWasm";
 import { addAudioContextResumeListeners, getAudioContextConstructor } from "./audioContext";
 import { RealtimeMidiSynth } from "./music/realtime/RealtimeMidiSynth";
@@ -696,10 +697,7 @@ export class MusicSystem {
             }
 
             const data = file.data;
-            const arrayBuffer = data.buffer.slice(
-                data.byteOffset,
-                data.byteOffset + data.byteLength,
-            );
+            const arrayBuffer = copyArrayBufferView(data);
 
             let audioBuf: AudioBuffer | null = null;
 
@@ -751,12 +749,7 @@ export class MusicSystem {
             // Fallback to browser's decodeAudioData
             if (!audioBuf) {
                 const buffersToTry: ArrayBuffer[] = [];
-                buffersToTry.push(
-                    audioData.buffer.slice(
-                        audioData.byteOffset,
-                        audioData.byteOffset + audioData.byteLength,
-                    ),
-                );
+                buffersToTry.push(copyArrayBufferView(audioData));
 
                 if (oggStart > 0 || isGzip) {
                     buffersToTry.push(arrayBuffer);
@@ -777,7 +770,7 @@ export class MusicSystem {
                     return -1;
                 };
                 const riffPos = findRiffStart(new Uint8Array(arrayBuffer));
-                if (riffPos > 0) buffersToTry.push(arrayBuffer.slice(riffPos));
+                if (riffPos > 0) buffersToTry.push(copyArrayBufferLike(arrayBuffer, riffPos));
 
                 for (const buf of buffersToTry) {
                     try {
@@ -805,7 +798,7 @@ export class MusicSystem {
                     if (wavBuffer && wavBuffer.currentPosition > 44) {
                         const length = wavBuffer.currentPosition;
                         const underlyingBuffer = wavBuffer.buffer.buffer;
-                        const wavArrayBuffer = underlyingBuffer.slice(0, length);
+                        const wavArrayBuffer = copyArrayBufferLike(underlyingBuffer, 0, length);
                         audioBuf = await this.context.decodeAudioData(wavArrayBuffer);
                         if (mySequence !== this.loadSequence) return false;
                         console.log(`[MusicSystem] Decoded track ${trackId} via legacy synth`);
@@ -821,7 +814,9 @@ export class MusicSystem {
                 const blobTypes = ["audio/ogg", "audio/wav", "audio/mpeg"];
                 for (const mime of blobTypes) {
                     try {
-                        const url = URL.createObjectURL(new Blob([data], { type: mime }));
+                        const url = URL.createObjectURL(
+                            new Blob([new Uint8Array(data)], { type: mime }),
+                        );
                         const audio = new Audio(url);
                         audio.loop = true;
                         audio.volume = this.volume;

@@ -683,6 +683,7 @@ type ClientToServer =
           payload: { action: "open" | "close"; groupId: number; modal?: boolean };
       }
     | { type: "widget_action"; payload: WidgetActionClientPayload }
+    | { type: "item_spawner_search"; payload: { query: string } }
     | { type: "trade_action"; payload: TradeActionClientPayload }
     | { type: "bank_deposit_inventory"; payload?: Record<string, never> }
     | { type: "bank_deposit_equipment"; payload?: Record<string, never> }
@@ -2912,6 +2913,27 @@ export function sendWidgetAction(payload: WidgetActionClientPayload): void {
     pkt.packetBuffer.writeShort(normalized.slot ?? 0xffff);
     pkt.packetBuffer.writeShort(normalized.itemId ?? -1);
     queuePacket(pkt);
+}
+
+/**
+ * Direct widget_action transport for custom client-driven widget interactions that need
+ * richer payload data than the IF_BUTTON packets carry, such as live text updates.
+ */
+export function sendWidgetActionMessage(payload: WidgetActionClientPayload): void {
+    const normalized = normalizeWidgetActionPayload(payload);
+    if (!normalized) {
+        return;
+    }
+    send({ type: "widget_action", payload: normalized });
+}
+
+export function sendItemSpawnerSearchQuery(query: string): void {
+    send({
+        type: "item_spawner_search",
+        payload: {
+            query: String(query ?? ""),
+        },
+    });
 }
 
 /**

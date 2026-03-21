@@ -570,6 +570,7 @@ export type ClientToServer =
           payload: { action: "open" | "close"; groupId: number; modal?: boolean };
       }
     | { type: "widget_action"; payload: WidgetActionRequest }
+    | { type: "item_spawner_search"; payload: { query: string } }
     | { type: "resume_pausebutton"; payload: { widgetId: number; childIndex: number } }
     | { type: "resume_countdialog"; payload: { amount: number } }
     | { type: "resume_namedialog"; payload: { value: string } }

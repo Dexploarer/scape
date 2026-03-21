@@ -3676,11 +3676,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         try {
                             const pe: any = this.osrsClient.playerEcs as any;
                             const rot: number =
-                                pe.getRotation?.(ecsIndex) ?? pe.rotation?.[ecsIndex] | 0 ?? 0;
+                                (pe.getRotation?.(ecsIndex) ?? pe.rotation?.[ecsIndex] ?? 0) | 0;
                             const desired: number =
-                                pe.getTargetRotation?.(ecsIndex) ??
-                                pe.targetRot?.[ecsIndex] | 0 ??
-                                rot;
+                                (pe.getTargetRotation?.(ecsIndex) ??
+                                    pe.targetRot?.[ecsIndex] ??
+                                    rot) | 0;
                             let delta = (desired - rot) & 2047;
                             if (delta !== 0 && typeof seqs.turnLeft === "number") {
                                 const isRight = delta < 1024 && delta > 0;
@@ -3757,7 +3757,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         const has0 = (pe.size?.() ?? (pe as any).size?.() ?? 0) > 0;
                         if (has0) {
                             const rot: number =
-                                pe.getRotation?.(ecsIndex) ?? pe.rotation?.[ecsIndex] | 0 ?? 0;
+                                (pe.getRotation?.(ecsIndex) ?? pe.rotation?.[ecsIndex] ?? 0) | 0;
                             // Movement orientation from step target vs current rotation
                             const cx: number = (pe.getX?.(ecsIndex) ?? 0) | 0;
                             const cy: number = (pe.getY?.(ecsIndex) ?? 0) | 0;

@@ -7915,6 +7915,8 @@ export class WSServer {
             setSmithingBarType: (player, barType) =>
                 player.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType),
             openSmithingForgeInterface: (player) => this.openSmithingForgeInterface(player),
+            spawnInventoryItem: (player, itemId, quantity) =>
+                this.spawnInventoryItem(player, itemId, quantity),
         };
         return new Cs2ModalManager(services);
     }
@@ -8159,6 +8161,36 @@ export class WSServer {
         return "Vote menu opened.";
     }
 
+    private handleItemSpawnerCommand(player: PlayerState, args: string[]): string {
+        const query = args.join(" ").trim();
+        return this.cs2ModalManager.openItemSpawnerModal(player, query);
+    }
+
+    private spawnInventoryItem(
+        player: PlayerState,
+        itemId: number,
+        quantity: number,
+    ): { requested: number; completed: number; itemName: string } {
+        const requested = Math.max(1, Math.floor(Number.isFinite(quantity) ? quantity : 1));
+        const tx = player.addItem(itemId, requested, { assureFullInsertion: true });
+        const itemName =
+            this.getObjType(itemId)?.name?.trim() ||
+            getItemDefinition(itemId)?.name?.trim() ||
+            `Item ${itemId}`;
+
+        if (tx.completed > 0) {
+            logger.info(
+                `[cmd] ::itemspawner - Gave player ${player.id} item ${itemId} (${itemName}) x${tx.completed}`,
+            );
+        }
+
+        return {
+            requested,
+            completed: tx.completed,
+            itemName,
+        };
+    }
+
     /**
      * Create the TickPhaseOrchestrator with all required services.
      */
@@ -8321,6 +8353,7 @@ export class WSServer {
             getPublicChatPlayerType: (player) => this.getPublicChatPlayerType(player),
             enqueueLevelUpPopup: (player, data) => this.enqueueLevelUpPopup(player, data),
             handleVoteCommand: (player, args) => this.handleVoteCommand(player, args),
+            handleItemSpawnerCommand: (player, args) => this.handleItemSpawnerCommand(player, args),
 
             // Debug
             broadcast: (message, context) => this.broadcast(message, context),
@@ -13469,6 +13502,8 @@ export class WSServer {
                     }
                     // NOTE: spell_cast_*, debug, chat handlers moved to MessageHandlers.ts
                 } catch {}
+            } else {
+                this.processBinaryMessage(ws, parsed);
             }
         });
 
@@ -14677,6 +14712,7 @@ export class WSServer {
                             groupId,
                             componentId,
                             payload.option,
+                            payload.itemId,
                         )
                     ) {
                         break;
@@ -14693,6 +14729,17 @@ export class WSServer {
                             childId,
                         });
                     }
+                }
+                break;
+            }
+
+            case "item_spawner_search": {
+                const player = this.players?.get(ws);
+                if (player) {
+                    this.cs2ModalManager.updateItemSpawnerModalQuery(
+                        player,
+                        String(parsed.payload?.query ?? ""),
+                    );
                 }
                 break;
             }

@@ -88,7 +88,7 @@ export async function decodeOggVorbisToAudioBuffer(
     );
 
     for (let ch = 0; ch < decoded.channelData.length; ch++) {
-        buffer.copyToChannel(decoded.channelData[ch], ch);
+        buffer.copyToChannel(new Float32Array(decoded.channelData[ch]), ch);
     }
 
     return buffer;

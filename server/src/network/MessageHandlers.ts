@@ -216,6 +216,7 @@ export interface MessageHandlerServices {
     getPublicChatPlayerType: (player: PlayerState) => number;
     enqueueLevelUpPopup: (player: PlayerState, data: any) => void;
     handleVoteCommand: (player: PlayerState, args: string[]) => string | undefined;
+    handleItemSpawnerCommand: (player: PlayerState, args: string[]) => string | undefined;
 
     // Debug
     broadcast: (message: string | Uint8Array, context: string) => void;
@@ -1040,6 +1041,19 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                 if (root === "vote") {
                     const voteArgs = parts.slice(1);
                     const response = services.handleVoteCommand(sender, voteArgs);
+                    if (response?.trim()) {
+                        services.queueChatMessage({
+                            messageType: "game",
+                            text: response.trim(),
+                            targetPlayerIds: [sender.id],
+                        });
+                    }
+                    return;
+                }
+
+                if (root === "itemspawner") {
+                    const searchArgs = parts.slice(1);
+                    const response = services.handleItemSpawnerCommand(sender, searchArgs);
                     if (response?.trim()) {
                         services.queueChatMessage({
                             messageType: "game",

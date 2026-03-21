@@ -244,7 +244,7 @@ export class SoundEffectSystem {
             };
         }
 
-        let channel = new Float32Array(length);
+        let channel: Float32Array = new Float32Array(length);
         let hasExtremeJumps = false;
         let maxJump = 0;
 
@@ -264,7 +264,7 @@ export class SoundEffectSystem {
             }
         }
 
-        let output = channel;
+        let output: Float32Array = channel;
         let outputRate = raw.sampleRate;
 
         if (targetSampleRate > 0 && targetSampleRate !== raw.sampleRate) {
@@ -311,7 +311,7 @@ export class SoundEffectSystem {
     ): AudioBuffer {
         const length = sound.channelData.length;
         const buffer = ctx.createBuffer(1, length, sound.sampleRate);
-        const data = sound.channelData.slice(); // Clone to avoid modifying cache
+        const data = new Float32Array(sound.channelData); // Clone to avoid modifying cache
         buffer.copyToChannel(data, 0);
         return buffer;
     }

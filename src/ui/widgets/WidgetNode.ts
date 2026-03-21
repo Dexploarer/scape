@@ -142,6 +142,7 @@ export interface WidgetNode {
     // IF1 hover redirect
     mouseOverRedirect?: number; // IF1: same-group fileId to treat as hovered instead (-1 = none)
     graphicShadow?: number;
+    shadowColor?: number; // alias used by some runtime paths for widget sprite shadow
     vFlip?: boolean;
     hFlip?: boolean;
     verticalFlip?: boolean;

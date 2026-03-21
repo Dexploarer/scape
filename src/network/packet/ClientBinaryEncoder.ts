@@ -403,6 +403,12 @@ export class ClientBinaryEncoder {
         return this.buffer.toPacket(ClientPacketId.WIDGET_ACTION);
     }
 
+    encodeItemSpawnerSearch(query: string): Uint8Array {
+        this.buffer.reset();
+        this.buffer.writeString(query ?? "");
+        return this.buffer.toPacket(ClientPacketId.ITEM_SPAWNER_SEARCH);
+    }
+
     encodeResumePausebutton(widgetId: number, childIndex: number): Uint8Array {
         this.buffer.reset();
         this.buffer.writeInt(widgetId);
@@ -600,6 +606,9 @@ export function encodeClientMessage(msg: { type: string; payload: any }): Uint8A
 
         case "widget_action":
             return clientEncoder.encodeWidgetAction(payload);
+
+        case "item_spawner_search":
+            return clientEncoder.encodeItemSpawnerSearch(payload.query);
 
         case "resume_pausebutton":
             return clientEncoder.encodeResumePausebutton(payload.widgetId, payload.childIndex);

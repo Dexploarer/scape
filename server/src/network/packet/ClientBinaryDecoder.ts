@@ -499,6 +499,14 @@ export function decodeClientPacket(data: Uint8Array | ArrayBuffer): DecodedClien
             };
         }
 
+        case ClientPacketId.ITEM_SPAWNER_SEARCH:
+            return {
+                type: "item_spawner_search",
+                payload: {
+                    query: reader.readString() || "",
+                },
+            };
+
         case ClientPacketId.RESUME_PAUSEBUTTON:
             return {
                 type: "resume_pausebutton",

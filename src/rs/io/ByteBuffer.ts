@@ -5,9 +5,19 @@ export class ByteBuffer {
 
     offset: number = 0;
 
-    constructor(dataOrSize: Int8Array | ArrayBuffer | number) {
+    constructor(dataOrSize: Int8Array);
+    constructor(dataOrSize: Uint8Array);
+    constructor(dataOrSize: ArrayBuffer);
+    constructor(dataOrSize: number);
+    constructor(dataOrSize: Int8Array | Uint8Array | ArrayBuffer | number) {
         if (dataOrSize instanceof Int8Array) {
             this._data = dataOrSize;
+        } else if (dataOrSize instanceof Uint8Array) {
+            this._data = new Int8Array(
+                dataOrSize.buffer,
+                dataOrSize.byteOffset,
+                dataOrSize.byteLength,
+            );
         } else if (dataOrSize instanceof ArrayBuffer) {
             this._data = new Int8Array(dataOrSize);
         } else {

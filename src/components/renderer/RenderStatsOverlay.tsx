@@ -3,7 +3,7 @@ import React from "react";
 import type { GameRenderer } from "../../client/GameRenderer";
 import { RS_TO_DEGREES } from "../../rs/MathConstants";
 import type { CacheInfo } from "../../rs/cache/CacheInfo";
-import { checkIos, checkMobile, isTouchDevice } from "../../util/DeviceUtil";
+import { checkIos, checkMobile } from "../../util/DeviceUtil";
 import { formatBytes } from "../../util/BytesUtil";
 import { RenderStats } from "./RenderStats";
 

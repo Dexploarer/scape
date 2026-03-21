@@ -1,4 +1,3 @@
-import { CacheInfo } from "../../cache/CacheInfo";
 import { ByteBuffer } from "../../io/ByteBuffer";
 import { Type } from "../Type";
 
@@ -30,10 +29,6 @@ export class HitSplatType extends Type {
     varbitId: number = -1; // opcode 17/18
     varpId: number = -1; // opcode 17/18
     multihitsplats?: number[]; // opcode 17/18
-
-    constructor(id: number, cacheInfo: CacheInfo) {
-        super(id, cacheInfo);
-    }
 
     override decodeOpcode(opcode: number, buffer: ByteBuffer): void {
         if (opcode === 1) {

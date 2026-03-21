@@ -185,10 +185,6 @@ export function deriveMenuEntriesForWidget(
         entries.push({ option: "Cancel" });
         return entries;
     }
-    const uid = typeof w?.uid === "number" ? w.uid | 0 : 0;
-    const groupId = typeof w?.groupId === "number" ? w.groupId | 0 : (uid >>> 16) | 0;
-    const fileId =
-        typeof w?.fileId === "number" && w.fileId >= 0 ? w.fileId | 0 : (uid & 0xffff) | 0;
     const target = getWidgetTargetLabelForMenu(w);
     const plainTarget = getWidgetTargetLabel(w);
     const actions: any[] = Array.isArray(w?.actions) ? (w.actions as any[]) : [];
@@ -404,9 +400,6 @@ export function findDropTarget(
         const childClip = isContainer ? intersectClip(clip, x, y, width, height) : clip;
 
         // Check if we should traverse children
-        const hasChildren =
-            (Array.isArray(w.children) && w.children.length > 0) ||
-            getStaticChildren(uid).length > 0;
         const gate = isContainer ? inRect(x, y, width, height) && inClip(clip) : true;
 
         // Track best result from children (topmost = last in traversal order)

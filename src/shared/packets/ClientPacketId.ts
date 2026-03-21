@@ -47,6 +47,7 @@ export const enum ClientPacketId {
     BANK_DEPOSIT_INVENTORY = 243,
     BANK_DEPOSIT_EQUIPMENT = 244,
     BANK_MOVE = 245,
+    ITEM_SPAWNER_SEARCH = 246,
 
     // ========================================
     // WIDGETS/UI (250-254)
@@ -112,6 +113,7 @@ export const CLIENT_PACKET_LENGTHS: Record<ClientPacketId, number> = {
     [ClientPacketId.BANK_DEPOSIT_INVENTORY]: 0,
     [ClientPacketId.BANK_DEPOSIT_EQUIPMENT]: 0,
     [ClientPacketId.BANK_MOVE]: -1,
+    [ClientPacketId.ITEM_SPAWNER_SEARCH]: -1,
 
     [ClientPacketId.WIDGET]: -1,
     [ClientPacketId.WIDGET_ACTION]: -1,

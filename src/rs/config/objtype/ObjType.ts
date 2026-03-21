@@ -258,6 +258,12 @@ export class ObjType extends Type {
         } else if (opcode === 72) {
             // OSRS newer: short value placeholder
             buffer.readUnsignedShort();
+        } else if (opcode === 80) {
+            // OSRS newer: short value placeholder
+            buffer.readUnsignedShort();
+        } else if (opcode === 81) {
+            // OSRS newer: short value placeholder
+            buffer.readUnsignedShort();
         } else if (opcode === 82) {
             // OSRS newer: short value placeholder
             buffer.readUnsignedShort();

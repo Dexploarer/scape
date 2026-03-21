@@ -110,6 +110,10 @@ import { SpriteLoader } from "../rs/sprite/SpriteLoader";
 import { TextureLoader } from "../rs/texture/TextureLoader";
 import { faceAngleRs } from "../rs/utils/rotation";
 import { directionToDelta } from "../shared/Direction";
+import {
+    CacheItemSearchIndex,
+    type CacheItemSearchEntry,
+} from "../shared/items/CacheItemSearchIndex";
 import type { ProjectileLaunch } from "../shared/projectiles/ProjectileLaunch";
 import { buildSelectedSpellPayload } from "../shared/spells/selectedSpellPayload";
 import {
@@ -117,6 +121,19 @@ import {
     INTERFACE_QUEST_LIST_ID,
     SIDE_JOURNAL_GROUP_ID,
 } from "../shared/ui/sideJournal";
+import {
+    ITEM_SPAWNER_MODAL_COMPONENT_HELPER,
+    ITEM_SPAWNER_MODAL_COMPONENT_QUERY,
+    ITEM_SPAWNER_MODAL_COMPONENT_RESULTS_SCROLLBAR,
+    ITEM_SPAWNER_MODAL_COMPONENT_RESULTS_VIEW,
+    ITEM_SPAWNER_MODAL_COMPONENT_SEARCH_BACKGROUND,
+    ITEM_SPAWNER_MODAL_COMPONENT_SLOT_BACKGROUND_START,
+    ITEM_SPAWNER_MODAL_COMPONENT_SLOT_ICON_START,
+    ITEM_SPAWNER_MODAL_COMPONENT_SUMMARY,
+    ITEM_SPAWNER_MODAL_GROUP_ID,
+    ITEM_SPAWNER_MODAL_RESULT_SLOT_COUNT,
+    ITEM_SPAWNER_MODAL_SLOT_COLUMNS,
+} from "../shared/ui/widgets";
 import { markWidgetInteractionDirty } from "../ui/widgets/WidgetInteraction";
 import {
     TRANSMIT_VARPS,
@@ -343,6 +360,19 @@ const UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL = 10;
 const UI_HIGHLIGHT_STYLE_DEFAULT = 7034;
 const UI_HIGHLIGHT_ID_KARAMJA_SHIELD = 2;
 const UI_HIGHLIGHT_ID_UNLOCK_BUTTON = 3;
+const ITEM_SPAWNER_SCROLLBAR_INIT_SCRIPT_ID = 31;
+const ITEM_SPAWNER_SCROLLBAR_RESIZE_SCRIPT_ID = 72;
+const ITEM_SPAWNER_SLOT_PITCH_Y = 44;
+const ITEM_SPAWNER_SLOT_BACKGROUND_BASE_RAW_Y = 0;
+const ITEM_SPAWNER_SLOT_ICON_BASE_RAW_Y = 2;
+const ITEM_SPAWNER_SCROLLBAR_GRAPHICS = [
+    "scrollbar_dragger_v2,3",
+    "scrollbar_dragger_v2,0",
+    "scrollbar_dragger_v2,1",
+    "scrollbar_dragger_v2,2",
+    "scrollbar_v2,0",
+    "scrollbar_v2,1",
+] as const;
 
 // Use shared OSRS rotation scale
 
@@ -707,6 +737,13 @@ export class OsrsClient {
         payload: any;
         option: string;
     } | null = null;
+    private itemSpawnerSearchFocused: boolean = false;
+    private itemSpawnerSearchQuery: string = "";
+    private itemSpawnerSearchIndex?: CacheItemSearchIndex;
+    private itemSpawnerSearchResults: CacheItemSearchEntry[] = [];
+    private itemSpawnerSearchResultsVersion: number = 0;
+    private itemSpawnerRenderedResultsVersion: number = -1;
+    private itemSpawnerVisibleStartRow: number = -1;
 
     // Script event queues (like OSRS's 3-tier priority system)
     private scriptEvents: ScriptEvent[] = []; // Normal priority
@@ -2192,6 +2229,11 @@ export class OsrsClient {
                             this.widgetManager.invalidateWidgetRender(w);
                         }
                     }
+                    if ((payload.groupId | 0) === ITEM_SPAWNER_MODAL_GROUP_ID) {
+                        this.clearItemSpawnerSearchState();
+                        this.setItemSpawnerSearchFocus(true);
+                        this.refreshItemSpawnerSearchResults(true);
+                    }
                 }
             } else if (payload?.action === "close_sub") {
                 const targetUid = Number(payload.targetUid) | 0;
@@ -2221,14 +2263,25 @@ export class OsrsClient {
                         this.updateChatboxVisibility();
                     }
                 }
+                const closingParentGroupId =
+                    typeof closingParent?.group === "number" ? closingParent.group | 0 : -1;
+                if (closingParentGroupId === ITEM_SPAWNER_MODAL_GROUP_ID) {
+                    this.clearItemSpawnerSearchState();
+                }
             } else if (payload?.action === "set_text") {
                 const uid = Number(payload.uid) | 0;
                 const text = typeof payload.text === "string" ? payload.text : String(payload.text);
                 const w = this.widgetManager?.getWidgetByUid(uid);
                 if (w) {
-                    w.text = text;
-                    markWidgetInteractionDirty(w);
-                    this.widgetManager.invalidateWidgetRender(w);
+                    if (uid === this.getItemSpawnerQueryWidgetUid()) {
+                        this.itemSpawnerSearchQuery = this.escapeItemSpawnerSearchText(text);
+                        this.syncItemSpawnerSearchWidgets();
+                        this.refreshItemSpawnerSearchResults(true);
+                    } else {
+                        w.text = text;
+                        markWidgetInteractionDirty(w);
+                        this.widgetManager.invalidateWidgetRender(w);
+                    }
                 }
             } else if (payload?.action === "set_hidden") {
                 const uid = Number(payload.uid) | 0;
@@ -2260,28 +2313,48 @@ export class OsrsClient {
 
                 const w = this.widgetManager?.getWidgetByUid(uid);
                 if (w) {
-                    let obj = this.objTypeLoader?.load?.(itemId);
-                    // OSRS parity: For stackable items (coins, etc.), get the correct model
-                    // based on quantity using countObj/countCo arrays.
-                    // The server sends the amountOrZoom value which determines the model.
-                    if (
-                        obj &&
-                        typeof (obj as any).getCountObj === "function" &&
-                        this.objTypeLoader
-                    ) {
-                        obj = (obj as any).getCountObj(this.objTypeLoader, quantity);
+                    const existingType = Number((w as any).type) | 0;
+                    const normalizedItemId = itemId >= 0 ? itemId : -1;
+                    const normalizedQuantity = normalizedItemId >= 0 ? quantity : 0;
+
+                    if (existingType === 5) {
+                        (w as any).itemId = normalizedItemId;
+                        (w as any).itemQuantity = normalizedQuantity;
+                        if (typeof (w as any).itemQuantityMode !== "number") {
+                            (w as any).itemQuantityMode = 2;
+                        }
+                        markWidgetInteractionDirty(w);
+                        this.widgetManager.invalidateWidgetRender(w);
+                    } else if (normalizedItemId < 0) {
+                        (w as any).itemId = -1;
+                        (w as any).itemQuantity = 0;
+                        (w as any).modelId = -1;
+                        markWidgetInteractionDirty(w);
+                        this.widgetManager.invalidateWidgetRender(w);
+                    } else {
+                        let obj = this.objTypeLoader?.load?.(normalizedItemId);
+                        // OSRS parity: For stackable items (coins, etc.), get the correct model
+                        // based on quantity using countObj/countCo arrays.
+                        // The server sends the amountOrZoom value which determines the model.
+                        if (
+                            obj &&
+                            typeof (obj as any).getCountObj === "function" &&
+                            this.objTypeLoader
+                        ) {
+                            obj = (obj as any).getCountObj(this.objTypeLoader, quantity);
+                        }
+                        const modelId =
+                            typeof (obj as any)?.model === "number" && (obj as any).model >= 0
+                                ? ((obj as any).model as number) | 0
+                                : Math.max(0, normalizedItemId | 0);
+                        (w as any).type = 6;
+                        (w as any).modelId = modelId;
+                        (w as any).itemId = normalizedItemId;
+                        (w as any).itemQuantity = quantity;
+                        (w as any).modelOrthog = true;
+                        markWidgetInteractionDirty(w);
+                        this.widgetManager.invalidateWidgetRender(w);
                     }
-                    const modelId =
-                        typeof (obj as any)?.model === "number" && (obj as any).model >= 0
-                            ? ((obj as any).model as number) | 0
-                            : Math.max(0, itemId | 0);
-                    (w as any).type = 6;
-                    (w as any).modelId = modelId;
-                    (w as any).itemId = itemId | 0;
-                    (w as any).itemQuantity = quantity;
-                    (w as any).modelOrthog = true;
-                    markWidgetInteractionDirty(w);
-                    this.widgetManager.invalidateWidgetRender(w);
                 }
             } else if (payload?.action === "set_npc_head") {
                 const uid = Number(payload.uid) | 0;
@@ -3617,6 +3690,17 @@ export class OsrsClient {
                 : typeof w?.childIndex === "number"
                 ? w.childIndex
                 : w?.uid & 0xffff;
+        const isItemSpawnerSearchClick =
+            (groupId | 0) === ITEM_SPAWNER_MODAL_GROUP_ID &&
+            this.isItemSpawnerSearchComponent(childId | 0);
+
+        if (this.itemSpawnerSearchFocused && !isItemSpawnerSearchClick) {
+            this.setItemSpawnerSearchFocus(false);
+        }
+        if (isItemSpawnerSearchClick) {
+            this.setItemSpawnerSearchFocus(true);
+            return;
+        }
 
         // PlayerDesign (679): handle locally (OSRS parity: appearance changes are client-side).
         // The interface widgets themselves are largely CS2-driven containers; server should only
@@ -4299,6 +4383,417 @@ export class OsrsClient {
         } finally {
             this.cs2Vm.activeWidget = prevActiveWidget;
         }
+    }
+
+    private getItemSpawnerWidgetUid(componentId: number): number {
+        return ((ITEM_SPAWNER_MODAL_GROUP_ID & 0xffff) << 16) | (componentId & 0xffff);
+    }
+
+    private getItemSpawnerQueryWidgetUid(): number {
+        return this.getItemSpawnerWidgetUid(ITEM_SPAWNER_MODAL_COMPONENT_QUERY);
+    }
+
+    private getItemSpawnerSearchBackgroundWidgetUid(): number {
+        return this.getItemSpawnerWidgetUid(ITEM_SPAWNER_MODAL_COMPONENT_SEARCH_BACKGROUND);
+    }
+
+    private getItemSpawnerHelperWidgetUid(): number {
+        return this.getItemSpawnerWidgetUid(ITEM_SPAWNER_MODAL_COMPONENT_HELPER);
+    }
+
+    private getItemSpawnerSummaryWidgetUid(): number {
+        return this.getItemSpawnerWidgetUid(ITEM_SPAWNER_MODAL_COMPONENT_SUMMARY);
+    }
+
+    private getItemSpawnerResultsViewWidgetUid(): number {
+        return this.getItemSpawnerWidgetUid(ITEM_SPAWNER_MODAL_COMPONENT_RESULTS_VIEW);
+    }
+
+    private getItemSpawnerResultsScrollbarWidgetUid(): number {
+        return this.getItemSpawnerWidgetUid(ITEM_SPAWNER_MODAL_COMPONENT_RESULTS_SCROLLBAR);
+    }
+
+    private getItemSpawnerSlotBackgroundWidgetUid(slotIndex: number): number {
+        return this.getItemSpawnerWidgetUid(ITEM_SPAWNER_MODAL_COMPONENT_SLOT_BACKGROUND_START + slotIndex);
+    }
+
+    private getItemSpawnerSlotIconWidgetUid(slotIndex: number): number {
+        return this.getItemSpawnerWidgetUid(ITEM_SPAWNER_MODAL_COMPONENT_SLOT_ICON_START + slotIndex);
+    }
+
+    private isItemSpawnerModalMounted(): boolean {
+        return (
+            (this.widgetManager?.getInterfaceParentContainerUid(ITEM_SPAWNER_MODAL_GROUP_ID) ??
+                undefined) !== undefined
+        );
+    }
+
+    private isItemSpawnerSearchComponent(componentId: number): boolean {
+        const normalized = componentId | 0;
+        return (
+            normalized === ITEM_SPAWNER_MODAL_COMPONENT_QUERY ||
+            normalized === ITEM_SPAWNER_MODAL_COMPONENT_SEARCH_BACKGROUND
+        );
+    }
+
+    private escapeItemSpawnerSearchText(value: string): string {
+        return String(value ?? "").replace(/[<>]/g, "");
+    }
+
+    private getItemSpawnerSearchIndex(): CacheItemSearchIndex | undefined {
+        if (!this.objTypeLoader) {
+            return undefined;
+        }
+        if (!this.itemSpawnerSearchIndex) {
+            this.itemSpawnerSearchIndex = new CacheItemSearchIndex(this.objTypeLoader);
+        }
+        return this.itemSpawnerSearchIndex;
+    }
+
+    private setItemSpawnerWidgetText(widgetUid: number, text: string): void {
+        if (!this.widgetManager) {
+            return;
+        }
+        const widget = this.widgetManager.getWidgetByUid(widgetUid);
+        if (!widget || widget.text === text) {
+            return;
+        }
+        widget.text = text;
+        markWidgetInteractionDirty(widget);
+        this.widgetManager.invalidateWidgetRender(widget);
+    }
+
+    private resolveItemSpawnerScrollbarGraphicId(token: string): number {
+        let spriteIndex: any;
+        try {
+            spriteIndex = this.cacheSystem?.getIndex?.(IndexType.DAT2.sprites);
+        } catch {
+            spriteIndex = undefined;
+        }
+        if (!spriteIndex) {
+            return -1;
+        }
+
+        const rawToken = String(token ?? "").trim();
+        if (rawToken.length === 0) {
+            return -1;
+        }
+
+        const directArchiveId = (spriteIndex as any).getArchiveId?.(rawToken);
+        if (typeof directArchiveId === "number" && directArchiveId >= 0) {
+            return directArchiveId | 0;
+        }
+
+        let archiveToken = rawToken;
+        let frameIndex = 0;
+        const commaIndex = rawToken.lastIndexOf(",");
+        if (commaIndex >= 0 && commaIndex < rawToken.length - 1) {
+            const candidateFrame = Number.parseInt(rawToken.slice(commaIndex + 1), 10);
+            if (Number.isFinite(candidateFrame) && candidateFrame >= 0) {
+                archiveToken = rawToken.slice(0, commaIndex);
+                frameIndex = candidateFrame | 0;
+            }
+        }
+
+        const archiveId = (spriteIndex as any).getArchiveId?.(archiveToken);
+        if (!(typeof archiveId === "number") || archiveId < 0) {
+            return -1;
+        }
+
+        return ((archiveId & 0xffff) << 16) | (frameIndex & 0xffff);
+    }
+
+    private formatItemSpawnerSearchText(): string {
+        const query = this.escapeItemSpawnerSearchText(this.itemSpawnerSearchQuery);
+        if (query.length === 0) {
+            return this.itemSpawnerSearchFocused
+                ? "<col=ffcf70>|</col>"
+                : "<col=8f7f66>Search items...</col>";
+        }
+        return this.itemSpawnerSearchFocused
+            ? `<col=e8ded0>${query}</col><col=ffcf70>|</col>`
+            : `<col=e8ded0>${query}</col>`;
+    }
+
+    private syncItemSpawnerSearchWidgets(): void {
+        if (!this.widgetManager) {
+            return;
+        }
+
+        const queryWidget = this.widgetManager.getWidgetByUid(this.getItemSpawnerQueryWidgetUid());
+        if (queryWidget) {
+            queryWidget.text = this.formatItemSpawnerSearchText();
+            markWidgetInteractionDirty(queryWidget);
+            this.widgetManager.invalidateWidgetRender(queryWidget);
+        }
+
+        const backgroundWidget = this.widgetManager.getWidgetByUid(
+            this.getItemSpawnerSearchBackgroundWidgetUid(),
+        ) as any;
+        if (backgroundWidget) {
+            backgroundWidget.color = this.itemSpawnerSearchFocused ? 0x3a3125 : 0x2b241b;
+            backgroundWidget.mouseOverColor = this.itemSpawnerSearchFocused ? 0x3a3125 : 0x342b20;
+            markWidgetInteractionDirty(backgroundWidget);
+            this.widgetManager.invalidateWidgetRender(backgroundWidget);
+        }
+    }
+
+    private initializeItemSpawnerScrollView(): void {
+        if (!this.widgetManager || !this.isItemSpawnerModalMounted()) {
+            return;
+        }
+
+        const resultsView = this.widgetManager.getWidgetByUid(this.getItemSpawnerResultsViewWidgetUid()) as any;
+        const scrollbar = this.widgetManager.getWidgetByUid(
+            this.getItemSpawnerResultsScrollbarWidgetUid(),
+        ) as any;
+        if (!resultsView || !scrollbar) {
+            return;
+        }
+
+        scrollbar.scrollBarTargetUid = resultsView.uid | 0;
+        scrollbar.scrollBarAxis = "y";
+
+        const hasScrollbarChildren =
+            Array.isArray(scrollbar.children) && scrollbar.children.length >= 6;
+        if (!hasScrollbarChildren) {
+            const graphicIds = ITEM_SPAWNER_SCROLLBAR_GRAPHICS.map((token) =>
+                this.resolveItemSpawnerScrollbarGraphicId(token),
+            );
+            if (graphicIds.some((id) => id < 0)) {
+                return;
+            }
+            this.runWidgetScopedClientScript(
+                scrollbar.uid | 0,
+                ITEM_SPAWNER_SCROLLBAR_INIT_SCRIPT_ID,
+                [scrollbar.uid | 0, resultsView.uid | 0, ...graphicIds],
+                "run_script",
+            );
+        }
+
+        this.widgetManager.invalidateWidget(scrollbar, "item-spawner-scrollbar-init");
+    }
+
+    private refreshItemSpawnerScrollbar(): void {
+        if (!this.widgetManager || !this.isItemSpawnerModalMounted()) {
+            return;
+        }
+
+        const resultsView = this.widgetManager.getWidgetByUid(this.getItemSpawnerResultsViewWidgetUid()) as any;
+        const scrollbar = this.widgetManager.getWidgetByUid(
+            this.getItemSpawnerResultsScrollbarWidgetUid(),
+        ) as any;
+        if (!resultsView || !scrollbar) {
+            return;
+        }
+
+        this.initializeItemSpawnerScrollView();
+        this.runWidgetScopedClientScript(
+            scrollbar.uid | 0,
+            ITEM_SPAWNER_SCROLLBAR_RESIZE_SCRIPT_ID,
+            [scrollbar.uid | 0, resultsView.uid | 0, (resultsView.scrollY ?? 0) | 0],
+            "run_script",
+        );
+        this.widgetManager.invalidateWidget(scrollbar, "item-spawner-scrollbar-resize");
+    }
+
+    private refreshItemSpawnerVisibleSlots(force: boolean = false): void {
+        if (!this.widgetManager || !this.isItemSpawnerModalMounted()) {
+            return;
+        }
+
+        const resultsView = this.widgetManager.getWidgetByUid(this.getItemSpawnerResultsViewWidgetUid()) as any;
+        if (!resultsView) {
+            return;
+        }
+
+        const scrollY = Math.max(0, (resultsView.scrollY ?? 0) | 0);
+        const startRow = Math.max(0, Math.floor(scrollY / ITEM_SPAWNER_SLOT_PITCH_Y));
+        if (
+            !force &&
+            startRow === this.itemSpawnerVisibleStartRow &&
+            this.itemSpawnerRenderedResultsVersion === this.itemSpawnerSearchResultsVersion
+        ) {
+            return;
+        }
+
+        this.itemSpawnerVisibleStartRow = startRow;
+        this.itemSpawnerRenderedResultsVersion = this.itemSpawnerSearchResultsVersion;
+
+        for (let slotIndex = 0; slotIndex < ITEM_SPAWNER_MODAL_RESULT_SLOT_COUNT; slotIndex++) {
+            const poolRow = Math.floor(slotIndex / ITEM_SPAWNER_MODAL_SLOT_COLUMNS);
+            const column = slotIndex % ITEM_SPAWNER_MODAL_SLOT_COLUMNS;
+            const resultRow = startRow + poolRow;
+            const resultIndex = resultRow * ITEM_SPAWNER_MODAL_SLOT_COLUMNS + column;
+            const result = this.itemSpawnerSearchResults[resultIndex];
+            const backgroundWidget = this.widgetManager.getWidgetByUid(
+                this.getItemSpawnerSlotBackgroundWidgetUid(slotIndex),
+            ) as any;
+            const iconWidget = this.widgetManager.getWidgetByUid(
+                this.getItemSpawnerSlotIconWidgetUid(slotIndex),
+            ) as any;
+            if (!backgroundWidget || !iconWidget) {
+                continue;
+            }
+
+            const backgroundRawY =
+                ITEM_SPAWNER_SLOT_BACKGROUND_BASE_RAW_Y + resultRow * ITEM_SPAWNER_SLOT_PITCH_Y;
+            const iconRawY = ITEM_SPAWNER_SLOT_ICON_BASE_RAW_Y + resultRow * ITEM_SPAWNER_SLOT_PITCH_Y;
+
+            backgroundWidget.rawY = backgroundRawY;
+            backgroundWidget.y = backgroundRawY;
+            iconWidget.rawY = iconRawY;
+            iconWidget.y = iconRawY;
+
+            const hidden = !result;
+            backgroundWidget.hidden = hidden;
+            backgroundWidget.isHidden = hidden;
+            iconWidget.hidden = hidden;
+            iconWidget.isHidden = hidden;
+
+            if (result) {
+                const resultName = this.escapeItemSpawnerSearchText(result.name);
+                iconWidget.itemId = result.itemId | 0;
+                iconWidget.itemQuantity = 1;
+                iconWidget.itemAmount = 1;
+                iconWidget.text = `<col=ffcf70>${resultName}</col> <col=c5b79b>(id ${result.itemId})</col>`;
+            } else {
+                iconWidget.itemId = -1;
+                iconWidget.itemQuantity = 0;
+                iconWidget.itemAmount = 0;
+                iconWidget.text = "";
+            }
+
+            markWidgetInteractionDirty(backgroundWidget);
+            markWidgetInteractionDirty(iconWidget);
+            this.widgetManager.invalidateWidgetRender(backgroundWidget);
+            this.widgetManager.invalidateWidgetRender(iconWidget);
+        }
+
+        this.widgetManager.invalidateScroll(resultsView);
+    }
+
+    private refreshItemSpawnerSearchResults(resetScroll: boolean = false): void {
+        if (!this.widgetManager || !this.isItemSpawnerModalMounted()) {
+            return;
+        }
+
+        const resultsView = this.widgetManager.getWidgetByUid(this.getItemSpawnerResultsViewWidgetUid()) as any;
+        if (!resultsView) {
+            return;
+        }
+
+        const query = this.escapeItemSpawnerSearchText(this.itemSpawnerSearchQuery);
+        const nextResults = query.length > 0 ? this.getItemSpawnerSearchIndex()?.search(query) ?? [] : [];
+        this.itemSpawnerSearchResults = nextResults;
+        this.itemSpawnerSearchResultsVersion++;
+
+        const totalRows = Math.max(
+            1,
+            Math.ceil(nextResults.length / Math.max(1, ITEM_SPAWNER_MODAL_SLOT_COLUMNS)),
+        );
+        const viewHeight = Math.max(0, (resultsView.height ?? 0) | 0);
+        const scrollHeight = Math.max(viewHeight, totalRows * ITEM_SPAWNER_SLOT_PITCH_Y);
+        resultsView.scrollWidth = Math.max(0, (resultsView.width ?? 0) | 0);
+        resultsView.scrollHeight = scrollHeight;
+
+        const maxScrollY = Math.max(0, scrollHeight - viewHeight);
+        const currentScrollY = (resultsView.scrollY ?? 0) | 0;
+        resultsView.scrollY = resetScroll ? 0 : Math.min(Math.max(0, currentScrollY), maxScrollY);
+
+        this.setItemSpawnerWidgetText(
+            this.getItemSpawnerHelperWidgetUid(),
+            "<col=c5b79b>Type to search cache items.</col>",
+        );
+        this.setItemSpawnerWidgetText(
+            this.getItemSpawnerSummaryWidgetUid(),
+            query.length === 0
+                ? "<col=c5b79b>Start typing to filter cache item names.</col>"
+                : nextResults.length > 0
+                ? `Matches: <col=40ff40>${nextResults.length}</col>`
+                : "<col=ff981f>No matches found in cache.</col>",
+        );
+
+        this.itemSpawnerVisibleStartRow = -1;
+        this.itemSpawnerRenderedResultsVersion = -1;
+        this.refreshItemSpawnerVisibleSlots(true);
+        this.refreshItemSpawnerScrollbar();
+        this.widgetManager.invalidateWidget(resultsView, "item-spawner-results");
+    }
+
+    private tickItemSpawnerSearchUi(): void {
+        if (!this.isItemSpawnerModalMounted()) {
+            return;
+        }
+        this.initializeItemSpawnerScrollView();
+        this.refreshItemSpawnerVisibleSlots();
+    }
+
+    private setItemSpawnerSearchFocus(focused: boolean): void {
+        this.itemSpawnerSearchFocused = !!focused && this.isItemSpawnerModalMounted();
+        this.syncItemSpawnerSearchWidgets();
+    }
+
+    private clearItemSpawnerSearchState(): void {
+        this.itemSpawnerSearchFocused = false;
+        this.itemSpawnerSearchQuery = "";
+        this.itemSpawnerSearchResults = [];
+        this.itemSpawnerSearchResultsVersion = 0;
+        this.itemSpawnerRenderedResultsVersion = -1;
+        this.itemSpawnerVisibleStartRow = -1;
+    }
+
+    private handleItemSpawnerSearchKeyEvents(
+        keyEvents: Array<{ keyTyped: number; keyPressed: number }>,
+    ): boolean {
+        if (!this.itemSpawnerSearchFocused) {
+            return false;
+        }
+        if (!this.isItemSpawnerModalMounted()) {
+            this.clearItemSpawnerSearchState();
+            return false;
+        }
+
+        const OSRS_KEY_ENTER = 84;
+        const OSRS_KEY_BACKSPACE = 85;
+        const OSRS_KEY_ESCAPE = 13;
+        let query = this.itemSpawnerSearchQuery;
+        let changed = false;
+
+        for (const keyEvent of keyEvents) {
+            if ((keyEvent.keyTyped | 0) === OSRS_KEY_ESCAPE) {
+                this.setItemSpawnerSearchFocus(false);
+                continue;
+            }
+            if ((keyEvent.keyTyped | 0) === OSRS_KEY_ENTER) {
+                continue;
+            }
+            if ((keyEvent.keyTyped | 0) === OSRS_KEY_BACKSPACE) {
+                if (query.length > 0) {
+                    query = query.slice(0, -1);
+                    changed = true;
+                }
+                continue;
+            }
+            if ((keyEvent.keyPressed | 0) <= 0 || query.length >= 60) {
+                continue;
+            }
+
+            const char = String.fromCharCode(keyEvent.keyPressed | 0);
+            if (!/^[ -~]$/.test(char)) {
+                continue;
+            }
+            query += char;
+            changed = true;
+        }
+
+        if (changed) {
+            this.itemSpawnerSearchQuery = query;
+            this.syncItemSpawnerSearchWidgets();
+            this.refreshItemSpawnerSearchResults(true);
+        }
+
+        return true;
     }
 
     private isLeagueKaramjaUnlockedLocally(): boolean {
@@ -6434,6 +6929,8 @@ export class OsrsClient {
             // OSRS parity: When inputDialogType > 0, keyboard input is captured for the dialog
             // Type 0 = no dialog, Type 1 = default, Type 2 = interface-scoped, Type 3 = widget-scoped
             const dialogActive = this.cs2Vm.inputDialogType > 0;
+            const itemSpawnerSearchHandled =
+                !dialogActive && this.handleItemSpawnerSearchKeyEvents(input.keyEvents);
 
             // Process keyboard input for active dialog before widget handlers
             if (dialogActive) {
@@ -6510,6 +7007,10 @@ export class OsrsClient {
                         }
                     }
                 }
+            }
+
+            if (itemSpawnerSearchHandled) {
+                return;
             }
 
             // Collect ALL widgets with onKey handlers from all roots.
@@ -8834,6 +9335,9 @@ export class OsrsClient {
             } catch (err) {
                 console.warn("Script event processing failed", err);
             }
+            try {
+                this.tickItemSpawnerSearchUi();
+            } catch {}
             try {
                 this.tryWriteVarcs();
             } catch {}

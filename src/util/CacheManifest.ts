@@ -12,8 +12,6 @@ export interface CacheManifestEntry {
     revision?: number;
 }
 
-type CacheManifest = Record<string, CacheManifestEntry>;
-
 function openDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
         if (typeof indexedDB === "undefined") {
@@ -30,28 +28,6 @@ function openDB(): Promise<IDBDatabase> {
             }
         };
     });
-}
-
-async function loadManifest(): Promise<CacheManifest> {
-    try {
-        const db = await openDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_NAME, "readonly");
-            const store = tx.objectStore(STORE_NAME);
-            const request = store.getAll();
-            request.onsuccess = () => {
-                const entries = request.result as CacheManifestEntry[];
-                const manifest: CacheManifest = {};
-                for (const entry of entries) {
-                    manifest[entry.cacheName] = entry;
-                }
-                resolve(manifest);
-            };
-            request.onerror = () => reject(request.error);
-        });
-    } catch {
-        return {};
-    }
 }
 
 async function storeManifestEntry(entry: CacheManifestEntry): Promise<void> {

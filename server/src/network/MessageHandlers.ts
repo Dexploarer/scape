@@ -211,11 +211,19 @@ export interface MessageHandlerServices {
         messageType: "game" | "public" | "server";
         text: string;
         playerId?: number;
+        from?: string;
+        prefix?: string;
+        playerType?: number;
+        colorId?: number;
+        effectId?: number;
+        pattern?: number[];
+        autoChat?: boolean;
         targetPlayerIds?: number[];
     }) => void;
     getPublicChatPlayerType: (player: PlayerState) => number;
     enqueueLevelUpPopup: (player: PlayerState, data: any) => void;
     handleVoteCommand: (player: PlayerState, args: string[]) => string | undefined;
+    handleItemSpawnerCommand: (player: PlayerState, args: string[]) => string | undefined;
 
     // Debug
     broadcast: (message: string | Uint8Array, context: string) => void;
@@ -1050,6 +1058,19 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     return;
                 }
 
+                if (root === "itemspawner") {
+                    const searchArgs = parts.slice(1);
+                    const response = services.handleItemSpawnerCommand(sender, searchArgs);
+                    if (response?.trim()) {
+                        services.queueChatMessage({
+                            messageType: "game",
+                            text: response.trim(),
+                            targetPlayerIds: [sender.id],
+                        });
+                    }
+                    return;
+                }
+
                 if (root === "clear") {
                     try {
                         services.clearActionsInGroup(sender.id, "inventory");
@@ -1110,7 +1131,7 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
 
                 if (root === "randomitem") {
                     const itemId = pickRandomUnownedCollectionLogItemId(sender);
-                    if (!Number.isFinite(itemId) || itemId <= 0) {
+                    if (typeof itemId !== "number" || !Number.isFinite(itemId) || itemId <= 0) {
                         services.queueChatMessage({
                             messageType: "game",
                             text: "No unowned collection log items remain for ::randomitem.",
@@ -1305,9 +1326,16 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
             const messageType = payload.messageType === "game" ? "game" : "public";
             const colorIdRaw = payload.colorId;
             const effectIdRaw = payload.effectId;
-            let colorId = Number.isFinite(colorIdRaw) && colorIdRaw >= 0 ? colorIdRaw & 0xff : 0;
+            let colorId =
+                typeof colorIdRaw === "number" && Number.isFinite(colorIdRaw) && colorIdRaw >= 0
+                    ? colorIdRaw & 0xff
+                    : 0;
             let effectId =
-                Number.isFinite(effectIdRaw) && effectIdRaw >= 0 ? effectIdRaw & 0xff : 0;
+                typeof effectIdRaw === "number" &&
+                Number.isFinite(effectIdRaw) &&
+                effectIdRaw >= 0
+                    ? effectIdRaw & 0xff
+                    : 0;
             if (effectId > 5) effectId = 0;
             if (colorId > 20) colorId = 0;
 

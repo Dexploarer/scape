@@ -8,7 +8,6 @@ import {
     useRef,
     useState,
 } from "react";
-import { SingleValue } from "react-select";
 import { useElementSize } from "usehooks-ts";
 
 import { getMapSquareId } from "../../../rs/map/MapFileIndex";
@@ -20,17 +19,6 @@ interface Location {
     name: string;
     coords: number[];
     size?: string;
-}
-
-function getTileSize(size?: string) {
-    switch (size) {
-        case "large":
-            return 2;
-        case "medium":
-            return 3;
-        default:
-            return 4;
-    }
 }
 
 interface LocationOption {
@@ -99,7 +87,7 @@ export const WorldMap = memo(function WorldMap(props: WorldMapProps) {
     const halfWidth = (width / 2) | 0;
     const halfHeight = (height / 2) | 0;
 
-    const animate = (time: DOMHighResTimeStamp) => {
+    const animate = useCallback((time: DOMHighResTimeStamp) => {
         const halfTileSize = tileSize / 2;
         const imageSize = 64 * tileSize;
 
@@ -129,6 +117,7 @@ export const WorldMap = memo(function WorldMap(props: WorldMapProps) {
                             key={mapId}
                             className={`worldmap-image ${imageMapX}_${imageMapY}`}
                             src={mapUrl}
+                            alt=""
                             style={{
                                 left: x + rx * imageSize,
                                 bottom: y + ry * imageSize,
@@ -144,12 +133,12 @@ export const WorldMap = memo(function WorldMap(props: WorldMapProps) {
         setImages(images);
 
         requestRef.current = requestAnimationFrame(animate);
-    };
+    }, [cameraX, cameraY, halfHeight, halfWidth, height, loadMapImageUrl, pos.x, pos.y, tileSize, width]);
 
     useLayoutEffect(() => {
         requestRef.current = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(requestRef.current!);
-    }, [width, height, pos, tileSize]);
+    }, [animate]);
 
     const teleportAtPointer = (offsetX: number, offsetY: number) => {
         const deltaX = (offsetX - halfWidth) / tileSize + 0.5;
@@ -309,17 +298,6 @@ export const WorldMap = memo(function WorldMap(props: WorldMapProps) {
     const zoomIn = () => {
         zoom(1);
     };
-
-    const onLocationSelected = useCallback((value: SingleValue<LocationOption>) => {
-        if (value) {
-            const location = locationsMap[value.value];
-            setPos({
-                x: location.coords[0],
-                y: location.coords[1],
-            });
-            setTileSizeIndex(TILE_SIZES.indexOf(getTileSize(location.size)));
-        }
-    }, []);
 
     const borderWidth = MAX_X * tileSize;
     const borderHeight = MAX_Y * tileSize;

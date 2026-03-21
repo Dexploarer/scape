@@ -1,4 +1,3 @@
-import { DEFAULT_SCREEN_HEIGHT, DEFAULT_SCREEN_WIDTH } from "../../client/ClientState";
 import { CacheIndex } from "../../rs/cache/CacheIndex";
 import { CacheSystem } from "../../rs/cache/CacheSystem";
 import { IndexType } from "../../rs/cache/IndexType";

@@ -67,7 +67,7 @@ function hasCacheStorage(): boolean {
 if (typeof window !== "undefined" && window.__rsWorkerPoolNonce === undefined) {
     window.__rsWorkerPoolNonce = 0;
 }
-const workerPoolNonce = readWorkerPoolNonce();
+readWorkerPoolNonce();
 
 // On hot-reload, dispose the existing OsrsClient and increment the nonce
 if (typeof module !== "undefined" && module.hot) {
@@ -167,7 +167,7 @@ function OsrsClientApp() {
 
     const workerPool = useMemo(
         () => RenderDataWorkerPool.create(workerCount),
-        [workerCount, workerPoolNonce],
+        [workerCount],
     );
 
     useEffect(() => {
@@ -400,7 +400,7 @@ function OsrsClientApp() {
             }
             abortController.abort();
         };
-    }, [addStorageWarning, loginUnsubscribers]);
+    }, [addStorageWarning, loginUnsubscribers, workerPool]);
 
     let content: JSX.Element | undefined;
 

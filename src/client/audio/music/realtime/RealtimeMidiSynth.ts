@@ -76,12 +76,6 @@ type MidiEvent = (
 ) &
     MidiEventBase;
 
-// Worklet URL (will be created as blob)
-const WORKLET_CODE = `
-// Inline worklet code - see MusicWorkletProcessor.ts for the full implementation
-// This is a simplified version that gets loaded dynamically
-`;
-
 export class RealtimeMidiSynth {
     private cache: CacheSystem;
     private soundCache: SoundCache;
@@ -1301,7 +1295,6 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
         }
 
         // Set up default patches per channel
-        const defaultChannel9Patch = await MusicPatch.tryLoad(this.cache, 128);
         for (let i = 0; i < 16; i++) {
             const defaultProgram = i === 9 ? 128 : 0;
             this.channelBanks[i] = i === 9 ? 128 : 0;
@@ -1334,7 +1327,7 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
         }
 
         const headerLength = buf.readInt();
-        const format = buf.readUnsignedShort();
+        buf.readUnsignedShort();
         const trackCount = buf.readUnsignedShort();
         this.division = buf.readUnsignedShort();
 
@@ -1375,8 +1368,6 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
             const trackEnd = buf.offset + trackLength;
             let tick = 0;
             let runningStatus = 0;
-            let eventCount = 0;
-
             while (buf.offset < trackEnd) {
                 // Read delta time
                 let delta = 0;
@@ -1579,11 +1570,6 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
     private async preloadSamplesForPatch(patch: MusicPatch, patchId: number): Promise<void> {
         if (!this.workletNode) return;
 
-        let loaded = 0,
-            failed = 0,
-            skipped = 0;
-        const failedSamples: number[] = [];
-
         for (let key = 0; key < 128; key++) {
             const sampleId = patch.field3529[key];
             if (sampleId === 0) continue;
@@ -1592,7 +1578,6 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
             const decremented = sampleId - 1;
             const sid = decremented >> 2;
             if (this.loadedSamples.has(sid)) {
-                skipped++;
                 continue;
             }
 
@@ -1603,8 +1588,6 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
                 : await this.soundCache.method881(sid);
 
             if (!raw) {
-                failed++;
-                failedSamples.push(sid);
                 continue;
             }
 
@@ -1628,7 +1611,6 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
             );
 
             this.loadedSamples.add(sid);
-            loaded++;
         }
     }
 
@@ -1654,12 +1636,8 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
             }
         }
 
-        let loaded = 0;
-        let failed = 0;
-
         for (const [sid, info] of sampleInfo) {
             if (this.loadedSamples.has(sid)) {
-                loaded++;
                 continue;
             }
 
@@ -1697,9 +1675,7 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
                 );
 
                 this.loadedSamples.add(sid);
-                loaded++;
             } else {
-                failed++;
                 console.warn(
                     `[RealtimeMidiSynth] Failed to load sample ${sid} (music=${info.isMusicSample})`,
                 );

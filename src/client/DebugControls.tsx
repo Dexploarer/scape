@@ -2,11 +2,10 @@ import FileSaver from "file-saver";
 import { vec3 } from "gl-matrix";
 import { Leva, button, buttonGroup, folder, useControls } from "leva";
 import { ButtonGroupOpts, Schema } from "leva/dist/declarations/src/types";
-import { memo, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 
 import { DownloadProgress } from "../rs/cache/CacheFiles";
 import { IndexType } from "../rs/cache/IndexType";
-import { isTouchDevice } from "../util/DeviceUtil";
 import { lerp, slerp } from "../util/MathUtil";
 import { loadCacheFiles } from "./Caches";
 import { CameraView, ProjectionType } from "./Camera";
@@ -72,7 +71,7 @@ export const DebugControls = memo(
         const [animationDuration, setAnimationDuration] = useState(10);
         const [cameraPoints, setCameraPoints] = useState<CameraView[]>(() => []);
 
-        const addPoint = () => {
+        const addPoint = useCallback(() => {
             setCameraPoints((pts) => [
                 ...pts,
                 {
@@ -86,11 +85,11 @@ export const DebugControls = memo(
                     orthoZoom: osrsClient.camera.orthoZoom,
                 },
             ]);
-        };
+        }, [osrsClient]);
 
-        const removeLastPoint = () => {
+        const removeLastPoint = useCallback(() => {
             setCameraPoints((pts) => pts.slice(0, pts.length - 1));
-        };
+        }, []);
 
         useEffect(() => {
             function handleKeyDown(e: KeyboardEvent) {
@@ -119,7 +118,7 @@ export const DebugControls = memo(
             return () => {
                 document.removeEventListener("keydown", handleKeyDown);
             };
-        }, [osrsClient]);
+        }, [addPoint, osrsClient, removeLastPoint, setHideUi]);
 
         useEffect(() => {
             setPointControls(

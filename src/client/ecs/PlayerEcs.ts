@@ -1900,8 +1900,6 @@ export class PlayerEcs {
                 } catch {}
                 const cx = this.x[i] | 0;
                 const cy = this.y[i] | 0;
-                const tx = this.targetX[i] | 0;
-                const ty = this.targetY[i] | 0;
                 // store prev for interpolation
                 this.prevX[i] = cx;
                 this.prevY[i] = cy;

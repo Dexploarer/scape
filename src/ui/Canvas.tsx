@@ -10,10 +10,11 @@ export function Canvas({ renderer }: CanvasProps): JSX.Element {
     const divRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (!divRef.current) {
+        const host = divRef.current;
+        if (!host) {
             return;
         }
-        divRef.current.appendChild(renderer.canvas);
+        host.appendChild(renderer.canvas);
         renderer.attachResizeObserver();
         requestAnimationFrame(() => renderer.forceResize());
 
@@ -23,7 +24,7 @@ export function Canvas({ renderer }: CanvasProps): JSX.Element {
 
         return () => {
             renderer.stop();
-            divRef.current?.removeChild(renderer.canvas);
+            host.removeChild(renderer.canvas);
         };
     }, [renderer]);
 

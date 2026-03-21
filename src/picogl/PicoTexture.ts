@@ -26,6 +26,7 @@ export function createTextureArray(
 }
 
 export class PicoTexture extends Texture {
+    // eslint-disable-next-line @typescript-eslint/no-useless-constructor
     constructor(
         gl: WebGLRenderingContext,
         appState: any,
@@ -37,7 +38,7 @@ export class PicoTexture extends Texture {
         mipmaps: boolean,
         options: any,
     ) {
-        // @ts-ignore
+        // @ts-ignore picogl's concrete Texture class is loaded dynamically from its module build.
         super(gl, appState, binding, image, width, height, depth, mipmaps, options);
     }
 

@@ -1,4 +1,4 @@
-import { CacheFiles, DownloadProgress, ProgressListener } from "../rs/cache/CacheFiles";
+import { CacheFiles, ProgressListener } from "../rs/cache/CacheFiles";
 import { CacheInfo, getLatestCache } from "../rs/cache/CacheInfo";
 import { CacheType, detectCacheType } from "../rs/cache/CacheType";
 import { IndexType } from "../rs/cache/IndexType";
@@ -183,9 +183,7 @@ export async function loadIndexFile(
 }
 
 /** Get the list of required index IDs for a cache */
-export { getRequiredIndexIds };
-
-function getRequiredIndexIds(info: CacheInfo): number[] {
+export function getRequiredIndexIds(info: CacheInfo): number[] {
     const ids: number[] = [];
     // Core indices used by renderer and minimap generation
     ids.push(

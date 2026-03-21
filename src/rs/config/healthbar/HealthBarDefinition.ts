@@ -1,4 +1,3 @@
-import { CacheInfo } from "../../cache/CacheInfo";
 import { ByteBuffer } from "../../io/ByteBuffer";
 import { Type } from "../Type";
 
@@ -22,10 +21,6 @@ export class HealthBarDefinition extends Type {
     width: number = 30;
     /** Padding applied to each side when stretching foreground sprite. */
     widthPadding: number = 0;
-
-    constructor(id: number, cacheInfo: CacheInfo) {
-        super(id, cacheInfo);
-    }
 
     override decodeOpcode(opcode: number, buffer: ByteBuffer): void {
         if (opcode === 1) {

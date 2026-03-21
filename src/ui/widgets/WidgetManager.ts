@@ -759,7 +759,6 @@ export class WidgetManager {
     isEffectivelyHidden(uid: number): boolean {
         const widget = this.widgetByUid.get(uid);
         const groupId = (uid >>> 16) & 0xffff;
-        const childId = uid & 0xffff;
 
         if (!widget) {
             return true; // Widget not found = treat as hidden
@@ -1693,7 +1692,6 @@ export class WidgetManager {
         // Need at least one of the listeners/invokers
         if (!this.onLoadListener && !this.onLoadInvoker) return;
 
-        let scriptCount = 0;
         const stack: WidgetNode[] = [root];
         while (stack.length > 0) {
             const node = stack.pop();
@@ -1702,14 +1700,12 @@ export class WidgetManager {
             // First check runtime handler (set via IF_SETONLOAD / CC_SETONLOAD)
             const runtimeHandler = node.eventHandlers?.onLoad;
             if (runtimeHandler && this.onLoadInvoker) {
-                scriptCount++;
                 this.onLoadInvoker(node);
             }
             // Then check cache-loaded onLoad array (this is critical for setting up tab handlers!)
             else if (Array.isArray(node.onLoad) && node.onLoad.length > 0 && this.onLoadListener) {
                 const scriptId = node.onLoad[0];
                 if (typeof scriptId === "number" && scriptId > 0) {
-                    scriptCount++;
                     this.onLoadListener(scriptId, node);
                 }
             }
@@ -1777,7 +1773,7 @@ export class WidgetManager {
         }
 
         // Also trigger for mounted sub-interfaces (which may have multiple roots)
-        for (const [_uid, parent] of this.interfaceParents) {
+        for (const [, parent] of this.interfaceParents) {
             const allSubRoots = this.getAllGroupRoots(parent.group);
             const subStack: WidgetNode[] = [...allSubRoots];
             while (subStack.length > 0) {

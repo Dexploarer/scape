@@ -91,17 +91,17 @@ export function GameContainer({ osrsClient }: OsrsContainerProps): JSX.Element {
     const requestRef = useRef<number | undefined>();
     const widgetManagerReady = osrsClient.widgetManager != null;
 
-    const animate = (time: DOMHighResTimeStamp) => {
-        setFps(Math.round(renderer.stats.frameTimeFps));
-        if (!hideUi && osrsClient.hoverOverlayEnabled) {
-            // Keep F3 stats overlay values live even when FPS number doesn't change.
+    const animate = useCallback((time: DOMHighResTimeStamp) => {
+        setFps(Math.round(renderer.stats.frameTimeFps));
+        if (!hideUi && osrsClient.hoverOverlayEnabled) {
+            // Keep F3 stats overlay values live even when FPS number doesn't change.
             forceStatsOverlayRefresh(renderer.stats.frameCount | 0);
         }
-
-        // WebGL overlay handles Choose Option; no CSS menu props updates needed
-
-        requestRef.current = requestAnimationFrame(animate);
-    };
+
+        // WebGL overlay handles Choose Option; no CSS menu props updates needed
+
+        requestRef.current = requestAnimationFrame(animate);
+    }, [hideUi, osrsClient, renderer]);
 
     useEffect(() => {
         renderer.setUiHidden(hideUi);
@@ -110,7 +110,7 @@ export function GameContainer({ osrsClient }: OsrsContainerProps): JSX.Element {
     useEffect(() => {
         requestRef.current = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(requestRef.current!);
-    }, [hideUi, renderer, osrsClient]);
+    }, [animate]);
 
     useEffect(() => {
         const frameId = requestAnimationFrame(() => {
@@ -230,8 +230,8 @@ export function GameContainer({ osrsClient }: OsrsContainerProps): JSX.Element {
 
             closeWorldMap();
         },
-        [osrsClient, closeWorldMap],
-    );
+        [allowWorldMapTeleport, closeWorldMap, osrsClient],
+    );
 
     // Camera-based position (tiles). Used for world map and other UI.
     const getMapPosition = useCallback(() => {

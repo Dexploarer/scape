@@ -55,6 +55,52 @@
   "eslintConfig": {
     "extends": [
       "react-app"
+    ],
+    "overrides": [
+      {
+        "files": [
+          "src/rs/**/*.{ts,js}"
+        ],
+        "rules": {
+          "@typescript-eslint/no-unused-vars": "off",
+          "eqeqeq": "off",
+          "strict": "off"
+        }
+      },
+      {
+        "files": [
+          "src/client/OsrsClient.ts"
+        ],
+        "rules": {
+          "@typescript-eslint/no-unused-vars": "off",
+          "no-useless-escape": "off"
+        }
+      },
+      {
+        "files": [
+          "src/client/audio/**/*.{ts,tsx}",
+          "src/client/login/**/*.{ts,tsx}",
+          "src/client/menu/**/*.{ts,tsx}",
+          "src/client/movement/**/*.{ts,tsx}",
+          "src/client/roof/**/*.{ts,tsx}",
+          "src/client/sync/**/*.{ts,tsx}",
+          "src/client/webgl/**/*.{ts,tsx}",
+          "src/ui/gl/**/*.{ts,tsx}",
+          "src/ui/item/**/*.{ts,tsx}",
+          "src/ui/model/**/*.{ts,tsx}"
+        ],
+        "rules": {
+          "@typescript-eslint/no-unused-vars": "off"
+        }
+      },
+      {
+        "files": [
+          "src/util/*.js"
+        ],
+        "rules": {
+          "strict": "off"
+        }
+      }
     ]
   },
   "browserslist": {

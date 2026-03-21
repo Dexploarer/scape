@@ -4,12 +4,7 @@
  * Matches the reference client's PacketWriter/packetWriter pattern.
  * Packets are queued and flushed to the WebSocket as binary data.
  */
-import {
-    CLIENT_PACKET_LENGTHS,
-    ClientPacketId,
-    isVariableLength,
-    isVariableShort,
-} from "./ClientPacket";
+import { CLIENT_PACKET_LENGTHS, ClientPacketId } from "./ClientPacket";
 import { PacketBuffer } from "./PacketBuffer";
 
 /**

@@ -10,13 +10,11 @@ import {
     VARP_COMBAT_TARGET_PLAYER_INDEX,
     VARP_FOLLOWER_INDEX,
     VARP_MASTER_VOLUME,
-    VARP_MUSICPLAY,
     VARP_MUSIC_VOLUME,
     VARP_OPTION_ATTACK_PRIORITY_NPC,
     VARP_OPTION_ATTACK_PRIORITY_PLAYER,
     VARP_SOUND_EFFECTS_VOLUME,
 } from "../shared/vars";
-import { checkMobile, isIos } from "../util/DeviceUtil";
 import { type CombatStatePayload, CombatStateStore } from "./combat/CombatStateStore";
 import { setPacketSocket } from "./packet";
 import { encodeClientMessage } from "./packet/ClientBinaryEncoder";
@@ -25,7 +23,6 @@ import { encodeClientMessage } from "./packet/ClientBinaryEncoder";
 // Ensure only one live WebSocket during React Fast Refresh/HMR
 const WS_GLOBAL_KEY = "__OSRS_CLIENT_WS_SINGLETON__";
 const WS_SUPPRESS_RECONNECT_KEY = "__OSRS_CLIENT_WS_SUPPRESS_RECONNECT__";
-declare const module: any; // for webpack HMR in CRA
 
 const INVENTORY_SLOT_COUNT = 28;
 // Bank CS2 scripts index slots up to 1409 (bankmain_build uses 1410 constant).
@@ -480,156 +477,6 @@ export type SpellResultPayload = {
     maxHit?: number;
     accuracy?: number;
 };
-
-type ServerToClient =
-    | { type: "welcome"; payload: { tickMs: number; serverTime: number } }
-    | {
-          type: "login_response";
-          payload: { success: boolean; error?: string; errorCode?: number; displayName?: string };
-      }
-    | { type: "tick"; payload: { tick: number; time: number } }
-    | { type: "destination"; payload: { worldX: number; worldY: number } }
-    | {
-          type: "path";
-          payload: {
-              id: number;
-              ok: boolean;
-              waypoints?: { x: number; y: number }[];
-              message?: string;
-          };
-      }
-    | {
-          type: "anim";
-          payload: PlayerAnimPayload;
-      }
-    | {
-          type: "handshake";
-          payload: {
-              id: number;
-              appearance?: { gender: number; colors?: number[]; kits?: number[]; equip?: number[] };
-              name?: string;
-              chatIcons?: number[];
-              chatPrefix?: string;
-          };
-      }
-    | { type: "inventory"; payload: InventoryServerUpdate }
-    | { type: "collection_log"; payload: CollectionLogServerPayload }
-    | { type: "bank"; payload: BankServerUpdate }
-    | { type: "shop"; payload: ShopServerPayload }
-    | { type: "smithing"; payload: SmithingServerPayload }
-    | { type: "skills"; payload: SkillsServerPayload }
-    | { type: "combat"; payload: CombatStatePayload }
-    | { type: "run_energy"; payload: RunEnergyPayload }
-    | { type: "widget"; payload: WidgetServerPayload }
-    | { type: "hitsplat"; payload: HitsplatServerPayload }
-    | {
-          type: "npc_info";
-          payload: { loopCycle: number; large: boolean; packet: string | number[] };
-      }
-    | { type: "spell_result"; payload: SpellResultPayload }
-    | { type: "projectiles"; payload: { list: ProjectileLaunch[] } }
-    | {
-          type: "spot";
-          payload: SpotAnimationPayload;
-      }
-    | {
-          type: "player_sync";
-          payload: {
-              baseX: number;
-              baseY: number;
-              localIndex: number;
-              loopCycle: number;
-              packet: string | number[];
-          };
-      }
-    | {
-          type: "chat";
-          payload: {
-              messageType:
-                  | "game"
-                  | "public"
-                  | "private_in"
-                  | "private_out"
-                  | "channel"
-                  | "clan"
-                  | "trade"
-                  | "server";
-              playerId?: number;
-              from?: string;
-              prefix?: string;
-              text: string;
-          };
-      }
-    | {
-          type: "loc_change";
-          payload: {
-              oldId: number;
-              newId: number;
-              tile: { x: number; y: number };
-              level: number;
-              oldTile?: { x: number; y: number };
-              newTile?: { x: number; y: number };
-              oldRotation?: number;
-              newRotation?: number;
-          };
-      }
-    | {
-          type: "vars";
-          payload: {
-              varps?: Record<number, number>;
-              varbits?: Record<number, number>;
-          };
-      }
-    | {
-          type: "sound";
-          payload: {
-              soundId: number;
-              x?: number;
-              y?: number;
-              level?: number;
-              loops?: number;
-              delay?: number;
-              /** SOUND_AREA: radius in tiles (0-15, default 0 = no distance falloff) */
-              radius?: number;
-              /** SOUND_AREA: volume (0-255, default 255 = full volume) */
-              volume?: number;
-          };
-      }
-    | {
-          type: "play_song";
-          payload: {
-              trackId: number;
-              fadeOutDelay?: number;
-              fadeOutDuration?: number;
-              fadeInDelay?: number;
-              fadeInDuration?: number;
-          };
-      }
-    | {
-          type: "play_jingle";
-          payload: {
-              jingleId: number;
-              delay?: number;
-          };
-      }
-    | {
-          type: "debug";
-          payload:
-              | { kind: "projectiles_request"; requestId: number }
-              | {
-                    kind: "projectiles_snapshot";
-                    requestId: number;
-                    fromId?: number;
-                    snapshot: any;
-                }
-              | { kind: "anim_request"; requestId: number }
-              | {
-                    kind: "anim_snapshot";
-                    requestId: number;
-                    fromId?: number;
-                    snapshot: any;
-                };
-      };
 
 type ClientToServer =
     | { type: "hello"; payload: { client: string; version?: string } }

@@ -273,7 +273,6 @@ export class NpcManager {
         const size = Math.max(1, npcType.size);
         const rotationSpeed = Math.max(1, npcType.rotationSpeed);
         const wanderRadius = Math.max(0, spawn.wanderRadius ?? DEFAULT_NPC_WANDER_RADIUS);
-        const isClipped = npcType.isClipped;
         this.maxNpcSize = Math.max(this.maxNpcSize, size);
 
         const id = this.allocateNpcId();
@@ -301,7 +300,6 @@ export class NpcManager {
             {
                 name: spawn.name,
                 wanderRadius,
-                isClipped,
                 maxHitpoints,
                 combatLevel,
                 // Use resolved combat profile attack type as the single source of truth.
@@ -1045,9 +1043,6 @@ export class NpcManager {
     }
 
     private prunePathAgainstCurrentCollision(npc: NpcState): void {
-        if (!npc.isClipped) {
-            return;
-        }
         const queuedSteps = npc.getPathQueue();
         if (queuedSteps.length === 0) {
             return;
@@ -1444,11 +1439,7 @@ export class NpcManager {
             const tx = clamp(npc.spawnX + dx, npc.spawnX - radius, npc.spawnX + radius);
             const ty = clamp(npc.spawnY + dy, npc.spawnY - radius, npc.spawnY + radius);
             if (tx === npc.tileX && ty === npc.tileY) continue;
-            if (npc.isClipped) {
-                if (!this.canOccupyTile(tx, ty, npc.level, npc.size, npc.id)) continue;
-            } else {
-                if (this.hasOccupancyConflict(tx, ty, npc)) continue;
-            }
+            if (this.hasOccupancyConflict(tx, ty, npc)) continue;
             return { x: tx, y: ty };
         }
         return undefined;

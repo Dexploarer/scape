@@ -148,6 +148,14 @@ export class NpcState extends Actor {
     readonly rotationSpeed: number;
     readonly wanderRadius: number;
     /**
+     * OSRS parity: NpcComposition opcode 109 sets isClipped=false.
+     * When false the NPC ignores map collision entirely — it can spawn on and
+     * walk through objects, walls, and blocked tiles (e.g. bartenders inside
+     * tables, decorative NPCs placed inside scenery).
+     * Default true (clipped) for all NPCs unless the cache explicitly opts out.
+     */
+    readonly isClipped: boolean;
+    /**
      * NPC attack speed in ticks. Loaded from cache param 14.
      * OSRS parity: Most NPCs are 4 ticks, dragons are 6, some bosses vary.
      * Default fallback is 4 if not found in cache.
@@ -224,6 +232,8 @@ export class NpcState extends Actor {
         options: {
             name?: string;
             wanderRadius?: number;
+            /** NpcComposition opcode 109: false = ignore collision. Default: true */
+            isClipped?: boolean;
             maxHitpoints?: number;
             combatLevel?: number;
             attackType?: AttackType;
@@ -253,6 +263,8 @@ export class NpcState extends Actor {
         this.rotationSpeed = Math.max(1, rotationSpeed);
         // Allow wanderRadius=0 so spawns can explicitly opt out of roaming
         this.wanderRadius = Math.max(0, options.wanderRadius ?? DEFAULT_NPC_WANDER_RADIUS);
+        // OSRS parity: NpcComposition opcode 109 — false means the NPC bypasses collision
+        this.isClipped = options.isClipped ?? true;
         const maxHp = Math.max(1, options.maxHitpoints ?? 10);
         this.maxHitpoints = maxHp;
         this.hitpoints = maxHp;

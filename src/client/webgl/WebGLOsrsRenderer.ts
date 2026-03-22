@@ -8029,6 +8029,10 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     private isLocHighlightTargetStillPresent(target: LocHighlightTarget): boolean {
+        // Clear highlight if the player changed planes (e.g. climbing stairs)
+        if ((this.getPlayerBasePlane() | 0) !== (target.plane | 0)) {
+            return false;
+        }
         const typeRot = this.resolveLocTypeRotAtTile(
             target.locId | 0,
             target.tileX | 0,

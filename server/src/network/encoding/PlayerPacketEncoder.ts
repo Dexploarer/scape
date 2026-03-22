@@ -553,7 +553,9 @@ export class PlayerPacketEncoder {
             const toPlane = view.level & 0x3;
             let from = session.lastKnownTiles.get(id);
             if (!from && id === localIndex) {
-                from = { x: 0, y: 0, level: toPlane };
+                // Client initializes local player state at level 0, so the delta
+                // must be computed from level 0 — not toPlane — on the first frame.
+                from = { x: 0, y: 0, level: 0 };
             }
             if (!from) from = { x: toTileX, y: toTileY, level: toPlane };
             const planeDelta = (toPlane - from.level) & 0x3;

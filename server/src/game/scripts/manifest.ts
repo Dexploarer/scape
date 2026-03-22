@@ -22,6 +22,11 @@ const loadModule = (relativePath: string, exportName: string): (() => ScriptModu
 
 export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
     {
+        id: "content.climbing",
+        load: loadModule("modules/climbing", "climbingModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/climbing.ts")],
+    },
+    {
         id: "content.doors",
         load: loadModule("modules/doors", "doorInteractionsModule"),
         watch: [path.resolve(MODULE_DIR, "modules/doors.ts")],

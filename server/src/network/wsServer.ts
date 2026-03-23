@@ -1691,6 +1691,8 @@ export class WSServer {
                 doorManager: this.doorManager,
                 emitLocChange: (oldId, newId, tile, level, opts) =>
                     this.emitLocChange(oldId, newId, tile, level, opts),
+                sendLocChangeToPlayer: (player, oldId, newId, tile, level) =>
+                    this.sendLocChangeToPlayer(player, oldId, newId, tile, level),
                 getObjType: (id) => this.getObjType(id),
                 getLocDefinition: (id) => {
                     try {
@@ -2996,6 +2998,34 @@ export class WSServer {
             payload,
         });
         this.withDirectSendBypass("loc_change", () => this.broadcast(msg, "loc_change"));
+    }
+
+    /**
+     * Send a loc_change to a single player only.
+     * Does NOT update doorManager/dynamicLocState — used for per-player multiloc
+     * visual refreshes driven by varbits.
+     */
+    private sendLocChangeToPlayer(
+        player: PlayerState,
+        oldId: number,
+        newId: number,
+        tile: { x: number; y: number },
+        level: number,
+    ): void {
+        const payload: LocChangePayload = {
+            oldId,
+            newId,
+            tile: { x: tile.x, y: tile.y },
+            level,
+            oldTile: { x: tile.x, y: tile.y },
+            newTile: { x: tile.x, y: tile.y },
+        };
+        const ws = this.players?.getSocketByPlayerId(player.id);
+        if (!ws) return;
+        const msg = encodeMessage({ type: "loc_change", payload });
+        this.withDirectSendBypass("loc_change_player", () =>
+            this.sendWithGuard(ws, msg, "loc_change"),
+        );
     }
 
     private getGroundChunkKey(player: PlayerState): number {

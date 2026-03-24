@@ -219,6 +219,10 @@ function executeTraversal(
 ): void {
     const { player, tile, level, services } = event;
 
+    // OSRS parity: teleport and animation are in the same tick's player_info
+    // block.  teleportPlayer() calls stopAnimation() which clears pending seqs,
+    // so we must queue the animation AFTER the teleport.
+    services.teleportPlayer?.(player, dest.x, dest.y, dest.level);
     services.playPlayerSeq?.(player, LADDER_CLIMB_ANIM);
     services.playAreaSound?.({
         soundId: STAIR_SOUND,
@@ -226,7 +230,6 @@ function executeTraversal(
         level,
         radius: 1,
     });
-    services.teleportPlayer?.(player, dest.x, dest.y, dest.level);
 }
 
 // ---------------------------------------------------------------------------

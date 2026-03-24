@@ -77,6 +77,19 @@ export interface SkillFlaxActionData extends SkillRecipeActionData {
 
 export interface SkillSmeltActionData extends SkillRecipeActionData {}
 
+export interface SkillPicklockActionData {
+    locId: number;
+    closedTransformId: number;
+    openTransformId: number;
+    varbitId: number;
+    openValue: number;
+    thievingLevel: number;
+    xp: number;
+    tile: { x: number; y: number };
+    level: number;
+    started: boolean;
+}
+
 export interface SkillBoltEnchantActionData {
     sourceItemId: number;
     enchantedItemId: number;
@@ -101,6 +114,7 @@ export type SkillActionPayloadByKind = {
     "skill.bolt_enchant": SkillBoltEnchantActionData;
     "skill.firemaking": SkillFiremakingActionData;
     "skill.woodcut": SkillWoodcuttingActionData;
+    "skill.picklock": SkillPicklockActionData;
 };
 
 export type SkillActionRequest<K extends keyof SkillActionPayloadByKind> = {

@@ -33,6 +33,7 @@ import type {
     SkillSpinActionData as SpinActionData,
     SkillTanActionData as TanActionData,
     SkillWoodcuttingActionData as WoodcuttingActionData,
+    SkillPicklockActionData as PicklockActionData,
 } from "../skillActionPayloads";
 import type { ActionEffect, ActionExecutionResult, ActionRequest } from "../types";
 
@@ -85,7 +86,8 @@ export type SkillScheduledActionKind =
     | "skill.mine"
     | "skill.fish"
     | "skill.smelt"
-    | "skill.bolt_enchant";
+    | "skill.bolt_enchant"
+    | "skill.picklock";
 
 export type ActionScheduleRequest<K extends SkillScheduledActionKind = SkillScheduledActionKind> =
     ActionRequest<K>;
@@ -380,6 +382,16 @@ export interface SkillActionServices {
     emitLocChange(fromLocId: number, toLocId: number, tile: Vec2, level: number): void;
     enqueueSoundBroadcast(soundId: number, x: number, y: number, level: number): void;
     sendSound(player: PlayerState, soundId: number): void;
+
+    // --- Varbit / Loc Change ---
+    setPlayerVarbit(player: PlayerState, varbitId: number, value: number): void;
+    sendLocChangeToPlayer(
+        player: PlayerState,
+        oldId: number,
+        newId: number,
+        tile: Vec2,
+        level: number,
+    ): void;
 
     // --- Logging ---
     log(level: "info" | "warn" | "error", message: string, data?: unknown): void;
@@ -2465,5 +2477,116 @@ export class SkillActionHandler {
         if (recipe.kind === "javelin") return "You attach the amethyst heads to the javelins.";
         if (recipe.kind === "dart") return "You add feathers to the dart tips.";
         return `You fletch the logs into ${recipe.productName}.`;
+    }
+
+    // ========================================================================
+    // Picklock
+    // ========================================================================
+
+    // Animations
+    private static readonly PICKLOCK_FAIL_ANIM = 537;    // human_lockedchest
+    private static readonly PICKLOCK_SUCCESS_ANIM = 536;  // human_openchest
+    // Sounds
+    private static readonly PICKLOCK_SOUND = 2402;
+    // Ticks between each pick-lock attempt (reference: ~5 ticks between attempts)
+    private static readonly PICKLOCK_CYCLE_TICKS = 5;
+
+    executeSkillPicklockAction(
+        player: PlayerState,
+        data: PicklockActionData,
+        tick: number,
+    ): ActionExecutionResult {
+        const effects: ActionEffect[] = [];
+        const thievingSkill = this.services.getSkill(player, 17); // Thieving
+        const thievingLevel = thievingSkill?.baseLevel ?? 1;
+
+        if (thievingLevel < data.thievingLevel) {
+            effects.push(
+                this.services.buildSkillMessageEffect(
+                    player,
+                    `You need a Thieving level of ${data.thievingLevel} to pick this lock.`,
+                ),
+            );
+            return { ok: true, effects };
+        }
+
+        if (!data.started) {
+            // Initial attempt: message + sound, then schedule first roll
+            effects.push(
+                this.services.buildSkillMessageEffect(
+                    player,
+                    "You attempt to pick the lock on the trap door.",
+                ),
+            );
+            this.services.sendSound(player, SkillActionHandler.PICKLOCK_SOUND);
+
+            this.services.scheduleAction(
+                player.id,
+                {
+                    kind: "skill.picklock",
+                    data: { ...data, started: true },
+                    delayTicks: 1,
+                    cooldownTicks: 1,
+                    groups: ["skill.picklock"],
+                },
+                tick,
+            );
+            return { ok: true, cooldownTicks: 1, effects };
+        }
+
+        // Repeating execution: roll success/fail
+        const success = this.rollPicklockSuccess(thievingLevel, data.thievingLevel);
+
+        if (!success) {
+            // Fail: play locked-chest anim + sound, reschedule next attempt
+            player.queueOneShotSeq(SkillActionHandler.PICKLOCK_FAIL_ANIM);
+            this.services.sendSound(player, SkillActionHandler.PICKLOCK_SOUND);
+
+            this.services.scheduleAction(
+                player.id,
+                {
+                    kind: "skill.picklock",
+                    data: { ...data, started: true },
+                    delayTicks: SkillActionHandler.PICKLOCK_CYCLE_TICKS,
+                    cooldownTicks: SkillActionHandler.PICKLOCK_CYCLE_TICKS,
+                    groups: ["skill.picklock"],
+                },
+                tick,
+            );
+            return { ok: true, cooldownTicks: SkillActionHandler.PICKLOCK_CYCLE_TICKS, effects };
+        }
+
+        // Success: play open-chest anim, message, XP, set varbit
+        effects.push(
+            this.services.buildSkillMessageEffect(
+                player,
+                "You pick the lock on the trapdoor.",
+            ),
+        );
+        player.queueOneShotSeq(SkillActionHandler.PICKLOCK_SUCCESS_ANIM);
+        this.services.sendSound(player, SkillActionHandler.PICKLOCK_SOUND);
+        this.services.awardSkillXp(player, 17, data.xp); // Thieving
+
+        // Open the trapdoor via varbit + scene rebuild trigger
+        this.services.setPlayerVarbit(player, data.varbitId, data.openValue);
+        this.services.sendLocChangeToPlayer(
+            player,
+            data.locId,
+            data.locId,
+            data.tile,
+            data.level,
+        );
+
+        // Action complete — don't reschedule
+        return { ok: true, effects };
+    }
+
+    private rollPicklockSuccess(playerLevel: number, reqLevel: number): boolean {
+        const minChance = 50;
+        const maxChance = 95;
+        const range = 99 - reqLevel || 1;
+        const chance = minChance + ((maxChance - minChance) * (playerLevel - reqLevel)) / range;
+        const clamped = Math.min(maxChance, Math.max(minChance, chance));
+        return Math.random() * 100 < clamped;
     }
 }

@@ -208,6 +208,7 @@ import type {
     SkillFlaxActionData,
     SkillFletchActionData,
     SkillMiningActionData,
+    SkillPicklockActionData,
     SkillSinewActionData,
     SkillSmeltActionData,
     SkillSmithActionData,
@@ -7603,6 +7604,14 @@ export class WSServer {
                 this.enqueueSoundBroadcast(soundId, x, y, level),
             sendSound: (player, soundId) => this.sendSound(player, soundId),
 
+            // --- Varbit / Loc Change ---
+            setPlayerVarbit: (player, varbitId, value) => {
+                player.setVarbitValue(varbitId, value);
+                this.queueVarbit(player.id, varbitId, value);
+            },
+            sendLocChangeToPlayer: (player, oldId, newId, tile, level) =>
+                this.sendLocChangeToPlayer(player, oldId, newId, tile, level),
+
             // --- Logging ---
             log: (level, message, data) => {
                 try {
@@ -9919,6 +9928,12 @@ export class WSServer {
                 return this.skillActionHandler.executeSkillBoltEnchantAction(
                     player,
                     action.data as SkillBoltEnchantActionData,
+                    tick,
+                );
+            case "skill.picklock":
+                return this.skillActionHandler.executeSkillPicklockAction(
+                    player,
+                    action.data as SkillPicklockActionData,
                     tick,
                 );
             case "movement.teleport":

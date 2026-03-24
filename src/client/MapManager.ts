@@ -598,8 +598,24 @@ export class MapManager<T extends MapSquare> {
                 (a, b) => this.gridMapDistances.get(a)! - this.gridMapDistances.get(b)!,
             );
 
-            // Keep current render grid until target grid is fully streamed, then atomically switch.
-            this.gridTransitionPending = true;
+            // Check if the new grid overlaps the current active grid.
+            let hasOverlap = false;
+            for (let i = 0; i < this.gridMapCount; i++) {
+                if (this.activeGridMapIdSet.has(this.gridMapIds[i])) {
+                    hasOverlap = true;
+                    break;
+                }
+            }
+
+            if (hasOverlap) {
+                // Walking / same-region: keep old grid visible until all new maps are ready.
+                this.gridTransitionPending = true;
+            } else {
+                // Cross-region teleport: commit new grid immediately so maps
+                // render progressively as they arrive from workers.
+                this.gridTransitionPending = true;
+                this.commitTargetGridAsActive();
+            }
         }
 
         // Ensure all maps in the target streaming grid are queued.

@@ -160,9 +160,10 @@ function OsrsClientApp() {
         setShowIosInstallHint(false);
     }, []);
 
-    // Determine worker threads: default to 1 to reduce memory.
+    // Two workers build maps in parallel — halves total grid load time.
+    // Progressive rendering shows each map as it arrives, no main-thread freeze.
     const workerCount = useMemo(() => {
-        return 1;
+        return 2;
     }, []);
 
     const workerPool = useMemo(

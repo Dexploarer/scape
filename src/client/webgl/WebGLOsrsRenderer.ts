@@ -349,6 +349,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     // Map-square -> loc reload batch id for maps that are queued and must be applied together.
     private queuedLocReloadBatchByMap: Map<number, number> = new Map();
     private observedGridRevision: number = -1;
+    // Skip the 1-second fog fade-in for maps loaded after a cross-region
+    // teleport so the destination appears instantly.
+    private skipMapFadeIn: boolean = false;
     private activeStreamGeneration: number = 0;
     private activeStreamExpectedMapIds: Set<number> = new Set();
     private pendingStreamMapsByGeneration: Map<number, StreamMapBatch> = new Map();
@@ -4646,6 +4649,20 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.pendingStreamMapsByGeneration.delete(generation);
         }
         this.observedGridRevision = revision;
+
+        // Detect cross-region teleport: if none of the new maps are loaded,
+        // skip the fog fade-in so they appear instantly.
+        let hasOverlap = false;
+        for (const mapId of nextExpected) {
+            if (this.mapManager.mapSquares.has(mapId)) {
+                hasOverlap = true;
+                break;
+            }
+        }
+        if (!hasOverlap && nextExpected.size > 0) {
+            this.skipMapFadeIn = true;
+        }
+
         this.activeStreamGeneration = revision;
         this.activeStreamExpectedMapIds = nextExpected;
         if (carryForward && carryForward.size > 0) {
@@ -4705,21 +4722,24 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const textureMaterials = this.textureMaterials;
         const sceneUniformBuffer = this.sceneUniformBuffer;
 
-        // Atomic-ish scene commit: do not apply this generation until every missing grid map is ready.
-        for (const mapId of expected) {
-            const mapX = mapId >> 8;
-            const mapY = mapId & 0xff;
-            if (this.mapManager.getMap(mapX, mapY)) continue;
-            if (this.mapManager.invalidMapIds.has(mapId)) continue;
-            if (!pending.has(mapId)) return 0;
-        }
-
+        // Apply maps as they arrive. For cross-region teleports, the MapManager
+        // commits the grid immediately so maps render progressively. For walking,
+        // the grid commit is deferred so this only runs once all maps are ready.
         let applied = 0;
+        let allReady = true;
         const orderedMapIds = this.mapManager.getGridMapIdsSnapshot();
         for (const mapId of orderedMapIds) {
             const mapData = pending.get(mapId);
-            if (!mapData) continue;
+            if (!mapData) {
+                const mx = mapId >> 8;
+                const my = mapId & 0xff;
+                if (!this.mapManager.getMap(mx, my) && !this.mapManager.invalidMapIds.has(mapId)) {
+                    allReady = false;
+                }
+                continue;
+            }
             if (!this.isValidMapData(mapData)) continue;
+            pending.delete(mapId);
             applied++;
             this.loadMap(
                 mainProgram,
@@ -4732,7 +4752,10 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 time,
             );
         }
-        this.pendingStreamMapsByGeneration.delete(generation);
+        if (allReady || pending.size === 0) {
+            this.pendingStreamMapsByGeneration.delete(generation);
+            this.skipMapFadeIn = false;
+        }
         return applied | 0;
     }
 
@@ -5078,11 +5101,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         // Don't try to load maps before cache is initialized
         if (!this.osrsClient.loadedCache) return;
 
-        const mapData = await this.osrsClient.workerPool.queueLoad<
-            SdMapLoaderInput,
-            SdMapData | undefined,
-            SdMapDataLoader
-        >(this.dataLoader, {
+        const input: SdMapLoaderInput = {
             mapX,
             mapY,
             maxLevel: Math.max(0, Math.min(Scene.MAX_LEVELS - 1, this.maxLevel | 0)),
@@ -5092,7 +5111,13 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             minimizeDrawCalls: !this.hasMultiDraw,
             loadedTextureIds: this.loadedTextureIds,
             locOverrides: this.locOverrides,
-        });
+        };
+
+        const mapData = await this.osrsClient.workerPool.queueLoad<
+            SdMapLoaderInput,
+            SdMapData | undefined,
+            SdMapDataLoader
+        >(this.dataLoader, input);
 
         const mapId = getMapSquareId(mapX, mapY);
         if (mapData && this.isValidMapData(mapData)) {
@@ -5234,8 +5259,14 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
 
         const frameCount = this.stats.frameCount;
+        // -1.0 makes loadAlpha = 1.0 immediately in the vertex shader,
+        // skipping the 1-second fog fade-in for teleport-loaded maps.
         const reuseTime =
-            isLocUpdate && existing instanceof WebGLMapSquare ? existing.timeLoaded : time;
+            isLocUpdate && existing instanceof WebGLMapSquare
+                ? existing.timeLoaded
+                : this.skipMapFadeIn
+                  ? -1.0
+                  : time;
         const reuseFrame =
             isLocUpdate && existing instanceof WebGLMapSquare ? existing.frameLoaded : frameCount;
 
@@ -5281,6 +5312,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.mapsToLoad.clear();
         this.pendingStreamMapsByGeneration.clear();
         this.observedGridRevision = -1;
+        this.skipMapFadeIn = false;
         this.activeStreamGeneration = 0;
         this.activeStreamExpectedMapIds.clear();
         this.pendingDoorUpdates.clear();

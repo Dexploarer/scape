@@ -96,7 +96,7 @@ export class SceneBuilder {
     }
 
     getTerrainData(mapX: number, mapY: number): Int8Array | undefined {
-        return this.mapFileLoader.getTerrainData(mapX, mapY);
+        return this.mapFileLoader.getTerrainData(mapX, mapY, this.xteasMap);
     }
 
     getLocData(mapX: number, mapY: number): Int8Array | undefined {

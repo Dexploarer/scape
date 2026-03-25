@@ -11,14 +11,15 @@ export class MapFileLoader {
         readonly mapFileIndex: MapFileIndex,
     ) {}
 
-    getTerrainData(mapX: number, mapY: number): Int8Array | undefined {
+    getTerrainData(mapX: number, mapY: number, xteasMap?: XteaMap): Int8Array | undefined {
         const archiveId = this.mapFileIndex.getTerrainArchiveId(mapX, mapY);
         if (archiveId === -1) {
             return undefined;
         }
         const fileId = this.mapFileIndex.getTerrainFileId(mapX, mapY);
+        const key = xteasMap?.get(archiveId);
         try {
-            const file = this.mapIndex.getFile(archiveId, fileId);
+            const file = this.mapIndex.getFile(archiveId, fileId, key);
             return file?.data;
         } catch (e) {
             return undefined;
@@ -50,8 +51,8 @@ export class LegacyMapFileLoader extends MapFileLoader {
         return decompressed;
     }
 
-    override getTerrainData(mapX: number, mapY: number): Int8Array | undefined {
-        const data = super.getTerrainData(mapX, mapY);
+    override getTerrainData(mapX: number, mapY: number, xteasMap?: XteaMap): Int8Array | undefined {
+        const data = super.getTerrainData(mapX, mapY, xteasMap);
         if (!data) {
             return undefined;
         }

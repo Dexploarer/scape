@@ -13,6 +13,8 @@ export function getMapIndexFromTile(tile: number): number {
 export interface MapFileIndex {
     getTerrainArchiveId(mapX: number, mapY: number): number;
     getLocArchiveId(mapX: number, mapY: number): number;
+    getTerrainFileId(mapX: number, mapY: number): number;
+    getLocFileId(mapX: number, mapY: number): number;
 }
 
 class MapSquare {
@@ -55,16 +57,44 @@ export class DatMapFileIndex implements MapFileIndex {
     getLocArchiveId(mapX: number, mapY: number): number {
         return this.mapSquares.get(getMapSquareId(mapX, mapY))?.locArchiveId ?? -1;
     }
+
+    getTerrainFileId(_mapX: number, _mapY: number): number {
+        return 0;
+    }
+
+    getLocFileId(_mapX: number, _mapY: number): number {
+        return 0;
+    }
 }
 
 export class Dat2MapIndex implements MapFileIndex {
-    constructor(readonly mapIndex: CacheIndex) {}
+    readonly named: boolean;
+
+    constructor(readonly mapIndex: CacheIndex) {
+        this.named = mapIndex.table.named;
+    }
 
     getTerrainArchiveId(mapX: number, mapY: number): number {
-        return this.mapIndex.getArchiveId(`m${mapX}_${mapY}`);
+        if (this.named) {
+            return this.mapIndex.getArchiveId(`m${mapX}_${mapY}`);
+        }
+        const regionId = getMapSquareId(mapX, mapY);
+        return this.mapIndex.archiveExists(regionId) ? regionId : -1;
     }
 
     getLocArchiveId(mapX: number, mapY: number): number {
-        return this.mapIndex.getArchiveId(`l${mapX}_${mapY}`);
+        if (this.named) {
+            return this.mapIndex.getArchiveId(`l${mapX}_${mapY}`);
+        }
+        const regionId = getMapSquareId(mapX, mapY);
+        return this.mapIndex.archiveExists(regionId) ? regionId : -1;
+    }
+
+    getTerrainFileId(_mapX: number, _mapY: number): number {
+        return 0;
+    }
+
+    getLocFileId(_mapX: number, _mapY: number): number {
+        return this.named ? 0 : 1;
     }
 }

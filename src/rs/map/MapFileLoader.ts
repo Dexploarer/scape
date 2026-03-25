@@ -16,8 +16,9 @@ export class MapFileLoader {
         if (archiveId === -1) {
             return undefined;
         }
+        const fileId = this.mapFileIndex.getTerrainFileId(mapX, mapY);
         try {
-            const file = this.mapIndex.getFile(archiveId, 0);
+            const file = this.mapIndex.getFile(archiveId, fileId);
             return file?.data;
         } catch (e) {
             return undefined;
@@ -29,9 +30,10 @@ export class MapFileLoader {
         if (archiveId === -1) {
             return undefined;
         }
+        const fileId = this.mapFileIndex.getLocFileId(mapX, mapY);
         const key = xteasMap.get(archiveId);
         try {
-            const file = this.mapIndex.getFile(archiveId, 0, key);
+            const file = this.mapIndex.getFile(archiveId, fileId, key);
             return file?.data;
         } catch (e) {
             return undefined;

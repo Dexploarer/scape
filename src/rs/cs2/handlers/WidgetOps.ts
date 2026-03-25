@@ -3269,31 +3269,76 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         }
     });
 
+    handlers.set(Opcodes.CC_INPUT_SETACCEPTMODE, (ctx, intOp) => {
+        const val = ctx.intStack[--ctx.intStackSize];
+        const w = getTargetWidget(ctx, intOp);
+        if (w) (w as any).inputAcceptMode = val;
+    });
+
+    handlers.set(Opcodes.CC_INPUT_SETWRAPMODE, (ctx, intOp) => {
+        const val = ctx.intStack[--ctx.intStackSize];
+        const w = getTargetWidget(ctx, intOp);
+        if (w) (w as any).inputWrapMode = val;
+    });
+
+    handlers.set(Opcodes.CC_INPUT_SETLINEWRAPPINGWIDTH, (ctx, intOp) => {
+        const val = ctx.intStack[--ctx.intStackSize];
+        const w = getTargetWidget(ctx, intOp);
+        if (w) (w as any).inputLineWrappingWidth = val;
+    });
+
     handlers.set(Opcodes.CC_INPUT_SETSELECTBGCOLOUR, (ctx, intOp) => {
-        // Sets the text selection background color for input field
         const color = ctx.intStack[--ctx.intStackSize];
         const w = getTargetWidget(ctx, intOp);
-        if (w) {
-            (w as any).inputSelectBgColour = color;
-        }
+        if (w) (w as any).inputSelectBgColour = color;
     });
 
     handlers.set(Opcodes.CC_INPUT_SETLINECOUNTLIMIT, (ctx, intOp) => {
-        // Sets the maximum number of lines for multi-line input
         const limit = ctx.intStack[--ctx.intStackSize];
         const w = getTargetWidget(ctx, intOp);
-        if (w) {
-            (w as any).inputLineCountLimit = limit;
-        }
+        if (w) (w as any).inputLineCountLimit = limit;
+    });
+
+    handlers.set(Opcodes.CC_INPUT_SETCURSORCOLOUR, (ctx, intOp) => {
+        const val = ctx.intStack[--ctx.intStackSize];
+        const w = getTargetWidget(ctx, intOp);
+        if (w) (w as any).inputCursorColour = val;
+    });
+
+    handlers.set(Opcodes.CC_INPUT_SETCURSORTRANS, (ctx, intOp) => {
+        const val = ctx.intStack[--ctx.intStackSize];
+        const w = getTargetWidget(ctx, intOp);
+        if (w) (w as any).inputCursorTrans = val;
+    });
+
+    handlers.set(Opcodes.CC_INPUT_SETCURSORWIDTH, (ctx, intOp) => {
+        const val = ctx.intStack[--ctx.intStackSize];
+        const w = getTargetWidget(ctx, intOp);
+        if (w) (w as any).inputCursorWidth = val;
+    });
+
+    handlers.set(Opcodes.CC_INPUT_SETCURSORHEIGHT, (ctx, intOp) => {
+        const val = ctx.intStack[--ctx.intStackSize];
+        const w = getTargetWidget(ctx, intOp);
+        if (w) (w as any).inputCursorHeight = val;
+    });
+
+    handlers.set(Opcodes.CC_INPUT_SETCURSOROFFSET, (ctx, intOp) => {
+        const val = ctx.intStack[--ctx.intStackSize];
+        const w = getTargetWidget(ctx, intOp);
+        if (w) (w as any).inputCursorOffset = val;
     });
 
     handlers.set(Opcodes.CC_INPUT_SETLINEWIDTHLIMIT, (ctx, intOp) => {
-        // Sets the maximum character width per line for input field
         const limit = ctx.intStack[--ctx.intStackSize];
         const w = getTargetWidget(ctx, intOp);
-        if (w) {
-            (w as any).inputLineWidthLimit = limit;
-        }
+        if (w) (w as any).inputLineWidthLimit = limit;
+    });
+
+    handlers.set(Opcodes.CC_INPUT_SETCHARFILTER, (ctx, intOp) => {
+        const val = ctx.intStack[--ctx.intStackSize];
+        const w = getTargetWidget(ctx, intOp);
+        if (w) (w as any).inputCharFilter = val;
     });
 
     handlers.set(Opcodes.IF_OPENSUB, (ctx) => {

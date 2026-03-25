@@ -136,18 +136,23 @@ async function run(): Promise<void> {
 
             const baseX = mapX * Scene.MAP_SQUARE_SIZE - borderSize;
             const baseY = mapY * Scene.MAP_SQUARE_SIZE - borderSize;
-            const scene = sceneBuilder.buildScene(
-                baseX,
-                baseY,
-                mapSize,
-                mapSize,
-                false,
-                LocLoadType.NO_MODELS,
-            );
+            try {
+                const scene = sceneBuilder.buildScene(
+                    baseX,
+                    baseY,
+                    mapSize,
+                    mapSize,
+                    false,
+                    LocLoadType.NO_MODELS,
+                );
 
-            const minimapPixels = mapImageRenderer.renderMinimapHd(scene, 0, true);
-            await writePng(minimapPixels, outputPath);
-            generated++;
+                const minimapPixels = mapImageRenderer.renderMinimapHd(scene, 0, true);
+                await writePng(minimapPixels, outputPath);
+                generated++;
+            } catch (e) {
+                // Region may have missing xtea keys — skip it
+                continue;
+            }
 
             if (generated % 100 === 0) {
                 console.log(`[map-images] generated ${generated} (checked ${checked})`);

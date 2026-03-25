@@ -103,6 +103,7 @@ export interface ScriptFrame {
     pc: number;
     localInts: Int32Array;
     localStrings: any[];
+    localLongs: BigInt64Array;
 }
 
 /** Error with stack trace information */
@@ -372,8 +373,10 @@ export class Cs2Vm {
     // Stacks
     intStack: Int32Array;
     stringStack: any[];
+    longStack: BigInt64Array;
     intStackSize: number = 0;
     stringStackSize: number = 0;
+    longStackSize: number = 0;
 
     // Call stack for nested script invocations
     callStack: ScriptFrame[] = [];
@@ -580,6 +583,7 @@ export class Cs2Vm {
         this.context = context;
         this.intStack = new Int32Array(Cs2Vm.INITIAL_STACK_SIZE);
         this.stringStack = new Array(Cs2Vm.INITIAL_STACK_SIZE);
+        this.longStack = new BigInt64Array(Cs2Vm.INITIAL_STACK_SIZE);
         this.handlers = createHandlerMap();
 
         // PERF: Build fast array dispatch for low opcodes
@@ -603,6 +607,7 @@ export class Cs2Vm {
     reset(): void {
         this.intStackSize = 0;
         this.stringStackSize = 0;
+        this.longStackSize = 0;
         this.callStackDepth = 0;
         this.opcount = 0;
         this.currentMaxOpcount = Cs2Vm.MAX_OPCOUNT;
@@ -1368,11 +1373,13 @@ export class Cs2Vm {
 
         const allocateFrameLocals = (
             frameScript: Script,
-        ): { localInts: Int32Array; localStrings: any[] } => {
+        ): { localInts: Int32Array; localStrings: any[]; localLongs: BigInt64Array } => {
             let frameInts: Int32Array;
             let frameStrings: any[];
             const intCount = frameScript.localIntCount;
             const stringCount = frameScript.localObjCount;
+            const longCount = frameScript.localLongCount;
+            const frameLongs = longCount > 0 ? new BigInt64Array(longCount) : new BigInt64Array(0);
 
             if (
                 this.localIntPool.length > 0 &&
@@ -1396,7 +1403,7 @@ export class Cs2Vm {
                 frameStrings = new Array(stringCount).fill(null);
             }
 
-            return { localInts: frameInts, localStrings: frameStrings };
+            return { localInts: frameInts, localStrings: frameStrings, localLongs: frameLongs };
         };
 
         const loadArgsIntoLocals = (
@@ -1431,7 +1438,7 @@ export class Cs2Vm {
 
         let currentScript = script;
         let pc = 0;
-        let { localInts, localStrings } = allocateFrameLocals(currentScript);
+        let { localInts, localStrings, localLongs } = allocateFrameLocals(currentScript);
         loadArgsIntoLocals(localInts, localStrings, intArgs, objectArgs);
 
         this.currentScriptId = currentScript.id;
@@ -1440,6 +1447,7 @@ export class Cs2Vm {
         let instructions = currentScript.instructions;
         let intOperands = currentScript.intOperands;
         let stringOperands = currentScript.stringOperands;
+        let longOperands = currentScript.longOperands;
         let switches = currentScript.switches;
 
         const restoreCallerFrame = (): boolean => {
@@ -1453,9 +1461,11 @@ export class Cs2Vm {
             currentScript = caller.script;
             localInts = caller.localInts;
             localStrings = caller.localStrings;
+            localLongs = caller.localLongs;
             instructions = currentScript.instructions;
             intOperands = currentScript.intOperands;
             stringOperands = currentScript.stringOperands;
+            longOperands = currentScript.longOperands;
             switches = currentScript.switches;
             pc = caller.pc + 1;
 
@@ -1547,6 +1557,64 @@ export class Cs2Vm {
                         localStrings[intOp] = this.stringStack[--this.stringStackSize];
                         break;
 
+                    case Opcodes.LCONST:
+                        this.longStack[this.longStackSize++] = longOperands[pc];
+                        break;
+
+                    case Opcodes.POP_LONG:
+                        this.longStackSize--;
+                        break;
+
+                    case Opcodes.LLOAD:
+                        this.longStack[this.longStackSize++] = localLongs[intOp];
+                        break;
+
+                    case Opcodes.LSTORE:
+                        localLongs[intOp] = this.longStack[--this.longStackSize];
+                        break;
+
+                    case Opcodes.IF_LCMPNE: {
+                        const b = this.longStack[--this.longStackSize];
+                        const a = this.longStack[--this.longStackSize];
+                        if (a !== b) pc += intOp;
+                        break;
+                    }
+
+                    case Opcodes.IF_LCMPEQ: {
+                        const b = this.longStack[--this.longStackSize];
+                        const a = this.longStack[--this.longStackSize];
+                        if (a === b) pc += intOp;
+                        break;
+                    }
+
+                    case Opcodes.IF_LCMPLT: {
+                        const b = this.longStack[--this.longStackSize];
+                        const a = this.longStack[--this.longStackSize];
+                        if (a < b) pc += intOp;
+                        break;
+                    }
+
+                    case Opcodes.IF_LCMPGT: {
+                        const b = this.longStack[--this.longStackSize];
+                        const a = this.longStack[--this.longStackSize];
+                        if (a > b) pc += intOp;
+                        break;
+                    }
+
+                    case Opcodes.IF_LCMPLE: {
+                        const b = this.longStack[--this.longStackSize];
+                        const a = this.longStack[--this.longStackSize];
+                        if (a <= b) pc += intOp;
+                        break;
+                    }
+
+                    case Opcodes.IF_LCMPGE: {
+                        const b = this.longStack[--this.longStackSize];
+                        const a = this.longStack[--this.longStackSize];
+                        if (a >= b) pc += intOp;
+                        break;
+                    }
+
                     case Opcodes.SWITCH: {
                         const key = this.intStack[--this.intStackSize];
                         const table = switches ? switches[intOp] : undefined;
@@ -1580,6 +1648,9 @@ export class Cs2Vm {
                         for (let i = subScript.objArgCount - 1; i >= 0; i--) {
                             subFrame.localStrings[i] = this.stringStack[--this.stringStackSize];
                         }
+                        for (let i = subScript.longArgCount - 1; i >= 0; i--) {
+                            subFrame.localLongs[i] = this.longStack[--this.longStackSize];
+                        }
 
                         if (this.callStackDepth >= this.callStack.length) {
                             this.callStack.push({
@@ -1587,6 +1658,7 @@ export class Cs2Vm {
                                 pc,
                                 localInts,
                                 localStrings,
+                                localLongs,
                             });
                         } else {
                             this.callStack[this.callStackDepth] = {
@@ -1594,6 +1666,7 @@ export class Cs2Vm {
                                 pc,
                                 localInts,
                                 localStrings,
+                                localLongs,
                             };
                         }
                         this.callStackDepth++;
@@ -1601,9 +1674,11 @@ export class Cs2Vm {
                         currentScript = subScript;
                         localInts = subFrame.localInts;
                         localStrings = subFrame.localStrings;
+                        localLongs = subFrame.localLongs;
                         instructions = currentScript.instructions;
                         intOperands = currentScript.intOperands;
                         stringOperands = currentScript.stringOperands;
+                        longOperands = currentScript.longOperands;
                         switches = currentScript.switches;
                         pc = 0;
                         this.currentScriptId = currentScript.id;

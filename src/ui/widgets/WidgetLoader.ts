@@ -281,11 +281,9 @@ export class WidgetLoader {
 
         if (type === 6) {
             w.modelType = 1;
-            let modelId = buf.readUnsignedShort();
-            w.modelId = modelId === 0xffff ? -1 : modelId;
+            w.modelId = buf.readInt();
 
-            let modelId2 = buf.readUnsignedShort();
-            w.modelId2 = modelId2 === 0xffff ? -1 : modelId2;
+            w.modelId2 = buf.readInt();
 
             let seqId = buf.readUnsignedShort();
             w.sequenceId = seqId === 0xffff ? -1 : seqId;
@@ -420,8 +418,7 @@ export class WidgetLoader {
             w.flippedV = buf.readUnsignedByte() === 1;
             w.flippedH = buf.readUnsignedByte() === 1;
         } else if (type === 6) {
-            let modelId = buf.readUnsignedShort();
-            w.modelId = modelId === 0xffff ? -1 : modelId;
+            w.modelId = buf.readInt();
             w.modelOffsetX = buf.readShort();
             w.modelOffsetY = buf.readShort();
             w.rotationX = buf.readUnsignedShort();

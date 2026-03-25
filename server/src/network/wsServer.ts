@@ -11798,10 +11798,19 @@ export class WSServer {
         const slotIndex = Math.max(0, Math.min(INVENTORY_SLOT_COUNT - 1, payload.slot));
         const inv = this.getInventory(p);
         const slotEntry = inv[slotIndex];
-        const optionLower = payload.option?.toLowerCase() ?? "";
+        let optionLower = payload.option?.toLowerCase() ?? "";
         const obj = this.getObjType(payload.itemId);
         const itemDef = getItemDefinition(payload.itemId);
         const equipSlot = this.resolveEquipSlot(payload.itemId);
+
+        // Resolve option from cache inventoryActions when client sends op number but no text
+        if (!optionLower && obj?.inventoryActions && typeof payload.op === "number") {
+            const opIndex = (payload.op | 0) - 1;
+            if (opIndex >= 0 && opIndex < obj.inventoryActions.length) {
+                const resolved = obj.inventoryActions[opIndex];
+                if (resolved) optionLower = resolved.toLowerCase();
+            }
+        }
 
         const nowTick = this.options.ticker.currentTick();
         // First, allow scripts to handle item actions (e.g., bury bones, herblore steps)
@@ -15038,6 +15047,34 @@ export class WSServer {
                     if (groupId === 219) {
                         this.widgetDialogHandler.handleDialogOptionClick(ws, player.id, childId);
                     } else {
+                        // OSRS parity: inventory item actions resolve the option from
+                        // the item's cache definition and route through the item action
+                        // system before falling back to generic widget handlers.
+                        if (
+                            payload.itemId !== undefined &&
+                            payload.itemId > 0 &&
+                            hasValidSlot &&
+                            opId >= 1
+                        ) {
+                            const obj = this.getObjType(payload.itemId);
+                            const actions = obj?.inventoryActions;
+                            if (actions) {
+                                const resolved = actions[opId - 1];
+                                if (resolved) {
+                                    const option = resolved.toLowerCase();
+                                    const tick = this.options.ticker.currentTick();
+                                    const handled = this.scriptRuntime.queueItemAction({
+                                        tick,
+                                        player,
+                                        itemId: payload.itemId,
+                                        slot: slotVal ?? 0,
+                                        option,
+                                    });
+                                    if (handled) break;
+                                }
+                            }
+                        }
+
                         // Route through standard widget action handler with opId
                         this.widgetDialogHandler.handleWidgetActionMessage(ws, {
                             ...payload,

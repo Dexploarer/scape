@@ -5148,6 +5148,57 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
     }
 
+    /**
+     * Load an instance scene from REBUILD_REGION template chunks.
+     * Queues a single map load with the instance data attached.
+     */
+    async loadInstanceScene(
+        templateChunks: number[][][],
+        regionX: number,
+        regionY: number,
+    ): Promise<void> {
+        if (!this.osrsClient.loadedCache) return;
+
+        // regionX/Y are chunk coordinates from the REBUILD_REGION packet.
+        // The player tile = regionX*8, regionY*8. Map square = tile / 64.
+        const playerMapX = ((regionX * 8) / Scene.MAP_SQUARE_SIZE) | 0;
+        const playerMapY = ((regionY * 8) / Scene.MAP_SQUARE_SIZE) | 0;
+
+        console.log(
+            `[WebGLOsrsRenderer] Loading instance scene at map (${playerMapX}, ${playerMapY}) from region (${regionX}, ${regionY})...`,
+        );
+
+        const input: SdMapLoaderInput = {
+            mapX: playerMapX,
+            mapY: playerMapY,
+            maxLevel: Math.max(0, Math.min(Scene.MAX_LEVELS - 1, this.maxLevel | 0)),
+            loadObjs: this.loadObjs,
+            loadNpcs: this.loadNpcs,
+            smoothTerrain: this.smoothTerrain,
+            minimizeDrawCalls: !this.hasMultiDraw,
+            loadedTextureIds: this.loadedTextureIds,
+            instance: { templateChunks },
+        };
+
+        const mapData = await this.osrsClient.workerPool.queueLoad<
+            SdMapLoaderInput,
+            SdMapData | undefined,
+            SdMapDataLoader
+        >(this.dataLoader, input);
+
+        if (mapData) {
+            console.log(
+                `[WebGLOsrsRenderer] Instance scene loaded: vertices=${mapData.vertices?.length ?? 0} indices=${mapData.indices?.length ?? 0} mapX=${mapData.mapX} mapY=${mapData.mapY} border=${mapData.borderSize}`,
+            );
+            // Bypass grid/generation checks — instance scenes are always valid
+            this.mapsToLoad.push(mapData);
+            // Register the map in MapManager so it isn't pruned
+            this.mapManager.loadingMapIds.add(getMapSquareId(playerMapX, playerMapY));
+        } else {
+            console.warn("[WebGLOsrsRenderer] Instance scene load returned no data");
+        }
+    }
+
     private resolveLocReloadBatchMap(
         batchId: number,
         mapId: number,
@@ -6860,7 +6911,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             }
 
             for (const pendingMap of toApply) {
-                if (!this.isValidMapData(pendingMap)) continue;
+                if (!this.isValidMapData(pendingMap)) {
+                    console.warn(`[WebGLOsrsRenderer] mapsToLoad rejected: mapX=${pendingMap.mapX} mapY=${pendingMap.mapY} cacheName=${pendingMap.cacheName} loadObjs=${pendingMap.loadObjs} loadNpcs=${pendingMap.loadNpcs} smooth=${pendingMap.smoothTerrain}`);
+                    continue;
+                }
+                console.log(`[WebGLOsrsRenderer] mapsToLoad applying: mapX=${pendingMap.mapX} mapY=${pendingMap.mapY} verts=${pendingMap.vertices?.length}`);
                 mapApplyCount++;
                 this.loadMap(
                     this.mainProgram,

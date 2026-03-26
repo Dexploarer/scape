@@ -77,6 +77,12 @@ export class ClientState {
     /** Current plane/level (0-3) */
     static plane: number = 0;
 
+    /** True when the player is in a dynamic instance (REBUILD_REGION). */
+    static inInstance: boolean = false;
+
+    /** Template chunk grid for the current instance (4×13×13, -1 = empty). */
+    static instanceTemplateChunks: number[][][] | null = null;
+
     // ========================================
     // SPELL/ITEM SELECTION STATE
     // ========================================

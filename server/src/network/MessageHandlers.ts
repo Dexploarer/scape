@@ -136,6 +136,13 @@ export interface MessageHandlerServices {
         level: number,
         forceRebuild?: boolean,
     ) => void;
+    teleportToInstance: (
+        player: PlayerState,
+        x: number,
+        y: number,
+        level: number,
+        templateChunks: number[][][],
+    ) => void;
     requestTeleportAction: (
         player: PlayerState,
         request: TeleportActionRequest,
@@ -1432,6 +1439,44 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
 
                 if (root === "quest") {
                     handleQuestCommand(sender, parts.slice(1), services);
+                    return;
+                }
+
+                if (root === "spawn") {
+                    services.teleportPlayer(sender, 3222, 3218, 0);
+                    services.queueChatMessage({
+                        messageType: "game",
+                        text: "Teleported to Lumbridge.",
+                        targetPlayerIds: [sender.id],
+                    });
+                    logger.info(`[cmd] ::spawn - Player ${sender.id} teleported to Lumbridge`);
+                    return;
+                }
+
+                if (root === "sail") {
+                    const {
+                        createEmptyTemplateChunks,
+                        packTemplateChunk,
+                    } = require("../../../src/shared/instance/InstanceTypes");
+                    const chunks = createEmptyTemplateChunks();
+                    // Port Sarim dock / sailing boat area: tile (3053, 3200) = chunk (381, 400)
+                    const baseChunkX = 381;
+                    const baseChunkY = 400;
+                    for (let cx = 2; cx < 11; cx++) {
+                        for (let cy = 2; cy < 11; cy++) {
+                            const srcX = baseChunkX + (cx - 6);
+                            const srcY = baseChunkY + (cy - 6);
+                            chunks[0][cx][cy] = packTemplateChunk(0, srcX, srcY, 0);
+                            chunks[1][cx][cy] = packTemplateChunk(1, srcX, srcY, 0);
+                        }
+                    }
+                    services.teleportToInstance(sender, 3052, 3204, 0, chunks);
+                    services.queueChatMessage({
+                        messageType: "game",
+                        text: "Teleported to sailing instance.",
+                        targetPlayerIds: [sender.id],
+                    });
+                    logger.info(`[cmd] ::sail - Player ${sender.id} teleported to instance`);
                     return;
                 }
 

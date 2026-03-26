@@ -45,6 +45,7 @@ import {
     subscribeTick,
     subscribeWelcome,
     subscribeWidgetEvents,
+    subscribeRebuildRegion,
 } from "../network/ServerConnection";
 import type {
     CollectionLogServerPayload,
@@ -3130,6 +3131,24 @@ export class OsrsClient {
                     // This allows the LOADING_GAME -> LOGGED_IN transition
                     this.loadingTracker.markComplete(LoadingRequirement.HANDSHAKE_COMPLETE);
                 } catch {}
+            });
+
+            subscribeRebuildRegion((payload) => {
+                try {
+                    console.log(
+                        `[OsrsClient] REBUILD_REGION received: regionX=${payload.regionX} regionY=${payload.regionY} regions=${payload.mapRegions.length}`,
+                    );
+                    // Trigger instance scene load on the renderer
+                    if (this.renderer && "loadInstanceScene" in this.renderer) {
+                        (this.renderer as any).loadInstanceScene(
+                            payload.templateChunks,
+                            payload.regionX,
+                            payload.regionY,
+                        );
+                    }
+                } catch (err) {
+                    console.warn("[OsrsClient] rebuild_region error", err);
+                }
             });
 
             this.unsubscribePlayerSync = subscribePlayerSync((frame) => {

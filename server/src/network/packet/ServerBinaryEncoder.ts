@@ -8,7 +8,12 @@ import {
     SERVER_PACKET_LENGTHS,
     ServerPacketId,
 } from "../../../../src/shared/packets/ServerPacketId";
+import {
+    INSTANCE_CHUNK_COUNT,
+    PLANE_COUNT,
+} from "../../../../src/shared/instance/InstanceTypes";
 import type { ProjectileLaunch } from "../../../../src/shared/projectiles/ProjectileLaunch";
+import { BitWriter } from "../BitWriter";
 
 /**
  * Binary packet buffer for server encoding
@@ -1497,6 +1502,54 @@ export class ServerBinaryEncoder {
         const jsonStr = JSON.stringify(payload);
         this.buffer.writeString(jsonStr);
         return this.buffer.toPacket(ServerPacketId.DEBUG_PACKET);
+    }
+
+    // ========================================
+    // REBUILD_REGION (Dynamic Instances)
+    // ========================================
+
+    encodeRebuildRegion(
+        regionX: number,
+        regionY: number,
+        templateChunks: number[][][],
+        xteaKeys: number[][],
+        mapRegions: number[],
+    ): Uint8Array {
+        this.buffer.reset();
+
+        // Header matches Js5Archive.loadRegions(true, buffer) read order
+        this.buffer.writeShort(regionX);
+        this.buffer.writeByte(0); // flag byte (skipIfSameRegion)
+        this.buffer.writeShort(regionY);
+        this.buffer.writeShort(xteaKeys.length);
+
+        // Bit-packed template chunks: 4 planes × 13 × 13
+        const bits = new BitWriter();
+        for (let plane = 0; plane < PLANE_COUNT; plane++) {
+            for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
+                for (let cy = 0; cy < INSTANCE_CHUNK_COUNT; cy++) {
+                    const packed = templateChunks[plane][cx][cy];
+                    if (packed !== -1) {
+                        bits.writeBits(1, 1);
+                        bits.writeBits(26, packed);
+                    } else {
+                        bits.writeBits(1, 0);
+                    }
+                }
+            }
+        }
+        const bitData = bits.toUint8Array();
+        this.buffer.writeBytes(bitData, 0, bitData.length);
+
+        // XTEA keys: one key (4 ints) per region
+        for (let i = 0; i < xteaKeys.length; i++) {
+            const key = xteaKeys[i];
+            for (let j = 0; j < 4; j++) {
+                this.buffer.writeInt(key[j] ?? 0);
+            }
+        }
+
+        return this.buffer.toPacket(ServerPacketId.REBUILD_REGION);
     }
 }
 

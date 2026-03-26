@@ -490,6 +490,7 @@ import { registerDialogInterfaceHooks } from "../widgets/hooks/DialogInterfaceHo
 import { registerEquipmentStatsInterfaceHooks } from "../widgets/hooks/EquipmentStatsInterfaceHooks";
 import { type ShopOpenData, registerShopInterfaceHooks } from "../widgets/hooks/ShopInterfaceHooks";
 import { type CacheEnv, initCacheEnv } from "../world/CacheEnv";
+import { buildRebuildRegionPayload } from "../world/InstanceManager";
 import { CollisionOverlayStore } from "../world/CollisionOverlayStore";
 import { DoorCollisionService } from "../world/DoorCollisionService";
 import { DoorDefinitionLoader } from "../world/DoorDefinitionLoader";
@@ -2136,6 +2137,8 @@ export class WSServer {
                 },
                 teleportPlayer: (player, x, y, level, forceRebuild = false) =>
                     this.teleportPlayer(player, x, y, level, forceRebuild),
+                teleportToInstance: (player, x, y, level, templateChunks) =>
+                    this.teleportToInstance(player, x, y, level, templateChunks),
                 requestTeleportAction: (player, request) =>
                     this.requestTeleportAction(player, request),
                 sendVarp: (player, varpId, value) => {
@@ -6079,6 +6082,41 @@ export class WSServer {
         // fresh movement-phase view with stale teleport coordinates.
     }
 
+    private teleportToInstance(
+        player: PlayerState,
+        x: number,
+        y: number,
+        level: number,
+        templateChunks: number[][][],
+    ): void {
+        logger.info(`[teleportToInstance] Player ${player.id} -> (${x}, ${y}, ${level})`);
+        const ws = this.players?.getSocketByPlayerId(player.id);
+        if (!ws) {
+            logger.warn(`[teleportToInstance] No websocket for player ${player.id}`);
+            return;
+        }
+
+        // Compute regionX/Y (chunk coordinates) from the target tile
+        const regionX = x >> 3;
+        const regionY = y >> 3;
+
+        // Build and send the REBUILD_REGION packet before the teleport
+        const payload = buildRebuildRegionPayload(
+            regionX,
+            regionY,
+            templateChunks,
+            this.cacheEnv!,
+        );
+        const packet = encodeMessage({ type: "rebuild_region", payload } as any);
+        logger.info(`[teleportToInstance] Sending REBUILD_REGION packet (${packet.length} bytes, ${payload.mapRegions.length} regions)`);
+        this.withDirectSendBypass("rebuild_region", () =>
+            this.sendWithGuard(ws, packet, "rebuild_region"),
+        );
+
+        // Now do the actual teleport (sets position, patches playerViews, etc.)
+        this.teleportPlayer(player, x, y, level);
+    }
+
     private executeMovementTeleportAction(
         player: PlayerState,
         data: MovementTeleportActionData,
@@ -8506,6 +8544,8 @@ export class WSServer {
             canUseAdminTeleport: (player) => this.isAdminPlayer(player),
             teleportPlayer: (player, x, y, level, forceRebuild = false) =>
                 this.teleportPlayer(player, x, y, level, forceRebuild),
+            teleportToInstance: (player, x, y, level, templateChunks) =>
+                this.teleportToInstance(player, x, y, level, templateChunks),
             requestTeleportAction: (player, request) => this.requestTeleportAction(player, request),
 
             // Combat/NPC

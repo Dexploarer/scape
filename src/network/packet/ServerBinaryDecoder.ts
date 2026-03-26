@@ -5,6 +5,11 @@
  * Returns the same message format as the JSON protocol for compatibility.
  */
 import { SERVER_PACKET_LENGTHS, ServerPacketId } from "../../shared/packets/ServerPacketId";
+import {
+    INSTANCE_CHUNK_COUNT,
+    PLANE_COUNT,
+    deriveRegionsFromTemplates,
+} from "../../shared/instance/InstanceTypes";
 import type { ProjectileLaunch } from "../../shared/projectiles/ProjectileLaunch";
 
 /**
@@ -13,6 +18,7 @@ import type { ProjectileLaunch } from "../../shared/projectiles/ProjectileLaunch
 export class ServerPacketReader {
     readonly data: Uint8Array;
     offset: number = 0;
+    private bitPos: number = 0;
 
     constructor(data: Uint8Array | ArrayBuffer) {
         this.data = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
@@ -20,6 +26,32 @@ export class ServerPacketReader {
 
     get remaining(): number {
         return this.data.length - this.offset;
+    }
+
+    initBitAccess(): void {
+        this.bitPos = this.offset * 8;
+    }
+
+    readBits(count: number): number {
+        let bytePos = this.bitPos >> 3;
+        let bitOffset = 8 - (this.bitPos & 7);
+        let value = 0;
+        this.bitPos += count;
+        while (count > bitOffset) {
+            value += (this.data[bytePos++] & ((1 << bitOffset) - 1)) << (count - bitOffset);
+            count -= bitOffset;
+            bitOffset = 8;
+        }
+        if (count === bitOffset) {
+            value += this.data[bytePos] & ((1 << bitOffset) - 1);
+        } else {
+            value += (this.data[bytePos] >> (bitOffset - count)) & ((1 << count) - 1);
+        }
+        return value;
+    }
+
+    finishBitAccess(): void {
+        this.offset = (this.bitPos + 7) >> 3;
     }
 
     private ensureRemaining(bytes: number, op: string): void {
@@ -303,6 +335,54 @@ export function decodeServerPacket(data: Uint8Array | ArrayBuffer): DecodedServe
                     worldY: reader.readShort(),
                 },
             };
+
+        case ServerPacketId.REBUILD_REGION: {
+            const rebuildRegionX = reader.readShort();
+            const _rebuildFlag = reader.readByte();
+            const rebuildRegionY = reader.readShort();
+            const numXteaKeys = reader.readShort();
+
+            const templateChunks: number[][][] = new Array(PLANE_COUNT);
+            for (let p = 0; p < PLANE_COUNT; p++) {
+                templateChunks[p] = new Array(INSTANCE_CHUNK_COUNT);
+                for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
+                    templateChunks[p][cx] = new Array(INSTANCE_CHUNK_COUNT);
+                }
+            }
+
+            reader.initBitAccess();
+            for (let p = 0; p < PLANE_COUNT; p++) {
+                for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
+                    for (let cy = 0; cy < INSTANCE_CHUNK_COUNT; cy++) {
+                        const present = reader.readBits(1);
+                        if (present === 1) {
+                            templateChunks[p][cx][cy] = reader.readBits(26);
+                        } else {
+                            templateChunks[p][cx][cy] = -1;
+                        }
+                    }
+                }
+            }
+            reader.finishBitAccess();
+
+            const xteaKeys: number[][] = new Array(numXteaKeys);
+            for (let i = 0; i < numXteaKeys; i++) {
+                xteaKeys[i] = [reader.readInt(), reader.readInt(), reader.readInt(), reader.readInt()];
+            }
+
+            const mapRegions = deriveRegionsFromTemplates(templateChunks);
+
+            return {
+                type: "rebuild_region",
+                payload: {
+                    regionX: rebuildRegionX,
+                    regionY: rebuildRegionY,
+                    templateChunks,
+                    xteaKeys,
+                    mapRegions,
+                },
+            };
+        }
 
         case ServerPacketId.HANDSHAKE: {
             const id = reader.readInt();

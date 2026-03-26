@@ -653,6 +653,19 @@ export function subscribeServerPath(
 export function getLastServerPath(): { x: number; y: number }[] | undefined {
     return lastServerPath ? lastServerPath.slice() : undefined;
 }
+export interface RebuildRegionPayload {
+    regionX: number;
+    regionY: number;
+    templateChunks: number[][][];
+    xteaKeys: number[][];
+    mapRegions: number[];
+}
+const rebuildRegionListeners = new Set<(payload: RebuildRegionPayload) => void>();
+export function subscribeRebuildRegion(fn: (payload: RebuildRegionPayload) => void): () => void {
+    rebuildRegionListeners.add(fn);
+    return () => rebuildRegionListeners.delete(fn);
+}
+
 const welcomeListeners = new Set<(info: { tickMs: number; serverTime: number }) => void>();
 const loginResponseListeners = new Set<
     (info: { success: boolean; error?: string; displayName?: string }) => void
@@ -1621,6 +1634,14 @@ function processServerMessage(msg: any): void {
         // Keep authoritative world destination to avoid base-shift drift.
         ClientState.destinationWorldX = worldX;
         ClientState.destinationWorldY = worldY;
+    } else if (msg.type === "rebuild_region") {
+        ClientState.inInstance = true;
+        ClientState.instanceTemplateChunks = msg.payload.templateChunks;
+        for (const cb of rebuildRegionListeners) {
+            try {
+                cb(msg.payload);
+            } catch {}
+        }
     } else if (msg.type === "path") {
         const { id, ok, waypoints, message } = msg.payload;
         const cb = pending.get(id);

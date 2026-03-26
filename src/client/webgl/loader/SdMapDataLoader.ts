@@ -820,6 +820,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             loadedTextureIds,
             locOverrides,
             extraObjSpawns,
+            instance: instanceInput,
         }: SdMapLoaderInput,
     ): Promise<RenderDataResult<SdMapData | undefined>> {
         console.time(`load map ${mapX},${mapY}`);
@@ -908,7 +909,25 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
         const mapSize = Scene.MAP_SQUARE_SIZE + borderSize * 2;
 
         console.time(`build scene ${mapX},${mapY}`);
-        const scene = state.sceneBuilder.buildScene(baseX, baseY, mapSize, mapSize, smoothTerrain);
+        let scene: Scene;
+        if (instanceInput) {
+            scene = state.sceneBuilder.buildInstanceScene(
+                instanceInput.templateChunks,
+                baseX,
+                baseY,
+                mapSize,
+                mapSize,
+                smoothTerrain,
+            );
+        } else {
+            scene = state.sceneBuilder.buildScene(
+                baseX,
+                baseY,
+                mapSize,
+                mapSize,
+                smoothTerrain,
+            );
+        }
         console.timeEnd(`build scene ${mapX},${mapY}`);
 
         const sceneBuf = new SceneBuffer(textureLoader, textureIdIndexMap, 100000);

@@ -20,4 +20,12 @@ export type SdMapLoaderInput = {
         { newId: number; newRotation?: number; moveToX?: number; moveToY?: number }
     >;
     extraObjSpawns?: ObjSpawn[];
+
+    /**
+     * Instance mode: when present, the loader uses buildInstanceScene() instead
+     * of buildScene(). The SceneBuilder loads required cache regions internally.
+     */
+    instance?: {
+        templateChunks: number[][][];
+    };
 };

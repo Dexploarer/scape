@@ -531,6 +531,22 @@ export interface ScriptServices {
         forceRebuild?: boolean,
     ) => void;
     /**
+     * Teleport a player into a dynamic instance (REBUILD_REGION).
+     * Sends the instance template chunks + XTEA keys before the teleport.
+     * @param player The player to teleport
+     * @param x Target tile X coordinate
+     * @param y Target tile Y coordinate
+     * @param level Target level/plane (0-3)
+     * @param templateChunks 4×13×13 packed template chunk grid (-1 = empty)
+     */
+    teleportToInstance?: (
+        player: PlayerState,
+        x: number,
+        y: number,
+        level: number,
+        templateChunks: number[][][],
+    ) => void;
+    /**
      * Schedule a teleport through the server action scheduler.
      * This is the canonical path for delayed teleports (spell casts, admin map teleports),
      * and includes anti-spam gating.

@@ -692,6 +692,15 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
         case "destination":
             return serverEncoder.encodeDestination(payload.worldX, payload.worldY);
 
+        case "rebuild_region":
+            return serverEncoder.encodeRebuildRegion(
+                payload.regionX,
+                payload.regionY,
+                payload.templateChunks,
+                payload.xteaKeys,
+                payload.mapRegions,
+            );
+
         case "handshake":
             return serverEncoder.encodeHandshake(
                 payload.id,

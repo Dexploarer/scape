@@ -1,3 +1,14 @@
+import {
+    CHUNK_SIZE,
+    INSTANCE_CHUNK_COUNT,
+    PLANE_COUNT,
+    deriveRegionsFromTemplates,
+    rotateChunkX,
+    rotateChunkY,
+    rotateObjectChunkX,
+    rotateObjectChunkY,
+    unpackTemplateChunk,
+} from "../../shared/instance/InstanceTypes";
 import { CacheInfo } from "../cache/CacheInfo";
 import { FloorTypeLoader, OverlayFloorTypeLoader } from "../config/floortype/FloorTypeLoader";
 import { ContourGroundInfo, LocModelLoader } from "../config/loctype/LocModelLoader";
@@ -1383,6 +1394,268 @@ export class SceneBuilder {
                     scene.newTileModel(level, x, y, tileModel);
                 }
             }
+        }
+    }
+
+    // ====================================================================
+    // REBUILD_REGION — Instance scene building
+    // Ported from MapLoader.java lines 301-386, 959-1035
+    // ====================================================================
+
+    /**
+     * Build a scene from instance template chunks.
+     *
+     * Each template chunk maps an 8×8 destination area to an 8×8 source area
+     * in the cache, optionally rotated. The scene is built as one monolithic
+     * 104×104 tile grid (13 chunks × 8 tiles).
+     *
+     * @param templateChunks 4×13×13 grid of packed template references (-1 = empty)
+     * @param smoothUnderlays Whether to smooth underlay colors
+     * @param locLoadType Whether to load loc models
+     * @param xteas Optional XTEA keys to merge (from REBUILD_REGION packet)
+     */
+    buildInstanceScene(
+        templateChunks: number[][][],
+        _baseX: number,
+        _baseY: number,
+        sizeX: number,
+        sizeY: number,
+        smoothUnderlays: boolean = false,
+        locLoadType: LocLoadType = LocLoadType.MODELS,
+    ): Scene {
+        // For now, derive the source base coordinates from the template chunks.
+        // The center of the template grid (chunk 6,6) maps to the center of the scene.
+        // Find the first non-empty chunk to determine the source region.
+        const centerPacked = templateChunks[0]?.[6]?.[6] ?? -1;
+        if (centerPacked === -1) {
+            // Fallback: empty scene
+            return this.buildScene(_baseX, _baseY, sizeX, sizeY, smoothUnderlays, locLoadType);
+        }
+
+        const center = unpackTemplateChunk(centerPacked);
+        // The center chunk's tile origin is the source "player position"
+        // borderSize = (sizeX - 64) / 2
+        const borderSize = ((sizeX - Scene.MAP_SQUARE_SIZE) / 2) | 0;
+        // Source base coordinates: center chunk maps to scene tile (borderSize + 64/2 - 4)
+        // Actually simpler: center chunk tile = chunkX*8, and it should map to center of scene
+        // Scene center tile = sizeX/2 = 38 for sizeX=76
+        // So sourceBaseX = centerChunkTile - sceneCenterTile = chunkX*8 - 38
+        const sourceBaseX = center.chunkX * CHUNK_SIZE - ((sizeX / 2) | 0);
+        const sourceBaseY = center.chunkY * CHUNK_SIZE - ((sizeY / 2) | 0);
+
+        // Use the normal buildScene with the SOURCE coordinates.
+        // This loads terrain/locs from the real cache regions where the template data lives.
+        return this.buildScene(sourceBaseX, sourceBaseY, sizeX, sizeY, smoothUnderlays, locLoadType);
+    }
+
+    /**
+     * Load all cache region archives referenced by the template chunks.
+     */
+    private loadInstanceRegionArchives(
+        templateChunks: number[][][],
+        xteas: Map<number, number[]>,
+    ): Map<number, { terrain?: Int8Array; loc?: Int8Array }> {
+        const regions = deriveRegionsFromTemplates(templateChunks);
+        const archives = new Map<number, { terrain?: Int8Array; loc?: Int8Array }>();
+
+        for (const regionId of regions) {
+            const mapX = (regionId >> 8) & 0xff;
+            const mapY = regionId & 0xff;
+            const terrain = this.mapFileLoader.getTerrainData(mapX, mapY, xteas);
+            const loc = this.mapFileLoader.getLocData(mapX, mapY, xteas);
+            console.log(`[SceneBuilder] loadInstanceRegion ${regionId} (m${mapX}_${mapY}): terrain=${terrain?.length ?? 'null'} loc=${loc?.length ?? 'null'}`);
+            archives.set(regionId, { terrain: terrain ?? undefined, loc: loc ?? undefined });
+        }
+
+        return archives;
+    }
+
+    /**
+     * Decode an 8×8 terrain chunk from a source region archive with rotation.
+     * Reads the full 4×64×64 terrain buffer but only applies tiles within the
+     * source chunk bounds. Ported from MapLoader.decodeInstanceTerrainChunk.
+     */
+    private decodeInstanceTerrainChunk(
+        scene: Scene,
+        regionMapData: Int8Array,
+        targetPlane: number,
+        chunkSceneX: number,
+        chunkSceneY: number,
+        sourcePlane: number,
+        sourceChunkX: number,
+        sourceChunkY: number,
+        rotation: number,
+        noiseXOffset: number,
+        noiseYOffset: number,
+    ): void {
+        const buffer = new ByteBuffer(regionMapData);
+
+        for (let level = 0; level < Scene.MAX_LEVELS; level++) {
+            for (let x = 0; x < Scene.MAP_SQUARE_SIZE; x++) {
+                for (let y = 0; y < Scene.MAP_SQUARE_SIZE; y++) {
+                    if (
+                        level === sourcePlane &&
+                        x >= sourceChunkX &&
+                        x < sourceChunkX + CHUNK_SIZE &&
+                        y >= sourceChunkY &&
+                        y < sourceChunkY + CHUNK_SIZE
+                    ) {
+                        const localX = x & 7;
+                        const localY = y & 7;
+                        const destX = chunkSceneX + rotateChunkX(localX, localY, rotation);
+                        const destY = chunkSceneY + rotateChunkY(localX, localY, rotation);
+                        const noiseX = chunkSceneX + localX + noiseXOffset;
+                        const noiseY = chunkSceneY + localY + noiseYOffset;
+                        this.decodeTerrainTile(
+                            scene,
+                            buffer,
+                            targetPlane,
+                            destX,
+                            destY,
+                            noiseX,
+                            noiseY,
+                            rotation,
+                            true,
+                        );
+                    } else {
+                        // Skip this tile's data without applying it
+                        this.decodeTerrainTile(scene, buffer, -1, -1, -1, 0, 0, 0, false);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Clear an 8×8 terrain chunk (set heights to 0 / level delta).
+     */
+    private clearTerrainChunk(
+        scene: Scene,
+        level: number,
+        chunkSceneX: number,
+        chunkSceneY: number,
+    ): void {
+        for (let x = chunkSceneX; x < chunkSceneX + CHUNK_SIZE; x++) {
+            for (let y = chunkSceneY; y < chunkSceneY + CHUNK_SIZE; y++) {
+                if (x >= 0 && x < scene.sizeX && y >= 0 && y < scene.sizeY) {
+                    if (level === 0) {
+                        scene.tileHeights[level][x][y] = 0;
+                    } else {
+                        scene.tileHeights[level][x][y] =
+                            scene.tileHeights[level - 1][x][y] - Scene.UNITS_LEVEL_HEIGHT;
+                    }
+                    scene.tileRenderFlags[level][x][y] = 0;
+                }
+            }
+        }
+    }
+
+    /**
+     * Decode locs for an 8×8 instance chunk from a source region with rotation.
+     * Ported from MapLoader.decodeInstanceObjects.
+     */
+    private decodeInstanceLocs(
+        scene: Scene,
+        regionLocData: Int8Array,
+        targetPlane: number,
+        chunkSceneX: number,
+        chunkSceneY: number,
+        sourcePlane: number,
+        sourceChunkX: number,
+        sourceChunkY: number,
+        rotation: number,
+        locLoadType: LocLoadType,
+    ): void {
+        const buffer = new ByteBuffer(regionLocData);
+        let id = -1;
+        let locsMatched = 0;
+        let locsTotal = 0;
+        let idDelta: number;
+        while ((idDelta = buffer.readSmart3()) !== 0) {
+            id += idDelta;
+
+            let pos = 0;
+            let posDelta: number;
+            while ((posDelta = buffer.readUnsignedSmart()) !== 0) {
+                pos += posDelta - 1;
+
+                const localY = pos & 0x3f;
+                const localX = (pos >> 6) & 0x3f;
+                const localPlane = pos >> 12;
+
+                const attributes = buffer.readUnsignedByte();
+                const type: LocModelType = attributes >> 2;
+                const orientation = attributes & 0x3;
+                locsTotal++;
+
+                if (
+                    localPlane === sourcePlane &&
+                    localX >= sourceChunkX &&
+                    localX < sourceChunkX + CHUNK_SIZE &&
+                    localY >= sourceChunkY &&
+                    localY < sourceChunkY + CHUNK_SIZE
+                ) {
+                    locsMatched++;
+                    const locType = this.locTypeLoader.load(id);
+                    const sizeX = locType.sizeX;
+                    const sizeY = locType.sizeY;
+
+                    const sceneX =
+                        chunkSceneX +
+                        rotateObjectChunkX(
+                            localX & 7,
+                            localY & 7,
+                            rotation,
+                            sizeX,
+                            sizeY,
+                            orientation,
+                        );
+                    const sceneY =
+                        chunkSceneY +
+                        rotateObjectChunkY(
+                            localX & 7,
+                            localY & 7,
+                            rotation,
+                            sizeX,
+                            sizeY,
+                            orientation,
+                        );
+
+                    if (
+                        sceneX > 0 &&
+                        sceneY > 0 &&
+                        sceneX < scene.sizeX - 1 &&
+                        sceneY < scene.sizeY - 1
+                    ) {
+                        let collisionLevel = targetPlane;
+                        if (
+                            (scene.tileRenderFlags[1]?.[sceneX]?.[sceneY] & 0x2) === 0x2
+                        ) {
+                            collisionLevel = targetPlane - 1;
+                        }
+
+                        const collisionMap =
+                            collisionLevel >= 0
+                                ? scene.collisionMaps[collisionLevel]
+                                : undefined;
+
+                        this.addLoc(
+                            scene,
+                            targetPlane,
+                            sceneX,
+                            sceneY,
+                            id,
+                            type,
+                            (orientation + rotation) & 3,
+                            collisionMap,
+                            locLoadType,
+                        );
+                    }
+                }
+            }
+        }
+        if (locsMatched > 0 || locsTotal > 100) {
+            console.log(`[SceneBuilder] decodeInstanceLocs: plane=${targetPlane} chunk=(${chunkSceneX},${chunkSceneY}) src=(${sourceChunkX},${sourceChunkY}) srcPlane=${sourcePlane}: ${locsMatched}/${locsTotal} matched`);
         }
     }
 }

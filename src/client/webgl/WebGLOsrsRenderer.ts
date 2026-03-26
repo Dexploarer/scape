@@ -340,7 +340,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         string,
         { newId: number; newRotation?: number; moveToX?: number; moveToY?: number }
     > = new Map();
-    private pendingDoorUpdates: Set<number> = new Set();
     private pendingLocUpdates: Set<number> = new Set();
     private pendingLocReloadMaps: Map<number, { mapX: number; mapY: number }> = new Map();
     private pendingLocReloadFlushTimer?: ReturnType<typeof setTimeout>;
@@ -361,15 +360,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     private static readonly MOBILE_GAMEPLAY_UI_MAX_SCALE = 1.5;
     private static readonly MOBILE_GAMEPLAY_UI_PHONE_EDGE = 390;
     private static readonly MOBILE_GAMEPLAY_UI_TABLET_EDGE = 768;
-    private static readonly DOOR_NAME_KEYWORDS = [
-        "door",
-        "gate",
-        "trapdoor",
-        "portcullis",
-        "grill",
-    ];
-    private static readonly DOOR_ACTION_KEYWORDS = ["open", "close", "unlock", "lock"];
-
     app!: PicoApp;
     gl!: WebGL2RenderingContext;
 
@@ -5150,7 +5140,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             } else {
                 this.mapManager.loadingMapIds.delete(mapId);
             }
-            this.pendingDoorUpdates.delete(mapId);
             this.pendingLocUpdates.delete(mapId);
             this.queuedLocReloadBatchByMap.delete(mapId);
             if (typeof locReloadBatchId === "number") {
@@ -5228,37 +5217,42 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const { mapX, mapY } = mapData;
         const mapId = getMapSquareId(mapX, mapY);
         const existing = this.mapManager.getMap(mapX, mapY);
-        const isDoorUpdate = this.pendingDoorUpdates.has(mapId);
         const isLocUpdate = this.pendingLocUpdates.has(mapId);
 
-        if (isDoorUpdate) {
-            if (existing instanceof WebGLMapSquare) {
-                existing.refreshDoorGeometry(
-                    this.app,
-                    mainProgram,
-                    mainAlphaProgram,
-                    textureArray,
-                    textureMaterials,
-                    sceneUniformBuffer,
-                    mapData,
-                    existing.timeLoaded,
-                );
+        if (isLocUpdate && existing instanceof WebGLMapSquare) {
+            existing.refreshSceneGeometry(
+                this.osrsClient.seqTypeLoader,
+                this.osrsClient.seqFrameLoader,
+                this.app,
+                mainProgram,
+                mainAlphaProgram,
+                textureArray,
+                textureMaterials,
+                sceneUniformBuffer,
+                mapData,
+                getClientCycle() | 0,
+                existing.timeLoaded,
+            );
 
-                this.osrsClient.setMapImageUrl(
-                    mapX,
-                    mapY,
-                    URL.createObjectURL(mapData.minimapBlob),
-                    true,
-                    false,
-                );
+            this.osrsClient.setMapImageUrl(
+                mapX,
+                mapY,
+                URL.createObjectURL(mapData.minimapBlob),
+                true,
+                false,
+            );
 
-                this.mapManager.addMap(mapX, mapY, existing);
-                this.rebuildGroundItemsForMap(existing, this.groundItemStacks.get(mapId));
-                this.pendingDoorUpdates.delete(mapId);
-                this.pendingLocUpdates.delete(mapId);
-                this.updateTextureArray(mapData.loadedTextures);
-                return;
+            if (mapData.minimapIcons && mapData.minimapIcons.length > 0) {
+                this.minimapIcons.set(mapId, mapData.minimapIcons);
+            } else {
+                this.minimapIcons.delete(mapId);
             }
+
+            this.mapManager.addMap(mapX, mapY, existing);
+            this.rebuildGroundItemsForMap(existing, this.groundItemStacks.get(mapId));
+            this.pendingLocUpdates.delete(mapId);
+            this.updateTextureArray(mapData.loadedTextures);
+            return;
         }
 
         this.osrsClient.setMapImageUrl(
@@ -5312,7 +5306,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         this.updateTextureArray(mapData.loadedTextures);
 
-        this.pendingDoorUpdates.delete(mapId);
         this.pendingLocUpdates.delete(mapId);
     }
 
@@ -5333,7 +5326,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.skipMapFadeIn = false;
         this.activeStreamGeneration = 0;
         this.activeStreamExpectedMapIds.clear();
-        this.pendingDoorUpdates.clear();
         this.pendingLocUpdates.clear();
         this.pendingLocReloadMaps.clear();
         this.pendingLocReloadBatches.clear();
@@ -6944,7 +6936,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             ((this.mapsToLoad.length | 0) + (this.getPendingStreamMapCount() | 0)) | 0,
         );
         profiler.recordGauge("mapApplyCount", mapApplyCount | 0);
-        profiler.recordGauge("pendingDoorUpdates", this.pendingDoorUpdates.size | 0);
         profiler.recordGauge("pendingLocUpdates", this.pendingLocUpdates.size | 0);
         profiler.recordGauge("interactionHits", this.lastInteractionRaycastHitCount | 0);
         profiler.recordGauge("menuOptions", this.lastInteractionMenuOptionCount | 0);
@@ -12876,7 +12867,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.observedGridRevision = -1;
         this.activeStreamGeneration = 0;
         this.activeStreamExpectedMapIds.clear();
-        this.pendingDoorUpdates.clear();
         this.pendingLocUpdates.clear();
         this.pendingLocReloadMaps.clear();
         this.pendingLocReloadBatches.clear();
@@ -13059,9 +13049,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             ) {
                 this.clearInteractHighlightHoverTarget();
             }
-            const isDoorUpdate = this.isDoorLikeLoc(oldId) || this.isDoorLikeLoc(newId);
             const overrideRotation =
-                isDoorUpdate && typeof opts?.newRotation === "number"
+                typeof opts?.newRotation === "number"
                     ? opts.newRotation & 0x3
                     : undefined;
             // Store the override
@@ -13106,13 +13095,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 const mx = Number(mxRaw) | 0;
                 const my = Number(myRaw) | 0;
                 const mapId = getMapSquareId(mx, my);
-                if (isDoorUpdate) {
-                    this.pendingDoorUpdates.add(mapId);
-                    this.pendingLocUpdates.delete(mapId);
-                } else {
-                    this.pendingLocUpdates.add(mapId);
-                    this.pendingDoorUpdates.delete(mapId);
-                }
+                this.pendingLocUpdates.add(mapId);
                 this.scheduleLocReload(mx, my);
             }
 
@@ -13123,9 +13106,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 })
                 .join(", ");
             console.log(
-                `Refreshing map square(s) ${mapSummary} via ${
-                    isDoorUpdate ? "door update" : "full reload"
-                }`,
+                `Refreshing map square(s) ${mapSummary} via loc geometry refresh`,
             );
         } catch (err) {
             console.warn("onLocChange error", err);
@@ -13147,37 +13128,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             flush,
             WebGLOsrsRenderer.LOC_RELOAD_FLUSH_DELAY_MS,
         );
-    }
-
-    private isDoorLikeLoc(locId: number): boolean {
-        if (!(locId > 0)) return false;
-        try {
-            const loader: any = (this.osrsClient as any)?.locTypeLoader;
-            const loc = loader?.load?.(locId | 0);
-            if (!loc) return false;
-            const name = typeof loc.name === "string" ? loc.name.toLowerCase() : "";
-            if (
-                name.length > 0 &&
-                WebGLOsrsRenderer.DOOR_NAME_KEYWORDS.some((kw) => name.includes(kw))
-            ) {
-                return true;
-            }
-            const actions: string[] = [];
-            const pushActions = (source: any) => {
-                if (Array.isArray(source)) {
-                    for (const act of source) {
-                        if (typeof act === "string" && act.length > 0) {
-                            actions.push(act.toLowerCase());
-                        }
-                    }
-                }
-            };
-            pushActions(loc.actions);
-            pushActions(loc.op);
-            return actions.some((act) => WebGLOsrsRenderer.DOOR_ACTION_KEYWORDS.includes(act));
-        } catch {
-            return false;
-        }
     }
 
     private appendGroundItemMenuEntries(

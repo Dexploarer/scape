@@ -550,10 +550,11 @@ export function isMouseInUIRegion(
         return true;
     }
 
-    // Chatbox region: bottom-left area
-    if (mx < 519 && my > fh - 175) {
-        return true;
-    }
+    // Chatbox region: NOT hardcoded here.
+    // OSRS parity: chatbox click-blocking is driven entirely by the widget system.
+    // CS2 script toplevel_chatbox_background calls if_setnoclickthrough(true/false, chatbox:chat_background)
+    // depending on transparency and blockclick settings. isPointOverWidget (noClickThrough flag) is
+    // the authoritative gate — hardcoding this region would break transparent/hidden click-through.
 
     // Minimap/orbs region: top-right area
     if (mx >= fw - 216 && mx <= fw && my >= 0 && my <= 172) {

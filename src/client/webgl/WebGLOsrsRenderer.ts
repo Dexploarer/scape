@@ -890,25 +890,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         if (!isLoginLikeState) {
             if (!isMobileGameplayRoot) {
                 const desktopUiScale = getUiScale(cssW, cssH);
-                if (desktopUiScale > 1) {
-                    const layoutW = Math.max(1, Math.round(safeBufW / desktopUiScale));
-                    const layoutH = Math.max(1, Math.round(safeBufH / desktopUiScale));
-                    return {
-                        layoutW,
-                        layoutH,
-                        renderScaleX: safeBufW / layoutW,
-                        renderScaleY: safeBufH / layoutH,
-                        renderOffsetX: 0,
-                        renderOffsetY: 0,
-                    };
-                }
-                // When buffer is DPR-scaled (integer DPR >= 2, e.g. Mac Retina),
-                // use CSS-pixel layout so widgets match real OSRS sizing.
-                // renderScale equals the clean integer DPR — bitmap sprites
-                // stay pixel-perfect.  Fractional DPR is handled upstream in
-                // getCanvasResolutionScale which returns 1, so buffer = CSS.
-                const layoutW = Math.max(1, Math.round(cssW));
-                const layoutH = Math.max(1, Math.round(cssH));
+                const layoutW = Math.max(1, Math.round(cssW / desktopUiScale));
+                const layoutH = Math.max(1, Math.round(cssH / desktopUiScale));
                 return {
                     layoutW,
                     layoutH,

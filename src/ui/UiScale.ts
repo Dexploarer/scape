@@ -25,13 +25,23 @@ function ensureOverrideLoaded(): void {
 }
 
 /**
- * Compute the automatic UI scale.  OSRS resizable mode does not scale widgets —
- * they stay at their native pixel sizes and the viewport grows.  Auto-scale
- * therefore defaults to 1.  Users can still override via setUiScale() for
- * accessibility.
+ * Compute the automatic UI scale from CSS viewport dimensions.
+ * Scales up when the viewport is large enough that widgets would be physically
+ * tiny (common on high-res displays at low OS scaling).  Each scale level
+ * ensures the resulting layout stays at or above a minimum comfortable size.
  */
-export function computeAutoScale(_cssW: number, _cssH: number): number {
-    return 1;
+export function computeAutoScale(cssW: number, cssH: number): number {
+    const MIN_LAYOUT_W = 1024;
+    const MIN_LAYOUT_H = 576;
+
+    let scale = 1;
+    while (
+        cssW / (scale + 1) >= MIN_LAYOUT_W &&
+        cssH / (scale + 1) >= MIN_LAYOUT_H
+    ) {
+        scale++;
+    }
+    return Math.min(scale, MAX_SCALE);
 }
 
 /**

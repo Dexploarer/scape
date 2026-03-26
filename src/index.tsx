@@ -11,6 +11,7 @@ import { Gzip } from "./rs/compression/Gzip";
 import { registerServiceWorker } from "./serviceWorkerRegistration";
 // Register custom items (shared between client/server) - must be before OsrsClientApp
 import "./shared/custom-items";
+import { installUiDiagnostic } from "./ui/UiScaleDiagnostic";
 
 declare const module: any; // HMR typing
 
@@ -26,6 +27,10 @@ try {
         console.log("[resize] debug enabled via ?debugResize");
     }
 } catch {}
+
+// UI scale diagnostic kit — available via __uiDiag in browser console
+// Auto-dumps diagnostics on login. Also callable manually anytime.
+installUiDiagnostic();
 
 // NOTE: Server connection is initialized in OsrsClientApp after widget manager is ready
 

@@ -902,31 +902,18 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         renderOffsetY: 0,
                     };
                 }
-                // When DPR is an integer >= 2 (e.g. Mac Retina), use CSS-pixel
-                // layout so widgets match real OSRS sizing.  renderScale equals
-                // the clean integer DPR — bitmap sprites stay pixel-perfect.
-                // For fractional DPR (e.g. 1.25), layout = buffer with
-                // renderScale 1 to avoid sub-pixel interpolation blur.
-                const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1;
-                const roundedDpr = Math.round(dpr);
-                const isIntegerDpr = Number.isFinite(dpr) && dpr >= 1 && Math.abs(dpr - roundedDpr) < 0.01;
-                if (isIntegerDpr && roundedDpr >= 2) {
-                    const layoutW = Math.max(1, Math.round(cssW));
-                    const layoutH = Math.max(1, Math.round(cssH));
-                    return {
-                        layoutW,
-                        layoutH,
-                        renderScaleX: safeBufW / layoutW,
-                        renderScaleY: safeBufH / layoutH,
-                        renderOffsetX: 0,
-                        renderOffsetY: 0,
-                    };
-                }
+                // When buffer is DPR-scaled (integer DPR >= 2, e.g. Mac Retina),
+                // use CSS-pixel layout so widgets match real OSRS sizing.
+                // renderScale equals the clean integer DPR — bitmap sprites
+                // stay pixel-perfect.  Fractional DPR is handled upstream in
+                // getCanvasResolutionScale which returns 1, so buffer = CSS.
+                const layoutW = Math.max(1, Math.round(cssW));
+                const layoutH = Math.max(1, Math.round(cssH));
                 return {
-                    layoutW: safeBufW,
-                    layoutH: safeBufH,
-                    renderScaleX: 1,
-                    renderScaleY: 1,
+                    layoutW,
+                    layoutH,
+                    renderScaleX: safeBufW / layoutW,
+                    renderScaleY: safeBufH / layoutH,
                     renderOffsetX: 0,
                     renderOffsetY: 0,
                 };
@@ -980,6 +967,18 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         if (isLoginLikeState && !isMobileMode) {
             return 1;
         }
+
+        // Only scale for clean integer DPR values (e.g. 2x Retina).
+        // Fractional DPR (e.g. 1.25 from 125% Windows scaling) would cause
+        // widgets to appear physically smaller since the layout system uses
+        // buffer dimensions and sub-pixel interpolation blurs bitmap sprites.
+        if (!isMobileMode) {
+            const roundedDpr = Math.round(dpr);
+            if (Math.abs(dpr - roundedDpr) >= 0.01 || roundedDpr < 2) {
+                return 1;
+            }
+        }
+
         const maxScale = isLoginLikeState ? 3 : isIos ? 1 : 2;
         const targetScale = Math.min(dpr, maxScale);
 

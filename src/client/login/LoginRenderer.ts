@@ -310,7 +310,7 @@ export class LoginRenderer {
             if (!httpOk) {
                 const wsProto = server.secure ? "wss" : "ws";
                 const alive = await this.probeWebSocket(`${wsProto}://${server.address}`, 5000);
-                server.playerCount = alive ? 0 : null;
+                server.playerCount = alive ? -1 : null;
             }
         });
 
@@ -2703,6 +2703,8 @@ export class LoginRenderer {
                 this.drawText(ctx, this.fontPlain12, this.ellipsis(server.address, addrMaxW), col2X, textY, 0xaaaaaa);
                 if (server.playerCount === null) {
                     this.drawText(ctx, this.fontPlain12, "Offline", col3X, textY, 0xff0000);
+                } else if (server.playerCount === -1) {
+                    this.drawText(ctx, this.fontPlain12, "Online", col3X, textY, 0x00ff00);
                 } else {
                     const playersStr = `${server.playerCount}/${server.maxPlayers}`;
                     this.drawText(ctx, this.fontPlain12, playersStr, col3X, textY, 0x00ff00);

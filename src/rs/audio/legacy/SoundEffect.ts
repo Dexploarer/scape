@@ -89,31 +89,9 @@ export class SoundEffect {
     }
 
     toRawSound(): RawSoundData {
-        let samples = this.mix();
+        const samples = this.mix();
         const startSample = (this.start * 22050) / 1000;
-        let endSample = (this.end * 22050) / 1000;
-
-        // Trim noisy tails from delay effects for seamless looping
-        // Cost: O(n) scan but only runs once per sound (results are cached)
-        if (samples.length > 100 && endSample > 0) {
-            // Find first extreme jump (>80) indicating noise from delay effects
-            for (let i = 0; i < samples.length - 1; i++) {
-                if (Math.abs(samples[i + 1] - samples[i]) > 80) {
-                    // Trim and apply short fade-out for smooth transition
-                    const fadeStart = Math.max(0, i - 100);
-                    const fadeLength = Math.max(1, i - fadeStart);
-
-                    for (let j = fadeStart; j < i; j++) {
-                        const fadeFactor = 1.0 - (j - fadeStart) / fadeLength;
-                        samples[j] = (samples[j] * fadeFactor) | 0;
-                    }
-
-                    samples = samples.slice(0, i);
-                    endSample = Math.min(endSample, samples.length);
-                    break;
-                }
-            }
-        }
+        const endSample = (this.end * 22050) / 1000;
 
         return {
             sampleRate: 22050,

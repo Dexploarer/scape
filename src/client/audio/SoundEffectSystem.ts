@@ -8,6 +8,10 @@ type DecodedSound = {
     sampleRate: number;
     channelData: Float32Array;
     duration: number;
+    /** Loop start in seconds (from RawSound.start). 0 if no loop markers. */
+    loopStartSec: number;
+    /** Loop end in seconds (from RawSound.end). 0 if no loop markers. */
+    loopEndSec: number;
 };
 
 const enum EasingCurveId {
@@ -249,85 +253,56 @@ export class SoundEffectSystem {
     }
 
     private toFloatData(raw: RawSoundData, targetSampleRate: number): DecodedSound {
-        // Handle start/end trimming if specified
         const total = raw.samples.length | 0;
-        let startSample = Math.max(0, Math.min(total, Math.floor(raw.start)));
-        let rawEnd = raw.end > 0 ? Math.floor(raw.end) : total;
-        let endSample = Math.max(0, Math.min(total, rawEnd));
-        // If markers are inverted or equal, treat as full buffer to avoid zero-length output
-        if (endSample <= startSample) {
-            startSample = 0;
-            endSample = total;
-        }
-        const length = endSample - startSample;
 
-        // Safety check: only reject empty slices; allow very short FX
-        if (length <= 0) {
-            console.warn("[SoundEffectSystem] Rejecting very short sound with length", length);
+        if (total <= 0) {
             return {
                 sampleRate: raw.sampleRate || targetSampleRate || 22050,
                 channelData: new Float32Array(0),
                 duration: 0,
+                loopStartSec: 0,
+                loopEndSec: 0,
             };
         }
 
-        let channel: Float32Array = new Float32Array(length);
-        let hasExtremeJumps = false;
-        let maxJump = 0;
-
-        for (let i = 0; i < length; i++) {
-            // Int8 ranges from -128 to 127
-            // Convert to float range -1.0 to 1.0
-            const sample = raw.samples[startSample + i];
-            channel[i] = sample / 128.0; // Symmetric conversion
-
-            // Check for extreme jumps in the source data
-            if (i > 0) {
-                const jump = Math.abs(
-                    raw.samples[startSample + i] - raw.samples[startSample + i - 1],
-                );
-                if (jump > maxJump) maxJump = jump;
-                if (jump > 50) hasExtremeJumps = true;
-            }
+        // Keep the full buffer — loop boundaries are applied at playback, not decode.
+        let channel: Float32Array = new Float32Array(total);
+        for (let i = 0; i < total; i++) {
+            channel[i] = raw.samples[i] / 128.0;
         }
+
+        // Compute loop boundaries in source samples
+        const srcLoopStart = Math.max(0, Math.min(total, Math.floor(raw.start)));
+        const srcLoopEnd = raw.end > 0
+            ? Math.max(0, Math.min(total, Math.floor(raw.end)))
+            : 0;
 
         let output: Float32Array = channel;
         let outputRate = raw.sampleRate;
 
         if (targetSampleRate > 0 && targetSampleRate !== raw.sampleRate) {
-            // Apply anti-aliasing filter BEFORE upsampling
             if (targetSampleRate > raw.sampleRate) {
                 const nyquist = raw.sampleRate / 2;
-                smoothLowPass(channel, raw.sampleRate, nyquist * 0.9); // Cut off at 90% of Nyquist
+                smoothLowPass(channel, raw.sampleRate, nyquist * 0.9);
             }
 
             output = resampleToSampleRate(channel, raw.sampleRate, targetSampleRate);
             outputRate = targetSampleRate;
-
-            // Apply smoothing filter AFTER resampling
             smoothLowPass(output, outputRate);
-
-            // Check and fix loop boundary discontinuities for looping sounds
-            const loopJump = Math.abs(output[output.length - 1] - output[0]);
-            if (loopJump > 0.02) {
-                // Apply crossfade at loop boundary to eliminate clicks
-                const crossfadeLength = Math.min(2205, Math.floor(output.length * 0.05)); // 50ms crossfade
-                for (let i = 0; i < crossfadeLength; i++) {
-                    const fadeOut = 1.0 - i / crossfadeLength;
-                    const fadeIn = i / crossfadeLength;
-                    const endPos = output.length - crossfadeLength + i;
-                    output[endPos] = output[endPos] * fadeOut + output[i] * fadeIn;
-                }
-            }
         } else {
-            // Apply gentle low-pass filter even without resampling
             smoothLowPass(output, outputRate);
         }
+
+        // Convert loop boundaries from source-sample indices to seconds
+        const loopStartSec = srcLoopStart > 0 ? srcLoopStart / raw.sampleRate : 0;
+        const loopEndSec = srcLoopEnd > srcLoopStart ? srcLoopEnd / raw.sampleRate : 0;
 
         return {
             sampleRate: outputRate,
             channelData: output,
             duration: output.length / outputRate,
+            loopStartSec,
+            loopEndSec,
         };
     }
 
@@ -387,6 +362,8 @@ export class SoundEffectSystem {
                 sampleRate: sr,
                 channelData: new Float32Array(Math.max(64, Math.floor(sr * 0.02))).fill(0),
                 duration: 0.02,
+                loopStartSec: 0,
+                loopEndSec: 0,
             };
             // tiny DC-pop-safe blip
             for (let i = 0; i < tmp.channelData.length; i++)
@@ -459,23 +436,29 @@ export class SoundEffectSystem {
 
         const startTime = ctx.currentTime + (options.delayMs ? options.delayMs / 1000 : 0);
 
-        const requestedLoops = typeof options.loops === "number" ? options.loops : 1;
-        const normalizedLoops = Math.max(0, requestedLoops | 0);
+        // Reference semantics: numLoops < 0 = infinite, 0 = play once, n > 0 = loop n additional times
+        const requestedLoops = typeof options.loops === "number" ? options.loops : 0;
 
-        if (normalizedLoops === 0) {
-            // Treat 0 as a continuous loop (matches RawPcmStream.setNumLoops(-1) in RS client)
+        if (requestedLoops < 0) {
+            // Infinite loop (matches RawPcmStream.setNumLoopsInternal(-1))
             source.loop = true;
-            source.loopStart = 0;
-            source.loopEnd = buffer.duration;
+            source.loopStart = decoded.loopStartSec;
+            source.loopEnd = decoded.loopEndSec > decoded.loopStartSec
+                ? decoded.loopEndSec
+                : buffer.duration;
             source.start(startTime);
-        } else if (normalizedLoops === 1) {
+        } else if (requestedLoops === 0) {
+            // Play once (matches RawPcmStream.setNumLoopsInternal(0))
             source.start(startTime);
         } else {
+            // Loop n times then stop
             source.loop = true;
-            source.loopStart = 0;
-            source.loopEnd = buffer.duration;
+            source.loopStart = decoded.loopStartSec;
+            source.loopEnd = decoded.loopEndSec > decoded.loopStartSec
+                ? decoded.loopEndSec
+                : buffer.duration;
             source.start(startTime);
-            source.stop(startTime + buffer.duration * normalizedLoops);
+            source.stop(startTime + buffer.duration * (requestedLoops + 1));
         }
 
         this.registerSource(source, gainNode ? [gainNode] : []);
@@ -485,8 +468,7 @@ export class SoundEffectSystem {
         const now = typeof performance !== "undefined" ? performance.now() : Date.now();
         for (const effect of effects) {
             const radiusTiles = typeof effect.location === "number" ? effect.location : 0;
-            const loopsRaw = typeof effect.loops === "number" ? effect.loops : 1;
-            const loops = loopsRaw <= 0 ? 0 : loopsRaw;
+            const loops = typeof effect.loops === "number" ? effect.loops : 0;
 
             const locationKey =
                 context?.position != null
@@ -565,14 +547,16 @@ export class SoundEffectSystem {
                     existing.loopSoundId = undefined;
 
                     if (loopSoundId !== undefined) {
-                        const decodedLoop = this.decode(loopSoundId, undefined, true); // Force resample to AudioContext rate
+                        const decodedLoop = this.decode(loopSoundId, undefined, true);
                         if (decodedLoop) {
                             const loopBuffer = this.prepareBuffer(decodedLoop, ctx, true);
                             const loopSource = ctx.createBufferSource();
                             loopSource.buffer = loopBuffer;
                             loopSource.loop = true;
-                            loopSource.loopStart = 0;
-                            loopSource.loopEnd = loopBuffer.duration;
+                            loopSource.loopStart = decodedLoop.loopStartSec;
+                            loopSource.loopEnd = decodedLoop.loopEndSec > decodedLoop.loopStartSec
+                                ? decodedLoop.loopEndSec
+                                : loopBuffer.duration;
                             loopSource.connect(existing.gainNode);
                             this.registerSource(loopSource);
                             loopSource.start(now);
@@ -929,8 +913,10 @@ export class SoundEffectSystem {
                 loopSource = ctx.createBufferSource();
                 loopSource.buffer = loopBuffer;
                 loopSource.loop = true;
-                loopSource.loopStart = 0;
-                loopSource.loopEnd = loopBuffer.duration;
+                loopSource.loopStart = decodedLoop.loopStartSec;
+                loopSource.loopEnd = decodedLoop.loopEndSec > decodedLoop.loopStartSec
+                    ? decodedLoop.loopEndSec
+                    : loopBuffer.duration;
                 loopSource.connect(gainNode);
                 this.registerSource(loopSource);
                 loopSource.start(now);

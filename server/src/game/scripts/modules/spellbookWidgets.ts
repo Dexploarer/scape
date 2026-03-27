@@ -1,5 +1,6 @@
 import { EquipmentSlot } from "../../../../../src/rs/config/player/Equipment";
 import { SkillId } from "../../../../../src/rs/skill/skills";
+import { VARP_LAST_HOME_TELEPORT } from "../../../../../src/shared/vars";
 import { RUNE_IDS } from "../../../data/runes";
 import { getSpellWidgetId } from "../../../data/spellWidgetLoader";
 import {
@@ -13,6 +14,8 @@ import { type TeleportSpellData, getTeleportByWidgetId } from "../../../data/tel
 import { getMainmodalUid } from "../../../widgets/viewport";
 import type { SkillBoltEnchantActionData as BoltEnchantActionData } from "../../actions/skillActionPayloads";
 import { applyAutocastState } from "../../combat/AutocastState";
+import { WaitCondition } from "../../model/queue/QueueTask";
+import { HOME_TELEPORT_TIMER } from "../../model/timer/Timers";
 import { type PlayerState } from "../../player";
 import {
     type InventoryItem,
@@ -71,6 +74,41 @@ const MAGIC_SPELLBOOK_REDRAW_ARGS: (number | string)[] = [
 
 // Teleport animation timings
 const TELEPORT_DELAY_TICKS = 3; // Delay before actual teleport happens (for animation)
+
+// Home Teleport multi-phase animation sequence (OSRS parity, RSPROX verified)
+// Sequence: click → +1t phase1 → +7t phase2 → +13t phase3 → +17t phase4 → +21t phase5 → +24t teleport
+const HOME_TELEPORT_SEQ_PHASE1 = 4847;
+const HOME_TELEPORT_SPOT_PHASE1 = 800;
+const HOME_TELEPORT_SOUND_PHASE1 = 193;
+
+const HOME_TELEPORT_SEQ_PHASE2 = 4850;
+const HOME_TELEPORT_SOUND_PHASE2 = 196;
+
+const HOME_TELEPORT_SEQ_PHASE3 = 4853;
+const HOME_TELEPORT_SPOT_PHASE3 = 802;
+const HOME_TELEPORT_SOUND_PHASE3 = 194;
+
+const HOME_TELEPORT_SEQ_PHASE4 = 4855;
+const HOME_TELEPORT_SPOT_PHASE4 = 803;
+const HOME_TELEPORT_SPOT_PHASE4_HEIGHT = 65526; // signed -10, ground-level effect
+const HOME_TELEPORT_SOUND_PHASE4 = 195;
+
+const HOME_TELEPORT_SEQ_PHASE5 = 4857;
+const HOME_TELEPORT_SPOT_PHASE5 = 804;
+
+const HOME_TELEPORT_SOUND_RANGE = 4;
+const HOME_TELEPORT_VARBIT_COOLDOWN = 15064;
+const HOME_TELEPORT_VARBIT_COOLDOWN_VALUE = 100;
+
+// Wait durations for QueueTask yields.
+// Phase1 fires on first invoke; cycle() is called the same tick so the first
+// WaitCondition gets one decrement immediately → need N+1 for an N-tick gap.
+// Subsequent phases: first resume() is the tick after the phase fires → need N exactly.
+const HOME_TELEPORT_WAIT_PHASE1_TO_2 = 7; // 6-tick gap (7 = 6 + off-by-one on first invoke)
+const HOME_TELEPORT_WAIT_PHASE2_TO_3 = 6; // 6-tick gap
+const HOME_TELEPORT_WAIT_PHASE3_TO_4 = 4; // 4-tick gap
+const HOME_TELEPORT_WAIT_PHASE4_TO_5 = 4; // 4-tick gap
+const HOME_TELEPORT_WAIT_PHASE5_TO_TP = 3; // 3-tick gap
 
 // Rune ID to name mapping for error messages
 const RUNE_NAMES: Record<number, string> = {
@@ -1037,6 +1075,12 @@ function executeTeleport(
 ): void {
     if (!spell) return;
 
+    // Home Teleport uses a multi-phase 24-tick coroutine sequence — route separately.
+    if (spell.name === "Home Teleport") {
+        executeHomeTeleport(player, spell, services);
+        return;
+    }
+
     // OSRS parity: Teleporting closes all interruptible interfaces
     services.closeInterruptibleInterfaces?.(player);
 
@@ -1142,4 +1186,102 @@ function executeTeleport(
     }
 
     services.sendGameMessage(player, `Teleporting to ${destination.name}...`);
+}
+
+/**
+ * Execute the Home Teleport spell.
+ * OSRS parity: 24-tick multi-phase animation sequence before teleporting.
+ * Moving cancels the teleport (QueueTask WEAK priority — interrupted by player input).
+ * Sequence verified via RSPROX network log.
+ */
+function executeHomeTeleport(
+    player: PlayerState,
+    spell: TeleportSpellData,
+    services: ScriptServices,
+): void {
+    // Prevent double-start while animation is in progress
+    if (player.timers.has(HOME_TELEPORT_TIMER)) {
+        return;
+    }
+
+    // Check teleblock
+    if (!player.canTeleport()) {
+        services.sendGameMessage(player, "A magical force stops you from teleporting.");
+        return;
+    }
+
+    const { destination } = spell;
+
+    // Mark animation in progress for 25 ticks (full 24-tick sequence + 1 buffer)
+    player.timers.set(HOME_TELEPORT_TIMER, 25);
+
+    // OSRS parity: closes interruptible interfaces (dialogs, modals) on cast
+    services.closeInterruptibleInterfaces?.(player);
+
+    // Helper to play a sound at the player's current position
+    const playSound = (soundId: number) => {
+        services.playAreaSound?.({
+            soundId,
+            tile: { x: player.tileX, y: player.tileY },
+            level: player.level,
+            radius: HOME_TELEPORT_SOUND_RANGE,
+            volume: 255,
+        });
+    };
+
+    player.queueWeak(function* (task) {
+        // On movement/interaction interrupt: clear animation, spotanim, and in-progress lock
+        task.terminateAction = () => {
+            player.timers.remove(HOME_TELEPORT_TIMER);
+            services.playPlayerSeq?.(player, -1);
+            services.broadcastPlayerSpot?.(player, -1, 0, 0);
+        };
+
+        // Phase 1: tick +1 after click — seq 4847, spotanim 800, sound 193
+        services.playPlayerSeq?.(player, HOME_TELEPORT_SEQ_PHASE1);
+        services.broadcastPlayerSpot?.(player, HOME_TELEPORT_SPOT_PHASE1, 0, 0);
+        playSound(HOME_TELEPORT_SOUND_PHASE1);
+
+        // First yield needs N+1 because cycle() fires on the same tick as invoke()
+        yield new WaitCondition(HOME_TELEPORT_WAIT_PHASE1_TO_2);
+
+        // Phase 2: tick +7 — seq 4850, sound 196
+        services.playPlayerSeq?.(player, HOME_TELEPORT_SEQ_PHASE2);
+        playSound(HOME_TELEPORT_SOUND_PHASE2);
+
+        yield new WaitCondition(HOME_TELEPORT_WAIT_PHASE2_TO_3);
+
+        // Phase 3: tick +13 — seq 4853, spotanim 802, sound 194
+        services.playPlayerSeq?.(player, HOME_TELEPORT_SEQ_PHASE3);
+        services.broadcastPlayerSpot?.(player, HOME_TELEPORT_SPOT_PHASE3, 0, 0);
+        playSound(HOME_TELEPORT_SOUND_PHASE3);
+
+        yield new WaitCondition(HOME_TELEPORT_WAIT_PHASE3_TO_4);
+
+        // Phase 4: tick +17 — seq 4855, spotanim 803 (height -10), sound 195
+        services.playPlayerSeq?.(player, HOME_TELEPORT_SEQ_PHASE4);
+        services.broadcastPlayerSpot?.(
+            player,
+            HOME_TELEPORT_SPOT_PHASE4,
+            HOME_TELEPORT_SPOT_PHASE4_HEIGHT,
+            0,
+        );
+        playSound(HOME_TELEPORT_SOUND_PHASE4);
+
+        yield new WaitCondition(HOME_TELEPORT_WAIT_PHASE4_TO_5);
+
+        // Phase 5: tick +21 — seq 4857, spotanim 804
+        services.playPlayerSeq?.(player, HOME_TELEPORT_SEQ_PHASE5);
+        services.broadcastPlayerSpot?.(player, HOME_TELEPORT_SPOT_PHASE5, 0, 0);
+
+        yield new WaitCondition(HOME_TELEPORT_WAIT_PHASE5_TO_TP);
+
+        // Teleport: tick +24 — clear seq/spotanim, update cooldown varp/varbit, teleport
+        player.timers.remove(HOME_TELEPORT_TIMER);
+        services.queueVarbit?.(player.id, HOME_TELEPORT_VARBIT_COOLDOWN, HOME_TELEPORT_VARBIT_COOLDOWN_VALUE);
+        services.queueVarp?.(player.id, VARP_LAST_HOME_TELEPORT, services.getCurrentTick?.() ?? 0);
+        services.teleportPlayer?.(player, destination.x, destination.y, destination.level);
+        services.playPlayerSeq?.(player, -1);
+        services.broadcastPlayerSpot?.(player, -1, 0, 0);
+    });
 }

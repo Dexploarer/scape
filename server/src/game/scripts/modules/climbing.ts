@@ -244,6 +244,88 @@ function resolveDestination(
     return { x: event.player.tileX, y: event.player.tileY, level: targetLevel };
 }
 
+// ---------------------------------------------------------------------------
+// Multi-floor traversal helpers (top-floor / bottom-floor)
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract the floor count from a loc's cache name.
+ * OSRS multi-floor staircases encode the total floor count as a `_N` suffix
+ * in the loc name (e.g. "spiralstairsbottom_3" → 3 floors spanning planes 0-2).
+ */
+function getFloorCountFromLoc(
+    services: LocInteractionEvent["services"],
+    locId: number,
+): number | undefined {
+    const def = services.getLocDefinition?.(locId);
+    if (!def?.name) return undefined;
+    const match = (def.name as string).match(/_(\d+)$/);
+    if (match) {
+        const count = parseInt(match[1], 10);
+        if (count >= 2 && count <= 4) return count;
+    }
+    return undefined;
+}
+
+/**
+ * Resolve the target level for a multi-floor traversal.
+ *
+ * Priority:
+ *  1. Loc name floor count (e.g. "_3" → 3 floors).
+ *     - "top-floor" on a bottom stair: target = currentLevel + (floorCount - 1)
+ *     - "bottom-floor" on a top stair: target = currentLevel - (floorCount - 1)
+ *  2. Fallback: +1 for top-floor, 0 for bottom-floor.
+ */
+function resolveMultiFloorTarget(
+    event: LocInteractionEvent,
+    direction: "top" | "bottom",
+): number {
+    const { level, services, locId } = event;
+    const floorCount = getFloorCountFromLoc(services, locId);
+
+    if (direction === "top") {
+        if (floorCount !== undefined) {
+            return Math.min(level + (floorCount - 1), 3);
+        }
+        // Fallback: go up one floor (safest default)
+        return Math.min(level + 1, 3);
+    } else {
+        if (floorCount !== undefined) {
+            return Math.max(level - (floorCount - 1), 0);
+        }
+        // Fallback: ground floor
+        return 0;
+    }
+}
+
+/**
+ * Execute an instant multi-floor traversal (no climb animation).
+ * OSRS parity: top-floor / bottom-floor teleports are immediate with no
+ * sequence animation — just a plane change and face direction toward the loc.
+ */
+function executeInstantTraversal(
+    event: LocInteractionEvent,
+    dest: TraversalDestination,
+): void {
+    const { player, tile, services } = event;
+
+    services.requestTeleportAction?.(player, {
+        x: dest.x,
+        y: dest.y,
+        level: dest.level,
+        delayTicks: 0,
+        preserveAnimation: false,
+        requireCanTeleport: false,
+        replacePending: true,
+        arriveFaceTileX: tile.x,
+        arriveFaceTileY: tile.y,
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Single-floor traversal helpers (climb-up / climb-down)
+// ---------------------------------------------------------------------------
+
 /**
  * Ticks to wait after arrival before teleporting.
  * Gives the client time to finish walk interpolation so the player
@@ -315,6 +397,58 @@ export const climbingModule: ScriptModule = {
             const dir = link.level < event.level ? "down" : "up";
             executeTraversal(event, link, dir);
         });
+
+        // ---- top-floor: skip directly to the highest floor (no animation) ----
+        for (const action of ["top-floor", "top floor"]) {
+            registry.registerLocAction(action, (event) => {
+                ensureResolved(event.services);
+                const { tile, level } = event;
+
+                // Intermap link takes priority (handles dungeon/non-standard destinations)
+                const link = intermapLinks.find(tile.x, tile.y, level);
+                if (link) {
+                    executeInstantTraversal(event, link);
+                    return;
+                }
+
+                // Resolve target from loc name floor count, then fallback
+                const targetLevel = resolveMultiFloorTarget(event, "top");
+                if (targetLevel <= level) return;
+
+                executeInstantTraversal(event, {
+                    x: event.player.tileX,
+                    y: event.player.tileY,
+                    level: targetLevel,
+                });
+            });
+        }
+
+        // ---- bottom-floor: skip directly to the ground floor (no animation) ----
+        for (const action of ["bottom-floor", "bottom floor"]) {
+            registry.registerLocAction(action, (event) => {
+                ensureResolved(event.services);
+                const { level } = event;
+
+                if (level <= 0) return;
+
+                // Intermap link takes priority
+                const link = intermapLinks.find(event.tile.x, event.tile.y, level);
+                if (link) {
+                    executeInstantTraversal(event, link);
+                    return;
+                }
+
+                // Resolve target from loc name floor count, then fallback
+                const targetLevel = resolveMultiFloorTarget(event, "bottom");
+                if (targetLevel >= level) return;
+
+                executeInstantTraversal(event, {
+                    x: event.player.tileX,
+                    y: event.player.tileY,
+                    level: targetLevel,
+                });
+            });
+        }
 
         // ---- climb (ambiguous): show dialogue asking up or down ----
         registry.registerLocAction("climb", (event) => {

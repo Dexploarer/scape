@@ -16,6 +16,19 @@ import { ALL_RUNE_ITEM_IDS, RUNE_IDS } from "../data/runes";
 import { getCollectionLogItems } from "../game/collectionlog";
 import type { NpcState } from "../game/npc";
 import type { PlayerState } from "../game/player";
+import {
+    buildSailingIntroTemplates,
+    buildSailingOverlayTemplates,
+    SAILING_INTRO_BOAT_LOCS,
+    SAILING_INTRO_BUILD_AREAS,
+    SAILING_INTRO_LEVEL,
+    SAILING_INTRO_X,
+    SAILING_INTRO_Y,
+    SAILING_WORLD_ENTITY_CONFIG_ID,
+    SAILING_WORLD_ENTITY_INDEX,
+    SAILING_WORLD_ENTITY_SIZE_X,
+    SAILING_WORLD_ENTITY_SIZE_Z,
+} from "../game/sailing/SailingInstance";
 import { logger } from "../utils/logger";
 import type { MessageHandler, MessagePayload, MessageRouter } from "./MessageRouter";
 import type { IndexedMenuRequest } from "./managers/Cs2ModalManager";
@@ -1463,58 +1476,56 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                 }
 
                 if (root === "sail") {
-                    const {
-                        createEmptyTemplateChunks,
-                        packTemplateChunk,
-                    } = require("../../../src/shared/instance/InstanceTypes");
-                    const chunks = createEmptyTemplateChunks();
-                    // Port Sarim dock area, all 4 planes
-                    const baseChunkX = 381;
-                    const baseChunkY = 400;
-                    for (let plane = 0; plane < 4; plane++) {
-                        for (let cx = 2; cx < 11; cx++) {
-                            for (let cy = 2; cy < 11; cy++) {
-                                const srcX = baseChunkX + (cx - 6);
-                                const srcY = baseChunkY + (cy - 6);
-                                chunks[plane][cx][cy] = packTemplateChunk(plane, srcX, srcY, 0);
-                            }
-                        }
-                    }
+                    services.sendVarbit?.(sender, 18314, 6); // sailing_intro = 6
+                    services.teleportPlayer(sender, 3050, 3193, 0);
 
-                    // Player at Port Sarim dock (source coordinates).
-                    // buildInstanceScene delegates to buildScene with source coords,
-                    // so everything uses the same coordinate space.
-                    const px = 3046;
-                    const py = 3207;
-
-                    // Boat locs relative to player (same coordinate space)
-                    const boatLocs = [
-                        { id: 59501, x: px - 1, y: py - 3, level: 0, shape: 10, rotation: 0 },
-                        { id: 59516, x: px - 2, y: py - 3, level: 0, shape: 10, rotation: 0 },
-                        { id: 59624, x: px - 3, y: py - 3, level: 0, shape: 10, rotation: 0 },
-                        { id: 59620, x: px,     y: py + 2, level: 1, shape: 10, rotation: 0 },
-                        { id: 59553, x: px,     y: py,     level: 1, shape: 10, rotation: 0 },
-                        { id: 60480, x: px - 1, y: py - 2, level: 1, shape: 10, rotation: 1 },
-                        { id: 32545, x: px - 2, y: py - 1, level: 1, shape: 22, rotation: 0 },
-                        { id: 32545, x: px - 2, y: py - 2, level: 1, shape: 22, rotation: 0 },
-                        { id: 32545, x: px + 1, y: py - 2, level: 1, shape: 22, rotation: 0 },
-                        { id: 32545, x: px - 2, y: py + 1, level: 1, shape: 22, rotation: 0 },
-                        { id: 32545, x: px + 1, y: py + 1, level: 1, shape: 22, rotation: 0 },
-                        { id: 58569, x: px + 1, y: py - 1, level: 1, shape: 22, rotation: 0 },
-                        { id: 58526, x: px - 2, y: py,     level: 1, shape: 22, rotation: 0 },
-                        { id: 58568, x: px + 1, y: py,     level: 1, shape: 22, rotation: 0 },
-                    ];
-                    services.teleportToInstance(sender, px, py, 1, chunks, boatLocs);
-                    // sailing_intro_will_boat (14958) at ibx+4, iby+2, level 1
-                    // sailing_intro_anne_boat (14963) at ibx+4, iby+3, level 1
-                    // boat_hp_npc_small (15187) at ibx+3, iby+3, level 1
+                    // Send world entity overlay — only the boat chunk, no ocean
+                    const templateChunks = buildSailingOverlayTemplates();
+                    services.sendWorldEntity?.(
+                        sender,
+                        SAILING_WORLD_ENTITY_INDEX,
+                        SAILING_WORLD_ENTITY_CONFIG_ID,
+                        SAILING_WORLD_ENTITY_SIZE_X,
+                        SAILING_WORLD_ENTITY_SIZE_Z,
+                        templateChunks,
+                        SAILING_INTRO_BUILD_AREAS,
+                        SAILING_INTRO_BOAT_LOCS,
+                    );
 
                     services.queueChatMessage({
                         messageType: "game",
-                        text: "Teleported to sailing instance.",
+                        text: "Teleported to Port Sarim sailing dock.",
                         targetPlayerIds: [sender.id],
                     });
-                    logger.info(`[cmd] ::sail - Player ${sender.id} teleported to instance`);
+                    logger.info(`[cmd] ::sail - Player ${sender.id} teleported to Port Sarim dock`);
+                    return;
+                }
+
+                if (root === "sailboard") {
+                    // Set sailing varbits matching the packet dump
+                    services.sendVarbit?.(sender, 18314, 6); // sailing_intro
+                    services.sendVarbit?.(sender, 19136, 1); // sailing_boarded_boat
+                    services.sendVarbit?.(sender, 19137, 3); // sailing_boarded_boat_type
+                    services.sendVarbit?.(sender, 19104, 1); // sailing_player_is_on_player_boat
+                    services.sendVarbit?.(sender, 19118, 1); // sailing_preloaded_anims
+
+                    // Board the boat: enter instance at source-region coordinates
+                    const templateChunks = buildSailingIntroTemplates();
+                    services.teleportToInstance(
+                        sender,
+                        SAILING_INTRO_X,
+                        SAILING_INTRO_Y,
+                        SAILING_INTRO_LEVEL,
+                        templateChunks,
+                        SAILING_INTRO_BOAT_LOCS,
+                    );
+
+                    services.queueChatMessage({
+                        messageType: "game",
+                        text: "Boarded the boat.",
+                        targetPlayerIds: [sender.id],
+                    });
+                    logger.info(`[cmd] ::sailboard - Player ${sender.id} boarded boat instance`);
                     return;
                 }
 

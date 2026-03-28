@@ -46,6 +46,8 @@ import {
     subscribeWelcome,
     subscribeWidgetEvents,
     subscribeRebuildRegion,
+    subscribeRebuildNormal,
+    subscribeRebuildWorldEntity,
 } from "../network/ServerConnection";
 import type {
     CollectionLogServerPayload,
@@ -3140,17 +3142,64 @@ export class OsrsClient {
                     );
                     ClientState.inInstance = true;
                     ClientState.instanceTemplateChunks = payload.templateChunks;
-                    // Trigger instance scene load on the renderer
                     if (this.renderer && "loadInstanceScene" in this.renderer) {
                         (this.renderer as any).loadInstanceScene(
                             payload.templateChunks,
                             payload.regionX,
                             payload.regionY,
-                            payload.extraLocs,
                         );
                     }
                 } catch (err) {
                     console.warn("[OsrsClient] rebuild_region error", err);
+                }
+            });
+
+            subscribeRebuildNormal((payload) => {
+                try {
+                    console.log(
+                        `[OsrsClient] REBUILD_NORMAL received: regionX=${payload.regionX} regionY=${payload.regionY} regions=${payload.mapRegions.length}`,
+                    );
+                    ClientState.inInstance = false;
+                    ClientState.instanceTemplateChunks = null;
+                    if (this.renderer && "clearInstance" in this.renderer) {
+                        (this.renderer as any).clearInstance();
+                    }
+                } catch (err) {
+                    console.warn("[OsrsClient] rebuild_normal error", err);
+                }
+            });
+
+            subscribeRebuildWorldEntity((payload) => {
+                try {
+                    console.log(
+                        `[OsrsClient] REBUILD_WORLDENTITY received: entity=${payload.entityIndex} config=${payload.configId} size=${payload.sizeX}x${payload.sizeZ} regionX=${payload.regionX} regionY=${payload.regionY} regions=${payload.mapRegions.length}`,
+                    );
+                    // World entity coord from the packet (half-tile precision)
+                    // Entity renders at this position in the overworld
+                    const entityWorldX = 3054.5;
+                    const entityWorldY = 3193.5;
+
+                    // Collect extra locs from addedLocs that fall in source region
+                    const extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }> = [];
+
+                    if (this.renderer && "loadWorldEntityScene" in this.renderer) {
+                        (this.renderer as any).loadWorldEntityScene(
+                            payload.entityIndex,
+                            payload.templateChunks,
+                            payload.regionX,
+                            payload.regionY,
+                            entityWorldX,
+                            entityWorldY,
+                            payload.sizeX,
+                            payload.sizeZ,
+                            extraLocs,
+                        );
+                        // Schedule a single deferred rebuild to pick up LOC_ADD_CHANGE
+                        // packets that arrive after the initial scene build
+                        (this.renderer as any).scheduleWorldEntityLocRebuild(payload.entityIndex);
+                    }
+                } catch (err) {
+                    console.warn("[OsrsClient] rebuild_worldentity error", err);
                 }
             });
 

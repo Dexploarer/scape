@@ -5,7 +5,7 @@ import type { WidgetAction } from "../../widgets/WidgetManager";
 import { type DoorStateManager } from "../../world/DoorStateManager";
 import { type ActionEnqueueResult, type ActionKind, type ActionRequest } from "../actions";
 import type { OwnedItemLocation } from "../items/playerItemOwnership";
-import { type NpcState } from "../npc";
+import { type NpcSpawnConfig, type NpcState } from "../npc";
 import { type PlayerState } from "../player";
 import type { FishingSpotDefinition } from "../skills/fishing";
 import type { MiningRockDefinition } from "../skills/mining";
@@ -569,6 +569,29 @@ export interface ScriptServices {
         templateChunks: number[][][],
         extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
     ) => void;
+    teleportToWorldEntity?: (
+        player: PlayerState,
+        x: number,
+        y: number,
+        level: number,
+        entityIndex: number,
+        configId: number,
+        sizeX: number,
+        sizeZ: number,
+        templateChunks: number[][][],
+        buildAreas: import("../../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
+        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+    ) => void;
+    sendWorldEntity?: (
+        player: PlayerState,
+        entityIndex: number,
+        configId: number,
+        sizeX: number,
+        sizeZ: number,
+        templateChunks: number[][][],
+        buildAreas: import("../../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
+        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+    ) => void;
     /**
      * Schedule a teleport through the server action scheduler.
      * This is the canonical path for delayed teleports (spell casts, admin map teleports),
@@ -705,4 +728,6 @@ export interface ScriptServices {
         player: PlayerState,
     ) => { ok: true; npcId: number } | { ok: false; reason: string };
     despawnFollowerForPlayer?: (playerId: number, clearPersistentState?: boolean) => boolean;
+    spawnNpc?: (config: NpcSpawnConfig) => NpcState | undefined;
+    removeNpc?: (npcId: number) => boolean;
 }

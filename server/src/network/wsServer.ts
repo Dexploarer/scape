@@ -319,6 +319,11 @@ import { syncLeagueGeneralVarp } from "../game/leagues/leagueGeneral";
 import { getLeaguePackedVarpsForPlayer } from "../game/leagues/leaguePackedVarps";
 import { getLeagueSkillXpMultiplier as getActiveLeagueSkillXpMultiplier } from "../game/leagues/leagueXp";
 import { LockState } from "../game/model/LockState";
+import {
+    handleBoardingTick1,
+    handleBoardingTick2,
+    handleDisembarkTick,
+} from "../game/scripts/modules/quests/pandemonium";
 import { ACTIVE_COMBAT_TIMER, STUN_TIMER } from "../game/model/timer/Timers";
 import { createLootPickupNotification } from "../game/notifications/LootPickupNotification";
 import { NpcState, type NpcUpdateDelta } from "../game/npc";
@@ -490,7 +495,7 @@ import { registerDialogInterfaceHooks } from "../widgets/hooks/DialogInterfaceHo
 import { registerEquipmentStatsInterfaceHooks } from "../widgets/hooks/EquipmentStatsInterfaceHooks";
 import { type ShopOpenData, registerShopInterfaceHooks } from "../widgets/hooks/ShopInterfaceHooks";
 import { type CacheEnv, initCacheEnv } from "../world/CacheEnv";
-import { buildRebuildRegionPayload } from "../world/InstanceManager";
+import { buildRebuildNormalPayload, buildRebuildRegionPayload, buildRebuildWorldEntityPayload } from "../world/InstanceManager";
 import { CollisionOverlayStore } from "../world/CollisionOverlayStore";
 import { DoorCollisionService } from "../world/DoorCollisionService";
 import { DoorDefinitionLoader } from "../world/DoorDefinitionLoader";
@@ -1882,6 +1887,8 @@ export class WSServer {
                         ) ?? false
                     );
                 },
+                spawnNpc: (config) => this.npcManager?.spawnTransientNpc(config),
+                removeNpc: (npcId) => this.npcManager?.removeNpc(npcId) ?? false,
                 openDialog: (player, request) =>
                     this.widgetDialogHandler.openDialog(player, request as any),
                 openDialogOptions: (player, options) =>
@@ -2141,6 +2148,10 @@ export class WSServer {
                     this.teleportPlayer(player, x, y, level, forceRebuild),
                 teleportToInstance: (player, x, y, level, templateChunks, extraLocs) =>
                     this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
+                teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
+                    this.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
+                sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
+                    this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
                 requestTeleportAction: (player, request) =>
                     this.requestTeleportAction(player, request),
                 sendVarp: (player, varpId, value) => {
@@ -6128,10 +6139,8 @@ export class WSServer {
             regionY,
             templateChunks,
             this.cacheEnv!,
+            false,
         );
-        if (extraLocs) {
-            payload.extraLocs = extraLocs;
-        }
         const packet = encodeMessage({ type: "rebuild_region", payload } as any);
         logger.info(`[teleportToInstance] Sending REBUILD_REGION packet (${packet.length} bytes, ${payload.mapRegions.length} regions)`);
         this.withDirectSendBypass("rebuild_region", () =>
@@ -6140,6 +6149,117 @@ export class WSServer {
 
         // Now do the actual teleport (sets position, patches playerViews, etc.)
         this.teleportPlayer(player, x, y, level);
+
+        // Send extra locs via LOC_ADD_CHANGE after the teleport
+        if (extraLocs) {
+            for (const loc of extraLocs) {
+                this.spawnLocForPlayer(player, loc.id, { x: loc.x, y: loc.y }, loc.level, loc.shape, loc.rotation);
+            }
+        }
+    }
+
+    sendRebuildNormal(player: PlayerState): void {
+        const ws = this.players?.getSocketByPlayerId(player.id);
+        if (!ws) return;
+
+        const regionX = player.tileX >> 3;
+        const regionY = player.tileY >> 3;
+        const payload = buildRebuildNormalPayload(
+            regionX,
+            regionY,
+            this.cacheEnv!,
+        );
+        const packet = encodeMessage({ type: "rebuild_normal", payload } as any);
+        this.withDirectSendBypass("rebuild_normal", () =>
+            this.sendWithGuard(ws, packet, "rebuild_normal"),
+        );
+    }
+
+    sendWorldEntity(
+        player: PlayerState,
+        entityIndex: number,
+        configId: number,
+        sizeX: number,
+        sizeZ: number,
+        templateChunks: number[][][],
+        buildAreas: import("../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
+        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+    ): void {
+        const ws = this.players?.getSocketByPlayerId(player.id);
+        if (!ws) return;
+
+        const regionX = 480; // source region chunk X
+        const regionY = 800; // source region chunk Y
+
+        const payload = buildRebuildWorldEntityPayload(
+            entityIndex, configId, sizeX, sizeZ,
+            regionX, regionY, regionX, regionY,
+            templateChunks, buildAreas, this.cacheEnv!, false,
+        );
+        const packet = encodeMessage({ type: "rebuild_worldentity", payload } as any);
+        this.withDirectSendBypass("rebuild_worldentity", () =>
+            this.sendWithGuard(ws, packet, "rebuild_worldentity"),
+        );
+
+        if (extraLocs) {
+            for (const loc of extraLocs) {
+                this.spawnLocForPlayer(player, loc.id, { x: loc.x, y: loc.y }, loc.level, loc.shape, loc.rotation);
+            }
+        }
+    }
+
+    teleportToWorldEntity(
+        player: PlayerState,
+        x: number,
+        y: number,
+        level: number,
+        entityIndex: number,
+        configId: number,
+        sizeX: number,
+        sizeZ: number,
+        templateChunks: number[][][],
+        buildAreas: import("../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
+        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+    ): void {
+        logger.info(`[teleportToWorldEntity] Player ${player.id} -> (${x}, ${y}, ${level}) entity=${entityIndex}`);
+        const ws = this.players?.getSocketByPlayerId(player.id);
+        if (!ws) {
+            logger.warn(`[teleportToWorldEntity] No websocket for player ${player.id}`);
+            return;
+        }
+
+        const regionX = x >> 3;
+        const regionY = y >> 3;
+        const zoneX = regionX;
+        const zoneZ = regionY;
+
+        const payload = buildRebuildWorldEntityPayload(
+            entityIndex,
+            configId,
+            sizeX,
+            sizeZ,
+            zoneX,
+            zoneZ,
+            regionX,
+            regionY,
+            templateChunks,
+            buildAreas,
+            this.cacheEnv!,
+            false,
+        );
+        const packet = encodeMessage({ type: "rebuild_worldentity", payload } as any);
+        logger.info(`[teleportToWorldEntity] Sending REBUILD_WORLDENTITY packet (${packet.length} bytes, ${payload.mapRegions.length} regions)`);
+        this.withDirectSendBypass("rebuild_worldentity", () =>
+            this.sendWithGuard(ws, packet, "rebuild_worldentity"),
+        );
+
+        this.teleportPlayer(player, x, y, level);
+
+        if (extraLocs) {
+            for (const loc of extraLocs) {
+                this.spawnLocForPlayer(player, loc.id, { x: loc.x, y: loc.y }, loc.level, loc.shape, loc.rotation);
+            }
+        }
     }
 
     private executeMovementTeleportAction(
@@ -8571,6 +8691,10 @@ export class WSServer {
                 this.teleportPlayer(player, x, y, level, forceRebuild),
             teleportToInstance: (player, x, y, level, templateChunks, extraLocs) =>
                 this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
+            teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
+                this.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
+            sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
+                this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
             spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
                 this.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
             requestTeleportAction: (player, request) => this.requestTeleportAction(player, request),
@@ -10130,6 +10254,17 @@ export class WSServer {
                 );
             case "emote.play":
                 return this.executeEmotePlayAction(player, action.data as EmotePlayActionData);
+            case "sailing.board_tick1": {
+                const data = action.data as { playerName: string };
+                handleBoardingTick1(player, data, this.scriptRuntime.getServices());
+                return { ok: true };
+            }
+            case "sailing.board_tick2":
+                handleBoardingTick2(player, this.scriptRuntime.getServices());
+                return { ok: true };
+            case "sailing.disembark":
+                handleDisembarkTick(player, this.scriptRuntime.getServices());
+                return { ok: true };
             default:
                 return {
                     ok: false,

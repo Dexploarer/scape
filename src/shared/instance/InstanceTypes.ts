@@ -163,6 +163,29 @@ export function deriveRegionsFromTemplates(templateChunks: number[][][]): number
 }
 
 /**
+ * Derive the map region IDs for a normal (non-instance) region load.
+ * Mirrors Js5Archive.loadRegions normal path: iterates map squares
+ * from (regionX-6)/8 to (regionX+6)/8 in both axes.
+ *
+ * @param regionX Center chunk X coordinate
+ * @param regionY Center chunk Y coordinate
+ */
+export function deriveRegionsFromCenter(regionX: number, regionY: number): number[] {
+    const regions: number[] = [];
+    const minMapX = ((regionX - 6) / 8) | 0;
+    const maxMapX = ((regionX + 6) / 8) | 0;
+    const minMapY = ((regionY - 6) / 8) | 0;
+    const maxMapY = ((regionY + 6) / 8) | 0;
+
+    for (let mx = minMapX; mx <= maxMapX; mx++) {
+        for (let my = minMapY; my <= maxMapY; my++) {
+            regions.push((mx << 8) | my);
+        }
+    }
+    return regions;
+}
+
+/**
  * Create an empty 4×13×13 template chunk grid filled with -1 (no template).
  */
 export function createEmptyTemplateChunks(): number[][][] {

@@ -32,8 +32,8 @@ export type SdMapLoaderInput = {
     };
 
     /**
-     * Extra locs to add to the scene (not in cache data).
-     * Used for dynamically spawned objects like boat parts.
+     * Extra locs to bake into the scene (normal or instance builds).
+     * Sourced from LOC_ADD_CHANGE packets for dynamically spawned objects.
      */
     extraLocs?: Array<{
         id: number;
@@ -43,4 +43,14 @@ export type SdMapLoaderInput = {
         shape: number;
         rotation: number;
     }>;
+
+    /**
+     * Override the render position for world entity overlays.
+     * When set, the scene is built at source coordinates but rendered
+     * at the entity's world position via shader u_mapPos offset.
+     */
+    overrideRenderPos?: {
+        x: number;
+        y: number;
+    };
 };

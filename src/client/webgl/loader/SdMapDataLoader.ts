@@ -823,6 +823,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             extraObjSpawns,
             instance: instanceInput,
             extraLocs: extraLocsInput,
+            overrideRenderPos,
         }: SdMapLoaderInput,
     ): Promise<RenderDataResult<SdMapData | undefined>> {
         console.time(`load map ${mapX},${mapY}`);
@@ -849,37 +850,36 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
         const borderSize = 6;
 
         const isInstance = !!instanceInput;
-        const mapSize = Scene.MAP_SQUARE_SIZE + borderSize * 2;
+        const CHUNK_SIZE = 8;
+        const INSTANCE_SIZE = 13 * CHUNK_SIZE; // 104
 
-        // For instances, baseX/Y must match what buildInstanceScene computes
-        // (center chunk tile - half scene size) so extra locs and vertex offsets
-        // align with the actual scene data.
+        // Instance scenes use the full 13x13 chunk grid (104 tiles) with no border.
+        // Normal scenes use MAP_SQUARE_SIZE + 2*border (76 tiles).
+        const usedBorderSize = isInstance ? 0 : borderSize;
+        const mapSize = isInstance ? INSTANCE_SIZE : Scene.MAP_SQUARE_SIZE + borderSize * 2;
+
         let baseX: number;
         let baseY: number;
         let renderPosX: number | undefined;
         let renderPosY: number | undefined;
         if (isInstance) {
-            const { unpackTemplateChunk } = require("../../../shared/instance/InstanceTypes");
-            const CHUNK_SIZE = 8;
-            const centerPacked = instanceInput!.templateChunks[0]?.[6]?.[6] ?? -1;
-            if (centerPacked !== -1) {
-                const center = unpackTemplateChunk(centerPacked);
-                baseX = center.chunkX * CHUNK_SIZE - ((mapSize / 2) | 0);
-                baseY = center.chunkY * CHUNK_SIZE - ((mapSize / 2) | 0);
-            } else {
-                baseX = mapX * Scene.MAP_SQUARE_SIZE - borderSize;
-                baseY = mapY * Scene.MAP_SQUARE_SIZE - borderSize;
-            }
-            // Compute renderPos so the shader positions vertices at instance
-            // world coordinates instead of source coordinates.
-            // Shader: worldX = vertexLocalX + renderPosX * 64
-            // vertexLocalX = sceneTile - borderSize (from vertex offset)
-            // We want: worldX = sceneTile + instanceBaseX
-            // So: renderPosX * 64 = instanceBaseX + borderSize
+            // Scene is in instance-local coordinates.
+            // sceneX=0 corresponds to instance world origin.
             const instanceBaseX = (instanceInput!.regionX - 6) * CHUNK_SIZE;
             const instanceBaseY = (instanceInput!.regionY - 6) * CHUNK_SIZE;
-            renderPosX = (instanceBaseX + borderSize) / Scene.MAP_SQUARE_SIZE;
-            renderPosY = (instanceBaseY + borderSize) / Scene.MAP_SQUARE_SIZE;
+            baseX = instanceBaseX;
+            baseY = instanceBaseY;
+            if (overrideRenderPos) {
+                // World entity overlay: scene built at source coords,
+                // rendered at entity's world position.
+                renderPosX = overrideRenderPos.x / Scene.MAP_SQUARE_SIZE;
+                renderPosY = overrideRenderPos.y / Scene.MAP_SQUARE_SIZE;
+            } else {
+                // Normal instance: renderPos matches scene base.
+                // Shader: worldX = vertexLocalX + renderPosX * 64
+                renderPosX = instanceBaseX / Scene.MAP_SQUARE_SIZE;
+                renderPosY = instanceBaseY / Scene.MAP_SQUARE_SIZE;
+            }
         } else {
             baseX = mapX * Scene.MAP_SQUARE_SIZE - borderSize;
             baseY = mapY * Scene.MAP_SQUARE_SIZE - borderSize;
@@ -950,9 +950,10 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
                 instanceInput.templateChunks,
                 baseX,
                 baseY,
-                mapSize,
-                mapSize,
+                INSTANCE_SIZE,
+                INSTANCE_SIZE,
                 smoothTerrain,
+                LocLoadType.MODELS,
             );
         } else {
             scene = state.sceneBuilder.buildScene(
@@ -963,19 +964,11 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
                 smoothTerrain,
             );
         }
-        // Inject extra locs (dynamic spawns like boat parts)
+        // Inject extra locs (from LOC_ADD_CHANGE) into the built scene
         if (extraLocsInput && extraLocsInput.length > 0) {
-            // For instances, extra locs arrive in instance coordinates but the scene
-            // is built at source coordinates. Convert by applying the offset.
-            const instanceOffsetX = isInstance && instanceInput
-                ? (instanceInput.regionX - 6) * 8 - baseX
-                : 0;
-            const instanceOffsetY = isInstance && instanceInput
-                ? (instanceInput.regionY - 6) * 8 - baseY
-                : 0;
             for (const loc of extraLocsInput) {
-                const sceneX = loc.x - baseX - instanceOffsetX;
-                const sceneY = loc.y - baseY - instanceOffsetY;
+                const sceneX = loc.x - baseX;
+                const sceneY = loc.y - baseY;
                 if (
                     sceneX > 0 &&
                     sceneY > 0 &&
@@ -1000,9 +993,10 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
 
         const sceneBuf = new SceneBuffer(textureLoader, textureIdIndexMap, 100000);
         const doorSceneBuf = new SceneBuffer(textureLoader, textureIdIndexMap, 20000);
-        sceneBuf.addTerrain(scene, borderSize, maxLevel);
+        const coreSize = isInstance ? INSTANCE_SIZE : Scene.MAP_SQUARE_SIZE;
+        sceneBuf.addTerrain(scene, usedBorderSize, maxLevel, coreSize, usedBorderSize);
 
-        const sceneLocs = getSceneLocs(locTypeLoader, scene, borderSize, maxLevel);
+        const sceneLocs = getSceneLocs(locTypeLoader, scene, usedBorderSize, maxLevel, coreSize, usedBorderSize);
         const sceneModels: SceneModel[] = [];
         const doorSceneModels: SceneModel[] = [];
         for (const locModel of sceneLocs.locs) {
@@ -1028,13 +1022,13 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
 
         if (loadObjs) {
             const objSpawns = getMapObjSpawns(state.objSpawns, maxLevel, mapX, mapY);
-            createObjSceneModels(objModelLoader, sceneModels, scene, borderSize, objSpawns);
+            createObjSceneModels(objModelLoader, sceneModels, scene, usedBorderSize, objSpawns);
             if (extraObjSpawns && extraObjSpawns.length > 0) {
                 createObjSceneModels(
                     objModelLoader,
                     sceneModels,
                     scene,
-                    borderSize,
+                    usedBorderSize,
                     extraObjSpawns,
                 );
             }
@@ -1076,10 +1070,10 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
         // Build per-level CSR mappings of loc IDs per interior tile (64x64 region) at tile origin.
         // We only include object IDs for origins (e.g., loc.startX/startY matches the tile) and direct
         // wall/wallDecoration/floorDecoration anchored at that tile.
-        const TILE_SIZE = Scene.MAP_SQUARE_SIZE; // 64
-        const interiorMin = borderSize;
-        const interiorMaxX = borderSize + TILE_SIZE - 1;
-        const interiorMaxY = borderSize + TILE_SIZE - 1;
+        const TILE_SIZE = isInstance ? INSTANCE_SIZE : Scene.MAP_SQUARE_SIZE;
+        const interiorMin = usedBorderSize;
+        const interiorMaxX = usedBorderSize + TILE_SIZE - 1;
+        const interiorMaxY = usedBorderSize + TILE_SIZE - 1;
 
         const tileLocOffsetsByLevel: Uint32Array[] = new Array(Scene.MAX_LEVELS);
         const tileLocIdsByLevel: Int32Array[] = new Array(Scene.MAX_LEVELS);
@@ -1399,7 +1393,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
                 state.mapImageRenderer,
                 scene,
                 0,
-                borderSize,
+                usedBorderSize,
                 false,
             );
         } else {
@@ -1440,7 +1434,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
         const minimapIcons = extractMinimapIcons(
             scene,
             state.locTypeLoader,
-            borderSize,
+            usedBorderSize,
             mapFunctionToSpriteId,
         );
 
@@ -1561,7 +1555,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
 
                 smoothTerrain,
 
-                borderSize,
+                borderSize: usedBorderSize,
                 heightMapSize: mapSize,
                 renderPosX,
                 renderPosY,

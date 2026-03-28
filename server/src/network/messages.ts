@@ -709,14 +709,37 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
                 payload.rotation,
             );
 
+        case "rebuild_normal":
+            return serverEncoder.encodeRebuildNormal(
+                payload.regionX,
+                payload.regionY,
+                payload.forceReload ?? false,
+                payload.xteaKeys,
+            );
+
         case "rebuild_region":
             return serverEncoder.encodeRebuildRegion(
                 payload.regionX,
                 payload.regionY,
+                payload.forceReload ?? false,
                 payload.templateChunks,
                 payload.xteaKeys,
-                payload.mapRegions,
-                payload.extraLocs,
+            );
+
+        case "rebuild_worldentity":
+            return serverEncoder.encodeRebuildWorldEntity(
+                payload.entityIndex,
+                payload.configId,
+                payload.sizeX,
+                payload.sizeZ,
+                payload.zoneX,
+                payload.zoneZ,
+                payload.regionX,
+                payload.regionY,
+                payload.forceReload ?? false,
+                payload.templateChunks,
+                payload.xteaKeys,
+                payload.buildAreas,
             );
 
         case "handshake":

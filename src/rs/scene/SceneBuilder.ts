@@ -1,6 +1,7 @@
 import {
     CHUNK_SIZE,
     INSTANCE_CHUNK_COUNT,
+    INSTANCE_SIZE,
     PLANE_COUNT,
     deriveRegionsFromTemplates,
     rotateChunkX,
@@ -388,6 +389,7 @@ export class SceneBuilder {
                     scene.tileOverlays[level][x][y] = readTerrainValue(
                         buffer,
                         this.newTerrainFormat,
+                        true,
                     );
                     scene.tileShapes[level][x][y] = (v - 2) / 4;
                     scene.tileRotations[level][x][y] = (v - 2 + rotOffset) & 3;
@@ -1423,20 +1425,99 @@ export class SceneBuilder {
         smoothUnderlays: boolean = false,
         locLoadType: LocLoadType = LocLoadType.MODELS,
     ): Scene {
-        // Derive source coordinates from the template center chunk and
-        // delegate to the normal buildScene path. This reuses the full
-        // map-square loading pipeline (border overlap, multi-region terrain,
-        // proper loc coverage) so the instance looks identical to normal maps.
-        const centerPacked = templateChunks[0]?.[6]?.[6] ?? -1;
-        if (centerPacked === -1) {
-            return this.buildScene(_baseX, _baseY, sizeX, sizeY, smoothUnderlays, locLoadType);
+        const scene = new Scene(Scene.MAX_LEVELS, INSTANCE_SIZE, INSTANCE_SIZE);
+
+        // Phase 1: Load all source region archives referenced by the template grid
+        const archives = this.loadInstanceRegionArchives(templateChunks, this.xteasMap);
+
+        // Phase 2: Decode terrain chunk-by-chunk
+        for (let plane = 0; plane < PLANE_COUNT; plane++) {
+            for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
+                for (let cy = 0; cy < INSTANCE_CHUNK_COUNT; cy++) {
+                    const packed = templateChunks[plane]?.[cx]?.[cy] ?? -1;
+                    if (packed === -1) {
+                        this.clearTerrainChunk(scene, plane, cx * CHUNK_SIZE, cy * CHUNK_SIZE);
+                        continue;
+                    }
+                    const { plane: sourcePlane, chunkX, chunkY, rotation } =
+                        unpackTemplateChunk(packed);
+                    const regionId = ((chunkX >> 3) << 8) | (chunkY >> 3);
+                    const archive = archives.get(regionId);
+                    if (!archive?.terrain) {
+                        this.clearTerrainChunk(scene, plane, cx * CHUNK_SIZE, cy * CHUNK_SIZE);
+                        continue;
+                    }
+                    const sourceChunkX = (chunkX & 7) * CHUNK_SIZE;
+                    const sourceChunkY = (chunkY & 7) * CHUNK_SIZE;
+                    const noiseXOffset = (chunkX - cx) * CHUNK_SIZE;
+                    const noiseYOffset = (chunkY - cy) * CHUNK_SIZE;
+                    this.decodeInstanceTerrainChunk(
+                        scene,
+                        archive.terrain,
+                        plane,
+                        cx * CHUNK_SIZE,
+                        cy * CHUNK_SIZE,
+                        sourcePlane,
+                        sourceChunkX,
+                        sourceChunkY,
+                        rotation,
+                        noiseXOffset,
+                        noiseYOffset,
+                    );
+                }
+            }
         }
 
-        const center = unpackTemplateChunk(centerPacked);
-        const sourceBaseX = center.chunkX * CHUNK_SIZE - ((sizeX / 2) | 0);
-        const sourceBaseY = center.chunkY * CHUNK_SIZE - ((sizeY / 2) | 0);
+        // Phase 2b: Fill missing terrain for plane 0 empty chunks
+        for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
+            for (let cy = 0; cy < INSTANCE_CHUNK_COUNT; cy++) {
+                const packed = templateChunks[0]?.[cx]?.[cy] ?? -1;
+                if (packed === -1) {
+                    this.fillMissingTerrain(scene, cx * CHUNK_SIZE, cy * CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE);
+                }
+            }
+        }
 
-        return this.buildScene(sourceBaseX, sourceBaseY, sizeX, sizeY, smoothUnderlays, locLoadType);
+        // Phase 3: Decode locs chunk-by-chunk
+        for (let plane = 0; plane < PLANE_COUNT; plane++) {
+            for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
+                for (let cy = 0; cy < INSTANCE_CHUNK_COUNT; cy++) {
+                    const packed = templateChunks[plane]?.[cx]?.[cy] ?? -1;
+                    if (packed === -1) continue;
+                    const { plane: sourcePlane, chunkX, chunkY, rotation } =
+                        unpackTemplateChunk(packed);
+                    const regionId = ((chunkX >> 3) << 8) | (chunkY >> 3);
+                    const archive = archives.get(regionId);
+                    if (!archive?.loc) continue;
+                    const sourceChunkX = (chunkX & 7) * CHUNK_SIZE;
+                    const sourceChunkY = (chunkY & 7) * CHUNK_SIZE;
+                    this.decodeInstanceLocs(
+                        scene,
+                        archive.loc,
+                        plane,
+                        cx * CHUNK_SIZE,
+                        cy * CHUNK_SIZE,
+                        sourcePlane,
+                        sourceChunkX,
+                        sourceChunkY,
+                        rotation,
+                        locLoadType,
+                    );
+                }
+            }
+        }
+
+        // Phase 4: Post-processing (same as buildScene)
+        this.addTileModels(scene, smoothUnderlays);
+        scene.setTileMinLevels();
+        this.setFloorCollision(scene);
+        scene.applyBridgeLinks();
+        scene.setTileMinLevels();
+        if (locLoadType === LocLoadType.MODELS) {
+            scene.light(this.locModelLoader.textureLoader, -50, -10, -50);
+        }
+
+        return scene;
     }
 
     /**
@@ -1479,6 +1560,18 @@ export class SceneBuilder {
         noiseXOffset: number,
         noiseYOffset: number,
     ): void {
+        // Clear bridge collision flags in the chunk area before decoding
+        const collisionMap = scene.collisionMaps[targetPlane];
+        if (collisionMap) {
+            for (let x = chunkSceneX; x < chunkSceneX + CHUNK_SIZE; x++) {
+                for (let y = chunkSceneY; y < chunkSceneY + CHUNK_SIZE; y++) {
+                    if (collisionMap.isWithinBounds(x, y)) {
+                        collisionMap.unflag(x, y, 0x40000000);
+                    }
+                }
+            }
+        }
+
         const buffer = new ByteBuffer(regionMapData);
 
         for (let level = 0; level < Scene.MAX_LEVELS; level++) {
@@ -1503,8 +1596,8 @@ export class SceneBuilder {
                             targetPlane,
                             destX,
                             destY,
-                            noiseX,
-                            noiseY,
+                            noiseX - destX,
+                            noiseY - destY,
                             rotation,
                             true,
                         );
@@ -1518,7 +1611,8 @@ export class SceneBuilder {
     }
 
     /**
-     * Clear an 8×8 terrain chunk (set heights to 0 / level delta).
+     * Clear an 8×8 terrain chunk with edge blending from adjacent chunks.
+     * Ported from MapLoader.clearTerrainChunk (lines 886-915).
      */
     private clearTerrainChunk(
         scene: Scene,
@@ -1526,16 +1620,78 @@ export class SceneBuilder {
         chunkSceneX: number,
         chunkSceneY: number,
     ): void {
-        for (let x = chunkSceneX; x < chunkSceneX + CHUNK_SIZE; x++) {
-            for (let y = chunkSceneY; y < chunkSceneY + CHUNK_SIZE; y++) {
+        // Zero all heights in the chunk (reference does NOT clear tileRenderFlags here)
+        for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+            for (let ly = 0; ly < CHUNK_SIZE; ly++) {
+                const x = lx + chunkSceneX;
+                const y = ly + chunkSceneY;
                 if (x >= 0 && x < scene.sizeX && y >= 0 && y < scene.sizeY) {
-                    if (level === 0) {
-                        scene.tileHeights[level][x][y] = 0;
-                    } else {
-                        scene.tileHeights[level][x][y] =
-                            scene.tileHeights[level - 1][x][y] - Scene.UNITS_LEVEL_HEIGHT;
+                    scene.tileHeights[level][x][y] = 0;
+                }
+            }
+        }
+
+        // Copy left edge heights from west neighbor
+        if (chunkSceneX > 0) {
+            for (let ly = 1; ly < CHUNK_SIZE; ly++) {
+                const x = chunkSceneX;
+                const y = ly + chunkSceneY;
+                if (x < scene.sizeX && y >= 0 && y < scene.sizeY) {
+                    scene.tileHeights[level][x][y] = scene.tileHeights[level][x - 1][y];
+                }
+            }
+        }
+
+        // Copy top edge heights from south neighbor
+        if (chunkSceneY > 0) {
+            for (let lx = 1; lx < CHUNK_SIZE; lx++) {
+                const x = lx + chunkSceneX;
+                const y = chunkSceneY;
+                if (x >= 0 && x < scene.sizeX && y < scene.sizeY) {
+                    scene.tileHeights[level][x][y] = scene.tileHeights[level][x][y - 1];
+                }
+            }
+        }
+
+        // Copy corner from diagonal neighbor
+        if (chunkSceneX > 0 && chunkSceneY >= 0 && chunkSceneX < scene.sizeX && chunkSceneY < scene.sizeY) {
+            if (chunkSceneX > 0 && scene.tileHeights[level][chunkSceneX - 1][chunkSceneY] !== 0) {
+                scene.tileHeights[level][chunkSceneX][chunkSceneY] = scene.tileHeights[level][chunkSceneX - 1][chunkSceneY];
+            } else if (chunkSceneY > 0 && scene.tileHeights[level][chunkSceneX][chunkSceneY - 1] !== 0) {
+                scene.tileHeights[level][chunkSceneX][chunkSceneY] = scene.tileHeights[level][chunkSceneX][chunkSceneY - 1];
+            } else if (chunkSceneX > 0 && chunkSceneY > 0 && scene.tileHeights[level][chunkSceneX - 1][chunkSceneY - 1] !== 0) {
+                scene.tileHeights[level][chunkSceneX][chunkSceneY] = scene.tileHeights[level][chunkSceneX - 1][chunkSceneY - 1];
+            }
+        }
+    }
+
+    /**
+     * Fill missing terrain for empty chunks on plane 0 by smoothing edge heights.
+     * Ported from MapLoader.fillMissingTerrain (lines 859-884).
+     */
+    private fillMissingTerrain(
+        scene: Scene,
+        startSceneX: number,
+        startSceneY: number,
+        width: number,
+        height: number,
+    ): void {
+        for (let sceneY = startSceneY; sceneY <= startSceneY + height; sceneY++) {
+            for (let sceneX = startSceneX; sceneX <= width + startSceneX; sceneX++) {
+                if (sceneX >= 0 && sceneX < scene.sizeX && sceneY >= 0 && sceneY < scene.sizeY) {
+                    scene.tileLightOcclusions[0][sceneX][sceneY] = 127;
+                    if (sceneX === startSceneX && sceneX > 0) {
+                        scene.tileHeights[0][sceneX][sceneY] = scene.tileHeights[0][sceneX - 1][sceneY];
                     }
-                    scene.tileRenderFlags[level][x][y] = 0;
+                    if (sceneX === width + startSceneX && sceneX < scene.sizeX - 1) {
+                        scene.tileHeights[0][sceneX][sceneY] = scene.tileHeights[0][sceneX + 1][sceneY];
+                    }
+                    if (sceneY === startSceneY && sceneY > 0) {
+                        scene.tileHeights[0][sceneX][sceneY] = scene.tileHeights[0][sceneX][sceneY - 1];
+                    }
+                    if (sceneY === startSceneY + height && sceneY < scene.sizeY - 1) {
+                        scene.tileHeights[0][sceneX][sceneY] = scene.tileHeights[0][sceneX][sceneY + 1];
+                    }
                 }
             }
         }

@@ -8,9 +8,11 @@ import { SERVER_PACKET_LENGTHS, ServerPacketId } from "../../shared/packets/Serv
 import {
     INSTANCE_CHUNK_COUNT,
     PLANE_COUNT,
+    deriveRegionsFromCenter,
     deriveRegionsFromTemplates,
 } from "../../shared/instance/InstanceTypes";
 import type { ProjectileLaunch } from "../../shared/projectiles/ProjectileLaunch";
+import type { WorldEntityBuildArea } from "../../shared/worldentity/WorldEntityTypes";
 
 /**
  * Binary packet buffer for client decoding
@@ -337,9 +339,9 @@ export function decodeServerPacket(data: Uint8Array | ArrayBuffer): DecodedServe
             };
 
         case ServerPacketId.REBUILD_REGION: {
-            const rebuildRegionX = reader.readShort();
-            const _rebuildFlag = reader.readByte();
             const rebuildRegionY = reader.readShort();
+            const rebuildForceReload = reader.readByte() === 1;
+            const rebuildRegionX = reader.readShort();
             const numXteaKeys = reader.readShort();
 
             const templateChunks: number[][][] = new Array(PLANE_COUNT);
@@ -372,34 +374,117 @@ export function decodeServerPacket(data: Uint8Array | ArrayBuffer): DecodedServe
 
             const mapRegions = deriveRegionsFromTemplates(templateChunks);
 
-            // Extra locs (custom extension)
-            const extraLocCount = reader.remaining >= 2 ? reader.readShort() : 0;
-            const extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }> = [];
-            for (let i = 0; i < extraLocCount; i++) {
-                const locId = reader.readShort();
-                const locX = reader.readShort();
-                const locY = reader.readShort();
-                const locLevel = reader.readByte();
-                const shapeRot = reader.readByte();
-                extraLocs.push({
-                    id: locId,
-                    x: locX,
-                    y: locY,
-                    level: locLevel,
-                    shape: shapeRot >> 2,
-                    rotation: shapeRot & 3,
-                });
-            }
-
             return {
                 type: "rebuild_region",
                 payload: {
                     regionX: rebuildRegionX,
                     regionY: rebuildRegionY,
+                    forceReload: rebuildForceReload,
                     templateChunks,
                     xteaKeys,
                     mapRegions,
-                    extraLocs: extraLocs.length > 0 ? extraLocs : undefined,
+                },
+            };
+        }
+
+        case ServerPacketId.REBUILD_NORMAL: {
+            const normalRegionX = reader.readShort();
+            const normalRegionY = reader.readShort();
+            const normalForceReload = reader.readByte() === 0;
+            const normalNumXtea = reader.readShort();
+
+            const normalXteaKeys: number[][] = new Array(normalNumXtea);
+            for (let i = 0; i < normalNumXtea; i++) {
+                normalXteaKeys[i] = [reader.readInt(), reader.readInt(), reader.readInt(), reader.readInt()];
+            }
+
+            const normalMapRegions = deriveRegionsFromCenter(normalRegionX, normalRegionY);
+
+            return {
+                type: "rebuild_normal",
+                payload: {
+                    regionX: normalRegionX,
+                    regionY: normalRegionY,
+                    forceReload: normalForceReload,
+                    xteaKeys: normalXteaKeys,
+                    mapRegions: normalMapRegions,
+                },
+            };
+        }
+
+        case ServerPacketId.REBUILD_WORLDENTITY: {
+            const weEntityIndex = reader.readShort();
+            const weConfigId = reader.readShort();
+            const weSizeX = reader.readByte() & 0xff;
+            const weSizeZ = reader.readByte() & 0xff;
+            const weZoneX = reader.readShort();
+            const weZoneZ = reader.readShort();
+            const weRegionY = reader.readShort();
+            const weForceReload = reader.readByte() === 1;
+            const weRegionX = reader.readShort();
+            const weNumXteaKeys = reader.readShort();
+
+            // Build areas
+            const weNumBuildAreas = reader.readByte() & 0xff;
+            const weBuildAreas: WorldEntityBuildArea[] = [];
+            for (let i = 0; i < weNumBuildAreas; i++) {
+                weBuildAreas.push({
+                    sourceBaseX: reader.readShort(),
+                    sourceBaseY: reader.readShort(),
+                    destBaseX: reader.readShort(),
+                    destBaseY: reader.readShort(),
+                    planes: reader.readByte() & 0xff,
+                    rotation: reader.readByte() & 0xff,
+                });
+            }
+
+            // Bit-packed template chunks: 4 planes × 13 × 13
+            const weTemplateChunks: number[][][] = new Array(PLANE_COUNT);
+            for (let p = 0; p < PLANE_COUNT; p++) {
+                weTemplateChunks[p] = new Array(INSTANCE_CHUNK_COUNT);
+                for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
+                    weTemplateChunks[p][cx] = new Array(INSTANCE_CHUNK_COUNT);
+                }
+            }
+
+            reader.initBitAccess();
+            for (let p = 0; p < PLANE_COUNT; p++) {
+                for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
+                    for (let cy = 0; cy < INSTANCE_CHUNK_COUNT; cy++) {
+                        const present = reader.readBits(1);
+                        if (present === 1) {
+                            weTemplateChunks[p][cx][cy] = reader.readBits(26);
+                        } else {
+                            weTemplateChunks[p][cx][cy] = -1;
+                        }
+                    }
+                }
+            }
+            reader.finishBitAccess();
+
+            const weXteaKeys: number[][] = new Array(weNumXteaKeys);
+            for (let i = 0; i < weNumXteaKeys; i++) {
+                weXteaKeys[i] = [reader.readInt(), reader.readInt(), reader.readInt(), reader.readInt()];
+            }
+
+            const weMapRegions = deriveRegionsFromTemplates(weTemplateChunks);
+
+            return {
+                type: "rebuild_worldentity",
+                payload: {
+                    entityIndex: weEntityIndex,
+                    configId: weConfigId,
+                    sizeX: weSizeX,
+                    sizeZ: weSizeZ,
+                    zoneX: weZoneX,
+                    zoneZ: weZoneZ,
+                    regionX: weRegionX,
+                    regionY: weRegionY,
+                    forceReload: weForceReload,
+                    templateChunks: weTemplateChunks,
+                    xteaKeys: weXteaKeys,
+                    mapRegions: weMapRegions,
+                    buildAreas: weBuildAreas,
                 },
             };
         }

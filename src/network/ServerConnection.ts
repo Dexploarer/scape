@@ -656,22 +656,48 @@ export function getLastServerPath(): { x: number; y: number }[] | undefined {
 export interface RebuildRegionPayload {
     regionX: number;
     regionY: number;
+    forceReload: boolean;
     templateChunks: number[][][];
     xteaKeys: number[][];
     mapRegions: number[];
-    extraLocs?: Array<{
-        id: number;
-        x: number;
-        y: number;
-        level: number;
-        shape: number;
-        rotation: number;
-    }>;
 }
 const rebuildRegionListeners = new Set<(payload: RebuildRegionPayload) => void>();
 export function subscribeRebuildRegion(fn: (payload: RebuildRegionPayload) => void): () => void {
     rebuildRegionListeners.add(fn);
     return () => rebuildRegionListeners.delete(fn);
+}
+export interface RebuildNormalPayload {
+    regionX: number;
+    regionY: number;
+    forceReload: boolean;
+    xteaKeys: number[][];
+    mapRegions: number[];
+}
+const rebuildNormalListeners = new Set<(payload: RebuildNormalPayload) => void>();
+export function subscribeRebuildNormal(fn: (payload: RebuildNormalPayload) => void): () => void {
+    rebuildNormalListeners.add(fn);
+    return () => rebuildNormalListeners.delete(fn);
+}
+
+export interface RebuildWorldEntityPayload {
+    entityIndex: number;
+    configId: number;
+    sizeX: number;
+    sizeZ: number;
+    zoneX: number;
+    zoneZ: number;
+    regionX: number;
+    regionY: number;
+    forceReload: boolean;
+    templateChunks: number[][][];
+    xteaKeys: number[][];
+    mapRegions: number[];
+    buildAreas: import("../shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[];
+}
+const rebuildWorldEntityListeners = new Set<(payload: RebuildWorldEntityPayload) => void>();
+export function subscribeRebuildWorldEntity(fn: (payload: RebuildWorldEntityPayload) => void): () => void {
+    rebuildWorldEntityListeners.add(fn);
+    return () => rebuildWorldEntityListeners.delete(fn);
 }
 
 const welcomeListeners = new Set<(info: { tickMs: number; serverTime: number }) => void>();
@@ -1645,7 +1671,27 @@ function processServerMessage(msg: any): void {
     } else if (msg.type === "rebuild_region") {
         ClientState.inInstance = true;
         ClientState.instanceTemplateChunks = msg.payload.templateChunks;
+        ClientState.regionX = msg.payload.regionX;
+        ClientState.regionY = msg.payload.regionY;
         for (const cb of rebuildRegionListeners) {
+            try {
+                cb(msg.payload);
+            } catch {}
+        }
+    } else if (msg.type === "rebuild_normal") {
+        ClientState.inInstance = false;
+        ClientState.instanceTemplateChunks = null;
+        ClientState.regionX = msg.payload.regionX;
+        ClientState.regionY = msg.payload.regionY;
+        for (const cb of rebuildNormalListeners) {
+            try {
+                cb(msg.payload);
+            } catch {}
+        }
+    } else if (msg.type === "rebuild_worldentity") {
+        // World entity overlays don't change instance state —
+        // they render on top of the normal world.
+        for (const cb of rebuildWorldEntityListeners) {
             try {
                 cb(msg.payload);
             } catch {}

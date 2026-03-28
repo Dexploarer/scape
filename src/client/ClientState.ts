@@ -83,6 +83,12 @@ export class ClientState {
     /** Template chunk grid for the current instance (4×13×13, -1 = empty). */
     static instanceTemplateChunks: number[][][] | null = null;
 
+    /** Current region center X in chunk coordinates (from last REBUILD_REGION/REBUILD_NORMAL). */
+    static regionX: number = -1;
+
+    /** Current region center Y in chunk coordinates (from last REBUILD_REGION/REBUILD_NORMAL). */
+    static regionY: number = -1;
+
     // ========================================
     // SPELL/ITEM SELECTION STATE
     // ========================================
@@ -348,6 +354,10 @@ export class ClientState {
         this.destinationY = 0;
         this.destinationWorldX = 0;
         this.destinationWorldY = 0;
+        this.inInstance = false;
+        this.instanceTemplateChunks = null;
+        this.regionX = -1;
+        this.regionY = -1;
         this.clearSpellSelection();
         this.clearItemSelection();
         this.isMenuOpen = false;

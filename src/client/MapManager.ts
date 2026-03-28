@@ -43,6 +43,8 @@ export class MapManager<T extends MapSquare> {
 
     invalidMapIds: Set<number> = new Set();
     loadingMapIds: Set<number> = new Set();
+    /** Map IDs that belong to world entity overlays — always included in visible set. */
+    worldEntityMapIds: Set<number> = new Set();
 
     // Legacy resident budget knobs kept for compatibility with existing settings UI.
     // Top-level streaming now prunes maps strictly to the active grid for OSRS parity.
@@ -669,6 +671,15 @@ export class MapManager<T extends MapSquare> {
 
                 this._lastUsed.set(mapId, this._useCounter++);
                 const mapSquare = this.mapSquares.get(mapId);
+                if (!mapSquare) continue;
+                if (mapSquare.canRender(frameCount)) {
+                    this.visibleMaps[this.visibleMapCount++] = mapSquare;
+                }
+            }
+
+            // World entity overlays are always visible on top of the normal world
+            for (const weMapId of this.worldEntityMapIds) {
+                const mapSquare = this.mapSquares.get(weMapId);
                 if (!mapSquare) continue;
                 if (mapSquare.canRender(frameCount)) {
                     this.visibleMaps[this.visibleMapCount++] = mapSquare;

@@ -12,6 +12,7 @@ import {
     INSTANCE_CHUNK_COUNT,
     PLANE_COUNT,
 } from "../../../../src/shared/instance/InstanceTypes";
+import type { WorldEntityBuildArea } from "../../../../src/shared/worldentity/WorldEntityTypes";
 import type { ProjectileLaunch } from "../../../../src/shared/projectiles/ProjectileLaunch";
 import { BitWriter } from "../BitWriter";
 
@@ -1546,20 +1547,41 @@ export class ServerBinaryEncoder {
     // REBUILD_REGION (Dynamic Instances)
     // ========================================
 
-    encodeRebuildRegion(
+    encodeRebuildNormal(
         regionX: number,
         regionY: number,
-        templateChunks: number[][][],
+        forceReload: boolean,
         xteaKeys: number[][],
-        mapRegions: number[],
-        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
     ): Uint8Array {
         this.buffer.reset();
 
-        // Header matches Js5Archive.loadRegions(true, buffer) read order
         this.buffer.writeShort(regionX);
-        this.buffer.writeByte(0); // flag byte (skipIfSameRegion)
         this.buffer.writeShort(regionY);
+        this.buffer.writeByte(forceReload ? 0 : 1);
+        this.buffer.writeShort(xteaKeys.length);
+
+        for (let i = 0; i < xteaKeys.length; i++) {
+            const key = xteaKeys[i];
+            for (let j = 0; j < 4; j++) {
+                this.buffer.writeInt(key[j] ?? 0);
+            }
+        }
+
+        return this.buffer.toPacket(ServerPacketId.REBUILD_NORMAL);
+    }
+
+    encodeRebuildRegion(
+        regionX: number,
+        regionY: number,
+        forceReload: boolean,
+        templateChunks: number[][][],
+        xteaKeys: number[][],
+    ): Uint8Array {
+        this.buffer.reset();
+
+        this.buffer.writeShort(regionY);
+        this.buffer.writeByte(forceReload ? 1 : 0);
+        this.buffer.writeShort(regionX);
         this.buffer.writeShort(xteaKeys.length);
 
         // Bit-packed template chunks: 4 planes × 13 × 13
@@ -1588,20 +1610,74 @@ export class ServerBinaryEncoder {
             }
         }
 
-        // Extra locs (custom extension for dynamic boat parts etc.)
-        const locCount = extraLocs?.length ?? 0;
-        this.buffer.writeShort(locCount);
-        if (extraLocs) {
-            for (const loc of extraLocs) {
-                this.buffer.writeShort(loc.id);
-                this.buffer.writeShort(loc.x);
-                this.buffer.writeShort(loc.y);
-                this.buffer.writeByte(loc.level);
-                this.buffer.writeByte((loc.shape << 2) | (loc.rotation & 3));
+        return this.buffer.toPacket(ServerPacketId.REBUILD_REGION);
+    }
+
+    encodeRebuildWorldEntity(
+        entityIndex: number,
+        configId: number,
+        sizeX: number,
+        sizeZ: number,
+        zoneX: number,
+        zoneZ: number,
+        regionX: number,
+        regionY: number,
+        forceReload: boolean,
+        templateChunks: number[][][],
+        xteaKeys: number[][],
+        buildAreas: WorldEntityBuildArea[],
+    ): Uint8Array {
+        this.buffer.reset();
+
+        this.buffer.writeShort(entityIndex);
+        this.buffer.writeShort(configId);
+        this.buffer.writeByte(sizeX);
+        this.buffer.writeByte(sizeZ);
+        this.buffer.writeShort(zoneX);
+        this.buffer.writeShort(zoneZ);
+        this.buffer.writeShort(regionY);
+        this.buffer.writeByte(forceReload ? 1 : 0);
+        this.buffer.writeShort(regionX);
+        this.buffer.writeShort(xteaKeys.length);
+
+        // Build areas
+        this.buffer.writeByte(buildAreas.length);
+        for (const area of buildAreas) {
+            this.buffer.writeShort(area.sourceBaseX);
+            this.buffer.writeShort(area.sourceBaseY);
+            this.buffer.writeShort(area.destBaseX);
+            this.buffer.writeShort(area.destBaseY);
+            this.buffer.writeByte(area.planes);
+            this.buffer.writeByte(area.rotation);
+        }
+
+        // Bit-packed template chunks: 4 planes × 13 × 13
+        const bits = new BitWriter();
+        for (let plane = 0; plane < PLANE_COUNT; plane++) {
+            for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
+                for (let cy = 0; cy < INSTANCE_CHUNK_COUNT; cy++) {
+                    const packed = templateChunks[plane][cx][cy];
+                    if (packed !== -1) {
+                        bits.writeBits(1, 1);
+                        bits.writeBits(26, packed);
+                    } else {
+                        bits.writeBits(1, 0);
+                    }
+                }
+            }
+        }
+        const bitData = bits.toUint8Array();
+        this.buffer.writeBytes(bitData, 0, bitData.length);
+
+        // XTEA keys
+        for (let i = 0; i < xteaKeys.length; i++) {
+            const key = xteaKeys[i];
+            for (let j = 0; j < 4; j++) {
+                this.buffer.writeInt(key[j] ?? 0);
             }
         }
 
-        return this.buffer.toPacket(ServerPacketId.REBUILD_REGION);
+        return this.buffer.toPacket(ServerPacketId.REBUILD_WORLDENTITY);
     }
 }
 

@@ -91,6 +91,8 @@ export const enum ServerPacketId {
     PLAY_JINGLE = 132,
     PLAY_SONG = 133,
     REBUILD_REGION = 140,
+    REBUILD_NORMAL = 141,
+    REBUILD_WORLDENTITY = 142,
 
     // ========================================
     // SHOP/TRADE (150-169)
@@ -202,6 +204,8 @@ export const SERVER_PACKET_LENGTHS: Record<ServerPacketId, number> = {
     [ServerPacketId.PLAY_SONG]: 10, // trackId(2) + outDelay(2) + outDur(2) + inDelay(2) + inDur(2)
 
     [ServerPacketId.REBUILD_REGION]: -2,
+    [ServerPacketId.REBUILD_NORMAL]: -2,
+    [ServerPacketId.REBUILD_WORLDENTITY]: -2,
 
     [ServerPacketId.SHOP_OPEN]: -2,
     [ServerPacketId.SHOP_SLOT]: -1,

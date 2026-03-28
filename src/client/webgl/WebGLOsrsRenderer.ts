@@ -342,6 +342,23 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     > = new Map();
     /** When true, an instance scene is active and normal map streaming is suppressed. */
     private instanceActive: boolean = false;
+    private instanceTemplateChunks: number[][][] | null = null;
+    private instanceRegionX: number = 0;
+    private instanceRegionY: number = 0;
+    private instanceLocRebuildTimer: ReturnType<typeof setTimeout> | null = null;
+    /** Active world entity overlays (rendered on top of normal world). */
+    private worldEntityOverlays: Map<number, {
+        entityIndex: number;
+        templateChunks: number[][][];
+        regionX: number;
+        regionY: number;
+        worldX: number;
+        worldY: number;
+        sizeX: number;
+        sizeZ: number;
+        extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>;
+    }> = new Map();
+    private worldEntityLocRebuildTimer: ReturnType<typeof setTimeout> | null = null;
     /** Dynamically spawned locs (LOC_ADD_CHANGE). Keyed by "x,y,level,shape". */
     private addedLocs: Map<
         string,
@@ -5165,24 +5182,24 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     /**
      * Load an instance scene from REBUILD_REGION template chunks.
      * Queues a single map load with the instance data attached.
+     *
+     * LOC_ADD_CHANGE packets typically arrive after REBUILD_REGION over the
+     * same WebSocket, so they land in addedLocs while the worker builds the
+     * initial scene.  After the first build completes we schedule a deferred
+     * rebuild that picks up any locs that accumulated during the build.
      */
     async loadInstanceScene(
         templateChunks: number[][][],
         regionX: number,
         regionY: number,
-        extraLocs?: Array<{
-            id: number;
-            x: number;
-            y: number;
-            level: number;
-            shape: number;
-            rotation: number;
-        }>,
     ): Promise<void> {
         if (!this.osrsClient.loadedCache) return;
 
         // Suppress normal map streaming while the instance is active
         this.instanceActive = true;
+        this.instanceTemplateChunks = templateChunks;
+        this.instanceRegionX = regionX;
+        this.instanceRegionY = regionY;
 
         // regionX/Y are chunk coordinates from the REBUILD_REGION packet.
         // The player tile = regionX*8, regionY*8. Map square = tile / 64.
@@ -5195,6 +5212,25 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         // Clear existing maps so the instance scene is the only one rendered
         this.mapManager.clearMaps();
+
+        await this.doInstanceSceneBuild(templateChunks, regionX, regionY, playerMapX, playerMapY);
+
+        // LOC_ADD_CHANGE packets arrive after REBUILD_REGION on the same socket.
+        // By now they are stored in addedLocs. Schedule a deferred rebuild to
+        // include them; the short delay batches any remaining in-flight packets.
+        if (this.addedLocs.size > 0) {
+            this.scheduleInstanceLocRebuild();
+        }
+    }
+
+    private async doInstanceSceneBuild(
+        templateChunks: number[][][],
+        regionX: number,
+        regionY: number,
+        playerMapX: number,
+        playerMapY: number,
+    ): Promise<void> {
+        const extraLocs = this.getInstanceExtraLocs(playerMapX, playerMapY);
 
         const input: SdMapLoaderInput = {
             mapX: playerMapX,
@@ -5217,7 +5253,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         if (mapData) {
             console.log(
-                `[WebGLOsrsRenderer] Instance scene loaded: vertices=${mapData.vertices?.length ?? 0} indices=${mapData.indices?.length ?? 0} mapX=${mapData.mapX} mapY=${mapData.mapY} border=${mapData.borderSize}`,
+                `[WebGLOsrsRenderer] Instance scene loaded: vertices=${mapData.vertices?.length ?? 0} indices=${mapData.indices?.length ?? 0} mapX=${mapData.mapX} mapY=${mapData.mapY} border=${mapData.borderSize} extraLocs=${extraLocs?.length ?? 0}`,
             );
             // Clear any in-flight normal map loads that arrived during the async instance build
             this.mapsToLoad.clear();
@@ -5229,6 +5265,180 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         } else {
             console.warn("[WebGLOsrsRenderer] Instance scene load returned no data");
         }
+    }
+
+    private getInstanceExtraLocs(
+        playerMapX: number,
+        playerMapY: number,
+    ): SdMapLoaderInput["extraLocs"] {
+        if (this.addedLocs.size === 0) return undefined;
+
+        // Instance scene is built as a single map square at (playerMapX, playerMapY).
+        // Collect all addedLocs — the scene builder will filter by bounds.
+        const locs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }> = [];
+        for (const loc of this.addedLocs.values()) {
+            locs.push({
+                id: loc.locId,
+                x: loc.x,
+                y: loc.y,
+                level: loc.level,
+                shape: loc.shape,
+                rotation: loc.rotation,
+            });
+        }
+        return locs.length > 0 ? locs : undefined;
+    }
+
+    private scheduleInstanceLocRebuild(): void {
+        if (this.instanceLocRebuildTimer !== null) {
+            clearTimeout(this.instanceLocRebuildTimer);
+        }
+        this.instanceLocRebuildTimer = setTimeout(() => {
+            this.instanceLocRebuildTimer = null;
+            if (!this.instanceActive || !this.instanceTemplateChunks) return;
+            const playerMapX = ((this.instanceRegionX * 8) / Scene.MAP_SQUARE_SIZE) | 0;
+            const playerMapY = ((this.instanceRegionY * 8) / Scene.MAP_SQUARE_SIZE) | 0;
+            console.log(
+                `[WebGLOsrsRenderer] Rebuilding instance scene with ${this.addedLocs.size} extra locs`,
+            );
+            this.doInstanceSceneBuild(
+                this.instanceTemplateChunks,
+                this.instanceRegionX,
+                this.instanceRegionY,
+                playerMapX,
+                playerMapY,
+            );
+        }, 100);
+    }
+
+    clearInstance(): void {
+        this.instanceActive = false;
+        this.instanceTemplateChunks = null;
+        if (this.instanceLocRebuildTimer !== null) {
+            clearTimeout(this.instanceLocRebuildTimer);
+            this.instanceLocRebuildTimer = null;
+        }
+        this.mapManager.clearMaps();
+        console.log("[WebGLOsrsRenderer] Instance cleared, normal map streaming resumed");
+    }
+
+    async loadWorldEntityScene(
+        entityIndex: number,
+        templateChunks: number[][][],
+        regionX: number,
+        regionY: number,
+        worldX: number,
+        worldY: number,
+        sizeX: number,
+        sizeZ: number,
+        extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+    ): Promise<void> {
+        if (!this.osrsClient.loadedCache) return;
+
+        const sceneSizeHalf = (13 * 8) / 2; // 52 tiles (half of 104-tile scene)
+        const entityWorldBaseX = worldX - sceneSizeHalf;
+        const entityWorldBaseY = worldY - sceneSizeHalf;
+
+        const playerMapX = ((regionX * 8) / Scene.MAP_SQUARE_SIZE) | 0;
+        const playerMapY = ((regionY * 8) / Scene.MAP_SQUARE_SIZE) | 0;
+
+        // Use a unique mapX/Y for the overlay that won't collide with real map squares
+        const overlayMapX = 200 + entityIndex;
+        const overlayMapY = 200 + entityIndex;
+
+        console.log(
+            `[WebGLOsrsRenderer] Loading world entity overlay: entity=${entityIndex} source=(${regionX},${regionY}) worldPos=(${worldX},${worldY}) renderBase=(${entityWorldBaseX},${entityWorldBaseY})`,
+        );
+
+        this.worldEntityOverlays.set(entityIndex, {
+            entityIndex, templateChunks, regionX, regionY,
+            worldX, worldY, sizeX, sizeZ, extraLocs,
+        });
+
+        // Collect extra locs from addedLocs that fall within the source region
+        const CHUNK_SIZE = 8;
+        const sceneBaseX = (regionX - 6) * CHUNK_SIZE;
+        const sceneBaseY = (regionY - 6) * CHUNK_SIZE;
+        const sceneMaxX = sceneBaseX + 13 * CHUNK_SIZE;
+        const sceneMaxY = sceneBaseY + 13 * CHUNK_SIZE;
+        const allExtraLocs: typeof extraLocs = [...extraLocs];
+        for (const loc of this.addedLocs.values()) {
+            if (loc.x >= sceneBaseX && loc.x < sceneMaxX && loc.y >= sceneBaseY && loc.y < sceneMaxY) {
+                allExtraLocs.push({
+                    id: loc.locId, x: loc.x, y: loc.y,
+                    level: loc.level, shape: loc.shape, rotation: loc.rotation,
+                });
+            }
+        }
+        console.log(`[WebGLOsrsRenderer] World entity overlay: ${allExtraLocs.length} extra locs collected`);
+
+        const input: SdMapLoaderInput = {
+            mapX: overlayMapX,
+            mapY: overlayMapY,
+            maxLevel: Math.max(0, Math.min(Scene.MAX_LEVELS - 1, this.maxLevel | 0)),
+            loadObjs: this.loadObjs,
+            loadNpcs: this.loadNpcs,
+            smoothTerrain: this.smoothTerrain,
+            minimizeDrawCalls: !this.hasMultiDraw,
+            loadedTextureIds: this.loadedTextureIds,
+            instance: { templateChunks, regionX, regionY },
+            overrideRenderPos: { x: entityWorldBaseX, y: entityWorldBaseY },
+            extraLocs: allExtraLocs.length > 0 ? allExtraLocs : undefined,
+        };
+
+        const mapData = await this.osrsClient.workerPool.queueLoad<
+            SdMapLoaderInput,
+            SdMapData | undefined,
+            SdMapDataLoader
+        >(this.dataLoader, input);
+
+        if (mapData) {
+            console.log(
+                `[WebGLOsrsRenderer] World entity overlay loaded: entity=${entityIndex} vertices=${mapData.vertices?.length ?? 0}`,
+            );
+            this.mapsToLoad.push(mapData);
+            const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
+            this.mapManager.loadingMapIds.add(overlayMapId);
+            this.mapManager.worldEntityMapIds.add(overlayMapId);
+        }
+
+    }
+
+    scheduleWorldEntityLocRebuild(entityIndex: number): void {
+        if (this.worldEntityLocRebuildTimer !== null) return;
+        this.worldEntityLocRebuildTimer = setTimeout(() => {
+            this.worldEntityLocRebuildTimer = null;
+            const overlay = this.worldEntityOverlays.get(entityIndex);
+            if (!overlay) return;
+            console.log(`[WebGLOsrsRenderer] Rebuilding world entity overlay with deferred locs`);
+            this.loadWorldEntityScene(
+                overlay.entityIndex, overlay.templateChunks,
+                overlay.regionX, overlay.regionY,
+                overlay.worldX, overlay.worldY,
+                overlay.sizeX, overlay.sizeZ,
+                overlay.extraLocs,
+            );
+        }, 150);
+    }
+
+    clearWorldEntity(entityIndex: number): void {
+        const overlayMapX = 200 + entityIndex;
+        const overlayMapY = 200 + entityIndex;
+        const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
+        this.mapManager.worldEntityMapIds.delete(overlayMapId);
+        this.mapManager.removeMap(overlayMapX, overlayMapY);
+        this.worldEntityOverlays.delete(entityIndex);
+    }
+
+    clearAllWorldEntities(): void {
+        for (const [entityIndex] of this.worldEntityOverlays) {
+            const overlayMapX = 200 + entityIndex;
+            const overlayMapY = 200 + entityIndex;
+            const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
+            this.mapManager.worldEntityMapIds.delete(overlayMapId);
+            this.mapManager.removeMap(overlayMapX, overlayMapY);
+        }
+        this.worldEntityOverlays.clear();
     }
 
     private resolveLocReloadBatchMap(
@@ -10715,8 +10925,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     private getMapTileDistanceFromPoint(map: WebGLMapSquare, tileX: number, tileY: number): number {
-        const mapMinTileX = map.mapX * Scene.MAP_SQUARE_SIZE;
-        const mapMinTileY = map.mapY * Scene.MAP_SQUARE_SIZE;
+        // World entity overlays use baseWorldX/Y for distance instead of mapX/Y
+        const bwx = (map as any).baseWorldX;
+        const bwy = (map as any).baseWorldY;
+        const mapMinTileX = bwx != null ? (bwx | 0) : map.mapX * Scene.MAP_SQUARE_SIZE;
+        const mapMinTileY = bwy != null ? (bwy | 0) : map.mapY * Scene.MAP_SQUARE_SIZE;
         const mapMaxTileX = mapMinTileX + Scene.MAP_SQUARE_SIZE - 1;
         const mapMaxTileY = mapMinTileY + Scene.MAP_SQUARE_SIZE - 1;
         const dx =
@@ -10738,8 +10951,10 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         // OSRS scene visibility is zone-based (8x8 tiles), not map-square based.
         const zoneX = tileX >> 3;
         const zoneY = tileY >> 3;
-        const mapMinZoneX = map.mapX << 3;
-        const mapMinZoneY = map.mapY << 3;
+        const bwx = (map as any).baseWorldX;
+        const bwy = (map as any).baseWorldY;
+        const mapMinZoneX = bwx != null ? ((bwx | 0) >> 3) : map.mapX << 3;
+        const mapMinZoneY = bwy != null ? ((bwy | 0) >> 3) : map.mapY << 3;
         const mapMaxZoneX = mapMinZoneX + 7;
         const mapMaxZoneY = mapMinZoneY + 7;
         const dx =
@@ -13260,9 +13475,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             const mapX = Math.floor(tile.x / 64);
             const mapY = Math.floor(tile.y / 64);
             const mapId = getMapSquareId(mapX, mapY);
-            // Skip loc reload in instance mode - it would rebuild with normal buildScene
-            // and overwrite the instance. The locs are tracked in addedLocs for future rebuilds.
-            if (!this.instanceActive) {
+            if (this.instanceActive) {
+                // In instance mode, schedule a deferred instance scene rebuild
+                // that includes the new loc via extraLocs.
+                this.scheduleInstanceLocRebuild();
+            } else {
                 this.pendingLocUpdates.add(mapId);
                 this.scheduleLocReload(mapX, mapY);
             }

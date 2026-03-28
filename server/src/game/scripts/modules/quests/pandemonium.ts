@@ -1,18 +1,25 @@
 import { BaseComponentUids } from "../../../../widgets/viewport/ViewportEnumService";
 import {
-    createEmptyTemplateChunks,
-    packTemplateChunk,
-} from "../../../../../../src/shared/instance/InstanceTypes";
+    buildSailingIntroTemplates,
+    SAILING_INTRO_BOAT_LOCS,
+    SAILING_INTRO_LEVEL,
+    SAILING_INTRO_NPC_SPAWNS,
+    SAILING_INTRO_X,
+    SAILING_INTRO_Y,
+    PORT_SARIM_RETURN_LEVEL,
+    PORT_SARIM_RETURN_X,
+    PORT_SARIM_RETURN_Y,
+} from "../../../sailing/SailingInstance";
+import type { PlayerState } from "../../../player";
 import type { NpcInteractionEvent, ScriptModule, ScriptServices } from "../../types";
 
 // ============================================================================
 // NPC IDs
 // ============================================================================
 
-const ANNE_SARIM_NPC_ID = 14962; // sailing_intro_anne_sarim
-const WILL_SARIM_NPC_ID = 14957; // sailing_intro_will_sarim
-const WILL_BOAT_NPC_ID = 14958; // sailing_intro_will_boat
-const ANNE_BOAT_NPC_ID = 14963; // sailing_intro_anne_boat
+const ANNE_SARIM_NPC_ID = 14962;
+const WILL_SARIM_NPC_ID = 14957;
+const WILL_BOAT_NPC_ID = 14958;
 
 // ============================================================================
 // Varbits
@@ -56,17 +63,6 @@ const VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_STANDARDRANGEDDEF = 5164;
 const VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_LIGHTRANGEDDEF = 5165;
 
 // ============================================================================
-// Teleport destination (sailing intro instance)
-// ============================================================================
-
-// Instance coordinates matching real OSRS packet capture
-const SAILING_REGION_X = 1832;
-const SAILING_REGION_Y = 1944;
-const SAILING_INTRO_X = (SAILING_REGION_X - 6) * 8 + 52; // 14660
-const SAILING_INTRO_Y = (SAILING_REGION_Y - 6) * 8 + 52; // 15556
-const SAILING_INTRO_LEVEL = 1;
-
-// ============================================================================
 // Interface constants
 // ============================================================================
 
@@ -83,15 +79,8 @@ const SCRIPT_SAILING_CREW_INIT = 8776;
 const SCRIPT_SIDEBAR_TAB = 915;
 const SCRIPT_COMBAT_LEVEL = 5224;
 const SCRIPT_CAMERA_BOUNDS = 603;
-const SCRIPT_PRELOAD_ANIM = 1846;
 
 const SYNTH_BOARD_BOAT = 10754;
-
-// Anim IDs to preload on the boat
-const PRELOAD_ANIM_IDS = [
-    13199, 13200, 13202, 13203, 13205, 13217, 13219, 13221, 13222, 13223, 13225, 13255, 13256,
-    13260, 13261, 13265, 13266, 13270, 13271,
-];
 
 // Quest states:
 // 0 = not started
@@ -121,8 +110,8 @@ export const pandemoniumQuestModule: ScriptModule = {
     register(registry, services) {
         const activeConvos = new Set<number>();
 
-        function getSailingIntro(player: { getVarbitValue?: (id: number) => number }): number {
-            return player.getVarbitValue?.(VARBIT_SAILING_INTRO) ?? 0;
+        function getSailingIntro(player: PlayerState): number {
+            return player.getVarbitValue(VARBIT_SAILING_INTRO);
         }
 
         function playAnneConversation(event: NpcInteractionEvent) {
@@ -194,7 +183,6 @@ export const pandemoniumQuestModule: ScriptModule = {
                 });
 
             if (state === 0) {
-                // Not started — full intro dialogue
                 playIntroDialogue(
                     convoId,
                     player,
@@ -206,7 +194,6 @@ export const pandemoniumQuestModule: ScriptModule = {
                     services,
                 );
             } else if (state === 2 || state === 4) {
-                // Interview done or in progress — offer to board
                 playReadyDialogue(
                     convoId,
                     player,
@@ -222,7 +209,6 @@ export const pandemoniumQuestModule: ScriptModule = {
             }
         }
 
-        // Both Anne and Will trigger the same conversation
         registry.registerNpcScript({
             npcId: ANNE_SARIM_NPC_ID,
             option: "talk-to",
@@ -255,7 +241,7 @@ type DialogFn = (id: string, lines: string[], animId: number, onContinue?: () =>
 
 function playIntroDialogue(
     convoId: string,
-    player: any,
+    player: PlayerState,
     playerName: string,
     openAnneDialog: DialogFn,
     openWillDialog: DialogFn,
@@ -263,15 +249,12 @@ function playIntroDialogue(
     onClose: () => void,
     services: ScriptServices,
 ) {
-    // Anne: "Ah, look what we have here, Will!"
     openAnneDialog(
         `${convoId}_1`,
         ["Ah, look what we have here, Will! This looks like someone", "who needs a good job!"],
         ANIM_CHATHAP2,
         () => {
-            // Player: "What?"
             openPlayerDialog(`${convoId}_2`, ["What?"], ANIM_CHATCON1, () => {
-                // Will: "Goodness, Anne..."
                 openWillDialog(
                     `${convoId}_3`,
                     [
@@ -281,13 +264,11 @@ function playIntroDialogue(
                     ],
                     ANIM_CHATHAP3,
                     () => {
-                        // Player: "But I don't need a..."
                         openPlayerDialog(
                             `${convoId}_4`,
                             ["But I don't need a..."],
                             ANIM_CHATCON1,
                             () => {
-                                // Anne: "Well, let's not waste any more time!"
                                 openAnneDialog(
                                     `${convoId}_5`,
                                     [
@@ -296,7 +277,6 @@ function playIntroDialogue(
                                     ],
                                     ANIM_CHATHAP2,
                                     () => {
-                                        // Options: Start the Pandemonium quest?
                                         services.closeDialog?.(player, `${convoId}_5`);
                                         services.openDialogOptions?.(player, {
                                             id: `${convoId}_quest_start`,
@@ -305,11 +285,9 @@ function playIntroDialogue(
                                             onClose,
                                             onSelect: (choice) => {
                                                 if (choice === 1) {
-                                                    // No — end conversation
                                                     onClose();
                                                     return;
                                                 }
-                                                // Yes — set varbit to 2, quest started
                                                 services.sendVarbit?.(
                                                     player,
                                                     VARBIT_SAILING_INTRO,
@@ -348,7 +326,7 @@ function playIntroDialogue(
 
 function playInterviewDialogue(
     convoId: string,
-    player: any,
+    player: PlayerState,
     playerName: string,
     openAnneDialog: DialogFn,
     openWillDialog: DialogFn,
@@ -356,35 +334,28 @@ function playInterviewDialogue(
     onClose: () => void,
     services: ScriptServices,
 ) {
-    // Player: "I guess so...?"
     openPlayerDialog(`${convoId}_i1`, ["I guess so...?"], ANIM_CHATCON1, () => {
-        // Will: "Let's get you started..."
         openWillDialog(
             `${convoId}_i2`,
             ["Let's get you started with a nice easy question: What is", "your name?"],
             ANIM_CHATHAP2,
             () => {
-                // Player: "<name>."
                 openPlayerDialog(`${convoId}_i3`, [`${playerName}.`], ANIM_CHATNEU1, () => {
-                    // Anne: "Pleased to meet you..."
                     openAnneDialog(
                         `${convoId}_i4`,
                         [`Pleased to meet you, ${playerName}. I'm Anne, and this is Will.`],
                         ANIM_CHATHAP1,
                         () => {
-                            // Will: "Next question: Do you have any experience..."
                             openWillDialog(
                                 `${convoId}_i5`,
                                 ["Next question: Do you have any experience captaining", "a ship?"],
                                 ANIM_CHATHAP2,
                                 () => {
-                                    // Player: "Not really..."
                                     openPlayerDialog(
                                         `${convoId}_i6`,
                                         ["Not really..."],
                                         ANIM_CHATNEU1,
                                         () => {
-                                            // Will: "Oh..."
                                             openWillDialog(
                                                 `${convoId}_i7`,
                                                 ["Oh..."],
@@ -416,7 +387,7 @@ function playInterviewDialogue(
 
 function playInterviewPart2(
     convoId: string,
-    player: any,
+    player: PlayerState,
     playerName: string,
     openAnneDialog: DialogFn,
     openWillDialog: DialogFn,
@@ -424,13 +395,11 @@ function playInterviewPart2(
     onClose: () => void,
     services: ScriptServices,
 ) {
-    // Anne: "Will, it's important we not be too picky!"
     openAnneDialog(
         `${convoId}_i8`,
         ["Will, it's important we not be too picky! It's a", "competitive market, after all."],
         ANIM_CHATHAP2,
         () => {
-            // Will: "Okay, final question..."
             openWillDialog(
                 `${convoId}_i9`,
                 [
@@ -440,21 +409,17 @@ function playInterviewPart2(
                 ],
                 ANIM_CHATHAP3,
                 () => {
-                    // Player: "Is that likely to happen?"
                     openPlayerDialog(
                         `${convoId}_i10`,
                         ["Is that likely to happen?"],
                         ANIM_CHATCON1,
                         () => {
-                            // Anne: "Not at all!"
                             openAnneDialog(`${convoId}_i11`, ["Not at all!"], ANIM_CHATHAP1, () => {
-                                // Player: "I'm not sure if I..."
                                 openPlayerDialog(
                                     `${convoId}_i12`,
                                     ["I'm not sure if I..."],
                                     ANIM_CHATCON1,
                                     () => {
-                                        // Will: "Excellent! Well then..."
                                         openWillDialog(
                                             `${convoId}_i13`,
                                             [
@@ -465,7 +430,6 @@ function playInterviewPart2(
                                             ],
                                             ANIM_CHATHAP4,
                                             () => {
-                                                // Anne: "Congratulations!"
                                                 openAnneDialog(
                                                     `${convoId}_i14`,
                                                     ["Congratulations!"],
@@ -498,7 +462,7 @@ function playInterviewPart2(
 
 function playInterviewPart3(
     convoId: string,
-    player: any,
+    player: PlayerState,
     playerName: string,
     openAnneDialog: DialogFn,
     openWillDialog: DialogFn,
@@ -506,13 +470,11 @@ function playInterviewPart3(
     onClose: () => void,
     services: ScriptServices,
 ) {
-    // Player: "Thanks... only, you didn't actually mention what the role was..."
     openPlayerDialog(
         `${convoId}_i15`,
         ["Thanks... only, you didn't actually mention what the", "role was..."],
         ANIM_CHATCON2,
         () => {
-            // Will: "Ah, how forgetful of us!"
             openWillDialog(
                 `${convoId}_i16`,
                 [
@@ -521,16 +483,13 @@ function playInterviewPart3(
                 ],
                 ANIM_CHATHAP2,
                 () => {
-                    // Player: "But I didn't accept anything..."
                     openPlayerDialog(
                         `${convoId}_i17`,
                         ["But I didn't accept anything..."],
                         ANIM_CHATCON1,
                         () => {
-                            // Set state to 4 — interview complete
                             services.sendVarbit?.(player, VARBIT_SAILING_INTRO, 4);
 
-                            // Anne: "Just let us know when you're ready..."
                             openAnneDialog(
                                 `${convoId}_i18`,
                                 [
@@ -539,7 +498,6 @@ function playInterviewPart3(
                                 ],
                                 ANIM_CHATHAP2,
                                 () => {
-                                    // Options: ready or not
                                     services.closeDialog?.(player, `${convoId}_i18`);
                                     offerBoardChoice(
                                         convoId,
@@ -566,7 +524,7 @@ function playInterviewPart3(
 
 function offerBoardChoice(
     convoId: string,
-    player: any,
+    player: PlayerState,
     playerName: string,
     openWillDialog: DialogFn,
     openPlayerDialog: DialogFn,
@@ -583,12 +541,11 @@ function offerBoardChoice(
                 onClose();
                 return;
             }
-            // "I guess I'm ready..."
             openPlayerDialog(`${convoId}_b1`, ["I guess I'm ready..."], ANIM_CHATCON1, () => {
-                // Will: "Then let us away!"
                 openWillDialog(`${convoId}_b2`, ["Then let us away!"], ANIM_CHATHAP1, () => {
                     onClose();
-                    executeBoardingSequence(player, playerName, services);
+                    const tick = services.getCurrentTick?.() ?? 0;
+                    executeBoardingSequence(player, playerName, services, tick);
                 });
             });
         },
@@ -596,10 +553,15 @@ function offerBoardChoice(
 }
 
 // ============================================================================
-// Boarding Sequence — fade, teleport, set sailing state, open widgets
+// Boarding Sequence — tick-scheduled via requestAction
 // ============================================================================
 
-function executeBoardingSequence(player: any, playerName: string, services: ScriptServices) {
+function executeBoardingSequence(
+    player: PlayerState,
+    playerName: string,
+    services: ScriptServices,
+    currentTick: number,
+) {
     const pid = player.id;
     const overlayAtmosphereUid = BaseComponentUids.OVERLAY_ATMOSPHERE;
     const fadeMessageUid = (FADE_OVERLAY_GROUP << 16) | FADE_OVERLAY_MESSAGE_CHILD;
@@ -607,176 +569,247 @@ function executeBoardingSequence(player: any, playerName: string, services: Scri
 
     // --- Tick 0: Fade to black, disable minimap ---
 
-    // Clear fade message text
     services.queueWidgetEvent?.(pid, { action: "set_text", uid: fadeMessageUid, text: "" });
-
-    // Open fade overlay on the atmosphere slot
     services.openSubInterface?.(player, overlayAtmosphereUid, FADE_OVERLAY_GROUP, 1);
-
-    // Run fade-to-black script: [startAlpha, endAlpha, ?, ?, speed]
     services.queueClientScript?.(pid, SCRIPT_FADE, 0, 255, 0, 0, 15);
-
-    // Hide HP bar
     services.queueWidgetEvent?.(pid, { action: "set_hidden", uid: hpBarUid, hidden: true });
     services.queueClientScript?.(pid, SCRIPT_HIDE_HPBAR, 19857409);
-
-    // Close any open dialog
     services.closeDialog?.(player);
-
-    // Disable minimap
     services.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 2);
 
-    // --- Tick 1 (delayed): Teleport + set sailing state ---
-    const boardingDelay = setTimeout(() => {
-        // Set quest state
-        services.sendVarbit?.(player, VARBIT_SAILING_INTRO, 6);
-        services.sendGameMessage(player, "You board the boat.");
+    // --- Tick 1: Teleport + set sailing state ---
+    services.requestAction(player, {
+        kind: "sailing.board_tick1",
+        data: { playerName },
+        delayTicks: 1,
+        groups: ["sailing.boarding"],
+        cooldownTicks: 2,
+    }, currentTick);
 
-        // Sailing boat state varbits
-        services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT, 1);
-        services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_TYPE, 3);
-        services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_WORLD, 426);
-        services.sendVarbit?.(player, VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT, 1);
+    // --- Tick 2: Fade back in, boat stats, dialogue ---
+    services.requestAction(player, {
+        kind: "sailing.board_tick2",
+        data: {},
+        delayTicks: 2,
+        groups: ["sailing.boarding_fade"],
+    }, currentTick);
+}
 
-        // Sailing sidepanel state
-        services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_PLAYER_ROLE, 10);
-        services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOAT_TYPE, 8113);
-        services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE, 4);
-        services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_PLAYERS_ON_BOARD_TOTAL, 1);
-        services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_HP_MAX, 170);
-        services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_HP, 170);
-        services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_HELM_STATUS, 1);
-        services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB, 1);
-        services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_VISIBLE, 1);
-        services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_AMMO_NEEDS_UPDATE, 1);
-        services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_STATS_NEEDS_UPDATE, 1);
-        services.sendVarbit?.(player, VARBIT_SAILING_PRELOADED_ANIMS, 1);
+export function handleBoardingTick1(
+    player: PlayerState,
+    data: { playerName: string },
+    services: ScriptServices,
+): void {
+    const pid = player.id;
+    const { playerName } = data;
 
-        // Music unlock
-        services.sendGameMessage(
-            player,
-            "You have unlocked a new music track: <col=ff3045>Crest of a Wave",
-        );
+    // Quest state
+    services.sendVarbit?.(player, VARBIT_SAILING_INTRO, 6);
+    services.sendGameMessage(player, "You board the boat.");
 
-        // Teleport to the sailing intro instance via REBUILD_REGION
-        const templateChunks = buildSailingIntroTemplates();
-        // Boat chunk base in instance space (template center scene tile 48)
-        const ibx = (SAILING_REGION_X - 6) * 8 + 48;
-        const iby = (SAILING_REGION_Y - 6) * 8 + 48;
-        const boatLocs = [
-            { id: 59501, x: ibx + 3, y: iby + 1, level: 0, shape: 10, rotation: 0 },
-            { id: 59516, x: ibx + 2, y: iby + 1, level: 0, shape: 10, rotation: 0 },
-            { id: 59624, x: ibx + 1, y: iby + 1, level: 0, shape: 10, rotation: 0 },
-            { id: 59620, x: ibx + 4, y: iby + 6, level: 1, shape: 10, rotation: 0 },
-            { id: 59553, x: ibx + 4, y: iby + 4, level: 1, shape: 10, rotation: 0 },
-            { id: 60480, x: ibx + 3, y: iby + 2, level: 1, shape: 10, rotation: 1 },
-            { id: 32545, x: ibx + 2, y: iby + 3, level: 1, shape: 22, rotation: 0 },
-            { id: 32545, x: ibx + 2, y: iby + 2, level: 1, shape: 22, rotation: 0 },
-            { id: 32545, x: ibx + 5, y: iby + 2, level: 1, shape: 22, rotation: 0 },
-            { id: 32545, x: ibx + 2, y: iby + 5, level: 1, shape: 22, rotation: 0 },
-            { id: 32545, x: ibx + 5, y: iby + 5, level: 1, shape: 22, rotation: 0 },
-            { id: 58569, x: ibx + 5, y: iby + 3, level: 1, shape: 22, rotation: 0 },
-            { id: 58526, x: ibx + 2, y: iby + 4, level: 1, shape: 22, rotation: 0 },
-            { id: 58568, x: ibx + 5, y: iby + 4, level: 1, shape: 22, rotation: 0 },
-        ];
-        services.teleportToInstance?.(
-            player,
-            SAILING_INTRO_X,
-            SAILING_INTRO_Y,
-            SAILING_INTRO_LEVEL,
-            templateChunks,
-            boatLocs,
-        );
+    // Sailing boat state
+    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT, 1);
+    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_TYPE, 3);
+    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_WORLD, 426);
+    services.sendVarbit?.(player, VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT, 1);
 
-        // Board sound
-        services.sendSound?.(player, SYNTH_BOARD_BOAT);
+    // Sidepanel state
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_PLAYER_ROLE, 10);
+    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOAT_TYPE, 8113);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE, 4);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_PLAYERS_ON_BOARD_TOTAL, 1);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_HP_MAX, 170);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_HP, 170);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_HELM_STATUS, 1);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB, 1);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_VISIBLE, 1);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_AMMO_NEEDS_UPDATE, 1);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_STATS_NEEDS_UPDATE, 1);
+    services.sendVarbit?.(player, VARBIT_SAILING_PRELOADED_ANIMS, 1);
 
-        // Crew init CS2: [playerName, 1, "", 1]
-        services.queueClientScript?.(pid, SCRIPT_SAILING_CREW_INIT, playerName, 1, "", 1);
+    // Music unlock
+    services.sendGameMessage(
+        player,
+        "You have unlocked a new music track: <col=ff3045>Crest of a Wave",
+    );
 
-        // Switch sidebar to tab 0 (sailing)
-        services.queueClientScript?.(pid, SCRIPT_SIDEBAR_TAB, 0);
+    // Teleport to instance
+    const templateChunks = buildSailingIntroTemplates();
+    services.teleportToInstance?.(
+        player,
+        SAILING_INTRO_X,
+        SAILING_INTRO_Y,
+        SAILING_INTRO_LEVEL,
+        templateChunks,
+        SAILING_INTRO_BOAT_LOCS,
+    );
 
-        // Open sailing sidepanel on the combat tab slot
-        services.openSubInterface?.(
-            player,
-            BaseComponentUids.TAB_COMBAT,
-            SAILING_SIDEPANEL_GROUP,
-            1,
-        );
+    // Spawn instance NPCs
+    const { willBoat, anneBoat, boatHp } = SAILING_INTRO_NPC_SPAWNS;
+    services.spawnNpc?.({ ...willBoat, wanderRadius: 0 });
+    services.spawnNpc?.({ ...anneBoat, wanderRadius: 0 });
+    services.spawnNpc?.({ ...boatHp, wanderRadius: 0 });
 
-        // Open sailing intro HUD overlay
-        services.openSubInterface?.(
-            player,
-            BaseComponentUids.HUD_CONTAINER_FRONT,
-            SAILING_INTRO_HUD_GROUP,
-            1,
-        );
+    // Board sound
+    services.sendSound?.(player, SYNTH_BOARD_BOAT);
 
-        // Set combat level display
-        services.queueClientScript?.(pid, SCRIPT_COMBAT_LEVEL, player.combatLevel ?? 3);
+    // Crew init
+    services.queueClientScript?.(pid, SCRIPT_SAILING_CREW_INIT, playerName, 1, "", 1);
 
-        // Camera bounds for sailing
-        services.queueClientScript?.(pid, SCRIPT_CAMERA_BOUNDS, -100, 896, -100, 896);
+    // Switch sidebar to sailing tab
+    services.queueClientScript?.(pid, SCRIPT_SIDEBAR_TAB, 0);
 
-        // TODO: Preload sailing animations via script 1846 once CS2 opcode 3189 is implemented
-        // for (const animId of PRELOAD_ANIM_IDS) {
-        //     services.queueClientScript?.(pid, SCRIPT_PRELOAD_ANIM, animId);
-        // }
+    // Open sailing sidepanel on combat tab
+    services.openSubInterface?.(
+        player,
+        BaseComponentUids.TAB_COMBAT,
+        SAILING_SIDEPANEL_GROUP,
+        1,
+    );
 
-        // --- Tick 2 (delayed): Fade back in, re-enable minimap, boat stats ---
-        const fadeInDelay = setTimeout(() => {
-            // Boat stats (next tick)
-            services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_AMMO_NEEDS_UPDATE, 0);
-            services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_STATS_NEEDS_UPDATE, 0);
-            services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOAT_DEFENCE, 10);
-            services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_STABDEF, 26);
-            services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_SLASHDEF, 19);
-            services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_CRUSHDEF, 13);
-            services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_HEAVYRANGEDDEF, 8);
-            services.sendVarp?.(
-                player,
-                VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_STANDARDRANGEDDEF,
-                17,
-            );
-            services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_LIGHTRANGEDDEF, 28);
-            services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_MAGICDEF, 16);
-            services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOAT_ARMOUR, 100);
-            services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_BASESPEED, 192);
-            services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_SPEEDCAP, 384);
-            services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_SPEEDBOOST_DURATION, 20);
-            services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_ACCELERATION, 64);
+    // Open sailing intro HUD
+    services.openSubInterface?.(
+        player,
+        BaseComponentUids.HUD_CONTAINER_FRONT,
+        SAILING_INTRO_HUD_GROUP,
+        1,
+    );
 
-            // Fade from black
-            services.queueWidgetEvent?.(pid, {
-                action: "set_text",
-                uid: fadeMessageUid,
-                text: "",
-            });
-            services.openSubInterface?.(player, overlayAtmosphereUid, FADE_OVERLAY_GROUP, 1);
-            services.queueClientScript?.(pid, SCRIPT_FADE, 0, 0, 0, 255, 15);
+    // Combat level display
+    services.queueClientScript?.(pid, SCRIPT_COMBAT_LEVEL, player.combatLevel ?? 3);
 
-            // Re-enable minimap
-            services.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 0);
+    // Camera bounds for sailing
+    services.queueClientScript?.(pid, SCRIPT_CAMERA_BOUNDS, -100, 896, -100, 896);
+}
 
-            // Will on the boat: "Lovely! The open sea!"
-            services.openDialog?.(player, {
-                kind: "npc",
-                id: `pandemonium_boat_will_1`,
-                npcId: WILL_BOAT_NPC_ID,
-                npcName: "Will",
-                lines: ["Lovely! The open sea!"],
-                animationId: ANIM_CHATHAP1,
-                clickToContinue: true,
-                closeOnContinue: true,
-            });
-        }, 600);
+export function handleBoardingTick2(
+    player: PlayerState,
+    services: ScriptServices,
+): void {
+    const pid = player.id;
+    const overlayAtmosphereUid = BaseComponentUids.OVERLAY_ATMOSPHERE;
+    const fadeMessageUid = (FADE_OVERLAY_GROUP << 16) | FADE_OVERLAY_MESSAGE_CHILD;
 
-        // Store timeout ref for safety (GC will collect naturally)
-        void fadeInDelay;
-    }, 600);
+    // Boat stats
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_AMMO_NEEDS_UPDATE, 0);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_STATS_NEEDS_UPDATE, 0);
+    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOAT_DEFENCE, 10);
+    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_STABDEF, 26);
+    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_SLASHDEF, 19);
+    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_CRUSHDEF, 13);
+    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_HEAVYRANGEDDEF, 8);
+    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_STANDARDRANGEDDEF, 17);
+    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_LIGHTRANGEDDEF, 28);
+    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_MAGICDEF, 16);
+    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOAT_ARMOUR, 100);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_BASESPEED, 192);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_SPEEDCAP, 384);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_SPEEDBOOST_DURATION, 20);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_ACCELERATION, 64);
 
-    void boardingDelay;
+    // Fade from black
+    services.queueWidgetEvent?.(pid, {
+        action: "set_text",
+        uid: fadeMessageUid,
+        text: "",
+    });
+    services.openSubInterface?.(player, overlayAtmosphereUid, FADE_OVERLAY_GROUP, 1);
+    services.queueClientScript?.(pid, SCRIPT_FADE, 0, 0, 0, 255, 15);
+
+    // Re-enable minimap
+    services.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 0);
+
+    // Will on the boat: opening dialogue
+    services.openDialog?.(player, {
+        kind: "npc",
+        id: `pandemonium_boat_will_1`,
+        npcId: WILL_BOAT_NPC_ID,
+        npcName: "Will",
+        lines: ["Lovely! The open sea!"],
+        animationId: ANIM_CHATHAP1,
+        clickToContinue: true,
+        closeOnContinue: true,
+    });
+}
+
+// ============================================================================
+// Disembark — reset sailing state and return to Port Sarim
+// ============================================================================
+
+export function executeDisembarkSequence(
+    player: PlayerState,
+    services: ScriptServices,
+): void {
+    const pid = player.id;
+    const overlayAtmosphereUid = BaseComponentUids.OVERLAY_ATMOSPHERE;
+    const fadeMessageUid = (FADE_OVERLAY_GROUP << 16) | FADE_OVERLAY_MESSAGE_CHILD;
+    const currentTick = services.getCurrentTick?.() ?? 0;
+
+    // Fade to black
+    services.queueWidgetEvent?.(pid, { action: "set_text", uid: fadeMessageUid, text: "" });
+    services.openSubInterface?.(player, overlayAtmosphereUid, FADE_OVERLAY_GROUP, 1);
+    services.queueClientScript?.(pid, SCRIPT_FADE, 0, 255, 0, 0, 15);
+    services.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 2);
+
+    // Tick 1: Teleport back, reset state
+    services.requestAction(player, {
+        kind: "sailing.disembark",
+        data: {},
+        delayTicks: 1,
+        groups: ["sailing.boarding"],
+        cooldownTicks: 2,
+    }, currentTick);
+}
+
+export function handleDisembarkTick(
+    player: PlayerState,
+    services: ScriptServices,
+): void {
+    const pid = player.id;
+    const overlayAtmosphereUid = BaseComponentUids.OVERLAY_ATMOSPHERE;
+    const fadeMessageUid = (FADE_OVERLAY_GROUP << 16) | FADE_OVERLAY_MESSAGE_CHILD;
+    const hpBarUid = (HPBAR_HUD_GROUP << 16) | HPBAR_HUD_HP_CHILD;
+
+    // Reset sailing varbits
+    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT, 0);
+    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_TYPE, 0);
+    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_WORLD, 0);
+    services.sendVarbit?.(player, VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT, 0);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_VISIBLE, 0);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB, 0);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_HELM_STATUS, 0);
+    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE, 0);
+    services.sendVarbit?.(player, VARBIT_SAILING_PRELOADED_ANIMS, 0);
+
+    // Close sailing interfaces
+    services.closeSubInterface?.(player, BaseComponentUids.TAB_COMBAT, SAILING_SIDEPANEL_GROUP);
+    services.closeSubInterface?.(
+        player,
+        BaseComponentUids.HUD_CONTAINER_FRONT,
+        SAILING_INTRO_HUD_GROUP,
+    );
+
+    // Teleport back to Port Sarim
+    services.teleportPlayer?.(
+        player,
+        PORT_SARIM_RETURN_X,
+        PORT_SARIM_RETURN_Y,
+        PORT_SARIM_RETURN_LEVEL,
+        true,
+    );
+
+    services.sendGameMessage(player, "You disembark from the boat.");
+
+    // Restore HP bar
+    services.queueWidgetEvent?.(pid, { action: "set_hidden", uid: hpBarUid, hidden: false });
+
+    // Fade from black
+    services.queueWidgetEvent?.(pid, { action: "set_text", uid: fadeMessageUid, text: "" });
+    services.openSubInterface?.(player, overlayAtmosphereUid, FADE_OVERLAY_GROUP, 1);
+    services.queueClientScript?.(pid, SCRIPT_FADE, 0, 0, 0, 255, 15);
+
+    // Re-enable minimap
+    services.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 0);
 }
 
 // ============================================================================
@@ -785,7 +818,7 @@ function executeBoardingSequence(player: any, playerName: string, services: Scri
 
 function playReadyDialogue(
     convoId: string,
-    player: any,
+    player: PlayerState,
     playerName: string,
     openAnneDialog: DialogFn,
     openWillDialog: DialogFn,
@@ -810,31 +843,4 @@ function playReadyDialogue(
             );
         },
     );
-}
-
-// ============================================================================
-// Sailing Intro Instance Templates
-// ============================================================================
-
-/**
- * Build the 4×13×13 template chunk grid for the sailing intro boat.
- * Uses Port Sarim dock terrain (all 4 planes) as the base environment.
- * The actual boat structure is added via extraLocs.
- */
-function buildSailingIntroTemplates(): number[][][] {
-    const chunks = createEmptyTemplateChunks();
-
-    const sarimBaseX = 381;
-    const sarimBaseY = 400;
-    for (let plane = 0; plane < 4; plane++) {
-        for (let cx = 2; cx < 11; cx++) {
-            for (let cy = 2; cy < 11; cy++) {
-                const srcX = sarimBaseX + (cx - 6);
-                const srcY = sarimBaseY + (cy - 6);
-                chunks[plane][cx][cy] = packTemplateChunk(plane, srcX, srcY, 0);
-            }
-        }
-    }
-
-    return chunks;
 }

@@ -340,6 +340,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         string,
         { newId: number; newRotation?: number; moveToX?: number; moveToY?: number }
     > = new Map();
+    // Track spawned locs not in base map data: Map<"x,y,level", {id,type,rotation}>
+    private locSpawns: Map<string, { id: number; type: number; rotation: number }> = new Map();
     private pendingLocUpdates: Set<number> = new Set();
     private pendingLocReloadMaps: Map<number, { mapX: number; mapY: number }> = new Map();
     private pendingLocReloadFlushTimer?: ReturnType<typeof setTimeout>;
@@ -5119,6 +5121,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             minimizeDrawCalls: !this.hasMultiDraw,
             loadedTextureIds: this.loadedTextureIds,
             locOverrides: this.locOverrides,
+            locSpawns: this.locSpawns,
         };
 
         const mapData = await this.osrsClient.workerPool.queueLoad<
@@ -12875,8 +12878,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.hitsplatSeenNpc.clear();
         this.actorServerTilesSeenNpc.clear();
 
-        // Clear loc overrides (door state changes accumulate)
+        // Clear loc overrides and spawns (door state changes accumulate)
         this.locOverrides.clear();
+        this.locSpawns.clear();
         this.mapsToLoad.clear();
         this.pendingStreamMapsByGeneration.clear();
         this.observedGridRevision = -1;
@@ -13021,6 +13025,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             newTile?: { x: number; y: number };
             oldRotation?: number;
             newRotation?: number;
+            newShape?: number;
         },
     ): void {
         try {
@@ -13068,8 +13073,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 typeof opts?.newRotation === "number"
                     ? opts.newRotation & 0x3
                     : undefined;
-            // Store the override
-            const overrideKey = `${oldTile.x},${oldTile.y},${level},${oldId}`;
+
+            const spawnKey = `${oldTile.x | 0},${oldTile.y | 0},${level | 0}`;
+            const existingSpawn = this.locSpawns.get(spawnKey);
+            // Use locSpawns for: locs spawned on empty ground (oldId===0) or ongoing lifecycle of a spawned loc
+            const isSpawnedLoc = (oldId | 0) === 0 || (existingSpawn !== undefined && existingSpawn.id === (oldId | 0));
+
             const clearOverridesAtTile = (tileX: number, tileY: number): void => {
                 const keyPrefix = `${tileX | 0},${tileY | 0},${level},`;
                 for (const key of Array.from(this.locOverrides.keys())) {
@@ -13082,20 +13091,42 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             if (newTile) {
                 clearOverridesAtTile(newTile.x, newTile.y);
             }
-            this.locOverrides.set(overrideKey, {
-                newId: newId | 0,
-                newRotation: overrideRotation,
-                moveToX:
-                    newTile &&
-                    ((newTile.x | 0) !== (oldTile.x | 0) || (newTile.y | 0) !== (oldTile.y | 0))
-                        ? newTile.x | 0
-                        : undefined,
-                moveToY:
-                    newTile &&
-                    ((newTile.x | 0) !== (oldTile.x | 0) || (newTile.y | 0) !== (oldTile.y | 0))
-                        ? newTile.y | 0
-                        : undefined,
-            });
+
+            if (isSpawnedLoc) {
+                // Manage via locSpawns
+                if ((newId | 0) === 0) {
+                    this.locSpawns.delete(spawnKey);
+                } else {
+                    // Use the shape from the server (matches loc_add_change_v2 OSRS packet),
+                    // or inherit from the existing spawn, or default to NORMAL (10).
+                    const spawnType =
+                        typeof opts?.newShape === "number"
+                            ? (opts.newShape as LocModelType)
+                            : existingSpawn?.type ?? LocModelType.NORMAL;
+                    this.locSpawns.set(spawnKey, {
+                        id: newId | 0,
+                        type: spawnType,
+                        rotation: overrideRotation ?? 0,
+                    });
+                }
+            } else {
+                // Regular map loc override
+                const overrideKey = `${oldTile.x},${oldTile.y},${level},${oldId}`;
+                this.locOverrides.set(overrideKey, {
+                    newId: newId | 0,
+                    newRotation: overrideRotation,
+                    moveToX:
+                        newTile &&
+                        ((newTile.x | 0) !== (oldTile.x | 0) || (newTile.y | 0) !== (oldTile.y | 0))
+                            ? newTile.x | 0
+                            : undefined,
+                    moveToY:
+                        newTile &&
+                        ((newTile.x | 0) !== (oldTile.x | 0) || (newTile.y | 0) !== (oldTile.y | 0))
+                            ? newTile.y | 0
+                            : undefined,
+                });
+            }
 
             // Moving locs can cross map-square boundaries (e.g., edge gates).
             // Reload both affected map squares so moved geometry can appear on the new side.

@@ -199,6 +199,31 @@
       },
       "species": ["human"]
     },
+    "3254": {
+      "name": "Guard",
+      "combatLevel": 21,
+      "hitpoints": 22,
+      "attackLevel": 19,
+      "strengthLevel": 18,
+      "defenceLevel": 18,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "slash",
+      "maxHit": 3,
+      "aggressive": false,
+      "attackBonus": 10,
+      "strengthBonus": 9,
+      "defenceBonuses": {
+        "stab": 24,
+        "slash": 29,
+        "crush": 22,
+        "magic": -4,
+        "ranged": 24
+      },
+      "species": ["human"]
+    },
     "3107": {
       "name": "Man",
       "combatLevel": 2,

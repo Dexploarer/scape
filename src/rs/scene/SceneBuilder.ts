@@ -49,6 +49,9 @@ export class SceneBuilder {
         { newId: number; newRotation?: number; moveToX?: number; moveToY?: number }
     > = new Map();
 
+    // Dynamic loc spawns: Map<"x,y,level", {id,type,rotation}> - locs not in base map data
+    private locSpawns: Map<string, { id: number; type: LocModelType; rotation: number }> = new Map();
+
     constructor(
         readonly cacheInfo: CacheInfo,
         readonly mapFileLoader: MapFileLoader,
@@ -89,6 +92,15 @@ export class SceneBuilder {
 
     clearLocOverrides(): void {
         this.locOverrides.clear();
+    }
+
+    setLocSpawn(x: number, y: number, level: number, id: number, type: LocModelType, rotation: number): void {
+        const key = `${x},${y},${level}`;
+        this.locSpawns.set(key, { id, type, rotation });
+    }
+
+    clearLocSpawns(): void {
+        this.locSpawns.clear();
     }
 
     static fillEmptyTerrain(info: CacheInfo): boolean {
@@ -499,6 +511,22 @@ export class SceneBuilder {
                         locLoadType,
                     );
                 }
+            }
+        }
+
+        // Process loc spawns (locs not present in base map data, e.g. fires placed on empty ground)
+        for (const [key, spawn] of this.locSpawns.entries()) {
+            const parts = key.split(",");
+            if (parts.length !== 3) continue;
+            const sx = parseInt(parts[0]);
+            const sy = parseInt(parts[1]);
+            const sl = parseInt(parts[2]);
+            if (
+                sx > 0 && sy > 0 &&
+                sx < scene.sizeX - 1 && sy < scene.sizeY - 1 &&
+                sl >= 0 && sl < scene.levels
+            ) {
+                this.addLoc(scene, sl, sx, sy, spawn.id, spawn.type, spawn.rotation, scene.collisionMaps[sl], locLoadType);
             }
         }
 

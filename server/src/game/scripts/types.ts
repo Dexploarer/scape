@@ -468,11 +468,6 @@ export interface ScriptServices {
     smeltBars?: (player: PlayerState, params: { recipeId: string; count: number }) => void;
     openSmithingInterface?: (player: PlayerState) => void;
     smithItems?: (player: PlayerState, params: { recipeId: string; count: number }) => void;
-    collectAshesFromFire?: (
-        player: PlayerState,
-        tile: { x: number; y: number },
-        level: number,
-    ) => boolean;
     queueBankSnapshot: (player: PlayerState) => void;
     /**
      * Send bank tab size varbits to the client.

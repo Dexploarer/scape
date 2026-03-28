@@ -5519,6 +5519,14 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             const uiMetrics = this.computeUiRenderMetrics(width, height);
             this.osrsClient?.widgetManager?.resize(uiMetrics.layoutW, uiMetrics.layoutH);
 
+            // All in-world overlays render in buffer pixel space, so their scale must match
+            // renderScaleX (uiScale × DPR) so sprites/text appear the correct physical size.
+            const overlayScale = uiMetrics.renderScaleX;
+            if (this.overheadTextOverlay) this.overheadTextOverlay.scale = overlayScale;
+            if (this.hitsplatOverlay) this.hitsplatOverlay.scale = overlayScale;
+            if (this.clickCrossOverlay) this.clickCrossOverlay.scale = overlayScale;
+            if (this.groundItemOverlay) this.groundItemOverlay.scale = overlayScale;
+
             // Trigger framebuffer recreation
             this.needsFramebufferUpdate = true;
 

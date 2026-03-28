@@ -2,8 +2,25 @@ const STORAGE_KEY = "osrs.uiScale";
 
 const MAX_SCALE = 5;
 
+/**
+ * How far the raw scale ratio must drop below the current integer scale before
+ * the scale decreases. 0.7 means scale=2 holds until the raw ratio is < 1.3
+ * (window < ~994px wide), preventing jarring jumps near the boundary.
+ * Scale always increases freely (no upward hysteresis).
+ */
+const SCALE_DOWN_HYSTERESIS = 0.7;
+
+/**
+ * Fractional boost applied when auto-scale is 1. At small viewports (below
+ * scale=2 threshold) the UI can feel tiny; this bumps the effective scale to
+ * 1.1 so long as the resulting layout remains ≥ 765×503 (OSRS minimum).
+ * Requires cssW ≥ 842 and cssH ≥ 554 to activate.
+ */
+const SCALE_1_BOOST = 1.1;
+
 let manualOverride: number | null = null;
 let overrideLoaded = false;
+let _lastAutoScale: number = 0;
 
 function loadOverride(): number | null {
     if (typeof localStorage === "undefined") return null;
@@ -26,22 +43,68 @@ function ensureOverrideLoaded(): void {
 
 /**
  * Compute the automatic UI scale from CSS viewport dimensions.
- * Scales up when the viewport is large enough that widgets would be physically
- * tiny (common on high-res displays at low OS scaling).  Each scale level
- * ensures the resulting layout stays at or above a minimum comfortable size.
+ * Scales proportionally relative to the OSRS base resolution (765×503),
+ * matching RuneLite-style stretched-mode auto scaling.
+ *
+ * Hard constraint: scale is capped so the resulting layout is never
+ * smaller than 765×503 (OSRS minimum). This uses Math.floor so that
+ * e.g. floor(2560/765)=3 but floor(1437/503)=2 → cap=2 at 2560×1437,
+ * giving layout 1280×718 with no widget overlap.
+ *
+ * Stateful hysteresis prevents scale drops on small window resizes: the
+ * scale only decreases when the raw ratio drops SCALE_DOWN_HYSTERESIS (0.7)
+ * below the current integer scale — but never beyond what the layout cap allows.
  */
 export function computeAutoScale(cssW: number, cssH: number): number {
-    const MIN_LAYOUT_W = 1024;
-    const MIN_LAYOUT_H = 576;
+    const OSRS_BASE_W = 765;
+    const OSRS_BASE_H = 503;
 
-    let scale = 1;
-    while (
-        cssW / (scale + 1) >= MIN_LAYOUT_W &&
-        cssH / (scale + 1) >= MIN_LAYOUT_H
-    ) {
-        scale++;
+    // Soft cap: allow layout to be up to CAP_TOLERANCE pixels below the OSRS minimum
+    // before forcing a scale drop. This prevents a single-pixel viewport change (e.g.
+    // resizing the browser DevTools panel) from flipping between scale=1 and scale=2
+    // at the exact 1530px boundary. Layout at scale=2 with 1529px viewport is 764px —
+    // visually identical to the 765px minimum, so the tolerance is imperceptible.
+    const CAP_TOLERANCE_W = 15;
+    const CAP_TOLERANCE_H = 10;
+    const maxAllowed = Math.max(
+        1,
+        Math.min(
+            Math.floor(cssW / (OSRS_BASE_W - CAP_TOLERANCE_W)),
+            Math.floor(cssH / (OSRS_BASE_H - CAP_TOLERANCE_H)),
+            MAX_SCALE,
+        ),
+    );
+
+    const rawScale = Math.min(cssW / OSRS_BASE_W, cssH / OSRS_BASE_H);
+    // Round toward preferred scale, but never exceed the layout-minimum cap.
+    const natural = Math.max(1, Math.min(maxAllowed, Math.round(rawScale)));
+
+    // Fractional boost: when natural scale is 1 and the viewport is large enough
+    // that a 10% bigger UI still keeps the layout ≥ 765×503, return 1.1 instead.
+    // This makes the UI feel less tiny on mid-size screens (e.g. 1366×768, 1440×900)
+    // that don't yet qualify for scale=2.
+    const boosted = natural === 1
+        && cssW / SCALE_1_BOOST >= OSRS_BASE_W
+        && cssH / SCALE_1_BOOST >= OSRS_BASE_H
+        ? SCALE_1_BOOST
+        : natural;
+
+    if (_lastAutoScale <= 0) {
+        _lastAutoScale = boosted;
+        return boosted;
     }
-    return Math.min(scale, MAX_SCALE);
+
+    if (boosted < _lastAutoScale) {
+        // Hysteresis: hold the previous scale as long as the layout cap still allows it
+        // and rawScale hasn't dropped far enough to warrant a change.
+        const held = Math.min(_lastAutoScale, maxAllowed);
+        if (held > boosted && rawScale >= held - SCALE_DOWN_HYSTERESIS) {
+            return held;
+        }
+    }
+
+    _lastAutoScale = boosted;
+    return boosted;
 }
 
 /**
@@ -60,6 +123,7 @@ export function setUiScale(scale: number | null): void {
     overrideLoaded = true;
     if (scale === null) {
         manualOverride = null;
+        _lastAutoScale = 0; // Reset so auto-scale re-seeds from the current viewport.
         if (typeof localStorage !== "undefined") {
             try { localStorage.removeItem(STORAGE_KEY); } catch {}
         }

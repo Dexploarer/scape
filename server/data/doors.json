@@ -3,6 +3,10 @@
   "definitions": {
     "singleDoors": [
       {
+        "closed": 3,
+        "opened": 4
+      },
+      {
         "closed": 881,
         "opened": 882
       },
@@ -317,6 +321,10 @@
       {
         "closed": 24369,
         "opened": 24368
+      },
+      {
+        "closed": 25819,
+        "opened": 25820
       },
       {
         "closed": 27084,
@@ -719,7 +727,7 @@
   },
   "runtimeTileMappings": {
     "version": 1,
-    "generatedAt": "2026-03-03T16:22:12.886Z",
+    "generatedAt": "2026-03-27T23:50:09.860Z",
     "entries": [
       {
         "level": 0,
@@ -1015,8 +1023,8 @@
           {
             "closed": 25819,
             "opened": 25820,
-            "count": 26,
-            "lastObserved": "2026-02-27T08:49:12.475Z"
+            "count": 27,
+            "lastObserved": "2026-03-27T23:50:07.857Z"
           }
         ]
       },
@@ -1028,8 +1036,8 @@
           {
             "closed": 25819,
             "opened": 25820,
-            "count": 26,
-            "lastObserved": "2026-02-27T08:49:12.475Z"
+            "count": 27,
+            "lastObserved": "2026-03-27T23:50:07.857Z"
           }
         ]
       },

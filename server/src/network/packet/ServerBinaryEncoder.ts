@@ -714,7 +714,7 @@ export class ServerBinaryEncoder {
             this.buffer.writeShort(y ?? 0);
             this.buffer.writeByte(level ?? 0);
         }
-        this.buffer.writeByte(loops ?? 1);
+        this.buffer.writeByte(loops ?? 0);
         this.buffer.writeShort(delay ?? 0);
         this.buffer.writeByte(radius ?? 0);
         this.buffer.writeByte(volume ?? 255);

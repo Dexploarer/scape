@@ -1,4 +1,4 @@
-import { FIRE_REMAINS_LOC_ID, FiremakingTracker } from "../skills/firemaking";
+import { ASHES_ITEM_ID, FiremakingTracker } from "../skills/firemaking";
 import { FlaxPatchTracker } from "../skills/flaxPatchTracker";
 import { MiningNodeTracker, buildMiningTileKey } from "../skills/mining";
 import { WoodcuttingNodeTracker, buildWoodcuttingTileKey } from "../skills/woodcutting";
@@ -9,6 +9,14 @@ export interface GatheringSystemServices {
         newId: number,
         tile: { x: number; y: number },
         level: number,
+        opts?: { newShape?: number; newRotation?: number },
+    ) => void;
+    spawnGroundItem: (
+        itemId: number,
+        quantity: number,
+        tile: { x: number; y: number; level: number },
+        currentTick: number,
+        opts?: { ownerId?: number; durationTicks?: number; privateTicks?: number },
     ) => void;
 }
 
@@ -36,7 +44,6 @@ export class GatheringSystemManager {
         this.processMiningRespawns(tick);
         this.processFlaxRespawns(tick);
         this.processFiremakingExpirations(tick);
-        this.processFiremakingAshes(tick);
     }
 
     private processWoodcuttingRespawns(tick: number): void {
@@ -59,25 +66,17 @@ export class GatheringSystemManager {
 
     private processFiremakingExpirations(tick: number): void {
         this.firemakingTracker.processExpirations(tick, (node) => {
-            this.services.emitLocChange(
-                node.fireObjectId,
-                FIRE_REMAINS_LOC_ID,
-                node.tile,
-                node.level,
+            // Remove the fire loc from the client (locSpawns cleared by newId=0)
+            this.services.emitLocChange(node.fireObjectId, 0, node.tile, node.level);
+            // Drop ashes as a ground item — visible to all (no private period), standard despawn
+            this.services.spawnGroundItem(
+                ASHES_ITEM_ID,
+                1,
+                { x: node.tile.x, y: node.tile.y, level: node.level },
+                tick,
+                { privateTicks: 0 },
             );
-            this.firemakingTracker.spawnAshFromFire(node, tick);
         });
-    }
-
-    private processFiremakingAshes(tick: number): void {
-        this.firemakingTracker.processAshes(tick, (node) =>
-            this.services.emitLocChange(
-                FIRE_REMAINS_LOC_ID,
-                node.previousLocId,
-                node.tile,
-                node.level,
-            ),
-        );
     }
 
     // ----- Woodcutting -----
@@ -143,19 +142,6 @@ export class GatheringSystemManager {
         const node = this.firemakingTracker.getFireNode(tile, level);
         if (!node) return undefined;
         return { fireObjectId: node.fireObjectId, expirationTick: node.expiresTick };
-    }
-
-    getAshNode(
-        tile: { x: number; y: number },
-        level: number,
-    ): { expirationTick: number; previousLocId: number } | undefined {
-        const node = this.firemakingTracker.getAshNode(tile, level);
-        if (!node) return undefined;
-        return { expirationTick: node.expiresTick, previousLocId: node.previousLocId };
-    }
-
-    removeAshNode(tile: { x: number; y: number }, level: number): void {
-        this.firemakingTracker.removeAshNode(tile, level);
     }
 
     // ----- Flax -----

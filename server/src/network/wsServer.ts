@@ -358,9 +358,7 @@ import type {
 } from "../game/scripts/types";
 import { ShopManager, type ShopStockEntry } from "../game/shops/ShopManager";
 import {
-    ASHES_ITEM_ID,
     FIRE_LIGHTING_ANIMATION,
-    FIRE_REMAINS_LOC_ID,
     FiremakingTracker,
     TINDERBOX_ITEM_IDS,
     computeFireLightingDelayTicks,
@@ -1040,6 +1038,7 @@ type LocChangePayload = {
     newTile: { x: number; y: number };
     oldRotation?: number;
     newRotation?: number;
+    newShape?: number;
 };
 
 interface TickFrame {
@@ -2061,8 +2060,6 @@ export class WSServer {
                         Array.from(player.activePrayers ?? []),
                         player.combatSpellId > 0 ? player.combatSpellId : undefined,
                     ),
-                collectAshesFromFire: (player, tile, level) =>
-                    this.collectAshesFromFire(player, tile, level),
                 openSubInterface: (player, targetUid, groupId, type = 0, opts) => {
                     const t = type;
                     const varps =
@@ -2974,6 +2971,7 @@ export class WSServer {
             newTile?: { x: number; y: number };
             oldRotation?: number;
             newRotation?: number;
+            newShape?: number;
         },
     ): void {
         const oldTile = opts?.oldTile ?? tile;
@@ -2987,6 +2985,7 @@ export class WSServer {
             newTile: { x: newTile.x, y: newTile.y },
             oldRotation: opts?.oldRotation,
             newRotation: opts?.newRotation,
+            newShape: opts?.newShape,
         };
         try {
             this.doorManager?.observeLocChange({
@@ -7625,8 +7624,8 @@ export class WSServer {
             lightFire: (params) =>
                 this.firemakingTracker.light({
                     ...params,
-                    burnTicks: { min: params.burnTicks, max: params.burnTicks },
-                } as any),
+                    burnTicks: params.burnTicks,
+                }),
             buildWoodcuttingTileKey: (tile, level) =>
                 this.gatheringSystem.buildWoodcuttingTileKey(tile, level),
             buildMiningTileKey: (tile, level) =>
@@ -7666,10 +7665,22 @@ export class WSServer {
 
             // --- Firemaking Helpers ---
             computeFireLightingDelayTicks: (level) => computeFireLightingDelayTicks(level),
+            walkPlayerAwayFromFire: (player, fireTile) => {
+                // OSRS parity: after lighting a fire the player walks one tile west.
+                // Skip if the west tile is blocked by collision (wall, object, etc.).
+                const westTile = { x: fireTile.x - 1, y: fireTile.y };
+                const canStep = this.options.pathService?.canNpcStep(
+                    { x: player.tileX, y: player.tileY, plane: player.level },
+                    westTile,
+                ) ?? true;
+                if (canStep && (westTile.x !== player.tileX || westTile.y !== player.tileY)) {
+                    player.setPath([westTile], false);
+                }
+            },
 
             // --- Location Changes ---
-            emitLocChange: (fromLocId, toLocId, tile, level) =>
-                this.emitLocChange(fromLocId, toLocId, tile, level),
+            emitLocChange: (fromLocId, toLocId, tile, level, opts) =>
+                this.emitLocChange(fromLocId, toLocId, tile, level, opts),
             enqueueSoundBroadcast: (soundId, x, y, level) =>
                 this.enqueueSoundBroadcast(soundId, x, y, level),
             sendSound: (player, soundId, opts) => this.sendSound(player, soundId, opts),
@@ -8356,8 +8367,10 @@ export class WSServer {
      */
     private createGatheringSystem(): GatheringSystemManager {
         const services: GatheringSystemServices = {
-            emitLocChange: (oldId, newId, tile, level) =>
-                this.emitLocChange(oldId, newId, tile, level),
+            emitLocChange: (oldId, newId, tile, level, opts) =>
+                this.emitLocChange(oldId, newId, tile, level, opts),
+            spawnGroundItem: (itemId, quantity, tile, currentTick, opts) =>
+                this.groundItems.spawn(itemId, quantity, tile, currentTick, opts),
         };
         return new GatheringSystemManager(services);
     }
@@ -10962,11 +10975,13 @@ export class WSServer {
             inv[preferredSlot]!.quantity > 0
         ) {
             if (this.consumeItem(player, preferredSlot)) {
+                player.markInventoryDirty();
                 return preferredSlot;
             }
         }
         const fallback = this.findInventorySlotWithItem(player, logItemId);
         if (fallback !== undefined && this.consumeItem(player, fallback)) {
+            player.markInventoryDirty();
             return fallback;
         }
         return undefined;
@@ -11025,31 +11040,6 @@ export class WSServer {
         return false;
     }
 
-    private collectAshesFromFire(player: PlayerState, tile: Vec2, level: number): boolean {
-        const node = this.firemakingTracker.getAshNode(tile, level);
-        if (!node) return false;
-        const result = this.addItemToInventory(player, ASHES_ITEM_ID, 1);
-        if (result.added <= 0) {
-            this.queueChatMessage({
-                messageType: "game",
-                text: "Your inventory is too full to hold the ashes.",
-                targetPlayerIds: [player.id],
-            });
-            return true;
-        }
-        this.firemakingTracker.removeAshNode(tile, level);
-        this.emitLocChange(FIRE_REMAINS_LOC_ID, node.previousLocId, tile, level);
-        this.queueChatMessage({
-            messageType: "game",
-            text: "You take some ashes.",
-            targetPlayerIds: [player.id],
-        });
-        const sock = this.players?.getSocketByPlayerId(player.id);
-        if (sock) {
-            this.sendInventorySnapshot(sock, player);
-        }
-        return true;
-    }
 
     private restoreInventoryItems(
         player: PlayerState,
@@ -11794,7 +11784,7 @@ export class WSServer {
 
     private handleInventoryUseMessage(
         ws: WebSocket,
-        payload: { slot: number; itemId: number; quantity?: number; option?: string } | undefined,
+        payload: { slot: number; itemId: number; quantity?: number; option?: string; op?: number } | undefined,
     ): void {
         if (!payload) return;
         const p = this.players?.get(ws);

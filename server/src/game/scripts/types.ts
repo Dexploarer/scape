@@ -731,4 +731,6 @@ export interface ScriptServices {
     despawnFollowerForPlayer?: (playerId: number, clearPersistentState?: boolean) => boolean;
     spawnNpc?: (config: NpcSpawnConfig) => NpcState | undefined;
     removeNpc?: (npcId: number) => boolean;
+    initSailingInstance?: (player: PlayerState) => void;
+    disposeSailingInstance?: (player: PlayerState) => void;
 }

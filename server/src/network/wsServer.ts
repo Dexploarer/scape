@@ -323,6 +323,7 @@ import {
     handleBoardingTick1,
     handleBoardingTick2,
     handleDisembarkTick,
+    restoreSailingInstanceUi,
 } from "../game/scripts/modules/quests/pandemonium";
 import { ACTIVE_COMBAT_TIMER, STUN_TIMER } from "../game/model/timer/Timers";
 import { createLootPickupNotification } from "../game/notifications/LootPickupNotification";
@@ -496,6 +497,7 @@ import { registerEquipmentStatsInterfaceHooks } from "../widgets/hooks/Equipment
 import { type ShopOpenData, registerShopInterfaceHooks } from "../widgets/hooks/ShopInterfaceHooks";
 import { type CacheEnv, initCacheEnv } from "../world/CacheEnv";
 import { buildRebuildNormalPayload, buildRebuildRegionPayload, buildRebuildWorldEntityPayload } from "../world/InstanceManager";
+import { SailingInstanceManager } from "../game/sailing/SailingInstanceManager";
 import { CollisionOverlayStore } from "../world/CollisionOverlayStore";
 import { DoorCollisionService } from "../world/DoorCollisionService";
 import { DoorDefinitionLoader } from "../world/DoorDefinitionLoader";
@@ -1308,6 +1310,7 @@ export class WSServer {
     private shopManager?: ShopManager;
     private tradeManager?: TradeManager;
     private interfaceService?: InterfaceService;
+    private sailingInstanceManager?: SailingInstanceManager;
     private woodcuttingLocMap: Map<number, string> = new Map();
     private miningLocMap: Map<number, MiningLocMapping> = new Map();
     private fishingSpotMap: Map<number, string> = new Map();
@@ -1676,6 +1679,14 @@ export class WSServer {
             }
         }
         this.npcManager = opts.npcManager;
+        if (this.npcManager) {
+            this.sailingInstanceManager = new SailingInstanceManager({
+                teleportToInstance: (player, x, y, level, templateChunks, extraLocs) =>
+                    this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
+                spawnNpc: (config) => this.npcManager!.spawnTransientNpc(config)!,
+                removeNpc: (npcId) => this.npcManager!.removeNpc(npcId),
+            });
+        }
         const sendGameMessageFn = (player: PlayerState, text: string): void => {
             this.queueChatMessage({
                 messageType: "game",
@@ -1889,6 +1900,8 @@ export class WSServer {
                 },
                 spawnNpc: (config) => this.npcManager?.spawnTransientNpc(config),
                 removeNpc: (npcId) => this.npcManager?.removeNpc(npcId) ?? false,
+                initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
+                disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
                 openDialog: (player, request) =>
                     this.widgetDialogHandler.openDialog(player, request as any),
                 openDialogOptions: (player, options) =>
@@ -8700,6 +8713,8 @@ export class WSServer {
             spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
                 this.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
             spawnNpc: (config: any) => this.npcManager?.spawnTransientNpc(config),
+            initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
+            disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
             requestTeleportAction: (player, request) => this.requestTeleportAction(player, request),
 
             // Combat/NPC
@@ -13453,6 +13468,19 @@ export class WSServer {
                             }
                         } catch {}
 
+                        // Sailing instance: if the player's saved position is inside the
+                        // sailing instance region, create a fresh instance for them.
+                        if (
+                            this.sailingInstanceManager?.isInSailingInstanceRegion(p) &&
+                            !isReconnect
+                        ) {
+                            this.sailingInstanceManager.initInstance(p);
+                            restoreSailingInstanceUi(p, this.scriptRuntime.getServices());
+                            logger.info(
+                                `[handshake] Restored sailing instance for player ${p.id}`,
+                            );
+                        }
+
                         const startTileX = p.tileX;
                         const startTileY = p.tileY;
                         const startLevel = p.level;
@@ -14044,6 +14072,9 @@ export class WSServer {
                         logger.warn(`[disconnect] Failed to close widgets for player ${id}:`, err);
                     }
                     player.widgets.setDispatcher(undefined);
+
+                    // Dispose instance NPCs before saving
+                    this.sailingInstanceManager?.disposeInstance(player);
 
                     // Get save key for persistence and orphan tracking
                     const saveKey =

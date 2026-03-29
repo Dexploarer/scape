@@ -437,6 +437,8 @@ export class PlayerState extends Actor {
     override readonly isPlayer = true;
     widgets: PlayerWidgetManager;
     visibleNpcIds: Set<number> = new Set();
+    /** NPC IDs spawned for this player's current instance (sailing, etc.). */
+    instanceNpcIds: Set<number> = new Set();
     /** Item definition resolver for stackability lookups (RSMod parity) */
     private itemDefResolver?: ItemDefResolver;
     /** Per-player NPC healthbar baseline (npcId -> defId -> last scaled value). */

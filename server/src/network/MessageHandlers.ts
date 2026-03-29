@@ -17,13 +17,9 @@ import { getCollectionLogItems } from "../game/collectionlog";
 import type { NpcState } from "../game/npc";
 import type { PlayerState } from "../game/player";
 import {
-    buildSailingIntroTemplates,
     buildSailingOverlayTemplates,
     SAILING_INTRO_BOAT_LOCS,
     SAILING_INTRO_BUILD_AREAS,
-    SAILING_INTRO_LEVEL,
-    SAILING_INTRO_X,
-    SAILING_INTRO_Y,
     SAILING_DOCKED_NPC_SPAWNS,
     SAILING_WORLD_ENTITY_CONFIG_ID,
     SAILING_WORLD_ENTITY_INDEX,
@@ -288,6 +284,10 @@ export interface MessageHandlerServices {
         SIDE_JOURNAL_CONTENT_GROUP_BY_TAB: number[];
         SIDE_JOURNAL_TAB_CONTAINER_UID: number;
     };
+
+    // Sailing instances
+    initSailingInstance?: (player: PlayerState) => void;
+    disposeSailingInstance?: (player: PlayerState) => void;
 }
 
 const DEFAULT_CHAT_PREFIX = "";
@@ -1494,12 +1494,9 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     );
 
                     for (const npc of SAILING_DOCKED_NPC_SPAWNS) {
-                        logger.info(`[cmd] ::sail - spawnNpc available: ${typeof services.spawnNpc}`);
-                        try {
-                            const spawned = services.spawnNpc?.({ ...npc, wanderRadius: 0 });
-                            logger.info(`[cmd] ::sail - spawnNpc id=${npc.id} at (${npc.x},${npc.y},${npc.level}) -> ${spawned ? 'OK npcId=' + spawned.id : 'FAILED (returned ' + spawned + ')'}`);
-                        } catch (e) {
-                            logger.info(`[cmd] ::sail - spawnNpc id=${npc.id} THREW: ${e}`);
+                        const spawned = services.spawnNpc?.({ ...npc, wanderRadius: 0 });
+                        if (spawned) {
+                            sender.instanceNpcIds.add(spawned.id);
                         }
                     }
 
@@ -1520,16 +1517,7 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     services.sendVarbit?.(sender, 19104, 1); // sailing_player_is_on_player_boat
                     services.sendVarbit?.(sender, 19118, 1); // sailing_preloaded_anims
 
-                    // Board the boat: enter instance at source-region coordinates
-                    const templateChunks = buildSailingIntroTemplates();
-                    services.teleportToInstance(
-                        sender,
-                        SAILING_INTRO_X,
-                        SAILING_INTRO_Y,
-                        SAILING_INTRO_LEVEL,
-                        templateChunks,
-                        SAILING_INTRO_BOAT_LOCS,
-                    );
+                    services.initSailingInstance?.(sender);
 
                     services.queueChatMessage({
                         messageType: "game",

@@ -1,11 +1,5 @@
 import { BaseComponentUids } from "../../../../widgets/viewport/ViewportEnumService";
 import {
-    buildSailingIntroTemplates,
-    SAILING_INTRO_BOAT_LOCS,
-    SAILING_INTRO_LEVEL,
-    SAILING_INTRO_NPC_SPAWNS,
-    SAILING_INTRO_X,
-    SAILING_INTRO_Y,
     PORT_SARIM_RETURN_LEVEL,
     PORT_SARIM_RETURN_X,
     PORT_SARIM_RETURN_Y,
@@ -633,22 +627,8 @@ export function handleBoardingTick1(
         "You have unlocked a new music track: <col=ff3045>Crest of a Wave",
     );
 
-    // Teleport to instance
-    const templateChunks = buildSailingIntroTemplates();
-    services.teleportToInstance?.(
-        player,
-        SAILING_INTRO_X,
-        SAILING_INTRO_Y,
-        SAILING_INTRO_LEVEL,
-        templateChunks,
-        SAILING_INTRO_BOAT_LOCS,
-    );
-
-    // Spawn instance NPCs
-    const { willBoat, anneBoat, boatHp } = SAILING_INTRO_NPC_SPAWNS;
-    services.spawnNpc?.({ ...willBoat, wanderRadius: 0 });
-    services.spawnNpc?.({ ...anneBoat, wanderRadius: 0 });
-    services.spawnNpc?.({ ...boatHp, wanderRadius: 0 });
+    // Initialize sailing instance (teleport + spawn NPCs)
+    services.initSailingInstance?.(player);
 
     // Board sound
     services.sendSound?.(player, SYNTH_BOARD_BOAT);
@@ -770,6 +750,9 @@ export function handleDisembarkTick(
     const fadeMessageUid = (FADE_OVERLAY_GROUP << 16) | FADE_OVERLAY_MESSAGE_CHILD;
     const hpBarUid = (HPBAR_HUD_GROUP << 16) | HPBAR_HUD_HP_CHILD;
 
+    // Dispose instance NPCs
+    services.disposeSailingInstance?.(player);
+
     // Reset sailing varbits
     services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT, 0);
     services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_TYPE, 0);
@@ -810,6 +793,35 @@ export function handleDisembarkTick(
 
     // Re-enable minimap
     services.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 0);
+}
+
+// ============================================================================
+// Sailing UI Restoration (re-login while on boat)
+// ============================================================================
+
+export function restoreSailingInstanceUi(
+    player: PlayerState,
+    services: ScriptServices,
+): void {
+    const pid = player.id;
+    const playerName = player.name ?? "You";
+
+    services.queueClientScript?.(pid, SCRIPT_SAILING_CREW_INIT, playerName, 1, "", 1);
+    services.queueClientScript?.(pid, SCRIPT_SIDEBAR_TAB, 0);
+    services.openSubInterface?.(
+        player,
+        BaseComponentUids.TAB_COMBAT,
+        SAILING_SIDEPANEL_GROUP,
+        1,
+    );
+    services.openSubInterface?.(
+        player,
+        BaseComponentUids.HUD_CONTAINER_FRONT,
+        SAILING_INTRO_HUD_GROUP,
+        1,
+    );
+    services.queueClientScript?.(pid, SCRIPT_COMBAT_LEVEL, player.combatLevel ?? 3);
+    services.queueClientScript?.(pid, SCRIPT_CAMERA_BOUNDS, -100, 896, -100, 896);
 }
 
 // ============================================================================

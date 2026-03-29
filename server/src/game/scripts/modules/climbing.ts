@@ -216,17 +216,27 @@ console.log(`[climbing] Loaded ${intermapLinks.size} intermap links from CS2 scr
 // Stair floor-count table (server/data/stair-floors.json)
 // ---------------------------------------------------------------------------
 
-function loadStairFloors(): Map<number, number> {
+interface StairFloorEntry {
+    floors: number;
+    /** Fixed destination XY at the target level (OSRS-accurate, from packet dump). */
+    dest?: { x: number; y: number };
+}
+
+function loadStairFloors(): Map<number, StairFloorEntry> {
     const filePath = path.resolve(__dirname, "../../../../data/stair-floors.json");
     try {
         const raw = fs.readFileSync(filePath, "utf-8");
         const data = JSON.parse(raw) as Record<string, unknown>;
-        const map = new Map<number, number>();
+        const map = new Map<number, StairFloorEntry>();
         for (const [key, value] of Object.entries(data)) {
             if (key.startsWith("_")) continue;
             const locId = parseInt(key, 10);
-            if (!isNaN(locId) && typeof value === "number") {
-                map.set(locId, value);
+            if (isNaN(locId)) continue;
+            if (typeof value === "number") {
+                map.set(locId, { floors: value });
+            } else if (value && typeof value === "object" && "floors" in value) {
+                const entry = value as { floors: number; dest?: { x: number; y: number } };
+                map.set(locId, { floors: entry.floors, dest: entry.dest });
             }
         }
         return map;
@@ -276,17 +286,17 @@ function resolveDestination(
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve the floor count for a stair loc.
+ * Resolve the stair floor entry for a loc.
  *
  * Priority:
- *  1. stair-floors.json explicit entry (authoritative, manually curated).
+ *  1. stair-floors.json explicit entry (authoritative, from OSRS packet dump).
  *  2. `_N` suffix in the internal cache name if exposed (e.g. "spiralstairsbottom_3").
  *     Note: the display name (e.g. "Staircase") never contains this suffix.
  */
-function getFloorCountFromLoc(
+function getStairEntry(
     services: LocInteractionEvent["services"],
     locId: number,
-): number | undefined {
+): StairFloorEntry | undefined {
     // 1. Data file — highest priority
     const fromFile = stairFloors.get(locId);
     if (fromFile !== undefined) return fromFile;
@@ -297,46 +307,44 @@ function getFloorCountFromLoc(
     const match = (def.name as string).match(/_(\d+)$/);
     if (match) {
         const count = parseInt(match[1], 10);
-        if (count >= 2 && count <= 4) return count;
+        if (count >= 2 && count <= 4) return { floors: count };
     }
     return undefined;
 }
 
+interface MultiFloorTarget {
+    level: number;
+    /** Fixed XY destination from stair-floors.json, if configured. */
+    fixedDest?: { x: number; y: number };
+}
+
 /**
- * Resolve the target level for a multi-floor traversal.
+ * Resolve the target level and optional fixed destination for a multi-floor traversal.
  *
- * Priority:
- *  1. Loc name floor count (e.g. "_3" → 3 floors).
- *     - "top-floor" on a bottom stair: target = currentLevel + (floorCount - 1)
- *     - "bottom-floor" on a top stair: target = currentLevel - (floorCount - 1)
- *  2. Collision probe — scan downward from plane 3 checking the loc tile
- *     (not the player tile, which may hit roof geometry). Requires a valid
- *     walkable cardinal-adjacent tile to exist at the candidate plane.
- *  3. Hard fallback: +2 for top-floor (minimum for a multi-floor stair),
- *     0 for bottom-floor.
+ * OSRS parity: OSRS sends a fixed destination tile per staircase (from packet dump),
+ * independent of where the player was standing. When configured in stair-floors.json
+ * that dest is used directly. Otherwise falls back to nearest-walkable scan.
  */
 function resolveMultiFloorTarget(
     event: LocInteractionEvent,
     direction: "top" | "bottom",
-): number {
-    const { level, services, locId, tile } = event;
-    const floorCount = getFloorCountFromLoc(services, locId);
+): MultiFloorTarget {
+    const { level, services, locId } = event;
+    const entry = getStairEntry(services, locId);
+    const floorCount = entry?.floors;
 
+    let targetLevel: number;
     if (direction === "top") {
-        if (floorCount !== undefined) {
-            return Math.min(level + (floorCount - 1), 3);
-        }
-        // Fallback: staircases with "top-floor" always span at least 3 floors,
-        // making +2 the correct default for the overwhelming majority of cases.
-        // Open-room top floors (e.g. Lighthouse) have flag=0 adjacent tiles which
-        // collision probing incorrectly rejects, so we skip probing here entirely.
-        return Math.min(level + 2, 3);
+        targetLevel = floorCount !== undefined
+            ? Math.min(level + (floorCount - 1), 3)
+            : Math.min(level + 2, 3);
     } else {
-        if (floorCount !== undefined) {
-            return Math.max(level - (floorCount - 1), 0);
-        }
-        return 0;
+        targetLevel = floorCount !== undefined
+            ? Math.max(level - (floorCount - 1), 0)
+            : 0;
     }
+
+    return { level: targetLevel, fixedDest: entry?.dest };
 }
 
 /**
@@ -346,9 +354,27 @@ function resolveMultiFloorTarget(
  * Handles cases where a large object (e.g. the Lighthouse cog wheel) blocks
  * the staircase exit tile and all immediate cardinal neighbors.
  */
-// Capped at 2 tiles — enough to escape an object blocking the staircase exit
-// without crossing building walls into outdoor walkable areas.
-const MAX_WALKABLE_SEARCH_RADIUS = 2;
+/**
+ * Search offsets for walkable destination resolution, ordered so that
+ * cardinal-adjacent tiles are preferred over diagonals at each radius.
+ * Capped at radius 2 to avoid escaping building walls.
+ *
+ * Priority: r=1 cardinals → r=1 diagonals → r=2 cardinals → r=2 diagonals.
+ * OSRS staircase exits are always directly adjacent (N/S/E/W) to the
+ * staircase object, so cardinals resolve correctly in the common case.
+ */
+const WALKABLE_SEARCH_OFFSETS: ReadonlyArray<{ dx: number; dy: number }> = [
+    // Radius 1 — cardinals first (OSRS SWNE order)
+    { dx: 0, dy: -1 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 1, dy: 0 },
+    // Radius 1 — diagonals
+    { dx: -1, dy: -1 }, { dx: -1, dy: 1 }, { dx: 1, dy: -1 }, { dx: 1, dy: 1 },
+    // Radius 2 — cardinals
+    { dx: 0, dy: -2 }, { dx: -2, dy: 0 }, { dx: 0, dy: 2 }, { dx: 2, dy: 0 },
+    // Radius 2 — diagonals and edges
+    { dx: -1, dy: -2 }, { dx: 1, dy: -2 }, { dx: -2, dy: -1 }, { dx: 2, dy: -1 },
+    { dx: -2, dy: 1 }, { dx: 2, dy: 1 }, { dx: -1, dy: 2 }, { dx: 1, dy: 2 },
+    { dx: -2, dy: -2 }, { dx: -2, dy: 2 }, { dx: 2, dy: -2 }, { dx: 2, dy: 2 },
+];
 
 function resolveWalkableDest(
     services: LocInteractionEvent["services"],
@@ -363,19 +389,12 @@ function resolveWalkableDest(
         return dest;
     }
 
-    // Expand outward ring-by-ring until a walkable tile is found.
-    for (let r = 1; r <= MAX_WALKABLE_SEARCH_RADIUS; r++) {
-        for (let dx = -r; dx <= r; dx++) {
-            for (let dy = -r; dy <= r; dy++) {
-                // Only process the outermost ring at radius r.
-                if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
-                const nx = dest.x + dx;
-                const ny = dest.y + dy;
-                const flag = pathService.getCollisionFlagAt(nx, ny, dest.level);
-                if (flag !== undefined && (flag & TILE_BLOCKED) === 0) {
-                    return { x: nx, y: ny, level: dest.level };
-                }
-            }
+    for (const { dx, dy } of WALKABLE_SEARCH_OFFSETS) {
+        const nx = dest.x + dx;
+        const ny = dest.y + dy;
+        const flag = pathService.getCollisionFlagAt(nx, ny, dest.level);
+        if (flag !== undefined && (flag & TILE_BLOCKED) === 0) {
+            return { x: nx, y: ny, level: dest.level };
         }
     }
 
@@ -501,15 +520,13 @@ export const climbingModule: ScriptModule = {
                     return;
                 }
 
-                // Resolve target from loc name floor count, then fallback
-                const targetLevel = resolveMultiFloorTarget(event, "top");
+                const { level: targetLevel, fixedDest } = resolveMultiFloorTarget(event, "top");
                 if (targetLevel <= level) return;
 
-                executeInstantTraversal(event, {
-                    x: event.player.tileX,
-                    y: event.player.tileY,
-                    level: targetLevel,
-                });
+                // Use fixed dest from data file (OSRS-accurate) when available,
+                // otherwise fall back to nearest-walkable scan from player tile.
+                const destXY = fixedDest ?? { x: event.player.tileX, y: event.player.tileY };
+                executeInstantTraversal(event, { ...destXY, level: targetLevel });
             });
         }
 
@@ -528,15 +545,11 @@ export const climbingModule: ScriptModule = {
                     return;
                 }
 
-                // Resolve target from loc name floor count, then fallback
-                const targetLevel = resolveMultiFloorTarget(event, "bottom");
+                const { level: targetLevel, fixedDest } = resolveMultiFloorTarget(event, "bottom");
                 if (targetLevel >= level) return;
 
-                executeInstantTraversal(event, {
-                    x: event.player.tileX,
-                    y: event.player.tileY,
-                    level: targetLevel,
-                });
+                const destXY = fixedDest ?? { x: event.player.tileX, y: event.player.tileY };
+                executeInstantTraversal(event, { ...destXY, level: targetLevel });
             });
         }
 

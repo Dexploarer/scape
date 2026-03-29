@@ -213,6 +213,33 @@ const intermapLinks = loadIntermapLinks();
 console.log(`[climbing] Loaded ${intermapLinks.size} intermap links from CS2 script 1705`);
 
 // ---------------------------------------------------------------------------
+// Stair floor-count table (server/data/stair-floors.json)
+// ---------------------------------------------------------------------------
+
+function loadStairFloors(): Map<number, number> {
+    const filePath = path.resolve(__dirname, "../../../../data/stair-floors.json");
+    try {
+        const raw = fs.readFileSync(filePath, "utf-8");
+        const data = JSON.parse(raw) as Record<string, unknown>;
+        const map = new Map<number, number>();
+        for (const [key, value] of Object.entries(data)) {
+            if (key.startsWith("_")) continue;
+            const locId = parseInt(key, 10);
+            if (!isNaN(locId) && typeof value === "number") {
+                map.set(locId, value);
+            }
+        }
+        return map;
+    } catch (e) {
+        console.log(`[climbing] Failed to load stair-floors.json: ${e}`);
+        return new Map();
+    }
+}
+
+const stairFloors = loadStairFloors();
+console.log(`[climbing] Loaded ${stairFloors.size} stair floor entries`);
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -249,14 +276,22 @@ function resolveDestination(
 // ---------------------------------------------------------------------------
 
 /**
- * Extract the floor count from a loc's cache name.
- * OSRS multi-floor staircases encode the total floor count as a `_N` suffix
- * in the loc name (e.g. "spiralstairsbottom_3" → 3 floors spanning planes 0-2).
+ * Resolve the floor count for a stair loc.
+ *
+ * Priority:
+ *  1. stair-floors.json explicit entry (authoritative, manually curated).
+ *  2. `_N` suffix in the internal cache name if exposed (e.g. "spiralstairsbottom_3").
+ *     Note: the display name (e.g. "Staircase") never contains this suffix.
  */
 function getFloorCountFromLoc(
     services: LocInteractionEvent["services"],
     locId: number,
 ): number | undefined {
+    // 1. Data file — highest priority
+    const fromFile = stairFloors.get(locId);
+    if (fromFile !== undefined) return fromFile;
+
+    // 2. Internal name suffix fallback (rarely populated via getLocDefinition)
     const def = services.getLocDefinition?.(locId);
     if (!def?.name) return undefined;
     const match = (def.name as string).match(/_(\d+)$/);
@@ -305,9 +340,56 @@ function resolveMultiFloorTarget(
 }
 
 /**
+ * Resolve a destination tile to the nearest walkable tile using an
+ * expanding-ring search (Chebyshev distance 0 → MAX_WALKABLE_SEARCH_RADIUS).
+ *
+ * Handles cases where a large object (e.g. the Lighthouse cog wheel) blocks
+ * the staircase exit tile and all immediate cardinal neighbors.
+ */
+// Capped at 2 tiles — enough to escape an object blocking the staircase exit
+// without crossing building walls into outdoor walkable areas.
+const MAX_WALKABLE_SEARCH_RADIUS = 2;
+
+function resolveWalkableDest(
+    services: LocInteractionEvent["services"],
+    dest: TraversalDestination,
+): TraversalDestination {
+    const pathService = services.getPathService?.();
+    if (!pathService) return dest;
+
+    // Check the destination tile itself first.
+    const destFlag = pathService.getCollisionFlagAt(dest.x, dest.y, dest.level);
+    if (destFlag !== undefined && (destFlag & TILE_BLOCKED) === 0) {
+        return dest;
+    }
+
+    // Expand outward ring-by-ring until a walkable tile is found.
+    for (let r = 1; r <= MAX_WALKABLE_SEARCH_RADIUS; r++) {
+        for (let dx = -r; dx <= r; dx++) {
+            for (let dy = -r; dy <= r; dy++) {
+                // Only process the outermost ring at radius r.
+                if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+                const nx = dest.x + dx;
+                const ny = dest.y + dy;
+                const flag = pathService.getCollisionFlagAt(nx, ny, dest.level);
+                if (flag !== undefined && (flag & TILE_BLOCKED) === 0) {
+                    return { x: nx, y: ny, level: dest.level };
+                }
+            }
+        }
+    }
+
+    return dest;
+}
+
+/**
  * Execute an instant multi-floor traversal (no climb animation).
  * OSRS parity: top-floor / bottom-floor teleports are immediate with no
  * sequence animation — just a plane change and face direction toward the loc.
+ *
+ * The destination is resolved to the nearest walkable tile before teleporting
+ * to handle cases where the same-XY tile at the target level is blocked
+ * (e.g. the Lighthouse cog wheel occupying the staircase tile on level 2).
  */
 function executeInstantTraversal(
     event: LocInteractionEvent,
@@ -315,10 +397,12 @@ function executeInstantTraversal(
 ): void {
     const { player, tile, services } = event;
 
+    const resolved = resolveWalkableDest(services, dest);
+
     services.requestTeleportAction?.(player, {
-        x: dest.x,
-        y: dest.y,
-        level: dest.level,
+        x: resolved.x,
+        y: resolved.y,
+        level: resolved.level,
         delayTicks: 0,
         preserveAnimation: false,
         requireCanTeleport: false,
@@ -433,12 +517,12 @@ export const climbingModule: ScriptModule = {
         for (const action of ["bottom-floor", "bottom floor"]) {
             registry.registerLocAction(action, (event) => {
                 ensureResolved(event.services);
-                const { level } = event;
+                const { tile, level } = event;
 
                 if (level <= 0) return;
 
                 // Intermap link takes priority
-                const link = intermapLinks.find(event.tile.x, event.tile.y, level);
+                const link = intermapLinks.find(tile.x, tile.y, level);
                 if (link) {
                     executeInstantTraversal(event, link);
                     return;

@@ -1,7 +1,10 @@
 import type { PlayerState } from "../player";
 import type { NpcSpawnConfig, NpcState } from "../npc";
+import type { CollisionOverlayStore } from "../../world/CollisionOverlayStore";
 import {
     buildSailingIntroTemplates,
+    DOCK_OFFSET_X,
+    DOCK_OFFSET_Y,
     SAILING_INTRO_BOAT_LOCS,
     SAILING_INTRO_LEVEL,
     SAILING_INTRO_NPC_SPAWNS,
@@ -30,7 +33,20 @@ export interface SailingInstanceServices {
     ) => void;
     spawnNpc: (config: NpcSpawnConfig) => NpcState | undefined;
     removeNpc: (npcId: number) => boolean;
+    collisionOverlay?: CollisionOverlayStore;
 }
+
+// Walkable deck tiles on plane 1 relative to SOURCE_BASE (bx, by).
+// Everything outside this set on plane 1 in the boat region is blocked.
+const DECK_TILES: Array<[number, number]> = [
+    [3, 2], [4, 2],
+    [3, 3], [4, 3],
+    [3, 4], [4, 4],
+    [3, 5], [4, 5],
+];
+
+// Full collision block flag
+const FULL_BLOCK = 0xffffff;
 
 export class SailingInstanceManager {
     private readonly services: SailingInstanceServices;
@@ -75,14 +91,53 @@ export class SailingInstanceManager {
             }
         }
 
+        // Apply collision overlay: block all non-deck tiles in the boat region
+        this.applyDeckCollision();
+        logger.info(`[SailingInstance] Applied deck collision overlay (hasOverlay=${!!this.services.collisionOverlay}, size=${this.services.collisionOverlay?.size ?? 0})`);
+
         const npcIds = [...player.instanceNpcIds].join(", ");
         logger.info(
             `[SailingInstance] Created instance for player ${player.id} — spawned ${player.instanceNpcIds.size} NPCs [${npcIds}]`,
         );
     }
 
+    applyDeckCollision(): void {
+        const overlay = this.services.collisionOverlay;
+        if (!overlay) return;
+        // Player is on the overworld at dock coords (level 0), not in the source region.
+        const bx = DOCK_OFFSET_X;
+        const by = DOCK_OFFSET_Y;
+        const deckSet = new Set(DECK_TILES.map(([dx, dy]) => `${bx + dx},${by + dy}`));
+        for (let plane = 0; plane < 4; plane++) {
+            for (let dx = 0; dx < 8; dx++) {
+                for (let dy = 0; dy < 8; dy++) {
+                    const wx = bx + dx;
+                    const wy = by + dy;
+                    if (!deckSet.has(`${wx},${wy}`)) {
+                        overlay.addFlags(wx, wy, plane, FULL_BLOCK);
+                    }
+                }
+            }
+        }
+    }
+
+    clearDeckCollision(): void {
+        const overlay = this.services.collisionOverlay;
+        if (!overlay) return;
+        const bx = DOCK_OFFSET_X;
+        const by = DOCK_OFFSET_Y;
+        for (let plane = 0; plane < 4; plane++) {
+            for (let dx = 0; dx < 8; dx++) {
+                for (let dy = 0; dy < 8; dy++) {
+                    overlay.clearTile(bx + dx, by + dy, plane);
+                }
+            }
+        }
+    }
+
     disposeInstance(player: PlayerState): void {
         player.worldViewId = -1;
+        this.clearDeckCollision();
         if (player.instanceNpcIds.size === 0) return;
 
         const npcIds = [...player.instanceNpcIds].join(", ");

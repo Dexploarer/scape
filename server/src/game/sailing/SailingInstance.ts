@@ -11,8 +11,8 @@ import type { WorldEntityBuildArea } from "../../../../src/shared/worldentity/Wo
 // The world entity scene uses source-region coordinates internally.
 // All locs, NPCs, and the player position use coordinates relative to
 // the source region at (3840, 6400).
-const SOURCE_BASE_X = 3840;
-const SOURCE_BASE_Y = 6400;
+export const SOURCE_BASE_X = 3840;
+export const SOURCE_BASE_Y = 6400;
 
 // Source chunk that contains the boat
 const SOURCE_CHUNK_X = SOURCE_BASE_X / 8; // 480
@@ -115,8 +115,8 @@ export const SAILING_INTRO_NPC_SPAWNS = {
 // fineBase = sizeChunks * 64 = 512 fine = 4 tiles from entity center.
 // Boat locs at source offset (n, m) appear at overworld:
 //   worldX = 3054.5 + n - 4,  worldY = 3193.5 + m - 4
-const DOCK_OFFSET_X = 3054 - 4; // 3050
-const DOCK_OFFSET_Y = 3193 - 4; // 3189
+export const DOCK_OFFSET_X = 3054 - 4; // 3050
+export const DOCK_OFFSET_Y = 3193 - 4; // 3189
 
 function buildDockedBoatLocs(): BoatLoc[] {
     const dx = DOCK_OFFSET_X;

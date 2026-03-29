@@ -363,6 +363,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         deckHeight?: number;
     }> = new Map();
     private worldEntityLocRebuildTimer: ReturnType<typeof setTimeout> | null = null;
+    private nextWorldEntityLoadToken: number = 1;
+    private worldEntityLoadTokens: Map<number, number> = new Map();
+    private worldEntityReloadAfterMs: Map<number, number> = new Map();
     worldEntityAnimator?: WorldEntityAnimator;
     /** Dynamically spawned locs (LOC_ADD_CHANGE). Keyed by "x,y,level,shape". */
     private addedLocs: Map<
@@ -5342,16 +5345,22 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     ): Promise<void> {
         if (!this.osrsClient.loadedCache) return;
 
+        const loadToken = this.nextWorldEntityLoadToken++;
+        this.worldEntityLoadTokens.set(entityIndex, loadToken);
+        if (this.worldEntityOverlays.has(entityIndex)) {
+            this.clearWorldEntity(entityIndex);
+            this.worldEntityLoadTokens.set(entityIndex, loadToken);
+        }
+
         const sceneSizeHalf = (13 * 8) / 2; // 52 tiles (half of 104-tile scene)
         const entityWorldBaseX = worldX - sceneSizeHalf;
         const entityWorldBaseY = worldY - sceneSizeHalf;
 
-        const playerMapX = ((regionX * 8) / Scene.MAP_SQUARE_SIZE) | 0;
-        const playerMapY = ((regionY * 8) / Scene.MAP_SQUARE_SIZE) | 0;
-
         // Use a unique mapX/Y for the overlay that won't collide with real map squares
         const overlayMapX = 200 + entityIndex;
         const overlayMapY = 200 + entityIndex;
+        const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
+        this.mapManager.loadingMapIds.add(overlayMapId);
 
         console.log(
             `[WebGLOsrsRenderer] Loading world entity overlay: entity=${entityIndex} config=${configId} source=(${regionX},${regionY}) worldPos=(${worldX},${worldY}) renderBase=(${entityWorldBaseX},${entityWorldBaseY})`,
@@ -5419,16 +5428,52 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             SdMapDataLoader
         >(this.dataLoader, input);
 
+        if (this.worldEntityLoadTokens.get(entityIndex) !== loadToken) {
+            return;
+        }
+
         if (mapData) {
             console.log(
                 `[WebGLOsrsRenderer] World entity overlay loaded: entity=${entityIndex} vertices=${mapData.vertices?.length ?? 0}`,
             );
             this.mapsToLoad.push(mapData);
-            const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
             this.mapManager.loadingMapIds.add(overlayMapId);
             this.mapManager.worldEntityMapIds.add(overlayMapId);
+        } else {
+            this.mapManager.loadingMapIds.delete(overlayMapId);
         }
 
+    }
+
+    private ensureWorldEntityOverlaysLoaded(nowMs: number): void {
+        for (const [entityIndex, overlay] of this.worldEntityOverlays) {
+            const overlayMapX = 200 + entityIndex;
+            const overlayMapY = 200 + entityIndex;
+            const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
+            if (this.mapManager.mapSquares.has(overlayMapId)) continue;
+            if (this.mapManager.loadingMapIds.has(overlayMapId)) continue;
+
+            const retryAfter = this.worldEntityReloadAfterMs.get(entityIndex) ?? 0;
+            if (nowMs < retryAfter) continue;
+
+            this.worldEntityReloadAfterMs.set(entityIndex, nowMs + 250);
+            console.warn(
+                `[WebGLOsrsRenderer] Missing world entity overlay map, reloading entity=${entityIndex}`,
+            );
+            void this.loadWorldEntityScene(
+                overlay.entityIndex,
+                overlay.templateChunks,
+                overlay.regionX,
+                overlay.regionY,
+                overlay.worldX,
+                overlay.worldY,
+                overlay.sizeX,
+                overlay.sizeZ,
+                overlay.extraLocs,
+                overlay.configId,
+                overlay.extraNpcs,
+            );
+        }
     }
 
     scheduleWorldEntityLocRebuild(entityIndex: number): void {
@@ -5525,8 +5570,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const overlayMapY = 200 + entityIndex;
         const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
         this.mapManager.worldEntityMapIds.delete(overlayMapId);
+        this.mapManager.loadingMapIds.delete(overlayMapId);
         this.mapManager.removeMap(overlayMapX, overlayMapY);
         this.worldEntityOverlays.delete(entityIndex);
+        this.worldEntityLoadTokens.delete(entityIndex);
+        this.worldEntityReloadAfterMs.delete(entityIndex);
         this.worldEntityAnimator?.removeEntity(entityIndex);
         this.osrsClient.worldViewManager.removeWorldView(entityIndex);
     }
@@ -5537,9 +5585,16 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             const overlayMapY = 200 + entityIndex;
             const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
             this.mapManager.worldEntityMapIds.delete(overlayMapId);
+            this.mapManager.loadingMapIds.delete(overlayMapId);
             this.mapManager.removeMap(overlayMapX, overlayMapY);
         }
+        if (this.worldEntityLocRebuildTimer !== null) {
+            clearTimeout(this.worldEntityLocRebuildTimer);
+            this.worldEntityLocRebuildTimer = null;
+        }
         this.worldEntityOverlays.clear();
+        this.worldEntityLoadTokens.clear();
+        this.worldEntityReloadAfterMs.clear();
         this.worldEntityAnimator?.clear();
         this.osrsClient.worldViewManager.clear();
     }
@@ -7237,6 +7292,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             }
         } catch {}
         profiler.endPhase();
+
+        this.ensureWorldEntityOverlaysLoaded(time);
 
         let mapApplyCount = 0;
         // Load new map squares

@@ -11296,6 +11296,12 @@ export class OsrsClient {
 
         // Clear map data
         try {
+            (this.renderer as any)?.clearAllWorldEntities?.();
+        } catch (err) {
+            console.warn("[OsrsClient] Renderer clearAllWorldEntities error:", err);
+        }
+
+        try {
             this.renderer?.mapManager?.clearMaps?.();
         } catch (err) {
             console.warn("[OsrsClient] MapManager clearMaps error:", err);

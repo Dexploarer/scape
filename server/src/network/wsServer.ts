@@ -925,6 +925,7 @@ interface PlayerViewSnapshot {
     traversals?: number[];
     anim?: PlayerAnimSet;
     shouldSendPos: boolean;
+    worldViewId?: number;
 }
 
 type SpawnEncoding =
@@ -1098,6 +1099,7 @@ interface TickFrame {
             turned: boolean;
             snap: boolean;
             directions?: number[];
+            worldViewId?: number;
         };
     }>;
     skillSnapshots: Array<{ playerId: number; update: SkillSyncUpdate }>;
@@ -1369,6 +1371,7 @@ export class WSServer {
             turned: boolean;
             snap: boolean;
             directions?: number[];
+            worldViewId?: number;
         };
     }> = [];
     private pendingCombatSnapshots: Array<{
@@ -1597,11 +1600,12 @@ export class WSServer {
                 this.seqTypeLoader = cacheFactory.getSeqTypeLoader?.();
             } catch {}
         }
+        let collisionOverlays: CollisionOverlayStore | undefined;
         if (locTypeLoader) {
             this.locTypeLoader = locTypeLoader;
 
             // Wire up door collision system for pathfinding parity
-            const collisionOverlays = new CollisionOverlayStore();
+            collisionOverlays = new CollisionOverlayStore();
             const doorDefLoader = new DoorDefinitionLoader();
             const runtimeTileMappings = new DoorRuntimeTileMappingStore();
             const locTileLookup = this.cacheEnv
@@ -1687,6 +1691,7 @@ export class WSServer {
                     this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
                 spawnNpc: (config) => this.npcManager!.spawnTransientNpc(config)!,
                 removeNpc: (npcId) => this.npcManager!.removeNpc(npcId),
+                collisionOverlay: collisionOverlays,
             });
         }
         const sendGameMessageFn = (player: PlayerState, text: string): void => {
@@ -1904,6 +1909,8 @@ export class WSServer {
                 removeNpc: (npcId) => this.npcManager?.removeNpc(npcId) ?? false,
                 initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
                 disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
+                applySailingDeckCollision: () => this.sailingInstanceManager?.applyDeckCollision(),
+                clearSailingDeckCollision: () => this.sailingInstanceManager?.clearDeckCollision(),
                 openDialog: (player, request) =>
                     this.widgetDialogHandler.openDialog(player, request as any),
                 openDialogOptions: (player, options) =>
@@ -4462,6 +4469,9 @@ export class WSServer {
                         if (snapshot.payload.anim) {
                             view.anim = snapshot.payload.anim;
                         }
+                        if (snapshot.payload.worldViewId !== undefined) {
+                            view.worldViewId = snapshot.payload.worldViewId;
+                        }
                     }
                 }
             }
@@ -5989,6 +5999,7 @@ export class WSServer {
             turned: boolean;
             snap: boolean;
             directions?: number[];
+            worldViewId?: number;
         }>,
     ): void {
         this.playerAppearanceManager.queueAppearanceSnapshot(player, overrides);
@@ -8718,6 +8729,8 @@ export class WSServer {
             spawnNpc: (config: any) => this.npcManager?.spawnTransientNpc(config),
             initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
             disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
+            applySailingDeckCollision: () => this.sailingInstanceManager?.applyDeckCollision(),
+            clearSailingDeckCollision: () => this.sailingInstanceManager?.clearDeckCollision(),
             requestTeleportAction: (player, request) => this.requestTeleportAction(player, request),
 
             // Combat/NPC

@@ -318,6 +318,7 @@ type DialogFn = (id: string, lines: string[], animId: number, onContinue?: () =>
 type PandemoniumDockedSailingServices = Pick<
     ScriptServices,
     | "disposeSailingInstance"
+    | "applySailingDeckCollision"
     | "teleportPlayer"
     | "sendWorldEntity"
     | "spawnNpc"
@@ -749,7 +750,9 @@ function sendDockedBoatArrival(
     services: PandemoniumDockedSailingServices,
 ): void {
     services.disposeSailingInstance?.(player);
+    player.worldViewId = SAILING_WORLD_ENTITY_INDEX;
     services.teleportPlayer?.(player, PORT_SARIM_DOCK_BOAT_X, PORT_SARIM_DOCK_BOAT_Y, 0);
+    services.applySailingDeckCollision?.();
 
     const templateChunks = buildSailingOverlayTemplates();
     services.sendWorldEntity?.(
@@ -772,48 +775,118 @@ function sendDockedBoatArrival(
     }
 }
 
+function setPlayerVarbitAndSend(
+    player: PlayerState,
+    services: Pick<ScriptServices, "sendVarbit">,
+    varbitId: number,
+    value: number,
+): void {
+    player.setVarbitValue(varbitId, value);
+    services.sendVarbit?.(player, varbitId, value);
+}
+
+function setPlayerVarpAndSend(
+    player: PlayerState,
+    services: Pick<ScriptServices, "sendVarp">,
+    varpId: number,
+    value: number,
+): void {
+    player.setVarpValue(varpId, value);
+    services.sendVarp?.(player, varpId, value);
+}
+
 function syncSailingBootstrapState(
     player: PlayerState,
     services: PandemoniumSailingStateServices,
 ): void {
-    services.sendVarbit?.(player, VARBIT_SAILING_INTRO, 6);
-    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT, 1);
-    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_TYPE, 3);
-    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_WORLD, SAILING_DOCKED_WORLD_ID);
-    services.sendVarbit?.(player, VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT, 1);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_PLAYER_ROLE, 10);
-    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOAT_TYPE, 8113);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE, 4);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_PLAYERS_ON_BOARD_TOTAL, 1);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_HP_MAX, 170);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_HP, 170);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_HELM_STATUS, 1);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB, 1);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_VISIBLE, 1);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_AMMO_NEEDS_UPDATE, 1);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_STATS_NEEDS_UPDATE, 1);
-    services.sendVarbit?.(player, VARBIT_SAILING_PRELOADED_ANIMS, 1);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_INTRO, 6);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT, 1);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT_TYPE, 3);
+    setPlayerVarbitAndSend(
+        player,
+        services,
+        VARBIT_SAILING_BOARDED_BOAT_WORLD,
+        SAILING_DOCKED_WORLD_ID,
+    );
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT, 1);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_PLAYER_ROLE, 10);
+    setPlayerVarpAndSend(player, services, VARP_SAILING_SIDEPANEL_BOAT_TYPE, 8113);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE, 4);
+    setPlayerVarbitAndSend(
+        player,
+        services,
+        VARBIT_SAILING_SIDEPANEL_PLAYERS_ON_BOARD_TOTAL,
+        1,
+    );
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_BOAT_HP_MAX, 170);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_BOAT_HP, 170);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_HELM_STATUS, 1);
+    setPlayerVarbitAndSend(
+        player,
+        services,
+        VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB,
+        1,
+    );
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_VISIBLE, 1);
+    setPlayerVarbitAndSend(
+        player,
+        services,
+        VARBIT_SAILING_SIDEPANEL_AMMO_NEEDS_UPDATE,
+        1,
+    );
+    setPlayerVarbitAndSend(
+        player,
+        services,
+        VARBIT_SAILING_SIDEPANEL_BOAT_STATS_NEEDS_UPDATE,
+        1,
+    );
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_PRELOADED_ANIMS, 1);
 }
 
 function syncSailingBoatStats(
     player: PlayerState,
     services: Pick<ScriptServices, "sendVarbit" | "sendVarp">,
 ): void {
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_AMMO_NEEDS_UPDATE, 0);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_STATS_NEEDS_UPDATE, 0);
-    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOAT_DEFENCE, 10);
-    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_STABDEF, 26);
-    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_SLASHDEF, 19);
-    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_CRUSHDEF, 13);
-    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_HEAVYRANGEDDEF, 8);
-    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_STANDARDRANGEDDEF, 17);
-    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_LIGHTRANGEDDEF, 28);
-    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_MAGICDEF, 16);
-    services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOAT_ARMOUR, 100);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_BASESPEED, 192);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_SPEEDCAP, 384);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_SPEEDBOOST_DURATION, 20);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_ACCELERATION, 64);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_AMMO_NEEDS_UPDATE, 0);
+    setPlayerVarbitAndSend(
+        player,
+        services,
+        VARBIT_SAILING_SIDEPANEL_BOAT_STATS_NEEDS_UPDATE,
+        0,
+    );
+    setPlayerVarpAndSend(player, services, VARP_SAILING_SIDEPANEL_BOAT_DEFENCE, 10);
+    setPlayerVarpAndSend(player, services, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_STABDEF, 26);
+    setPlayerVarpAndSend(player, services, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_SLASHDEF, 19);
+    setPlayerVarpAndSend(player, services, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_CRUSHDEF, 13);
+    setPlayerVarpAndSend(
+        player,
+        services,
+        VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_HEAVYRANGEDDEF,
+        8,
+    );
+    setPlayerVarpAndSend(
+        player,
+        services,
+        VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_STANDARDRANGEDDEF,
+        17,
+    );
+    setPlayerVarpAndSend(
+        player,
+        services,
+        VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_LIGHTRANGEDDEF,
+        28,
+    );
+    setPlayerVarpAndSend(player, services, VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_MAGICDEF, 16);
+    setPlayerVarpAndSend(player, services, VARP_SAILING_SIDEPANEL_BOAT_ARMOUR, 100);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_BOAT_BASESPEED, 192);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_BOAT_SPEEDCAP, 384);
+    setPlayerVarbitAndSend(
+        player,
+        services,
+        VARBIT_SAILING_SIDEPANEL_BOAT_SPEEDBOOST_DURATION,
+        20,
+    );
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_BOAT_ACCELERATION, 64);
 }
 
 function openSailingUi(
@@ -959,15 +1032,20 @@ export function handleDisembarkTick(
     services.disposeSailingInstance?.(player);
 
     // Reset sailing varbits
-    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT, 0);
-    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_TYPE, 0);
-    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_WORLD, 0);
-    services.sendVarbit?.(player, VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT, 0);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_VISIBLE, 0);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB, 0);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_HELM_STATUS, 0);
-    services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE, 0);
-    services.sendVarbit?.(player, VARBIT_SAILING_PRELOADED_ANIMS, 0);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT, 0);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT_TYPE, 0);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT_WORLD, 0);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT, 0);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_VISIBLE, 0);
+    setPlayerVarbitAndSend(
+        player,
+        services,
+        VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB,
+        0,
+    );
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_HELM_STATUS, 0);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE, 0);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_PRELOADED_ANIMS, 0);
 
     // Close sailing interfaces
     services.closeSubInterface?.(player, BaseComponentUids.TAB_COMBAT, SAILING_SIDEPANEL_GROUP);

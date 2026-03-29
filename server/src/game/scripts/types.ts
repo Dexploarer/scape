@@ -733,4 +733,6 @@ export interface ScriptServices {
     removeNpc?: (npcId: number) => boolean;
     initSailingInstance?: (player: PlayerState) => void;
     disposeSailingInstance?: (player: PlayerState) => void;
+    applySailingDeckCollision?: () => void;
+    clearSailingDeckCollision?: () => void;
 }

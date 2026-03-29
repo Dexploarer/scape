@@ -413,6 +413,12 @@ export class PlayerUpdateDecoder {
             const regionY = packed & 0xff;
             const coordX = stream.readBits(13) & 0x1fff;
             const coordY = stream.readBits(13) & 0x1fff;
+            const hasWorldView = stream.readBits(1) === 1;
+            let worldViewId = -1;
+            if (hasWorldView) {
+                worldViewId = stream.readBits(16) & 0xffff;
+                if (worldViewId === 0) worldViewId = -1;
+            }
             const needsUpdate = stream.readBits(1) === 1;
 
             const worldX = (regionX << 13) | coordX | 0;
@@ -438,6 +444,7 @@ export class PlayerUpdateDecoder {
                 tile: { x: worldX, y: worldY, level: plane },
                 preserveQueue: false,
                 needsAppearance: true,
+                worldViewId,
             });
             return true;
         }

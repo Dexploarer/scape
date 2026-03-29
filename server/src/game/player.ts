@@ -439,6 +439,8 @@ export class PlayerState extends Actor {
     visibleNpcIds: Set<number> = new Set();
     /** NPC IDs spawned for this player's current instance (sailing, etc.). */
     instanceNpcIds: Set<number> = new Set();
+    /** WorldView this player belongs to (-1 = overworld, >=0 = entity index). */
+    worldViewId: number = -1;
     /** Item definition resolver for stackability lookups (RSMod parity) */
     private itemDefResolver?: ItemDefResolver;
     /** Per-player NPC healthbar baseline (npcId -> defId -> last scaled value). */

@@ -323,6 +323,8 @@ import {
     handleBoardingTick1,
     handleBoardingTick2,
     handleDisembarkTick,
+    isPlayerOnDockedSailingBoat,
+    restoreDockedSailingState,
     restoreSailingInstanceUi,
 } from "../game/scripts/modules/quests/pandemonium";
 import { ACTIVE_COMBAT_TIMER, STUN_TIMER } from "../game/model/timer/Timers";
@@ -3875,6 +3877,7 @@ export class WSServer {
                 traversals: summary.traversals.length > 0 ? summary.traversals : undefined,
                 anim: this.buildAnimPayload(player),
                 shouldSendPos: shouldSendMovement,
+                worldViewId: player.worldViewId >= 0 ? player.worldViewId : undefined,
             });
             // OSRS parity: teleport flag is consumed by a single update and then cleared.
             if (snap) {
@@ -8771,11 +8774,40 @@ export class WSServer {
                 this.interfaceService?.openModal(player, interfaceId, data),
             openIndexedMenu: (player, request) =>
                 this.cs2ModalManager.openIndexedMenu(player, request),
+            openSubInterface: (player, targetUid, groupId, type = 0) => {
+                if (type === 0) {
+                    player.widgets.open(groupId, {
+                        targetUid,
+                        type: 0,
+                    });
+                    return;
+                }
+                this.queueWidgetEvent(player.id, {
+                    action: "open_sub",
+                    targetUid,
+                    groupId,
+                    type,
+                });
+            },
+            openDialog: (player, request) =>
+                this.widgetDialogHandler.openDialog(player, request as any),
             queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
+            queueClientScript: (playerId, scriptId, ...args) =>
+                this.queueClientScript(playerId, scriptId, ...args),
             queueVarp: (playerId, varpId, value) => this.queueVarp(playerId, varpId, value),
             queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
             queueNotification: (playerId, notification) =>
                 this.queueNotification(playerId, notification),
+            sendGameMessage: (player, text) => {
+                this.queueChatMessage({
+                    messageType: "game",
+                    text,
+                    targetPlayerIds: [player.id],
+                });
+            },
+            sendSound: (player, soundId, opts) => this.sendSound(player, soundId, opts),
+            sendVarp: (player, varpId, value) => this.queueVarp(player.id, varpId, value),
+            sendVarbit: (player, varbitId, value) => this.queueVarbit(player.id, varbitId, value),
             trackCollectionLogItem: (player, itemId) =>
                 this.doTrackCollectionLogItem(player, itemId),
             sendRunEnergyState: (ws, player) => this.sendRunEnergyState(ws, player),
@@ -13468,16 +13500,18 @@ export class WSServer {
                             }
                         } catch {}
 
-                        // Sailing instance: if the player's saved position is inside the
-                        // sailing instance region, create a fresh instance for them.
-                        if (
-                            this.sailingInstanceManager?.isInSailingInstanceRegion(p) &&
-                            !isReconnect
-                        ) {
+                        // Sailing restore: rebuild whichever sailing scene the persisted player
+                        // state says they were aboard before disconnecting.
+                        if (this.sailingInstanceManager?.isInSailingInstanceRegion(p)) {
                             this.sailingInstanceManager.initInstance(p);
                             restoreSailingInstanceUi(p, this.scriptRuntime.getServices());
                             logger.info(
                                 `[handshake] Restored sailing instance for player ${p.id}`,
+                            );
+                        } else if (isPlayerOnDockedSailingBoat(p)) {
+                            restoreDockedSailingState(p, this.scriptRuntime.getServices());
+                            logger.info(
+                                `[handshake] Restored docked sailing boat for player ${p.id}`,
                             );
                         }
 

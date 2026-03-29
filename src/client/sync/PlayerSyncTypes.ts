@@ -154,6 +154,8 @@ export interface PlayerSpawnEvent {
     /** When true the server flagged the spawn as preserving its existing walking queue. */
     preserveQueue: boolean;
     needsAppearance: boolean;
+    /** WorldView this player belongs to (-1 = overworld, >=0 = entity index). */
+    worldViewId?: number;
 }
 
 export interface PlayerRemovalEvent {

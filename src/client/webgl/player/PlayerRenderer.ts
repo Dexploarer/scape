@@ -746,7 +746,7 @@ export class PlayerRenderer {
                     .texture("u_textureMaterials", rAny.textureMaterials)
                     .uniform("u_mapPos", mapPos)
                     .uniform("u_npcDataOffset", baseOffsetPlayer | 0)
-                    .uniform("u_worldEntityTransform", this.renderer.getWorldEntityTransformForMapOrOverlap(map))
+                    .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
                     .texture("u_npcDataTexture", actorDataTexture as Texture)
                     .texture("u_heightMap", map.heightMapTexture)
                     .uniform("u_modelYOffset", -(group.yOff | 0));
@@ -1867,12 +1867,12 @@ export class PlayerRenderer {
 
         // Batched rendering: process each batch group through the active draw backend.
         const draw = r.configureDrawCall(this.drawCall as any as DrawCall);
+        const playerEcs = r.osrsClient?.playerEcs;
         const playerDeckH = r.getWorldEntityDeckHeight(0, 0);
-        const playerOnDeck = playerDeckH !== 0;
         draw.uniform("u_mapPos", vec2.fromValues(map.mapX, map.mapY))
             .uniform("u_npcDataOffset", baseOffsetPlayer)
-            .uniform("u_modelYOffset", r.playerYOffset + playerDeckH)
-            .uniform("u_worldEntityTransform", playerOnDeck ? r.getWorldEntityTransformForMapOrOverlap(map) : WebGLMapSquare.IDENTITY_MAT4)
+            .uniform("u_modelYOffset", r.playerYOffset)
+            .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
             .texture("u_npcDataTexture", actorDataTexture)
             .texture("u_heightMap", map.heightMapTexture);
 
@@ -1901,10 +1901,26 @@ export class PlayerRenderer {
                     "opaqueOnly",
                 );
                 this.framePlayerAlphaCounts.set(inst.pid | 0, counts.countAlpha | 0);
+
+                // Per-player WorldView: apply deck height + bobbing transform
+                // inst.pid is the ECS index directly (from playerIndices)
+                const wvId = playerEcs?.getWorldViewId?.(inst.pid) ?? -1;
+                if (wvId >= 0) {
+                    const weTransform = r.worldEntityAnimator?.getTransform(wvId) ?? WebGLMapSquare.IDENTITY_MAT4;
+                    draw.uniform("u_modelYOffset", r.playerYOffset + playerDeckH)
+                        .uniform("u_worldEntityTransform", weTransform);
+                }
+
                 // Use drawIdOverride since gl_DrawID will be 0 for single-range draws
                 draw.uniform("u_drawIdOverride", inst.slot | 0);
                 (draw as any).drawRanges([0, counts.countOpaque | 0, 1]);
                 draw.draw();
+
+                // Restore overworld uniforms after WE player draw
+                if (wvId >= 0) {
+                    draw.uniform("u_modelYOffset", r.playerYOffset)
+                        .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4);
+                }
             }
             draw.uniform("u_drawIdOverride", -1); // Reset
         }
@@ -2080,10 +2096,12 @@ export class PlayerRenderer {
 
             // Render batched alpha groups through the active draw backend.
             const draw = r.configureDrawCall(this.drawCallAlpha as any as DrawCall);
+            const playerEcsAlpha = r.osrsClient?.playerEcs;
+            const alphaDeckH = r.getWorldEntityDeckHeight(0, 0);
             draw.uniform("u_mapPos", vec2.fromValues(map.mapX, map.mapY))
                 .uniform("u_npcDataOffset", baseOffset)
                 .uniform("u_modelYOffset", r.playerYOffset)
-                .uniform("u_worldEntityTransform", r.getWorldEntityTransformForMapOrOverlap(map))
+                .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
                 .texture("u_npcDataTexture", playerDataTexture)
                 .texture("u_heightMap", map.heightMapTexture);
 
@@ -2115,10 +2133,24 @@ export class PlayerRenderer {
 
                     if ((counts.countAlpha | 0) <= 0) continue;
 
+                    // Per-player WorldView: apply deck height + bobbing transform
+                    const wvIdAlpha = playerEcsAlpha?.getWorldViewId?.(inst.pid) ?? -1;
+                    if (wvIdAlpha >= 0) {
+                        const weTransform = r.worldEntityAnimator?.getTransform(wvIdAlpha) ?? WebGLMapSquare.IDENTITY_MAT4;
+                        draw.uniform("u_modelYOffset", r.playerYOffset + alphaDeckH)
+                            .uniform("u_worldEntityTransform", weTransform);
+                    }
+
                     // Use drawIdOverride since gl_DrawID will be 0 for single-range draws
                     draw.uniform("u_drawIdOverride", inst.slot | 0);
                     (draw as any).drawRanges([0, counts.countAlpha | 0, 1]);
                     draw.draw();
+
+                    // Restore overworld uniforms after WE player draw
+                    if (wvIdAlpha >= 0) {
+                        draw.uniform("u_modelYOffset", r.playerYOffset)
+                            .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4);
+                    }
                 }
                 draw.uniform("u_drawIdOverride", -1); // Reset
             }

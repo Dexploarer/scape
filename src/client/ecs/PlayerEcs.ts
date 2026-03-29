@@ -113,6 +113,9 @@ export class PlayerEcs {
     private telemetrySampleSource: "clientTick" | "rendererFrame" | "serverTick" = "clientTick";
     private telemetryClockProvider?: () => { tick: number; phase: number };
 
+    // WorldView membership (-1 = overworld, >=0 = entity index)
+    private worldViewId!: Int16Array;
+
     // Tile dwell tracking for telemetry
     private dwellTileX!: Int16Array;
     private dwellTileY!: Int16Array;
@@ -315,6 +318,9 @@ export class PlayerEcs {
         this.animPhaseBias[index] = 0.0;
         this.animDistTraveled[index] = 0.0;
 
+        // Initialize WorldView membership
+        this.worldViewId[index] = -1;
+
         // Initialize metadata
         this.removeNameMapping(index);
         this.names[index] = undefined;
@@ -479,6 +485,7 @@ export class PlayerEcs {
         this.animCrawlRightSeq = grow(this.animCrawlRightSeq, Int32Array);
         this.animTurnLeftSeq = grow(this.animTurnLeftSeq, Int32Array);
         this.animTurnRightSeq = grow(this.animTurnRightSeq, Int32Array);
+        this.worldViewId = grow(this.worldViewId, Int16Array);
         this.dwellTileX = grow(this.dwellTileX, Int16Array);
         this.dwellTileY = grow(this.dwellTileY, Int16Array);
         this.dwellTicks = grow(this.dwellTicks, Uint32Array);
@@ -616,6 +623,13 @@ export class PlayerEcs {
     getPrevY(i: number): number {
         return this.prevY[i] | 0;
     }
+    getWorldViewId(i: number): number {
+        return this.worldViewId[i] | 0;
+    }
+    setWorldViewId(i: number, viewId: number): void {
+        this.worldViewId[i] = viewId | 0;
+    }
+
     getLevel(i: number): number {
         return this.level[i] | 0;
     }

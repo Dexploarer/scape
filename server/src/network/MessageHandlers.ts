@@ -16,11 +16,16 @@ import { ALL_RUNE_ITEM_IDS, RUNE_IDS } from "../data/runes";
 import { getCollectionLogItems } from "../game/collectionlog";
 import type { NpcState } from "../game/npc";
 import type { PlayerState } from "../game/player";
+import type { NpcSpawnConfig } from "../game/npc";
 import {
-    buildSailingOverlayTemplates,
-    SAILING_INTRO_BOAT_LOCS,
-    SAILING_INTRO_BUILD_AREAS,
-    SAILING_DOCKED_NPC_SPAWNS,
+    handleBoardingTick1,
+    handleBoardingTick2,
+} from "../game/scripts/modules/quests/pandemonium";
+import type { ScriptDialogRequest } from "../game/scripts/types";
+import type { WidgetAction } from "../widgets/WidgetManager";
+import type { WorldEntityBuildArea } from "../../../src/shared/worldentity/WorldEntityTypes";
+import {
+    type BoatLoc,
     SAILING_WORLD_ENTITY_CONFIG_ID,
     SAILING_WORLD_ENTITY_INDEX,
     SAILING_WORLD_ENTITY_SIZE_X,
@@ -154,6 +159,29 @@ export interface MessageHandlerServices {
         templateChunks: number[][][],
         extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
     ) => void;
+    teleportToWorldEntity?: (
+        player: PlayerState,
+        x: number,
+        y: number,
+        level: number,
+        entityIndex: number,
+        configId: number,
+        sizeX: number,
+        sizeZ: number,
+        templateChunks: number[][][],
+        buildAreas: WorldEntityBuildArea[],
+        extraLocs?: BoatLoc[],
+    ) => void;
+    sendWorldEntity?: (
+        player: PlayerState,
+        entityIndex: number,
+        configId: number,
+        sizeX: number,
+        sizeZ: number,
+        templateChunks: number[][][],
+        buildAreas: WorldEntityBuildArea[],
+        extraLocs?: BoatLoc[],
+    ) => void;
     spawnLocForPlayer: (
         player: PlayerState,
         locId: number,
@@ -162,10 +190,21 @@ export interface MessageHandlerServices {
         shape: number,
         rotation: number,
     ) => void;
+    spawnNpc?: (config: NpcSpawnConfig) => NpcState | undefined;
+    initSailingInstance?: (player: PlayerState) => void;
+    disposeSailingInstance?: (player: PlayerState) => void;
     requestTeleportAction: (
         player: PlayerState,
         request: TeleportActionRequest,
     ) => { ok: boolean; reason?: string };
+    sendVarp?: (player: PlayerState, varpId: number, value: number) => void;
+    sendVarbit?: (player: PlayerState, varbitId: number, value: number) => void;
+    sendSound?: (
+        player: PlayerState,
+        soundId: number,
+        opts?: { loops?: number; delayMs?: number },
+    ) => void;
+    sendGameMessage: (player: PlayerState, text: string) => void;
 
     // Combat/NPC
     getNpcById: (npcId: number) => NpcState | undefined;
@@ -219,9 +258,17 @@ export interface MessageHandlerServices {
     handleWidgetCloseState: (player: PlayerState, groupId: number) => void;
     openModal: (player: PlayerState, interfaceId: number, data?: unknown) => void;
     openIndexedMenu: (player: PlayerState, request: IndexedMenuRequest) => void;
-    queueWidgetEvent: (playerId: number, event: any) => void;
+    openSubInterface?: (
+        player: PlayerState,
+        targetUid: number,
+        groupId: number,
+        type?: number,
+    ) => void;
+    openDialog?: (player: PlayerState, request: ScriptDialogRequest) => void;
+    queueWidgetEvent: (playerId: number, event: WidgetAction) => void;
     queueVarp: (playerId: number, varpId: number, value: number) => void;
     queueVarbit: (playerId: number, varbitId: number, value: number) => void;
+    queueClientScript?: (playerId: number, scriptId: number, ...args: (number | string)[]) => void;
     queueNotification: (playerId: number, notification: any) => void;
     trackCollectionLogItem: (player: PlayerState, itemId: number) => void;
     sendRunEnergyState: (ws: WebSocket, player: PlayerState) => void;
@@ -285,9 +332,6 @@ export interface MessageHandlerServices {
         SIDE_JOURNAL_TAB_CONTAINER_UID: number;
     };
 
-    // Sailing instances
-    initSailingInstance?: (player: PlayerState) => void;
-    disposeSailingInstance?: (player: PlayerState) => void;
 }
 
 const DEFAULT_CHAT_PREFIX = "";
@@ -1477,37 +1521,12 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                 }
 
                 if (root === "sail") {
-                    // Set sailing_intro to 4 (ready to board) so talking to
-                    // Anne/Will offers the board choice dialogue.
-                    services.sendVarbit?.(sender, 18314, 4);
-                    services.teleportPlayer(sender, 3054, 3193, 0);
-
-                    // Send world entity overlay — only the boat chunk, no ocean
-                    const templateChunks = buildSailingOverlayTemplates();
-                    services.sendWorldEntity?.(
-                        sender,
-                        SAILING_WORLD_ENTITY_INDEX,
-                        SAILING_WORLD_ENTITY_CONFIG_ID,
-                        SAILING_WORLD_ENTITY_SIZE_X,
-                        SAILING_WORLD_ENTITY_SIZE_Z,
-                        templateChunks,
-                        SAILING_INTRO_BUILD_AREAS,
-                        SAILING_INTRO_BOAT_LOCS,
+                    const playerName = sender.name ?? "You";
+                    handleBoardingTick1(sender, { playerName }, services);
+                    handleBoardingTick2(sender, services);
+                    logger.info(
+                        `[cmd] ::sail - Player ${sender.id} fast-forwarded to Pandemonium docked sailing state`,
                     );
-
-                    for (const npc of SAILING_DOCKED_NPC_SPAWNS) {
-                        const spawned = services.spawnNpc?.({ ...npc, wanderRadius: 0 });
-                        if (spawned) {
-                            sender.instanceNpcIds.add(spawned.id);
-                        }
-                    }
-
-                    services.queueChatMessage({
-                        messageType: "game",
-                        text: "Teleported to Port Sarim sailing dock.",
-                        targetPlayerIds: [sender.id],
-                    });
-                    logger.info(`[cmd] ::sail - Player ${sender.id} teleported to Port Sarim dock`);
                     return;
                 }
 

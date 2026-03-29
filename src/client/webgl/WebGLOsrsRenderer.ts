@@ -363,7 +363,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         deckHeight?: number;
     }> = new Map();
     private worldEntityLocRebuildTimer: ReturnType<typeof setTimeout> | null = null;
-    private worldEntityAnimator?: WorldEntityAnimator;
+    worldEntityAnimator?: WorldEntityAnimator;
     /** Dynamically spawned locs (LOC_ADD_CHANGE). Keyed by "x,y,level,shape". */
     private addedLocs: Map<
         string,
@@ -5362,6 +5362,20 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             worldX, worldY, sizeX, sizeZ, extraLocs, extraNpcs,
         });
 
+        // Register with WorldViewManager
+        this.osrsClient.worldViewManager.createWorldView(entityIndex, sizeX * 8, sizeZ * 8, {
+            configId,
+            templateChunks,
+            regionX,
+            regionY,
+            worldX,
+            worldY,
+            sizeXEntity: sizeX,
+            sizeZEntity: sizeZ,
+            extraLocs,
+            extraNpcs,
+        });
+
         if (configId >= 0) {
             this.ensureWorldEntityAnimator();
             this.worldEntityAnimator?.addEntity(entityIndex, configId, this.lastTick);
@@ -5456,6 +5470,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         return undefined;
     }
 
+    getOverlayMapForEntity(entityIndex: number): WebGLMapSquare | undefined {
+        const overlayMapId = getMapSquareId(200 + entityIndex, 200 + entityIndex);
+        return this.mapManager.mapSquares.get(overlayMapId);
+    }
+
     getWorldEntityTransformForMap(map: WebGLMapSquare): Float32Array {
         if (!this.mapManager.worldEntityMapIds.has(map.id)) {
             return WebGLMapSquare.IDENTITY_MAT4;
@@ -5509,6 +5528,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.mapManager.removeMap(overlayMapX, overlayMapY);
         this.worldEntityOverlays.delete(entityIndex);
         this.worldEntityAnimator?.removeEntity(entityIndex);
+        this.osrsClient.worldViewManager.removeWorldView(entityIndex);
     }
 
     clearAllWorldEntities(): void {
@@ -5521,6 +5541,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
         this.worldEntityOverlays.clear();
         this.worldEntityAnimator?.clear();
+        this.osrsClient.worldViewManager.clear();
     }
 
     private resolveLocReloadBatchMap(
@@ -9763,6 +9784,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
 
         this.worldEntityAnimator?.tick(clientCycle);
+        this.osrsClient.worldViewManager.interpolateEntities(clientCycle, 0);
 
         // Propagate listener position for positional audio and advance ambient loops.
         const soundSystem = this.osrsClient.soundEffectSystem;
@@ -11269,15 +11291,17 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
             const isWorldEntity = this.mapManager.worldEntityMapIds.has(map.id);
             let weTransform: Float32Array = WebGLMapSquare.IDENTITY_MAT4;
+            let weEntityIndex: number | undefined;
             if (isWorldEntity) {
-                const entityIndex = this.getWorldEntityIndexForMapId(map.id);
-                if (entityIndex !== undefined) {
-                    weTransform = this.worldEntityAnimator?.getTransform(entityIndex) ?? WebGLMapSquare.IDENTITY_MAT4;
+                weEntityIndex = this.getWorldEntityIndexForMapId(map.id);
+                if (weEntityIndex !== undefined) {
+                    weTransform = this.worldEntityAnimator?.getTransform(weEntityIndex) ?? WebGLMapSquare.IDENTITY_MAT4;
                 }
             }
 
             drawCall.uniform("u_roofPlaneLimit", roofPlaneLimit);
             drawCall.uniform("u_worldEntityTransform", weTransform);
+            drawCall.uniform("u_worldEntityOpacity", 1.0);
             this.updateAnimatedDrawRanges(
                 map,
                 drawCall,
@@ -11298,6 +11322,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 );
                 groundBatch.drawCall.uniform("u_roofPlaneLimit", roofPlaneLimit);
                 groundBatch.drawCall.uniform("u_worldEntityTransform", weTransform);
+                groundBatch.drawCall.uniform("u_worldEntityOpacity", 1.0);
                 this.drawWithRoofPlaneFilter(
                     groundBatch.drawCall,
                     groundBatch.drawRanges,
@@ -11322,6 +11347,38 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     roofPlaneLimit,
                 );
             }
+
+            // Mode1 overlap ghost: redraw WE with tint + low opacity when actors overlap
+            if (isWorldEntity && weEntityIndex !== undefined && !transparent) {
+                const weEntity = this.osrsClient.worldViewManager.getWorldEntity(weEntityIndex);
+                if (weEntity && weEntity.drawMode === 1) {
+                    const weView = this.osrsClient.worldViewManager.getWorldView(weEntityIndex);
+                    const hasOverlap = weView && (weView.npcIds.size > 0 || weView.playerIds.size > 0);
+                    if (hasOverlap) {
+                        const overlay = this.worldEntityOverlays.get(weEntityIndex);
+                        const weType = overlay?.configId !== undefined && overlay.configId >= 0
+                            ? this.osrsClient.worldEntityTypeLoader?.load(overlay.configId)
+                            : undefined;
+                        if (weType && weType.sceneTintHsl > 0 && this.sceneUniformBuffer) {
+                            this.setSceneHslOverrideFromPacked(weType.sceneTintHsl, 127);
+                            this.sceneUniformBuffer.set(4, this.sceneHslOverride as Float32Array).update();
+
+                            this.app.enable(PicoGL.BLEND);
+                            this.app.blendFunc(PicoGL.SRC_ALPHA, PicoGL.ONE_MINUS_SRC_ALPHA);
+
+                            drawCall.uniform("u_worldEntityOpacity", 0.01);
+                            this.drawWithRoofPlaneFilter(drawCall, drawRanges, drawRangePlanes, roofPlaneLimit);
+                            drawCall.uniform("u_worldEntityOpacity", 1.0);
+
+                            this.app.disable(PicoGL.BLEND);
+
+                            this.clearSceneHslOverride();
+                            this.sceneUniformBuffer.set(4, this.sceneHslOverride as Float32Array).update();
+                        }
+                    }
+                }
+            }
+
         }
 
         if (!transparent) {
@@ -11555,10 +11612,19 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         for (const stack of stacks) {
             const tileX = stack.tile.x | 0;
             const tileY = stack.tile.y | 0;
-            const mapX = tileX >> 6;
-            const mapY = tileY >> 6;
-            if (mapX < 0 || mapY < 0) continue;
-            const mapId = getMapSquareId(mapX, mapY);
+
+            // Check if this ground item falls within a WorldView overlay
+            let mapId: number;
+            const wv = this.osrsClient.worldViewManager.findWorldViewAt(tileX, tileY);
+            if (wv && !wv.isTopLevel()) {
+                mapId = wv.overlayMapId;
+            } else {
+                const mapX = tileX >> 6;
+                const mapY = tileY >> 6;
+                if (mapX < 0 || mapY < 0) continue;
+                mapId = getMapSquareId(mapX, mapY);
+            }
+
             const clone: ClientGroundItemStack = {
                 ...stack,
                 itemId: stack.itemId | 0,
@@ -11812,13 +11878,13 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     }
                     this.draw(drawCall, drawRanges);
 
-                    // Second pass: draw world-entity NPCs with bobbing + deck height
+                    // Second pass: draw world-entity NPCs with deck height + bobbing transform
                     if (weNpcIndices.length > 0) {
-                        // Look up transform from the first WE NPC's worldViewId
                         const firstWeId = ids[weNpcIndices[0]] | 0;
                         const weEntityIdx = ecs.getWorldViewId(firstWeId);
                         const weTransform = this.worldEntityAnimator?.getTransform(weEntityIdx) ?? WebGLMapSquare.IDENTITY_MAT4;
                         const weDeckH = this.getWorldEntityDeckHeight(0, 0);
+
 
                         drawCall
                             .uniform("u_modelYOffset", -weDeckH)

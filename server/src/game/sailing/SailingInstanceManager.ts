@@ -7,6 +7,7 @@ import {
     SAILING_INTRO_NPC_SPAWNS,
     SAILING_INTRO_X,
     SAILING_INTRO_Y,
+    SAILING_WORLD_ENTITY_INDEX,
 } from "./SailingInstance";
 import { logger } from "../../utils/logger";
 
@@ -51,6 +52,7 @@ export class SailingInstanceManager {
         this.disposeInstance(player);
 
         const templateChunks = buildSailingIntroTemplates();
+        player.worldViewId = SAILING_WORLD_ENTITY_INDEX;
         this.services.teleportToInstance(
             player,
             SAILING_INTRO_X,
@@ -64,6 +66,7 @@ export class SailingInstanceManager {
         for (const spawn of [willBoat, anneBoat, boatHp]) {
             const npc = this.services.spawnNpc({ ...spawn, wanderRadius: 0 });
             if (npc) {
+                npc.worldViewId = SAILING_WORLD_ENTITY_INDEX;
                 player.instanceNpcIds.add(npc.id);
             } else {
                 logger.warn(
@@ -79,6 +82,7 @@ export class SailingInstanceManager {
     }
 
     disposeInstance(player: PlayerState): void {
+        player.worldViewId = -1;
         if (player.instanceNpcIds.size === 0) return;
 
         const npcIds = [...player.instanceNpcIds].join(", ");

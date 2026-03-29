@@ -93,6 +93,7 @@ export class PlayerSyncManager {
         interactionIndex: number | undefined,
     ) => void;
     private readonly onAppearanceUpdate?: (serverId: number, data: unknown) => void;
+    private readonly onWorldViewAssignment?: (ecsIndex: number, worldViewId: number) => void;
     private lastServerTick = 0;
     private readonly spawnQueueDiagnostics = { preserved: 0, cleared: 0 };
     private readonly debugLogging =
@@ -118,6 +119,7 @@ export class PlayerSyncManager {
         resolveTilePlane?: ResolveTilePlaneFn;
         onInteractionIndex?: (serverId: number, interactionIndex: number | undefined) => void;
         onAppearanceUpdate?: (serverId: number, data: unknown) => void;
+        onWorldViewAssignment?: (ecsIndex: number, worldViewId: number) => void;
     }) {
         this.playerEcs = opts.ecs;
         this.movementSync = opts.movementSync;
@@ -130,6 +132,7 @@ export class PlayerSyncManager {
         this.resolveTilePlane = opts.resolveTilePlane;
         this.onInteractionIndex = opts.onInteractionIndex;
         this.onAppearanceUpdate = opts.onAppearanceUpdate;
+        this.onWorldViewAssignment = opts.onWorldViewAssignment;
     }
 
     handleFrame(frame: PlayerSyncFrame): void {
@@ -166,6 +169,9 @@ export class PlayerSyncManager {
             this.playerEcs.teleport(ecsIndex, spawn.tile.x, spawn.tile.y, effectiveLevel);
             this.playerEcs.setLevel(ecsIndex, effectiveLevel);
             this.playerEcs.setRunning(ecsIndex, false);
+            const wvId = (spawn.worldViewId !== undefined && spawn.worldViewId >= 0) ? spawn.worldViewId : -1;
+            this.playerEcs.setWorldViewId(ecsIndex, wvId);
+            this.onWorldViewAssignment?.(ecsIndex, wvId);
 
             const state = this.movementSync.getState(spawn.serverId);
             if (state) {

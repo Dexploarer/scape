@@ -1,5 +1,6 @@
 import { vec3 } from "gl-matrix";
 
+import { WorldViewManager } from "./worldview/WorldViewManager";
 import {
     type BankServerUpdate,
     getClientCycle,
@@ -443,6 +444,7 @@ export class OsrsClient {
     seqFrameLoader!: SeqFrameLoader;
     skeletalSeqLoader?: SkeletalSeqLoader;
     worldEntityTypeLoader?: import("../rs/config/worldentitytype/WorldEntityTypeLoader").WorldEntityTypeLoader;
+    readonly worldViewManager: WorldViewManager = new WorldViewManager();
     spotAnimTypeLoader!: SpotAnimTypeLoader;
 
     locTypeLoader!: LocTypeLoader;
@@ -2093,6 +2095,11 @@ export class OsrsClient {
                     console.warn("[OsrsClient] appearance update failed", err);
                 }
             },
+            onWorldViewAssignment: (ecsIndex, worldViewId) => {
+                if (worldViewId >= 0) {
+                    this.worldViewManager.addPlayerToWorldView(worldViewId, ecsIndex);
+                }
+            },
         });
         this.npcMovementSync = new NpcMovementSync(this.npcEcs);
         this.widgetSessionManager = new WidgetSessionManager();
@@ -3201,6 +3208,15 @@ export class OsrsClient {
                         // Schedule a single deferred rebuild to pick up LOC_ADD_CHANGE
                         // packets that arrive after the initial scene build
                         (this.renderer as any).scheduleWorldEntityLocRebuild(payload.entityIndex);
+                    }
+
+                    // Set local player's worldViewId to this entity
+                    if (this.controlledPlayerServerId >= 0) {
+                        const localEcsIdx = this.playerEcs.getIndexForServerId(this.controlledPlayerServerId);
+                        if (localEcsIdx !== undefined) {
+                            this.playerEcs.setWorldViewId(localEcsIdx, payload.entityIndex);
+                            this.worldViewManager.addPlayerToWorldView(payload.entityIndex, localEcsIdx);
+                        }
                     }
                 } catch (err) {
                     console.warn("[OsrsClient] rebuild_worldentity error", err);
@@ -10431,6 +10447,7 @@ export class OsrsClient {
             this.npcEcs.setOccTile(existingEcs, localTileX, localTileY, spawn.level | 0);
             if ((spawn as any).worldViewId !== undefined && (spawn as any).worldViewId >= 0) {
                 this.npcEcs.setWorldViewId(existingEcs, (spawn as any).worldViewId);
+                this.worldViewManager.addNpcToWorldView((spawn as any).worldViewId, existingEcs);
             }
 
             // Keep the instance map entry up to date for geometry streaming.
@@ -10473,6 +10490,7 @@ export class OsrsClient {
         this.npcEcs.setServerMapping(ecsId, serverId);
         if ((spawn as any).worldViewId !== undefined && (spawn as any).worldViewId >= 0) {
             this.npcEcs.setWorldViewId(ecsId, (spawn as any).worldViewId);
+            this.worldViewManager.addNpcToWorldView((spawn as any).worldViewId, ecsId);
         }
         this.npcEcs.setTargetRot(ecsId, spawn.rot | 0);
         this.npcEcs.setRotation(ecsId, spawn.rot | 0);

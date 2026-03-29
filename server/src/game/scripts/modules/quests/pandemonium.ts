@@ -1,19 +1,35 @@
 import { BaseComponentUids } from "../../../../widgets/viewport/ViewportEnumService";
 import {
+    buildSailingOverlayTemplates,
+    SAILING_DOCKED_NPC_SPAWNS,
+    SAILING_INTRO_BOAT_LOCS,
+    SAILING_INTRO_BUILD_AREAS,
+    SAILING_WORLD_ENTITY_CONFIG_ID,
+    SAILING_WORLD_ENTITY_INDEX,
+    SAILING_WORLD_ENTITY_SIZE_X,
+    SAILING_WORLD_ENTITY_SIZE_Z,
     PORT_SARIM_RETURN_LEVEL,
     PORT_SARIM_RETURN_X,
     PORT_SARIM_RETURN_Y,
 } from "../../../sailing/SailingInstance";
 import type { PlayerState } from "../../../player";
-import type { NpcInteractionEvent, ScriptModule, ScriptServices } from "../../types";
+import type {
+    NpcInteractionEvent,
+    ScriptDialogRequest,
+    ScriptModule,
+    ScriptServices,
+} from "../../types";
 
 // ============================================================================
 // NPC IDs
 // ============================================================================
 
-const ANNE_SARIM_NPC_ID = 14962;
-const WILL_SARIM_NPC_ID = 14957;
+const ANNE_SHORE_NPC_ID = 14962;
+const WILL_SHORE_NPC_ID = 14957;
 const WILL_BOAT_NPC_ID = 14958;
+const WILL_DOCKED_NPC_ID = 14959;
+const ANNE_BOAT_NPC_ID = 14963;
+const ANNE_DOCKED_NPC_ID = 14964;
 
 // ============================================================================
 // Varbits
@@ -75,6 +91,9 @@ const SCRIPT_COMBAT_LEVEL = 5224;
 const SCRIPT_CAMERA_BOUNDS = 603;
 
 const SYNTH_BOARD_BOAT = 10754;
+const SAILING_DOCKED_WORLD_ID = 425;
+const PORT_SARIM_DOCK_BOAT_X = 3054;
+const PORT_SARIM_DOCK_BOAT_Y = 3193;
 
 // Quest states:
 // 0 = not started
@@ -108,7 +127,7 @@ export const pandemoniumQuestModule: ScriptModule = {
             return player.getVarbitValue(VARBIT_SAILING_INTRO);
         }
 
-        function playAnneConversation(event: NpcInteractionEvent) {
+        function playShoreConversation(event: NpcInteractionEvent) {
             const { player } = event;
             const pid = player.id;
             const state = getSailingIntro(player);
@@ -120,61 +139,26 @@ export const pandemoniumQuestModule: ScriptModule = {
             const onClose = () => activeConvos.delete(pid);
             const convoId = `pandemonium_${pid}`;
 
-            const openAnneDialog = (
-                id: string,
-                lines: string[],
-                animId: number,
-                onContinue?: () => void,
-            ) =>
-                services.openDialog?.(player, {
-                    kind: "npc",
-                    id,
-                    npcId: ANNE_SARIM_NPC_ID,
-                    npcName: "Anne",
-                    lines,
-                    animationId: animId,
-                    clickToContinue: true,
-                    closeOnContinue: !onContinue,
-                    onContinue,
-                    onClose,
-                });
-
-            const openWillDialog = (
-                id: string,
-                lines: string[],
-                animId: number,
-                onContinue?: () => void,
-            ) =>
-                services.openDialog?.(player, {
-                    kind: "npc",
-                    id,
-                    npcId: WILL_SARIM_NPC_ID,
-                    npcName: "Will",
-                    lines,
-                    animationId: animId,
-                    clickToContinue: true,
-                    closeOnContinue: !onContinue,
-                    onContinue,
-                    onClose,
-                });
-
-            const openPlayerDialog = (
-                id: string,
-                lines: string[],
-                animId: number,
-                onContinue?: () => void,
-            ) =>
-                services.openDialog?.(player, {
-                    kind: "player",
-                    id,
-                    playerName,
-                    lines,
-                    animationId: animId,
-                    clickToContinue: true,
-                    closeOnContinue: !onContinue,
-                    onContinue,
-                    onClose,
-                });
+            const openAnneDialog = createNpcDialogFn(
+                player,
+                services,
+                onClose,
+                ANNE_SHORE_NPC_ID,
+                "Anne",
+            );
+            const openWillDialog = createNpcDialogFn(
+                player,
+                services,
+                onClose,
+                WILL_SHORE_NPC_ID,
+                "Will",
+            );
+            const openPlayerDialog = createPlayerDialogFn(
+                player,
+                services,
+                onClose,
+                playerName,
+            );
 
             if (state === 0) {
                 playIntroDialogue(
@@ -203,35 +187,157 @@ export const pandemoniumQuestModule: ScriptModule = {
             }
         }
 
+        function playShipConversation(event: NpcInteractionEvent) {
+            const { player, npc } = event;
+            const pid = player.id;
+
+            if (activeConvos.has(pid)) return;
+            activeConvos.add(pid);
+
+            const playerName = player.name ?? "You";
+            const onClose = () => activeConvos.delete(pid);
+            const convoId = `pandemonium_ship_${pid}`;
+            const dockedVariant =
+                npc.typeId === WILL_DOCKED_NPC_ID || npc.typeId === ANNE_DOCKED_NPC_ID;
+            const openAnneDialog = createNpcDialogFn(
+                player,
+                services,
+                onClose,
+                dockedVariant ? ANNE_DOCKED_NPC_ID : ANNE_BOAT_NPC_ID,
+                "Anne",
+            );
+            const openWillDialog = createNpcDialogFn(
+                player,
+                services,
+                onClose,
+                dockedVariant ? WILL_DOCKED_NPC_ID : WILL_BOAT_NPC_ID,
+                "Will",
+            );
+
+            playShipboardDialogue(
+                convoId,
+                playerName,
+                openAnneDialog,
+                openWillDialog,
+                npc.typeId === ANNE_DOCKED_NPC_ID || npc.typeId === ANNE_BOAT_NPC_ID
+                    ? "anne"
+                    : "will",
+                dockedVariant ? "docked" : "at_sea",
+            );
+        }
+
         registry.registerNpcScript({
-            npcId: ANNE_SARIM_NPC_ID,
+            npcId: ANNE_SHORE_NPC_ID,
             option: "talk-to",
-            handler: playAnneConversation,
+            handler: playShoreConversation,
         });
         registry.registerNpcScript({
-            npcId: ANNE_SARIM_NPC_ID,
+            npcId: ANNE_SHORE_NPC_ID,
             option: undefined,
-            handler: playAnneConversation,
+            handler: playShoreConversation,
         });
 
         registry.registerNpcScript({
-            npcId: WILL_SARIM_NPC_ID,
+            npcId: WILL_SHORE_NPC_ID,
             option: "talk-to",
-            handler: playAnneConversation,
+            handler: playShoreConversation,
         });
         registry.registerNpcScript({
-            npcId: WILL_SARIM_NPC_ID,
+            npcId: WILL_SHORE_NPC_ID,
             option: undefined,
-            handler: playAnneConversation,
+            handler: playShoreConversation,
         });
+
+        for (const npcId of [
+            WILL_BOAT_NPC_ID,
+            WILL_DOCKED_NPC_ID,
+            ANNE_BOAT_NPC_ID,
+            ANNE_DOCKED_NPC_ID,
+        ]) {
+            registry.registerNpcScript({
+                npcId,
+                option: "talk-to",
+                handler: playShipConversation,
+            });
+            registry.registerNpcScript({
+                npcId,
+                option: undefined,
+                handler: playShipConversation,
+            });
+        }
     },
 };
+
+function createNpcDialogFn(
+    player: PlayerState,
+    services: Pick<ScriptServices, "openDialog">,
+    onClose: () => void,
+    npcId: number,
+    npcName: string,
+): DialogFn {
+    return (id, lines, animId, onContinue) =>
+        services.openDialog?.(player, {
+            kind: "npc",
+            id,
+            npcId,
+            npcName,
+            lines,
+            animationId: animId,
+            clickToContinue: true,
+            closeOnContinue: !onContinue,
+            onContinue,
+            onClose,
+        });
+}
+
+function createPlayerDialogFn(
+    player: PlayerState,
+    services: Pick<ScriptServices, "openDialog">,
+    onClose: () => void,
+    playerName: string,
+): DialogFn {
+    return (id, lines, animId, onContinue) =>
+        services.openDialog?.(player, {
+            kind: "player",
+            id,
+            playerName,
+            lines,
+            animationId: animId,
+            clickToContinue: true,
+            closeOnContinue: !onContinue,
+            onContinue,
+            onClose,
+        });
+}
 
 // ============================================================================
 // Intro Dialogue (state 0 -> 2 -> 4)
 // ============================================================================
 
 type DialogFn = (id: string, lines: string[], animId: number, onContinue?: () => void) => void;
+type PandemoniumDockedSailingServices = Pick<
+    ScriptServices,
+    | "disposeSailingInstance"
+    | "teleportPlayer"
+    | "sendWorldEntity"
+    | "spawnNpc"
+    | "sendVarbit"
+    | "sendVarp"
+    | "sendGameMessage"
+    | "sendSound"
+    | "queueClientScript"
+    | "openSubInterface"
+    | "queueWidgetEvent"
+    | "openDialog"
+>;
+
+type PandemoniumSailingStateServices = Pick<
+    ScriptServices,
+    | "sendVarbit"
+    | "sendVarp"
+    | "queueClientScript"
+    | "openSubInterface"
+>;
 
 function playIntroDialogue(
     convoId: string,
@@ -512,6 +618,55 @@ function playInterviewPart3(
     );
 }
 
+function playShipboardDialogue(
+    convoId: string,
+    playerName: string,
+    openAnneDialog: DialogFn,
+    openWillDialog: DialogFn,
+    openingSpeaker: "anne" | "will",
+    scene: "docked" | "at_sea",
+) {
+    const anneOpening =
+        scene === "docked"
+            ? [
+                  "Mind your footing while we're still alongside.",
+                  "Once you're settled aboard, we'll walk you through the work.",
+              ]
+            : [
+                  "Mind your footing out here.",
+                  "Once you've found your sea legs, we'll walk you through the work.",
+              ];
+    const willOpening =
+        scene === "docked"
+            ? ["Lovely! The open sea!", "We'll be under way soon enough."]
+            : ["Lovely! The open sea!", "Now this is where a sailor belongs."];
+
+    if (openingSpeaker === "anne") {
+        openAnneDialog(`${convoId}_anne_1`, anneOpening, ANIM_CHATHAP2, () => {
+            openWillDialog(
+                `${convoId}_will_2`,
+                [
+                    `You'll be right at home before long, ${playerName}.`,
+                    "Try to enjoy the ship while you've got the chance!",
+                ],
+                ANIM_CHATHAP3,
+            );
+        });
+        return;
+    }
+
+    openWillDialog(`${convoId}_will_1`, willOpening, ANIM_CHATHAP1, () => {
+        openAnneDialog(
+            `${convoId}_anne_2`,
+            [
+                "We'll discuss the details once you're settled aboard.",
+                "For now, keep your balance and take a good look around.",
+            ],
+            ANIM_CHATHAP2,
+        );
+    });
+}
+
 // ============================================================================
 // Board Choice (state 4 -> 6)
 // ============================================================================
@@ -589,25 +744,43 @@ function executeBoardingSequence(
     }, currentTick);
 }
 
-export function handleBoardingTick1(
+function sendDockedBoatArrival(
     player: PlayerState,
-    data: { playerName: string },
-    services: ScriptServices,
+    services: PandemoniumDockedSailingServices,
 ): void {
-    const pid = player.id;
-    const { playerName } = data;
+    services.disposeSailingInstance?.(player);
+    services.teleportPlayer?.(player, PORT_SARIM_DOCK_BOAT_X, PORT_SARIM_DOCK_BOAT_Y, 0);
 
-    // Quest state
+    const templateChunks = buildSailingOverlayTemplates();
+    services.sendWorldEntity?.(
+        player,
+        SAILING_WORLD_ENTITY_INDEX,
+        SAILING_WORLD_ENTITY_CONFIG_ID,
+        SAILING_WORLD_ENTITY_SIZE_X,
+        SAILING_WORLD_ENTITY_SIZE_Z,
+        templateChunks,
+        SAILING_INTRO_BUILD_AREAS,
+        SAILING_INTRO_BOAT_LOCS,
+    );
+
+    for (const npc of SAILING_DOCKED_NPC_SPAWNS) {
+        const spawned = services.spawnNpc?.({ ...npc, wanderRadius: 0 });
+        if (spawned) {
+            spawned.worldViewId = SAILING_WORLD_ENTITY_INDEX;
+            player.instanceNpcIds.add(spawned.id);
+        }
+    }
+}
+
+function syncSailingBootstrapState(
+    player: PlayerState,
+    services: PandemoniumSailingStateServices,
+): void {
     services.sendVarbit?.(player, VARBIT_SAILING_INTRO, 6);
-    services.sendGameMessage(player, "You board the boat.");
-
-    // Sailing boat state
     services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT, 1);
     services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_TYPE, 3);
-    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_WORLD, 426);
+    services.sendVarbit?.(player, VARBIT_SAILING_BOARDED_BOAT_WORLD, SAILING_DOCKED_WORLD_ID);
     services.sendVarbit?.(player, VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT, 1);
-
-    // Sidepanel state
     services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_PLAYER_ROLE, 10);
     services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOAT_TYPE, 8113);
     services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE, 4);
@@ -620,57 +793,12 @@ export function handleBoardingTick1(
     services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_AMMO_NEEDS_UPDATE, 1);
     services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_STATS_NEEDS_UPDATE, 1);
     services.sendVarbit?.(player, VARBIT_SAILING_PRELOADED_ANIMS, 1);
-
-    // Music unlock
-    services.sendGameMessage(
-        player,
-        "You have unlocked a new music track: <col=ff3045>Crest of a Wave",
-    );
-
-    // Initialize sailing instance (teleport + spawn NPCs)
-    services.initSailingInstance?.(player);
-
-    // Board sound
-    services.sendSound?.(player, SYNTH_BOARD_BOAT);
-
-    // Crew init
-    services.queueClientScript?.(pid, SCRIPT_SAILING_CREW_INIT, playerName, 1, "", 1);
-
-    // Switch sidebar to sailing tab
-    services.queueClientScript?.(pid, SCRIPT_SIDEBAR_TAB, 0);
-
-    // Open sailing sidepanel on combat tab
-    services.openSubInterface?.(
-        player,
-        BaseComponentUids.TAB_COMBAT,
-        SAILING_SIDEPANEL_GROUP,
-        1,
-    );
-
-    // Open sailing intro HUD
-    services.openSubInterface?.(
-        player,
-        BaseComponentUids.HUD_CONTAINER_FRONT,
-        SAILING_INTRO_HUD_GROUP,
-        1,
-    );
-
-    // Combat level display
-    services.queueClientScript?.(pid, SCRIPT_COMBAT_LEVEL, player.combatLevel ?? 3);
-
-    // Camera bounds for sailing
-    services.queueClientScript?.(pid, SCRIPT_CAMERA_BOUNDS, -100, 896, -100, 896);
 }
 
-export function handleBoardingTick2(
+function syncSailingBoatStats(
     player: PlayerState,
-    services: ScriptServices,
+    services: Pick<ScriptServices, "sendVarbit" | "sendVarp">,
 ): void {
-    const pid = player.id;
-    const overlayAtmosphereUid = BaseComponentUids.OVERLAY_ATMOSPHERE;
-    const fadeMessageUid = (FADE_OVERLAY_GROUP << 16) | FADE_OVERLAY_MESSAGE_CHILD;
-
-    // Boat stats
     services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_AMMO_NEEDS_UPDATE, 0);
     services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_STATS_NEEDS_UPDATE, 0);
     services.sendVarp?.(player, VARP_SAILING_SIDEPANEL_BOAT_DEFENCE, 10);
@@ -686,6 +814,85 @@ export function handleBoardingTick2(
     services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_SPEEDCAP, 384);
     services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_SPEEDBOOST_DURATION, 20);
     services.sendVarbit?.(player, VARBIT_SAILING_SIDEPANEL_BOAT_ACCELERATION, 64);
+}
+
+function openSailingUi(
+    player: PlayerState,
+    services: Pick<ScriptServices, "queueClientScript" | "openSubInterface">,
+): void {
+    const pid = player.id;
+    const playerName = player.name ?? "You";
+
+    services.queueClientScript?.(pid, SCRIPT_SAILING_CREW_INIT, playerName, 1, "", 1);
+    services.queueClientScript?.(pid, SCRIPT_SIDEBAR_TAB, 0);
+    services.openSubInterface?.(
+        player,
+        BaseComponentUids.TAB_COMBAT,
+        SAILING_SIDEPANEL_GROUP,
+        1,
+    );
+    services.openSubInterface?.(
+        player,
+        BaseComponentUids.HUD_CONTAINER_FRONT,
+        SAILING_INTRO_HUD_GROUP,
+        1,
+    );
+    services.queueClientScript?.(pid, SCRIPT_COMBAT_LEVEL, player.combatLevel ?? 3);
+    services.queueClientScript?.(pid, SCRIPT_CAMERA_BOUNDS, -100, 896, -100, 896);
+}
+
+export function isPlayerOnDockedSailingBoat(player: PlayerState): boolean {
+    return (
+        player.getVarbitValue(VARBIT_SAILING_BOARDED_BOAT) === 1 &&
+        player.getVarbitValue(VARBIT_SAILING_BOARDED_BOAT_WORLD) === SAILING_DOCKED_WORLD_ID
+    );
+}
+
+export function restoreDockedSailingState(
+    player: PlayerState,
+    services: PandemoniumDockedSailingServices,
+): void {
+    syncSailingBootstrapState(player, services);
+    sendDockedBoatArrival(player, services);
+    syncSailingBoatStats(player, services);
+    openSailingUi(player, services);
+}
+
+export function handleBoardingTick1(
+    player: PlayerState,
+    _data: { playerName: string },
+    services: PandemoniumDockedSailingServices,
+): void {
+    // Quest state
+    syncSailingBootstrapState(player, services);
+    services.sendGameMessage(player, "You board the boat.");
+
+    // Music unlock
+    services.sendGameMessage(
+        player,
+        "You have unlocked a new music track: <col=ff3045>Crest of a Wave",
+    );
+
+    // Arrival uses the docked Port Sarim ship world-entity, not the deep-ocean intro instance.
+    sendDockedBoatArrival(player, services);
+
+    // Board sound
+    services.sendSound?.(player, SYNTH_BOARD_BOAT);
+
+    // Restore the sailing UI immediately on docked arrival.
+    openSailingUi(player, services);
+}
+
+export function handleBoardingTick2(
+    player: PlayerState,
+    services: PandemoniumDockedSailingServices,
+): void {
+    const pid = player.id;
+    const overlayAtmosphereUid = BaseComponentUids.OVERLAY_ATMOSPHERE;
+    const fadeMessageUid = (FADE_OVERLAY_GROUP << 16) | FADE_OVERLAY_MESSAGE_CHILD;
+
+    // Boat stats
+    syncSailingBoatStats(player, services);
 
     // Fade from black
     services.queueWidgetEvent?.(pid, {
@@ -700,16 +907,14 @@ export function handleBoardingTick2(
     services.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 0);
 
     // Will on the boat: opening dialogue
-    services.openDialog?.(player, {
-        kind: "npc",
-        id: `pandemonium_boat_will_1`,
-        npcId: WILL_BOAT_NPC_ID,
-        npcName: "Will",
-        lines: ["Lovely! The open sea!"],
-        animationId: ANIM_CHATHAP1,
-        clickToContinue: true,
-        closeOnContinue: true,
-    });
+    playShipboardDialogue(
+        `pandemonium_boat_intro_${pid}`,
+        player.name ?? "You",
+        createNpcDialogFn(player, services, () => {}, ANNE_BOAT_NPC_ID, "Anne"),
+        createNpcDialogFn(player, services, () => {}, WILL_BOAT_NPC_ID, "Will"),
+        "will",
+        "at_sea",
+    );
 }
 
 // ============================================================================
@@ -803,25 +1008,9 @@ export function restoreSailingInstanceUi(
     player: PlayerState,
     services: ScriptServices,
 ): void {
-    const pid = player.id;
-    const playerName = player.name ?? "You";
-
-    services.queueClientScript?.(pid, SCRIPT_SAILING_CREW_INIT, playerName, 1, "", 1);
-    services.queueClientScript?.(pid, SCRIPT_SIDEBAR_TAB, 0);
-    services.openSubInterface?.(
-        player,
-        BaseComponentUids.TAB_COMBAT,
-        SAILING_SIDEPANEL_GROUP,
-        1,
-    );
-    services.openSubInterface?.(
-        player,
-        BaseComponentUids.HUD_CONTAINER_FRONT,
-        SAILING_INTRO_HUD_GROUP,
-        1,
-    );
-    services.queueClientScript?.(pid, SCRIPT_COMBAT_LEVEL, player.combatLevel ?? 3);
-    services.queueClientScript?.(pid, SCRIPT_CAMERA_BOUNDS, -100, 896, -100, 896);
+    syncSailingBootstrapState(player, services);
+    syncSailingBoatStats(player, services);
+    openSailingUi(player, services);
 }
 
 // ============================================================================

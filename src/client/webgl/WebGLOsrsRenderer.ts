@@ -1,5 +1,6 @@
 import Denque from "denque";
 import { mat4, vec2, vec3, vec4 } from "gl-matrix";
+import { WorldEntityAnimator } from "./WorldEntityAnimator";
 import { button, folder } from "leva";
 import { Schema } from "leva/dist/declarations/src/types";
 import {
@@ -349,6 +350,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     /** Active world entity overlays (rendered on top of normal world). */
     private worldEntityOverlays: Map<number, {
         entityIndex: number;
+        configId: number;
         templateChunks: number[][][];
         regionX: number;
         regionY: number;
@@ -359,6 +361,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>;
     }> = new Map();
     private worldEntityLocRebuildTimer: ReturnType<typeof setTimeout> | null = null;
+    private worldEntityAnimator?: WorldEntityAnimator;
     /** Dynamically spawned locs (LOC_ADD_CHANGE). Keyed by "x,y,level,shape". */
     private addedLocs: Map<
         string,
@@ -5332,6 +5335,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         sizeX: number,
         sizeZ: number,
         extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+        configId: number = -1,
     ): Promise<void> {
         if (!this.osrsClient.loadedCache) return;
 
@@ -5347,13 +5351,18 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const overlayMapY = 200 + entityIndex;
 
         console.log(
-            `[WebGLOsrsRenderer] Loading world entity overlay: entity=${entityIndex} source=(${regionX},${regionY}) worldPos=(${worldX},${worldY}) renderBase=(${entityWorldBaseX},${entityWorldBaseY})`,
+            `[WebGLOsrsRenderer] Loading world entity overlay: entity=${entityIndex} config=${configId} source=(${regionX},${regionY}) worldPos=(${worldX},${worldY}) renderBase=(${entityWorldBaseX},${entityWorldBaseY})`,
         );
 
         this.worldEntityOverlays.set(entityIndex, {
-            entityIndex, templateChunks, regionX, regionY,
+            entityIndex, configId, templateChunks, regionX, regionY,
             worldX, worldY, sizeX, sizeZ, extraLocs,
         });
+
+        if (configId >= 0) {
+            this.ensureWorldEntityAnimator();
+            this.worldEntityAnimator?.addEntity(entityIndex, configId, this.lastTick);
+        }
 
         // Collect extra locs from addedLocs that fall within the source region
         const CHUNK_SIZE = 8;
@@ -5417,8 +5426,38 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 overlay.worldX, overlay.worldY,
                 overlay.sizeX, overlay.sizeZ,
                 overlay.extraLocs,
+                overlay.configId,
             );
         }, 150);
+    }
+
+    private ensureWorldEntityAnimator(): void {
+        if (this.worldEntityAnimator) return;
+        this.worldEntityAnimator = new WorldEntityAnimator(
+            this.osrsClient.worldEntityTypeLoader,
+            this.osrsClient.seqTypeLoader,
+            this.osrsClient.skeletalSeqLoader,
+        );
+    }
+
+    private getWorldEntityIndexForMapId(mapId: number): number | undefined {
+        for (const [entityIndex] of this.worldEntityOverlays) {
+            const overlayMapX = 200 + entityIndex;
+            const overlayMapY = 200 + entityIndex;
+            if (getMapSquareId(overlayMapX, overlayMapY) === mapId) {
+                return entityIndex;
+            }
+        }
+        return undefined;
+    }
+
+    getWorldEntityTransformForMap(map: WebGLMapSquare): Float32Array {
+        if (!this.mapManager.worldEntityMapIds.has(map.id)) {
+            return WebGLMapSquare.IDENTITY_MAT4;
+        }
+        const entityIndex = this.getWorldEntityIndexForMapId(map.id);
+        if (entityIndex === undefined) return WebGLMapSquare.IDENTITY_MAT4;
+        return this.worldEntityAnimator?.getTransform(entityIndex) ?? WebGLMapSquare.IDENTITY_MAT4;
     }
 
     clearWorldEntity(entityIndex: number): void {
@@ -5428,6 +5467,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.mapManager.worldEntityMapIds.delete(overlayMapId);
         this.mapManager.removeMap(overlayMapX, overlayMapY);
         this.worldEntityOverlays.delete(entityIndex);
+        this.worldEntityAnimator?.removeEntity(entityIndex);
     }
 
     clearAllWorldEntities(): void {
@@ -5439,6 +5479,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.mapManager.removeMap(overlayMapX, overlayMapY);
         }
         this.worldEntityOverlays.clear();
+        this.worldEntityAnimator?.clear();
     }
 
     private resolveLocReloadBatchMap(
@@ -9657,6 +9698,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.addWorldGfxRenderData(map);
         }
 
+        this.worldEntityAnimator?.tick(clientCycle);
+
         // Propagate listener position for positional audio and advance ambient loops.
         const soundSystem = this.osrsClient.soundEffectSystem;
         if (soundSystem) {
@@ -11160,7 +11203,17 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             const { drawCall, drawRanges } = map.getDrawCall(transparent, isInteract, isLod);
             const drawRangePlanes = map.getDrawRangesPlanes(transparent, isInteract, isLod);
 
+            const isWorldEntity = this.mapManager.worldEntityMapIds.has(map.id);
+            let weTransform: Float32Array = WebGLMapSquare.IDENTITY_MAT4;
+            if (isWorldEntity) {
+                const entityIndex = this.getWorldEntityIndexForMapId(map.id);
+                if (entityIndex !== undefined) {
+                    weTransform = this.worldEntityAnimator?.getTransform(entityIndex) ?? WebGLMapSquare.IDENTITY_MAT4;
+                }
+            }
+
             drawCall.uniform("u_roofPlaneLimit", roofPlaneLimit);
+            drawCall.uniform("u_worldEntityTransform", weTransform);
             this.updateAnimatedDrawRanges(
                 map,
                 drawCall,
@@ -11180,6 +11233,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     isLod,
                 );
                 groundBatch.drawCall.uniform("u_roofPlaneLimit", roofPlaneLimit);
+                groundBatch.drawCall.uniform("u_worldEntityTransform", weTransform);
                 this.drawWithRoofPlaneFilter(
                     groundBatch.drawCall,
                     groundBatch.drawRanges,
@@ -11196,6 +11250,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     isLod,
                 );
                 doorBatch.drawCall.uniform("u_roofPlaneLimit", roofPlaneLimit);
+                doorBatch.drawCall.uniform("u_worldEntityTransform", weTransform);
                 this.drawWithRoofPlaneFilter(
                     doorBatch.drawCall,
                     doorBatch.drawRanges,
@@ -11404,6 +11459,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 dynDrawCall.uniform("u_mapPos", [dyn.map.mapX, dyn.map.mapY]);
                 dynDrawCall.uniform("u_timeLoaded", dyn.map.timeLoaded);
                 dynDrawCall.uniform("u_modelYOffset", 0.0);
+                dynDrawCall.uniform("u_worldEntityTransform", this.getWorldEntityTransformForMap(dyn.map));
 
                 // Set height map texture from the map
                 const heightMapTex = (dyn.map as any).heightMapTexture;
@@ -11586,6 +11642,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     drawCall
                         .uniform("u_npcDataOffset", baseOffsetNpc)
                         .uniform("u_modelYOffset", 0.0)
+                        .uniform("u_worldEntityTransform", this.getWorldEntityTransformForMap(map))
                         .texture("u_npcDataTexture", actorDataTexture);
                     const ecs = this.osrsClient.npcEcs;
                     const ids: number[] = map.npcEntityIds as any;
@@ -11735,6 +11792,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 dynDrawCall.uniform("u_mapPos", [dyn.map.mapX, dyn.map.mapY]);
                 dynDrawCall.uniform("u_timeLoaded", dyn.map.timeLoaded);
                 dynDrawCall.uniform("u_modelYOffset", 0.0);
+                dynDrawCall.uniform("u_worldEntityTransform", this.getWorldEntityTransformForMap(dyn.map));
 
                 // Set height map texture from the map
                 const heightMapTex = (dyn.map as any).heightMapTexture;

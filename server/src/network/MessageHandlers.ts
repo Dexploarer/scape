@@ -24,6 +24,7 @@ import {
     SAILING_INTRO_LEVEL,
     SAILING_INTRO_X,
     SAILING_INTRO_Y,
+    SAILING_DOCKED_NPC_SPAWNS,
     SAILING_WORLD_ENTITY_CONFIG_ID,
     SAILING_WORLD_ENTITY_INDEX,
     SAILING_WORLD_ENTITY_SIZE_X,
@@ -1491,6 +1492,10 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                         SAILING_INTRO_BUILD_AREAS,
                         SAILING_INTRO_BOAT_LOCS,
                     );
+
+                    const { willBoat, anneBoat } = SAILING_DOCKED_NPC_SPAWNS;
+                    services.spawnNpc?.({ ...willBoat, wanderRadius: 0 });
+                    services.spawnNpc?.({ ...anneBoat, wanderRadius: 0 });
 
                     services.queueChatMessage({
                         messageType: "game",

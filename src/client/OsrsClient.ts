@@ -442,6 +442,7 @@ export class OsrsClient {
     seqTypeLoader!: SeqTypeLoader;
     seqFrameLoader!: SeqFrameLoader;
     skeletalSeqLoader?: SkeletalSeqLoader;
+    worldEntityTypeLoader?: import("../rs/config/worldentitytype/WorldEntityTypeLoader").WorldEntityTypeLoader;
     spotAnimTypeLoader!: SpotAnimTypeLoader;
 
     locTypeLoader!: LocTypeLoader;
@@ -3193,6 +3194,7 @@ export class OsrsClient {
                             payload.sizeX,
                             payload.sizeZ,
                             extraLocs,
+                            payload.configId,
                         );
                         // Schedule a single deferred rebuild to pick up LOC_ADD_CHANGE
                         // packets that arrive after the initial scene build
@@ -9709,6 +9711,7 @@ export class OsrsClient {
             this.seqTypeLoader = this.loaderFactory.getSeqTypeLoader();
             this.seqFrameLoader = this.loaderFactory.getSeqFrameLoader();
             this.skeletalSeqLoader = this.loaderFactory.getSkeletalSeqLoader?.();
+            this.worldEntityTypeLoader = this.loaderFactory.getWorldEntityTypeLoader?.();
             this.spotAnimTypeLoader = this.loaderFactory.getSpotAnimTypeLoader();
             this.locTypeLoader = this.loaderFactory.getLocTypeLoader();
             this.objTypeLoader = this.loaderFactory.getObjTypeLoader();

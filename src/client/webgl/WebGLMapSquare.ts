@@ -1,4 +1,4 @@
-import { vec2 } from "gl-matrix";
+import { mat4, vec2 } from "gl-matrix";
 import PicoGL, {
     DrawCall,
     App as PicoApp,
@@ -146,6 +146,8 @@ type GroundItemGeometryResources = {
 };
 
 export class WebGLMapSquare {
+    static readonly IDENTITY_MAT4 = mat4.create() as Float32Array;
+
     readonly id: number;
 
     npcDataTextureOffsets: number[];
@@ -279,6 +281,7 @@ export class WebGLMapSquare {
                 .uniform("u_timeLoaded", time)
                 .uniform("u_mapPos", mapPos)
                 .uniform("u_roofPlaneLimit", 3.0)
+                .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
                 // .uniform("u_drawIdOffset", drawIdOffset)
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
@@ -1160,6 +1163,7 @@ export class WebGLMapSquare {
                 .uniformBlock("SceneUniforms", sceneUniformBuffer)
                 .uniform("u_timeLoaded", this.timeLoaded)
                 .uniform("u_mapPos", mapPos)
+                .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", this.heightMapTexture)
@@ -1505,6 +1509,7 @@ export class WebGLMapSquare {
                 .uniform("u_timeLoaded", loadTime)
                 .uniform("u_mapPos", mapPos)
                 .uniform("u_roofPlaneLimit", 3.0)
+                .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", this.heightMapTexture)
@@ -1738,6 +1743,7 @@ export class WebGLMapSquare {
                 .uniform("u_timeLoaded", loadTime)
                 .uniform("u_mapPos", mapPos)
                 .uniform("u_roofPlaneLimit", 3.0)
+                .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", this.heightMapTexture)
@@ -1909,6 +1915,7 @@ export class WebGLMapSquare {
                 .uniform("u_timeLoaded", loadTime)
                 .uniform("u_mapPos", mapPos)
                 .uniform("u_roofPlaneLimit", 3.0)
+                .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", this.heightMapTexture)

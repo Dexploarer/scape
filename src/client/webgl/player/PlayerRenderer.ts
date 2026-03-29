@@ -746,6 +746,7 @@ export class PlayerRenderer {
                     .texture("u_textureMaterials", rAny.textureMaterials)
                     .uniform("u_mapPos", mapPos)
                     .uniform("u_npcDataOffset", baseOffsetPlayer | 0)
+                    .uniform("u_worldEntityTransform", this.renderer.getWorldEntityTransformForMap(map))
                     .texture("u_npcDataTexture", actorDataTexture as Texture)
                     .texture("u_heightMap", map.heightMapTexture)
                     .uniform("u_modelYOffset", -(group.yOff | 0));
@@ -1869,6 +1870,7 @@ export class PlayerRenderer {
         draw.uniform("u_mapPos", vec2.fromValues(map.mapX, map.mapY))
             .uniform("u_npcDataOffset", baseOffsetPlayer)
             .uniform("u_modelYOffset", r.playerYOffset)
+            .uniform("u_worldEntityTransform", r.getWorldEntityTransformForMap(map))
             .texture("u_npcDataTexture", actorDataTexture)
             .texture("u_heightMap", map.heightMapTexture);
 
@@ -2079,6 +2081,7 @@ export class PlayerRenderer {
             draw.uniform("u_mapPos", vec2.fromValues(map.mapX, map.mapY))
                 .uniform("u_npcDataOffset", baseOffset)
                 .uniform("u_modelYOffset", r.playerYOffset)
+                .uniform("u_worldEntityTransform", r.getWorldEntityTransformForMap(map))
                 .texture("u_npcDataTexture", playerDataTexture)
                 .texture("u_heightMap", map.heightMapTexture);
 

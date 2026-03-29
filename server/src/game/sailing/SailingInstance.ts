@@ -134,6 +134,21 @@ function buildDockedBoatLocs(): BoatLoc[] {
 
 export const SAILING_DOCKED_BOAT_LOCS = buildDockedBoatLocs();
 
+export const SAILING_DOCKED_NPC_SPAWNS = {
+    willBoat: {
+        id: 14958,
+        x: DOCK_OFFSET_X + 4,
+        y: DOCK_OFFSET_Y + 3,
+        level: 0,
+    },
+    anneBoat: {
+        id: 14963,
+        x: DOCK_OFFSET_X + 4,
+        y: DOCK_OFFSET_Y + 2,
+        level: 0,
+    },
+};
+
 // ============================================================================
 // Template Builder
 // ============================================================================

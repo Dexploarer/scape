@@ -213,6 +213,43 @@ const intermapLinks = loadIntermapLinks();
 console.log(`[climbing] Loaded ${intermapLinks.size} intermap links from CS2 script 1705`);
 
 // ---------------------------------------------------------------------------
+// Stair floor-count table (server/data/stair-floors.json)
+// ---------------------------------------------------------------------------
+
+interface StairFloorEntry {
+    floors: number;
+    /** Fixed destination XY at the target level (OSRS-accurate, from packet dump). */
+    dest?: { x: number; y: number };
+}
+
+function loadStairFloors(): Map<number, StairFloorEntry> {
+    const filePath = path.resolve(__dirname, "../../../../data/stair-floors.json");
+    try {
+        const raw = fs.readFileSync(filePath, "utf-8");
+        const data = JSON.parse(raw) as Record<string, unknown>;
+        const map = new Map<number, StairFloorEntry>();
+        for (const [key, value] of Object.entries(data)) {
+            if (key.startsWith("_")) continue;
+            const locId = parseInt(key, 10);
+            if (isNaN(locId)) continue;
+            if (typeof value === "number") {
+                map.set(locId, { floors: value });
+            } else if (value && typeof value === "object" && "floors" in value) {
+                const entry = value as { floors: number; dest?: { x: number; y: number } };
+                map.set(locId, { floors: entry.floors, dest: entry.dest });
+            }
+        }
+        return map;
+    } catch (e) {
+        console.log(`[climbing] Failed to load stair-floors.json: ${e}`);
+        return new Map();
+    }
+}
+
+const stairFloors = loadStairFloors();
+console.log(`[climbing] Loaded ${stairFloors.size} stair floor entries`);
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -243,6 +280,160 @@ function resolveDestination(
 
     return { x: event.player.tileX, y: event.player.tileY, level: targetLevel };
 }
+
+// ---------------------------------------------------------------------------
+// Multi-floor traversal helpers (top-floor / bottom-floor)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the stair floor entry for a loc.
+ *
+ * Priority:
+ *  1. stair-floors.json explicit entry (authoritative, from OSRS packet dump).
+ *  2. `_N` suffix in the internal cache name if exposed (e.g. "spiralstairsbottom_3").
+ *     Note: the display name (e.g. "Staircase") never contains this suffix.
+ */
+function getStairEntry(
+    services: LocInteractionEvent["services"],
+    locId: number,
+): StairFloorEntry | undefined {
+    // 1. Data file — highest priority
+    const fromFile = stairFloors.get(locId);
+    if (fromFile !== undefined) return fromFile;
+
+    // 2. Internal name suffix fallback (rarely populated via getLocDefinition)
+    const def = services.getLocDefinition?.(locId);
+    if (!def?.name) return undefined;
+    const match = (def.name as string).match(/_(\d+)$/);
+    if (match) {
+        const count = parseInt(match[1], 10);
+        if (count >= 2 && count <= 4) return { floors: count };
+    }
+    return undefined;
+}
+
+interface MultiFloorTarget {
+    level: number;
+    /** Fixed XY destination from stair-floors.json, if configured. */
+    fixedDest?: { x: number; y: number };
+}
+
+/**
+ * Resolve the target level and optional fixed destination for a multi-floor traversal.
+ *
+ * OSRS parity: OSRS sends a fixed destination tile per staircase (from packet dump),
+ * independent of where the player was standing. When configured in stair-floors.json
+ * that dest is used directly. Otherwise falls back to nearest-walkable scan.
+ */
+function resolveMultiFloorTarget(
+    event: LocInteractionEvent,
+    direction: "top" | "bottom",
+): MultiFloorTarget {
+    const { level, services, locId } = event;
+    const entry = getStairEntry(services, locId);
+    const floorCount = entry?.floors;
+
+    let targetLevel: number;
+    if (direction === "top") {
+        targetLevel = floorCount !== undefined
+            ? Math.min(level + (floorCount - 1), 3)
+            : Math.min(level + 2, 3);
+    } else {
+        targetLevel = floorCount !== undefined
+            ? Math.max(level - (floorCount - 1), 0)
+            : 0;
+    }
+
+    return { level: targetLevel, fixedDest: entry?.dest };
+}
+
+/**
+ * Resolve a destination tile to the nearest walkable tile using an
+ * expanding-ring search (Chebyshev distance 0 → MAX_WALKABLE_SEARCH_RADIUS).
+ *
+ * Handles cases where a large object (e.g. the Lighthouse cog wheel) blocks
+ * the staircase exit tile and all immediate cardinal neighbors.
+ */
+/**
+ * Search offsets for walkable destination resolution, ordered so that
+ * cardinal-adjacent tiles are preferred over diagonals at each radius.
+ * Capped at radius 2 to avoid escaping building walls.
+ *
+ * Priority: r=1 cardinals → r=1 diagonals → r=2 cardinals → r=2 diagonals.
+ * OSRS staircase exits are always directly adjacent (N/S/E/W) to the
+ * staircase object, so cardinals resolve correctly in the common case.
+ */
+const WALKABLE_SEARCH_OFFSETS: ReadonlyArray<{ dx: number; dy: number }> = [
+    // Radius 1 — cardinals first (OSRS SWNE order)
+    { dx: 0, dy: -1 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 1, dy: 0 },
+    // Radius 1 — diagonals
+    { dx: -1, dy: -1 }, { dx: -1, dy: 1 }, { dx: 1, dy: -1 }, { dx: 1, dy: 1 },
+    // Radius 2 — cardinals
+    { dx: 0, dy: -2 }, { dx: -2, dy: 0 }, { dx: 0, dy: 2 }, { dx: 2, dy: 0 },
+    // Radius 2 — diagonals and edges
+    { dx: -1, dy: -2 }, { dx: 1, dy: -2 }, { dx: -2, dy: -1 }, { dx: 2, dy: -1 },
+    { dx: -2, dy: 1 }, { dx: 2, dy: 1 }, { dx: -1, dy: 2 }, { dx: 1, dy: 2 },
+    { dx: -2, dy: -2 }, { dx: -2, dy: 2 }, { dx: 2, dy: -2 }, { dx: 2, dy: 2 },
+];
+
+function resolveWalkableDest(
+    services: LocInteractionEvent["services"],
+    dest: TraversalDestination,
+): TraversalDestination {
+    const pathService = services.getPathService?.();
+    if (!pathService) return dest;
+
+    // Check the destination tile itself first.
+    const destFlag = pathService.getCollisionFlagAt(dest.x, dest.y, dest.level);
+    if (destFlag !== undefined && (destFlag & TILE_BLOCKED) === 0) {
+        return dest;
+    }
+
+    for (const { dx, dy } of WALKABLE_SEARCH_OFFSETS) {
+        const nx = dest.x + dx;
+        const ny = dest.y + dy;
+        const flag = pathService.getCollisionFlagAt(nx, ny, dest.level);
+        if (flag !== undefined && (flag & TILE_BLOCKED) === 0) {
+            return { x: nx, y: ny, level: dest.level };
+        }
+    }
+
+    return dest;
+}
+
+/**
+ * Execute an instant multi-floor traversal (no climb animation).
+ * OSRS parity: top-floor / bottom-floor teleports are immediate with no
+ * sequence animation — just a plane change and face direction toward the loc.
+ *
+ * The destination is resolved to the nearest walkable tile before teleporting
+ * to handle cases where the same-XY tile at the target level is blocked
+ * (e.g. the Lighthouse cog wheel occupying the staircase tile on level 2).
+ */
+function executeInstantTraversal(
+    event: LocInteractionEvent,
+    dest: TraversalDestination,
+): void {
+    const { player, tile, services } = event;
+
+    const resolved = resolveWalkableDest(services, dest);
+
+    services.requestTeleportAction?.(player, {
+        x: resolved.x,
+        y: resolved.y,
+        level: resolved.level,
+        delayTicks: 0,
+        preserveAnimation: false,
+        requireCanTeleport: false,
+        replacePending: true,
+        arriveFaceTileX: tile.x,
+        arriveFaceTileY: tile.y,
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Single-floor traversal helpers (climb-up / climb-down)
+// ---------------------------------------------------------------------------
 
 /**
  * Ticks to wait after arrival before teleporting.
@@ -315,6 +506,52 @@ export const climbingModule: ScriptModule = {
             const dir = link.level < event.level ? "down" : "up";
             executeTraversal(event, link, dir);
         });
+
+        // ---- top-floor: skip directly to the highest floor (no animation) ----
+        for (const action of ["top-floor", "top floor"]) {
+            registry.registerLocAction(action, (event) => {
+                ensureResolved(event.services);
+                const { tile, level } = event;
+
+                // Intermap link takes priority (handles dungeon/non-standard destinations)
+                const link = intermapLinks.find(tile.x, tile.y, level);
+                if (link) {
+                    executeInstantTraversal(event, link);
+                    return;
+                }
+
+                const { level: targetLevel, fixedDest } = resolveMultiFloorTarget(event, "top");
+                if (targetLevel <= level) return;
+
+                // Use fixed dest from data file (OSRS-accurate) when available,
+                // otherwise fall back to nearest-walkable scan from player tile.
+                const destXY = fixedDest ?? { x: event.player.tileX, y: event.player.tileY };
+                executeInstantTraversal(event, { ...destXY, level: targetLevel });
+            });
+        }
+
+        // ---- bottom-floor: skip directly to the ground floor (no animation) ----
+        for (const action of ["bottom-floor", "bottom floor"]) {
+            registry.registerLocAction(action, (event) => {
+                ensureResolved(event.services);
+                const { tile, level } = event;
+
+                if (level <= 0) return;
+
+                // Intermap link takes priority
+                const link = intermapLinks.find(tile.x, tile.y, level);
+                if (link) {
+                    executeInstantTraversal(event, link);
+                    return;
+                }
+
+                const { level: targetLevel, fixedDest } = resolveMultiFloorTarget(event, "bottom");
+                if (targetLevel >= level) return;
+
+                const destXY = fixedDest ?? { x: event.player.tileX, y: event.player.tileY };
+                executeInstantTraversal(event, { ...destXY, level: targetLevel });
+            });
+        }
 
         // ---- climb (ambiguous): show dialogue asking up or down ----
         registry.registerLocAction("climb", (event) => {

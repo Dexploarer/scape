@@ -10429,6 +10429,9 @@ export class OsrsClient {
             );
             this.npcEcs.setLevel(existingEcs, spawn.level | 0);
             this.npcEcs.setOccTile(existingEcs, localTileX, localTileY, spawn.level | 0);
+            if ((spawn as any).worldViewId !== undefined && (spawn as any).worldViewId >= 0) {
+                this.npcEcs.setWorldViewId(existingEcs, (spawn as any).worldViewId);
+            }
 
             // Keep the instance map entry up to date for geometry streaming.
             this.upsertNpcInstanceFromBinary(
@@ -10468,6 +10471,9 @@ export class OsrsClient {
             rotSpeed,
         );
         this.npcEcs.setServerMapping(ecsId, serverId);
+        if ((spawn as any).worldViewId !== undefined && (spawn as any).worldViewId >= 0) {
+            this.npcEcs.setWorldViewId(ecsId, (spawn as any).worldViewId);
+        }
         this.npcEcs.setTargetRot(ecsId, spawn.rot | 0);
         this.npcEcs.setRotation(ecsId, spawn.rot | 0);
         this.npcEcs.setOccTile(ecsId, localTileX, localTileY, spawn.level | 0);

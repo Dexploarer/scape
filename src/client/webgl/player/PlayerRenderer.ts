@@ -1867,10 +1867,12 @@ export class PlayerRenderer {
 
         // Batched rendering: process each batch group through the active draw backend.
         const draw = r.configureDrawCall(this.drawCall as any as DrawCall);
+        const playerDeckH = r.getWorldEntityDeckHeight(0, 0);
+        const playerOnDeck = playerDeckH !== 0;
         draw.uniform("u_mapPos", vec2.fromValues(map.mapX, map.mapY))
             .uniform("u_npcDataOffset", baseOffsetPlayer)
-            .uniform("u_modelYOffset", r.playerYOffset)
-            .uniform("u_worldEntityTransform", r.getWorldEntityTransformForMapOrOverlap(map))
+            .uniform("u_modelYOffset", r.playerYOffset + playerDeckH)
+            .uniform("u_worldEntityTransform", playerOnDeck ? r.getWorldEntityTransformForMapOrOverlap(map) : WebGLMapSquare.IDENTITY_MAT4)
             .texture("u_npcDataTexture", actorDataTexture)
             .texture("u_heightMap", map.heightMapTexture);
 

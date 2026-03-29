@@ -1477,7 +1477,9 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                 }
 
                 if (root === "sail") {
-                    services.sendVarbit?.(sender, 18314, 6); // sailing_intro = 6
+                    // Set sailing_intro to 4 (ready to board) so talking to
+                    // Anne/Will offers the board choice dialogue.
+                    services.sendVarbit?.(sender, 18314, 4);
                     services.teleportPlayer(sender, 3054, 3193, 0);
 
                     // Send world entity overlay — only the boat chunk, no ocean
@@ -1506,25 +1508,6 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                         targetPlayerIds: [sender.id],
                     });
                     logger.info(`[cmd] ::sail - Player ${sender.id} teleported to Port Sarim dock`);
-                    return;
-                }
-
-                if (root === "sailboard") {
-                    // Set sailing varbits matching the packet dump
-                    services.sendVarbit?.(sender, 18314, 6); // sailing_intro
-                    services.sendVarbit?.(sender, 19136, 1); // sailing_boarded_boat
-                    services.sendVarbit?.(sender, 19137, 3); // sailing_boarded_boat_type
-                    services.sendVarbit?.(sender, 19104, 1); // sailing_player_is_on_player_boat
-                    services.sendVarbit?.(sender, 19118, 1); // sailing_preloaded_anims
-
-                    services.initSailingInstance?.(sender);
-
-                    services.queueChatMessage({
-                        messageType: "game",
-                        text: "Boarded the boat.",
-                        targetPlayerIds: [sender.id],
-                    });
-                    logger.info(`[cmd] ::sailboard - Player ${sender.id} boarded boat instance`);
                     return;
                 }
 

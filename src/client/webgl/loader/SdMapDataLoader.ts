@@ -823,6 +823,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             extraObjSpawns,
             instance: instanceInput,
             extraLocs: extraLocsInput,
+            extraNpcs: extraNpcsInput,
             overrideRenderPos,
         }: SdMapLoaderInput,
     ): Promise<RenderDataResult<SdMapData | undefined>> {
@@ -1058,6 +1059,16 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
                 const npcMapY = getMapIndexFromTile(instance.y);
                 return npcMapX === mapX && npcMapY === mapY;
             });
+        }
+        if (extraNpcsInput) {
+            for (const npc of extraNpcsInput) {
+                npcInstances.push({
+                    typeId: npc.id,
+                    x: npc.x,
+                    y: npc.y,
+                    level: npc.level,
+                });
+            }
         }
         const { npcSceneBuf, npcs } = buildNpcGeometry(
             npcModelLoader,

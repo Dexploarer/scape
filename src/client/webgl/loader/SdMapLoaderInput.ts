@@ -45,6 +45,17 @@ export type SdMapLoaderInput = {
     }>;
 
     /**
+     * Extra NPCs to inject into the scene (world entity overlays).
+     * These are added as NPC spawns alongside any cache-defined NPCs.
+     */
+    extraNpcs?: Array<{
+        id: number;
+        x: number;
+        y: number;
+        level: number;
+    }>;
+
+    /**
      * Override the render position for world entity overlays.
      * When set, the scene is built at source coordinates but rendered
      * at the entity's world position via shader u_mapPos offset.

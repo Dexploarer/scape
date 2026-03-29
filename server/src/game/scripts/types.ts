@@ -591,6 +591,7 @@ export interface ScriptServices {
         templateChunks: number[][][],
         buildAreas: import("../../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
         extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+        extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>,
     ) => void;
     /**
      * Schedule a teleport through the server action scheduler.

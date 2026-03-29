@@ -28,6 +28,13 @@ export interface WorldEntityLoc {
     rotation: number;
 }
 
+export interface WorldEntityNpc {
+    id: number;
+    x: number;
+    y: number;
+    level: number;
+}
+
 export interface RebuildWorldEntityPayload {
     entityIndex: number;
     configId: number;
@@ -43,4 +50,5 @@ export interface RebuildWorldEntityPayload {
     mapRegions: number[];
     buildAreas: WorldEntityBuildArea[];
     extraLocs: WorldEntityLoc[];
+    extraNpcs: WorldEntityNpc[];
 }

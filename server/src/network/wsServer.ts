@@ -2150,8 +2150,8 @@ export class WSServer {
                     this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
                 teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
                     this.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
-                sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
-                    this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
+                sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs) =>
+                    this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs),
                 requestTeleportAction: (player, request) =>
                     this.requestTeleportAction(player, request),
                 sendVarp: (player, varpId, value) => {
@@ -6184,6 +6184,7 @@ export class WSServer {
         templateChunks: number[][][],
         buildAreas: import("../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
         extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+        extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>,
     ): void {
         const ws = this.players?.getSocketByPlayerId(player.id);
         if (!ws) return;
@@ -6196,6 +6197,7 @@ export class WSServer {
             regionX, regionY, regionX, regionY,
             templateChunks, buildAreas, this.cacheEnv!, false,
         );
+        (payload as any).extraNpcs = extraNpcs ?? [];
         const packet = encodeMessage({ type: "rebuild_worldentity", payload } as any);
         this.withDirectSendBypass("rebuild_worldentity", () =>
             this.sendWithGuard(ws, packet, "rebuild_worldentity"),
@@ -8697,6 +8699,7 @@ export class WSServer {
                 this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
             spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
                 this.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
+            spawnNpc: (config: any) => this.npcManager?.spawnTransientNpc(config),
             requestTeleportAction: (player, request) => this.requestTeleportAction(player, request),
 
             // Combat/NPC

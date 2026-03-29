@@ -1478,7 +1478,7 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
 
                 if (root === "sail") {
                     services.sendVarbit?.(sender, 18314, 6); // sailing_intro = 6
-                    services.teleportPlayer(sender, 3050, 3193, 0);
+                    services.teleportPlayer(sender, 3054, 3193, 0);
 
                     // Send world entity overlay — only the boat chunk, no ocean
                     const templateChunks = buildSailingOverlayTemplates();
@@ -1493,9 +1493,15 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                         SAILING_INTRO_BOAT_LOCS,
                     );
 
-                    const { willBoat, anneBoat } = SAILING_DOCKED_NPC_SPAWNS;
-                    services.spawnNpc?.({ ...willBoat, wanderRadius: 0 });
-                    services.spawnNpc?.({ ...anneBoat, wanderRadius: 0 });
+                    for (const npc of SAILING_DOCKED_NPC_SPAWNS) {
+                        logger.info(`[cmd] ::sail - spawnNpc available: ${typeof services.spawnNpc}`);
+                        try {
+                            const spawned = services.spawnNpc?.({ ...npc, wanderRadius: 0 });
+                            logger.info(`[cmd] ::sail - spawnNpc id=${npc.id} at (${npc.x},${npc.y},${npc.level}) -> ${spawned ? 'OK npcId=' + spawned.id : 'FAILED (returned ' + spawned + ')'}`);
+                        } catch (e) {
+                            logger.info(`[cmd] ::sail - spawnNpc id=${npc.id} THREW: ${e}`);
+                        }
+                    }
 
                     services.queueChatMessage({
                         messageType: "game",

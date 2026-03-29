@@ -3184,6 +3184,7 @@ export class OsrsClient {
                     const extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }> = [];
 
                     if (this.renderer && "loadWorldEntityScene" in this.renderer) {
+                        const weNpcs = (payload as any).extraNpcs;
                         (this.renderer as any).loadWorldEntityScene(
                             payload.entityIndex,
                             payload.templateChunks,
@@ -3195,6 +3196,7 @@ export class OsrsClient {
                             payload.sizeZ,
                             extraLocs,
                             payload.configId,
+                            weNpcs,
                         );
                         // Schedule a single deferred rebuild to pick up LOC_ADD_CHANGE
                         // packets that arrive after the initial scene build

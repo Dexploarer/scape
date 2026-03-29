@@ -1,4 +1,5 @@
 import { DirectionFlag } from "../../../src/shared/Direction";
+import type { SailingWorldView } from "../game/sailing/SailingWorldView";
 import { CollisionOverlayStore } from "../world/CollisionOverlayStore";
 import { MapCollisionService } from "../world/MapCollisionService";
 import { resolveCollisionPlaneAt } from "../world/PlaneResolver";
@@ -16,6 +17,7 @@ export type PathRequest = {
     from: { x: number; y: number; plane: number };
     to: { x: number; y: number };
     size?: number;
+    worldViewId?: number;
 };
 
 const clampPlane = (plane: number): number => Math.max(0, Math.min(Math.trunc(plane), 3));
@@ -26,6 +28,7 @@ export class PathService {
     private map: MapCollisionService;
     private pf: Pathfinder;
     private collisionOverlays?: CollisionOverlayStore;
+    private worldViewCollision: Map<number, SailingWorldView> = new Map();
 
     constructor(map: MapCollisionService, graphSize = 128) {
         this.map = map;
@@ -45,6 +48,14 @@ export class PathService {
      */
     getCollisionOverlays(): CollisionOverlayStore | undefined {
         return this.collisionOverlays;
+    }
+
+    registerWorldViewCollision(worldViewId: number, view: SailingWorldView): void {
+        this.worldViewCollision.set(worldViewId, view);
+    }
+
+    removeWorldViewCollision(worldViewId: number): void {
+        this.worldViewCollision.delete(worldViewId);
     }
 
     /**
@@ -273,8 +284,8 @@ export class PathService {
                 return { ok: true, steps: [] };
             }
 
-            // Fill flags window
-            this.fillFlagsAcrossMaps(fromX, fromY, plane);
+            // Fill flags window (per-WorldView collision if applicable)
+            this.fillFlagsAcrossMaps(fromX, fromY, plane, req.worldViewId);
 
             const collisionStrategy = NORMAL_STRATEGY;
             let rs = routeStrategy ?? new ExactRouteStrategy();
@@ -373,16 +384,29 @@ export class PathService {
         }
     }
 
-    private fillFlagsAcrossMaps(srcTileX: number, srcTileY: number, plane: number): void {
+    private fillFlagsAcrossMaps(srcTileX: number, srcTileY: number, plane: number, worldViewId?: number): void {
         const pf = this.pf;
         const graphBaseX = srcTileX - (pf.graphSize >> 1);
         const graphBaseY = srcTileY - (pf.graphSize >> 1);
+
+        // If player is in a WorldView, use that view's collision
+        const wvCollision = worldViewId !== undefined && worldViewId >= 0
+            ? this.worldViewCollision.get(worldViewId)
+            : undefined;
+
         // Initialize to -1 (treated as blocked)
         for (let i = 0; i < pf.graphSize; i++) pf.flags[i].fill(-1);
         for (let gx = 0; gx < pf.graphSize; gx++) {
             for (let gy = 0; gy < pf.graphSize; gy++) {
                 const wx = graphBaseX + gx;
                 const wy = graphBaseY + gy;
+
+                // Per-WorldView collision takes priority
+                if (wvCollision && wvCollision.containsWorldTile(wx, wy)) {
+                    pf.flags[gx][gy] = wvCollision.getCollisionFlag(plane, wx, wy);
+                    continue;
+                }
+
                 const mapX = this.mapSquareCoord64(wx);
                 const mapY = this.mapSquareCoord64(wy);
                 if (mapX < 0 || mapY < 0) continue;
@@ -395,7 +419,6 @@ export class PathService {
                 const cm = ms.collisionMaps[effectivePlane];
                 if (cm && cm.isWithinBounds(localX, localY)) {
                     let flags = cm.getFlag(localX, localY);
-                    // Apply dynamic collision overlays (e.g., open doors)
                     if (this.collisionOverlays) {
                         flags = this.collisionOverlays.applyOverlay(wx, wy, effectivePlane, flags);
                     }
@@ -440,8 +463,8 @@ export class PathService {
                 return { ok: true, waypoints: [] };
             }
 
-            // Fill flags window
-            this.fillFlagsAcrossMaps(fromX, fromY, plane);
+            // Fill flags window (per-WorldView collision if applicable)
+            this.fillFlagsAcrossMaps(fromX, fromY, plane, req.worldViewId);
 
             // Choose collision strategy.
             // NOTE: Do not auto-switch to BLOCKED_STATEGY based on FLOOR bits.

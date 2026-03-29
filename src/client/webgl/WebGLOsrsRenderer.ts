@@ -137,6 +137,7 @@ import {
     resolveCollisionSamplePlaneForWorldTile,
     resolveGroundItemStackPlane,
     resolveHeightSamplePlaneForLocal,
+    resolveInteractionPlaneForLocal,
     resolveInteractionPlaneForWorldTile,
 } from "../scene/PlaneResolver";
 import { SceneRaycastHit, SceneRaycaster } from "../scene/SceneRaycaster";
@@ -5352,9 +5353,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.worldEntityLoadTokens.set(entityIndex, loadToken);
         }
 
-        const sceneSizeHalf = (13 * 8) / 2; // 52 tiles (half of 104-tile scene)
+        const sceneTilesX = (templateChunks[0]?.length ?? 13) * 8;
+        const sceneTilesY = (templateChunks[0]?.[0]?.length ?? 13) * 8;
+        const sceneSizeHalf = sceneTilesX / 2;
         const entityWorldBaseX = worldX - sceneSizeHalf;
-        const entityWorldBaseY = worldY - sceneSizeHalf;
+        const entityWorldBaseY = worldY - sceneTilesY / 2;
 
         // Use a unique mapX/Y for the overlay that won't collide with real map squares
         const overlayMapX = 200 + entityIndex;
@@ -5372,7 +5375,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         });
 
         // Register with WorldViewManager
-        this.osrsClient.worldViewManager.createWorldView(entityIndex, sizeX * 8, sizeZ * 8, {
+        this.osrsClient.worldViewManager.createWorldView(entityIndex, sceneTilesX, sceneTilesY, {
+            baseX: Math.floor(entityWorldBaseX),
+            baseY: Math.floor(entityWorldBaseY),
             configId,
             templateChunks,
             regionX,
@@ -7836,28 +7841,18 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         tileY: number,
         plane: number,
     ): number | undefined {
-        const mapX = getMapIndexFromTile(tileX);
-        const mapY = getMapIndexFromTile(tileY);
-        const map = this.mapManager.getMap(mapX, mapY) as WebGLMapSquare | undefined;
+        const map = this.getPreferredMapForWorldTile(tileX, tileY);
         if (!map) return undefined;
 
-        const localX = tileX - mapX * Scene.MAP_SQUARE_SIZE;
-        const localY = tileY - mapY * Scene.MAP_SQUARE_SIZE;
-        if (
-            localX < 0 ||
-            localY < 0 ||
-            localX >= Scene.MAP_SQUARE_SIZE ||
-            localY >= Scene.MAP_SQUARE_SIZE
-        ) {
-            return undefined;
-        }
+        const local = this.getMapLocalTile(map, tileX, tileY);
+        if (!local) return undefined;
 
         const size = map.heightMapSize | 0;
         if (size <= 0) return undefined;
         const samplePlane = Math.max(0, Math.min(3, plane | 0));
         const base = samplePlane * size * size;
-        const ix = localX + map.borderSize;
-        const iz = localY + map.borderSize;
+        const ix = local.x + map.borderSize;
+        const iz = local.y + map.borderSize;
         const data = map.heightMapData as Int16Array;
         const texel = data[base + iz * size + ix] ?? 0;
         const worldUnits = (texel * Scene.UNITS_TILE_HEIGHT_BASIS) | 0;
@@ -8360,20 +8355,27 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     // Sample height at an exact plane without any bridge promotion
     private sampleHeightAtExactPlane(worldX: number, worldZ: number, plane: number): number {
-        const mapX = getMapIndexFromTile(worldX);
-        const mapY = getMapIndexFromTile(worldZ);
-        const map = this.mapManager.getMap(mapX, mapY);
+        const map = this.getPreferredMapForWorldTile(Math.floor(worldX), Math.floor(worldZ));
         if (!map || !map.heightMapData) {
             return 0;
         }
 
-        const localPxX = Math.floor((worldX - mapX * 64) * 128);
-        const localPxZ = Math.floor((worldZ - mapY * 64) * 128);
+        const localPxX = Math.floor((worldX - map.getRenderBaseWorldX()) * 128);
+        const localPxZ = Math.floor((worldZ - map.getRenderBaseWorldY()) * 128);
+        const mapTileSpan = map.getLocalTileSpan();
 
         let tileX = localPxX >> 7;
         let tileZ = localPxZ >> 7;
-        tileX = Math.max(0, Math.min(63, tileX));
-        tileZ = Math.max(0, Math.min(63, tileZ));
+        if (
+            tileX < 0 ||
+            tileZ < 0 ||
+            tileX >= mapTileSpan ||
+            tileZ >= mapTileSpan
+        ) {
+            return 0;
+        }
+        tileX = Math.max(0, Math.min(mapTileSpan - 1, tileX));
+        tileZ = Math.max(0, Math.min(mapTileSpan - 1, tileZ));
 
         const offX = localPxX & 0x7f;
         const offZ = localPxZ & 0x7f;
@@ -9422,53 +9424,91 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 return idx !== undefined ? this.osrsClient.playerEcs.getLevel(idx) : 0;
             })();
 
-        return sampleBridgeHeightForWorldTile(
-            this.mapManager,
-            worldX,
-            worldY,
-            resolvedBasePlane,
-            BridgePlaneStrategy.RENDER,
-        ).height;
+        const tileX = Math.floor(worldX);
+        const tileY = Math.floor(worldY);
+        const plane = this.getEffectivePlaneForTile(tileX, tileY, resolvedBasePlane);
+        return this.sampleHeightAtExactPlane(worldX, worldY, plane);
     }
 
     // Compute height sampling at a fixed plane without applying bridge promotion per-sample.
     private getTileHeightAtPlane(worldX: number, worldY: number, plane: number): number {
-        return sampleBridgeHeightForWorldTile(
-            this.mapManager,
-            worldX,
-            worldY,
-            plane,
-            BridgePlaneStrategy.RENDER,
-        ).height;
+        return this.sampleHeightAtExactPlane(worldX, worldY, plane);
+    }
+
+    private getControlledPlayerWorldViewId(): number {
+        const idx = this.osrsClient.playerEcs.getIndexForServerId(
+            this.osrsClient.controlledPlayerServerId,
+        );
+        return idx !== undefined ? this.osrsClient.playerEcs.getWorldViewId(idx) | 0 : -1;
+    }
+
+    private getPreferredMapForWorldTile(tileX: number, tileY: number): WebGLMapSquare | undefined {
+        const preferredWorldViewId = this.getControlledPlayerWorldViewId();
+        if (preferredWorldViewId >= 0) {
+            const preferredView = this.osrsClient.worldViewManager.getWorldView(preferredWorldViewId);
+            if (preferredView?.containsTile(tileX | 0, tileY | 0)) {
+                const overlayMap = this.osrsClient.worldViewManager.getOverlayMapSquare(
+                    preferredWorldViewId,
+                    this.mapManager,
+                );
+                if (overlayMap) {
+                    return overlayMap;
+                }
+            }
+        }
+        return this.mapManager.getMap(
+            getMapIndexFromTile(tileX),
+            getMapIndexFromTile(tileY),
+        ) as WebGLMapSquare | undefined;
+    }
+
+    private getMapLocalTile(
+        map: WebGLMapSquare,
+        tileX: number,
+        tileY: number,
+    ): { x: number; y: number } | undefined {
+        const mapTileSpan = map.getLocalTileSpan();
+        const localX = (tileX | 0) - map.getRenderBaseTileX();
+        const localY = (tileY | 0) - map.getRenderBaseTileY();
+        if (
+            localX < 0 ||
+            localY < 0 ||
+            localX >= mapTileSpan ||
+            localY >= mapTileSpan
+        ) {
+            return undefined;
+        }
+        return { x: localX | 0, y: localY | 0 };
     }
 
     // Derive the effective surface plane for a given world tile based on basePlane and bridge flag.
     private getEffectivePlaneForTile(tileX: number, tileY: number, basePlane: number): number {
-        return resolveInteractionPlaneForWorldTile(this.mapManager, basePlane, tileX, tileY);
+        const map = this.getPreferredMapForWorldTile(tileX, tileY);
+        const local = map ? this.getMapLocalTile(map, tileX, tileY) : undefined;
+        if (!map || !local) {
+            return resolveInteractionPlaneForWorldTile(this.mapManager, basePlane, tileX, tileY);
+        }
+        return resolveInteractionPlaneForLocal(map, basePlane, local.x, local.y);
     }
 
     // Derive occupancy plane matching collision map demotion rules.
     private getOccupancyPlaneForTile(tileX: number, tileY: number, basePlane: number): number {
-        return resolveCollisionSamplePlaneForWorldTile(this.mapManager, basePlane, tileX, tileY);
+        const map = this.getPreferredMapForWorldTile(tileX, tileY);
+        const local = map ? this.getMapLocalTile(map, tileX, tileY) : undefined;
+        if (!map || !local) {
+            return resolveCollisionSamplePlaneForWorldTile(this.mapManager, basePlane, tileX, tileY);
+        }
+        return resolveCollisionSamplePlaneForLocal(map, basePlane, local.x, local.y);
     }
 
     private isBridgeSurfaceTile(tileX: number, tileY: number, plane: number): boolean {
-        const map = this.mapManager.getMap(
-            getMapIndexFromTile(tileX),
-            getMapIndexFromTile(tileY),
-        ) as WebGLMapSquare | undefined;
+        const map = this.getPreferredMapForWorldTile(tileX, tileY);
         if (!map || typeof map.isBridgeSurface !== "function") return false;
-        const localX = tileX - map.mapX * Scene.MAP_SQUARE_SIZE;
-        const localY = tileY - map.mapY * Scene.MAP_SQUARE_SIZE;
-        if (
-            localX < 0 ||
-            localY < 0 ||
-            localX >= Scene.MAP_SQUARE_SIZE ||
-            localY >= Scene.MAP_SQUARE_SIZE
-        ) {
+        const local = this.getMapLocalTile(map, tileX, tileY);
+        if (!local) {
             return false;
         }
-        return map.isBridgeSurface(plane, localX, localY);
+        return map.isBridgeSurface(plane, local.x, local.y);
     }
 
     // PERF: Helper method to convert game coordinates to CSS event (avoids closure per frame)
@@ -9561,30 +9601,25 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     override getCollisionFlagAt(level: number, tileX: number, tileY: number): number {
-        const map = this.mapManager.getMap(
-            getMapIndexFromTile(tileX),
-            getMapIndexFromTile(tileY),
-        ) as any;
+        const map = this.getPreferredMapForWorldTile(tileX, tileY) as any;
         // OSRS parity: missing/unloaded tiles are treated as blocked via the 0x1000000 sentinel bit
         // (see CollisionMap.clear + class142.method3226 terrain decode step).
         if (!map || typeof (map as any).getCollisionFlag !== "function") return 0x1000000;
-        const localX = tileX & 63;
-        const localY = tileY & 63;
-        return (map as any).getCollisionFlag(level | 0, localX, localY) | 0;
+        const local = this.getMapLocalTile(map, tileX, tileY);
+        if (!local) return 0x1000000;
+        return (map as any).getCollisionFlag(level | 0, local.x, local.y) | 0;
     }
 
     // Return loc ids anchored at the origin of the given world tile,
     // resolving effective plane using the same bridge logic as heights.
     private getLocIdsAtTile(tileX: number, tileY: number, basePlane: number): number[] {
         try {
-            const mapX = getMapIndexFromTile(tileX);
-            const mapY = getMapIndexFromTile(tileY);
-            const map = this.mapManager.getMap(mapX, mapY) as any;
+            const map = this.getPreferredMapForWorldTile(tileX, tileY) as any;
             if (!map || typeof (map as any).getLocIdsAtLocal !== "function") return [];
-            const localX = tileX & 63;
-            const localY = tileY & 63;
+            const local = this.getMapLocalTile(map, tileX, tileY);
+            if (!local) return [];
             const effPlane = this.getEffectivePlaneForTile(tileX, tileY, basePlane) | 0;
-            return (map as any).getLocIdsAtLocal(effPlane, localX, localY) as number[];
+            return (map as any).getLocIdsAtLocal(effPlane, local.x, local.y) as number[];
         } catch {
             return [];
         }
@@ -9595,18 +9630,16 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         tileY: number,
     ): { id: number; level: number; typeRot?: number }[] {
         try {
-            const mapX = getMapIndexFromTile(tileX);
-            const mapY = getMapIndexFromTile(tileY);
-            const map = this.mapManager.getMap(mapX, mapY) as any;
+            const map = this.getPreferredMapForWorldTile(tileX, tileY) as any;
             if (!map || typeof (map as any).getLocIdsAtLocal !== "function") return [];
-            const localX = tileX & 63;
-            const localY = tileY & 63;
+            const local = this.getMapLocalTile(map, tileX, tileY);
+            if (!local) return [];
             const out: { id: number; level: number; typeRot?: number }[] = [];
             for (let lvl = 0; lvl < 4; lvl++) {
-                const ids = (map as any).getLocIdsAtLocal(lvl, localX, localY) as number[];
+                const ids = (map as any).getLocIdsAtLocal(lvl, local.x, local.y) as number[];
                 const typeRots =
                     typeof (map as any).getLocTypeRotsAtLocal === "function"
-                        ? ((map as any).getLocTypeRotsAtLocal(lvl, localX, localY) as number[])
+                        ? ((map as any).getLocTypeRotsAtLocal(lvl, local.x, local.y) as number[])
                         : undefined;
                 if (!ids) continue;
                 for (let i = 0; i < ids.length; i++) {
@@ -9734,16 +9767,14 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         plane: number,
     ): number | undefined {
         try {
-            const mapX = getMapIndexFromTile(tileX);
-            const mapY = getMapIndexFromTile(tileY);
-            const map = this.mapManager.getMap(mapX, mapY) as any;
+            const map = this.getPreferredMapForWorldTile(tileX, tileY) as any;
             if (!map || typeof map.getLocIdsAtLocal !== "function") return undefined;
             if (typeof map.getLocTypeRotsAtLocal !== "function") return undefined;
-            const localX = tileX & 63;
-            const localY = tileY & 63;
+            const local = this.getMapLocalTile(map, tileX, tileY);
+            if (!local) return undefined;
             const level = Math.max(0, Math.min(Scene.MAX_LEVELS - 1, plane | 0));
-            const ids = map.getLocIdsAtLocal(level, localX, localY) as number[];
-            const typeRots = map.getLocTypeRotsAtLocal(level, localX, localY) as number[];
+            const ids = map.getLocIdsAtLocal(level, local.x, local.y) as number[];
+            const typeRots = map.getLocTypeRotsAtLocal(level, local.x, local.y) as number[];
             for (let i = 0; i < ids.length; i++) {
                 if ((ids[i] | 0) !== (locId | 0)) continue;
                 if (i < typeRots.length) {
@@ -9887,17 +9918,31 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             const py = pe.getY(i) | 0;
             const tileX = (px / 128) | 0;
             const tileY = (py / 128) | 0;
-            const mapX = getMapIndexFromTile(tileX);
-            const mapY = getMapIndexFromTile(tileY);
-            // Only update if the player's current map square is loaded and matches this map
-            if (mapX !== map.mapX || mapY !== map.mapY) continue;
+            const worldViewId = pe.getWorldViewId(i) | 0;
+            let occMapX = map.mapX | 0;
+            let occMapY = map.mapY | 0;
+            if (worldViewId >= 0) {
+                const overlayView = this.osrsClient.worldViewManager.getWorldView(worldViewId);
+                if (!overlayView || (overlayView.overlayMapId | 0) !== (map.id | 0)) continue;
+            } else {
+                const mapX = getMapIndexFromTile(tileX);
+                const mapY = getMapIndexFromTile(tileY);
+                if (mapX !== map.mapX || mapY !== map.mapY) continue;
+                occMapX = mapX | 0;
+                occMapY = mapY | 0;
+            }
 
             // Compute effective plane using bridge flag
-            const localTileX = tileX - map.mapX * 64;
-            const localTileY = tileY - map.mapY * 64;
-            const tx = clamp(localTileX, 0, 63);
-            const ty = clamp(localTileY, 0, 63);
-            const plane = resolveCollisionSamplePlaneForLocal(map, pe.getLevel(i) | 0, tx, ty);
+            const local = this.getMapLocalTile(map, tileX, tileY);
+            if (!local) continue;
+            const localTileX = local.x;
+            const localTileY = local.y;
+            const plane = resolveCollisionSamplePlaneForLocal(
+                map,
+                pe.getLevel(i) | 0,
+                localTileX,
+                localTileY,
+            );
 
             const oldPlane = pe.getOccPlane(i) | 0;
             const oldMapX = pe.getOccMapX?.(i) ?? 255;
@@ -9908,18 +9953,18 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             // First-time init: set occ to current and inc
             if (oldPlane === 255) {
                 map.incPlayerOcc(plane, localTileX, localTileY);
-                pe.setOccTileWithMap?.(i, mapX, mapY, localTileX, localTileY, plane);
+                pe.setOccTileWithMap?.(i, occMapX, occMapY, localTileX, localTileY, plane);
                 continue;
             }
 
             // If map changed, dec on old map (if loaded), inc on new
-            if (oldMapX !== mapX || oldMapY !== mapY) {
+            if (oldMapX !== occMapX || oldMapY !== occMapY) {
                 const oldMap = this.mapManager.getMap(oldMapX as number, oldMapY as number) as
                     | WebGLMapSquare
                     | undefined;
                 if (oldMap) oldMap.decPlayerOcc(oldPlane, oldTileX, oldTileY);
                 map.incPlayerOcc(plane, localTileX, localTileY);
-                pe.setOccTileWithMap?.(i, mapX, mapY, localTileX, localTileY, plane);
+                pe.setOccTileWithMap?.(i, occMapX, occMapY, localTileX, localTileY, plane);
                 continue;
             }
 
@@ -9957,7 +10002,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 map.decPlayerOcc(oldPlane, oldTileX, oldTileY);
                 map.incPlayerOcc(plane, localTileX, localTileY);
             }
-            pe.setOccTileWithMap?.(i, mapX, mapY, localTileX, localTileY, plane);
+            pe.setOccTileWithMap?.(i, occMapX, occMapY, localTileX, localTileY, plane);
         }
     }
 
@@ -10227,6 +10272,28 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     private shouldRenderNpcOwnershipFromMap(map: WebGLMapSquare, ecsId: number): boolean {
         const ecs = this.osrsClient.npcEcs;
         if (!ecs.isActive(ecsId) || !ecs.isLinked(ecsId)) return false;
+
+        const worldViewId = ecs.getWorldViewId(ecsId) | 0;
+        if (worldViewId >= 0) {
+            const worldView = this.osrsClient.worldViewManager.getWorldView(worldViewId);
+            if (!worldView) {
+                return false;
+            }
+            if ((map.id | 0) === (worldView.overlayMapId | 0)) {
+                return true;
+            }
+
+            const overlayMap = this.mapManager.mapSquares.get(
+                worldView.overlayMapId,
+            ) as WebGLMapSquare | undefined;
+            if (overlayMap?.npcEntityIds?.indexOf(ecsId | 0) !== -1) {
+                for (let i = 0; i < this.mapManager.visibleMapCount; i++) {
+                    if (this.mapManager.visibleMaps[i] === overlayMap) {
+                        return false;
+                    }
+                }
+            }
+        }
 
         const ownerMapX = ecs.getMapX(ecsId) | 0;
         const ownerMapY = ecs.getMapY(ecsId) | 0;
@@ -10734,6 +10801,10 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         if (this.unifiedActorData) {
             const ids: number[] = map.npcEntityIds as any;
             const ecs = this.osrsClient.npcEcs;
+            const overlayView = this.osrsClient.worldViewManager.getWorldViewByOverlayMapId(map.id);
+            const renderBaseTileX = map.getRenderBaseTileX();
+            const renderBaseTileY = map.getRenderBaseTileY();
+            const mapTileSpan = map.getLocalTileSpan();
             const npcCount = ids.length | 0;
 
             if (npcCount === 0) {
@@ -10765,13 +10836,21 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     this.actorRenderData[offset + 7] = 0;
                     continue;
                 }
-                // NPC geometry ownership can lag one map refresh behind ECS ownership while an NPC
-                // crosses a 64x64 map-square boundary. Convert from world space back into the
-                // currently drawn map so the existing draw batch remains stable until refresh.
-                const npcX = ecs.getLocalXForMap(id, map.mapX);
-                const npcY = ecs.getLocalYForMap(id, map.mapY);
-                const localTileX = clamp((npcX >> 7) | 0, 0, 63);
-                const localTileY = clamp((npcY >> 7) | 0, 0, 63);
+                const npcWorldViewId = ecs.getWorldViewId(id) | 0;
+                let npcX: number;
+                let npcY: number;
+                if (overlayView && (npcWorldViewId | 0) === (overlayView.id | 0)) {
+                    npcX = (ecs.getWorldX(id) - renderBaseTileX * 128) | 0;
+                    npcY = (ecs.getWorldY(id) - renderBaseTileY * 128) | 0;
+                } else {
+                    // NPC geometry ownership can lag one map refresh behind ECS ownership while an NPC
+                    // crosses a 64x64 map-square boundary. Convert from world space back into the
+                    // currently drawn map so the existing draw batch remains stable until refresh.
+                    npcX = ecs.getLocalXForMap(id, map.mapX);
+                    npcY = ecs.getLocalYForMap(id, map.mapY);
+                }
+                const localTileX = clamp((npcX >> 7) | 0, 0, Math.max(0, mapTileSpan - 1));
+                const localTileY = clamp((npcY >> 7) | 0, 0, Math.max(0, mapTileSpan - 1));
                 const renderPlane = resolveHeightSamplePlaneForLocal(
                     map,
                     ecs.getLevel(id) | 0,
@@ -11112,12 +11191,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     private getMapTileDistanceFromPoint(map: WebGLMapSquare, tileX: number, tileY: number): number {
         // World entity overlays use baseWorldX/Y for distance instead of mapX/Y
-        const bwx = (map as any).baseWorldX;
-        const bwy = (map as any).baseWorldY;
-        const mapMinTileX = bwx != null ? (bwx | 0) : map.mapX * Scene.MAP_SQUARE_SIZE;
-        const mapMinTileY = bwy != null ? (bwy | 0) : map.mapY * Scene.MAP_SQUARE_SIZE;
-        const mapMaxTileX = mapMinTileX + Scene.MAP_SQUARE_SIZE - 1;
-        const mapMaxTileY = mapMinTileY + Scene.MAP_SQUARE_SIZE - 1;
+        const mapMinTileX = map.getRenderBaseTileX();
+        const mapMinTileY = map.getRenderBaseTileY();
+        const mapTileSpan = map.getLocalTileSpan();
+        const mapMaxTileX = mapMinTileX + mapTileSpan - 1;
+        const mapMaxTileY = mapMinTileY + mapTileSpan - 1;
         const dx =
             tileX < mapMinTileX
                 ? mapMinTileX - tileX
@@ -11634,7 +11712,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 const npcDataOffset = dyn.dataOffset + dyn.npcIndex;
 
                 dynDrawCall.uniform("u_npcDataOffset", npcDataOffset);
-                dynDrawCall.uniform("u_mapPos", [dyn.map.mapX, dyn.map.mapY]);
+                dynDrawCall.uniform("u_mapPos", [dyn.map.renderPosX, dyn.map.renderPosY]);
                 dynDrawCall.uniform("u_timeLoaded", dyn.map.timeLoaded);
                 {
                     const dynWvId = this.osrsClient.npcEcs.getWorldViewId(dyn.ecsId);
@@ -12029,7 +12107,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 const npcDataOffset = dyn.dataOffset + dyn.npcIndex;
 
                 dynDrawCall.uniform("u_npcDataOffset", npcDataOffset);
-                dynDrawCall.uniform("u_mapPos", [dyn.map.mapX, dyn.map.mapY]);
+                dynDrawCall.uniform("u_mapPos", [dyn.map.renderPosX, dyn.map.renderPosY]);
                 dynDrawCall.uniform("u_timeLoaded", dyn.map.timeLoaded);
                 {
                     const dynWvId = this.osrsClient.npcEcs.getWorldViewId(dyn.ecsId);

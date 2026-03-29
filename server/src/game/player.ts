@@ -4065,6 +4065,7 @@ export class PlayerManager implements PlayerRepository {
                 from: { x: p.tileX, y: p.tileY, plane: p.level },
                 to: segmentTo,
                 size: 1,
+                worldViewId: p.worldViewId,
             },
             { maxSteps: 128 },
         );

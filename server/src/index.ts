@@ -66,6 +66,7 @@ async function main() {
         tickMs: config.tickMs,
         ticker,
         pathService,
+        mapService,
         npcManager,
         cacheEnv,
         serverName: config.serverName,

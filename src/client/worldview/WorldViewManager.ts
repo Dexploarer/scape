@@ -40,6 +40,16 @@ export class WorldViewManager {
         return this.worldViews.get(id);
     }
 
+    getWorldViewByOverlayMapId(mapId: number): WorldView | undefined {
+        for (const [id, view] of this.worldViews) {
+            if (id === -1) continue;
+            if ((view.overlayMapId | 0) === (mapId | 0)) {
+                return view;
+            }
+        }
+        return undefined;
+    }
+
     getWorldEntity(entityIndex: number): WorldEntity | undefined {
         return this.worldEntities.get(entityIndex);
     }

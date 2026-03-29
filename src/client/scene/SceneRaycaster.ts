@@ -8,12 +8,15 @@ import type { Model } from "../../rs/model/Model";
 import { Scene } from "../../rs/scene/Scene";
 import { MapManager } from "../MapManager";
 import { OsrsClient } from "../OsrsClient";
-import { buildNpcAabb } from "../math/Aabb";
 import { Ray, rayIntersectsBox } from "../math/Raycast";
 import { BridgePlaneStrategy, sampleBridgeHeightForWorldTile } from "../roof/RoofVisibility";
 import { InteractType } from "../webgl/InteractType";
 import { WebGLMapSquare } from "../webgl/WebGLMapSquare";
-import { resolveGroundItemStackPlane, resolveInteractionPlaneForLocal } from "./PlaneResolver";
+import {
+    resolveGroundItemStackPlane,
+    resolveHeightSamplePlaneForLocal,
+    resolveInteractionPlaneForLocal,
+} from "./PlaneResolver";
 
 const PLAYER_INTERACT_BASE = 0x8000;
 const MODEL_WORLD_SCALE = 1.0 / 128.0;
@@ -78,6 +81,119 @@ export class SceneRaycaster {
         this.interactLocModelLoader?.clearCache();
     }
 
+    private getControlledPlayerWorldViewId(): number {
+        try {
+            const pe = this.osrsClient.playerEcs;
+            const sid = this.osrsClient.controlledPlayerServerId | 0;
+            const idx = pe.getIndexForServerId(sid);
+            return idx !== undefined ? pe.getWorldViewId(idx) | 0 : -1;
+        } catch {
+            return -1;
+        }
+    }
+
+    private getPreferredMapForWorldTile(tileX: number, tileY: number): WebGLMapSquare | undefined {
+        const preferredWorldViewId = this.getControlledPlayerWorldViewId();
+        if (preferredWorldViewId >= 0) {
+            const preferredView = this.osrsClient.worldViewManager.getWorldView(preferredWorldViewId);
+            if (preferredView?.containsTile(tileX | 0, tileY | 0)) {
+                const overlayMap = this.osrsClient.worldViewManager.getOverlayMapSquare(
+                    preferredWorldViewId,
+                    this.mapManager,
+                );
+                if (overlayMap) {
+                    return overlayMap;
+                }
+            }
+        }
+        return this.mapManager.getMap(
+            getMapIndexFromTile(tileX),
+            getMapIndexFromTile(tileY),
+        ) as WebGLMapSquare | undefined;
+    }
+
+    private getMapLocalTile(
+        map: WebGLMapSquare,
+        tileX: number,
+        tileY: number,
+    ): { x: number; y: number } | undefined {
+        const mapTileSpan = map.getLocalTileSpan();
+        const localX = (tileX | 0) - map.getRenderBaseTileX();
+        const localY = (tileY | 0) - map.getRenderBaseTileY();
+        if (
+            localX < 0 ||
+            localY < 0 ||
+            localX >= mapTileSpan ||
+            localY >= mapTileSpan
+        ) {
+            return undefined;
+        }
+        return { x: localX | 0, y: localY | 0 };
+    }
+
+    private sampleHeightAt(worldX: number, worldZ: number, basePlane: number): number {
+        const tileX = Math.floor(worldX);
+        const tileY = Math.floor(worldZ);
+        const map = this.getPreferredMapForWorldTile(tileX, tileY);
+        if (!map || !map.heightMapData) {
+            return sampleBridgeHeightForWorldTile(
+                this.mapManager,
+                worldX,
+                worldZ,
+                basePlane,
+                BridgePlaneStrategy.RENDER,
+            ).height;
+        }
+
+        const localPxX = Math.floor((worldX - map.getRenderBaseWorldX()) * 128);
+        const localPxY = Math.floor((worldZ - map.getRenderBaseWorldY()) * 128);
+        const mapTileSpan = map.getLocalTileSpan();
+        let localTileX = localPxX >> 7;
+        let localTileY = localPxY >> 7;
+        if (
+            localTileX < 0 ||
+            localTileY < 0 ||
+            localTileX >= mapTileSpan ||
+            localTileY >= mapTileSpan
+        ) {
+            return sampleBridgeHeightForWorldTile(
+                this.mapManager,
+                worldX,
+                worldZ,
+                basePlane,
+                BridgePlaneStrategy.RENDER,
+            ).height;
+        }
+
+        const offX = localPxX & 0x7f;
+        const offY = localPxY & 0x7f;
+        localTileX = Math.max(0, Math.min(mapTileSpan - 1, localTileX));
+        localTileY = Math.max(0, Math.min(mapTileSpan - 1, localTileY));
+
+        const samplePlane = resolveHeightSamplePlaneForLocal(
+            map,
+            basePlane | 0,
+            localTileX,
+            localTileY,
+        );
+        const size = map.heightMapSize as number;
+        const borderSize = map.borderSize | 0;
+        const base = samplePlane * size * size;
+        const ix = localTileX + borderSize;
+        const iy = localTileY + borderSize;
+        const ix1 = Math.min(ix + 1, size - 1);
+        const iy1 = Math.min(iy + 1, size - 1);
+        const data = map.heightMapData as Int16Array;
+        const h00 = ((data[base + iy * size + ix] || 0) * Scene.UNITS_TILE_HEIGHT_BASIS) | 0;
+        const h10 = ((data[base + iy * size + ix1] || 0) * Scene.UNITS_TILE_HEIGHT_BASIS) | 0;
+        const h01 = ((data[base + iy1 * size + ix] || 0) * Scene.UNITS_TILE_HEIGHT_BASIS) | 0;
+        const h11 = ((data[base + iy1 * size + ix1] || 0) * Scene.UNITS_TILE_HEIGHT_BASIS) | 0;
+        const delta0 = (h00 * (128 - offX) + h10 * offX) >> 7;
+        const delta1 = (h01 * (128 - offX) + h11 * offX) >> 7;
+        const hWorld = (delta0 * (128 - offY) + delta1 * offY) >> 7;
+        return -(hWorld / 128.0);
+    }
+
     raycast(ray: Ray, options?: SceneRaycastOptions): SceneRaycastHit[] {
         const hits: SceneRaycastHit[] = [];
         this.resolvedLocTypeCache.clear();
@@ -128,14 +244,15 @@ export class SceneRaycaster {
             const map = visibleMaps[i] as WebGLMapSquare | undefined;
             if (!map) continue;
 
-            const baseX = map.mapX * Scene.MAP_SQUARE_SIZE;
-            const baseY = map.mapY * Scene.MAP_SQUARE_SIZE;
+            const baseX = map.getRenderBaseWorldX();
+            const baseY = map.getRenderBaseWorldY();
+            const mapTileSpan = map.getLocalTileSpan();
 
             const boxMin: [number, number, number] = [baseX, -1000, baseY];
             const boxMax: [number, number, number] = [
-                baseX + Scene.MAP_SQUARE_SIZE,
+                baseX + mapTileSpan,
                 1000,
-                baseY + Scene.MAP_SQUARE_SIZE,
+                baseY + mapTileSpan,
             ];
             const hitBox = rayIntersectsBox(ray, boxMin, boxMax);
             if (!hitBox) continue;
@@ -205,10 +322,11 @@ export class SceneRaycaster {
         hits: SceneRaycastHit[],
         basePlane?: number,
     ): void {
-        const baseX = map.mapX * Scene.MAP_SQUARE_SIZE;
-        const baseY = map.mapY * Scene.MAP_SQUARE_SIZE;
-        const mapMaxTileX = baseX + Scene.MAP_SQUARE_SIZE - 1;
-        const mapMaxTileY = baseY + Scene.MAP_SQUARE_SIZE - 1;
+        const baseX = map.getRenderBaseTileX();
+        const baseY = map.getRenderBaseTileY();
+        const mapTileSpan = map.getLocalTileSpan();
+        const mapMaxTileX = baseX + mapTileSpan - 1;
+        const mapMaxTileY = baseY + mapTileSpan - 1;
 
         // Calculate 3D entry and exit points along the ray
         const tEffectiveExit = Math.min(tExit, maxDistance);
@@ -272,18 +390,14 @@ export class SceneRaycaster {
         resolvedLocTypes?: Map<number, LocType | null>,
         basePlane?: number,
     ): void {
-        const baseX = map.mapX * Scene.MAP_SQUARE_SIZE;
-        const baseY = map.mapY * Scene.MAP_SQUARE_SIZE;
-        const localX = worldTileX - baseX;
-        const localY = worldTileY - baseY;
-        if (
-            localX < 0 ||
-            localY < 0 ||
-            localX >= Scene.MAP_SQUARE_SIZE ||
-            localY >= Scene.MAP_SQUARE_SIZE
-        ) {
+        const local = this.getMapLocalTile(map, worldTileX, worldTileY);
+        if (!local) {
             return;
         }
+        const baseX = map.getRenderBaseTileX();
+        const baseY = map.getRenderBaseTileY();
+        const localX = local.x;
+        const localY = local.y;
 
         const mapId = map.id;
         const groundItems = this.osrsClient.groundItems;
@@ -310,14 +424,7 @@ export class SceneRaycaster {
             const maxX = worldTileX + 1;
             const maxZ = worldTileY + 1;
 
-            const hSample = sampleBridgeHeightForWorldTile(
-                this.mapManager,
-                worldTileX + 0.5,
-                worldTileY + 0.5,
-                level | 0,
-                BridgePlaneStrategy.RENDER,
-            );
-            const groundY = hSample.height;
+            const groundY = this.sampleHeightAt(worldTileX + 0.5, worldTileY + 0.5, level | 0);
             const minY = groundY - 0.2;
             const maxY = groundY + 0.1;
 
@@ -355,8 +462,8 @@ export class SceneRaycaster {
                     if (
                         anchorLocalX < 0 ||
                         anchorLocalY < 0 ||
-                        anchorLocalX >= Scene.MAP_SQUARE_SIZE ||
-                        anchorLocalY >= Scene.MAP_SQUARE_SIZE
+                        anchorLocalX >= map.getLocalTileSpan() ||
+                        anchorLocalY >= map.getLocalTileSpan()
                     ) {
                         continue;
                     }
@@ -418,14 +525,7 @@ export class SceneRaycaster {
 
                         const centerX = anchorWorldX + sizeX * 0.5;
                         const centerZ = anchorWorldY + sizeY * 0.5;
-                        const hSample = sampleBridgeHeightForWorldTile(
-                            this.mapManager,
-                            centerX,
-                            centerZ,
-                            level | 0,
-                            BridgePlaneStrategy.RENDER,
-                        );
-                        const groundY = hSample.height;
+                        const groundY = this.sampleHeightAt(centerX, centerZ, level | 0);
                         const entityX = (anchorWorldX << 7) + (sizeX << 6);
                         const entityZ = (anchorWorldY << 7) + (sizeY << 6);
 
@@ -466,8 +566,6 @@ export class SceneRaycaster {
         const ids = npcEcs.queryByMap(map.mapX, map.mapY);
         if (!ids || ids.length === 0) return;
 
-        const baseX = map.mapX * Scene.MAP_SQUARE_SIZE;
-        const baseY = map.mapY * Scene.MAP_SQUARE_SIZE;
         const mapId = map.id;
 
         for (const ecsIdRaw of ids) {
@@ -478,10 +576,8 @@ export class SceneRaycaster {
             if (!npcEcs.isActive(ecsId) || !npcEcs.isLinked(ecsId)) continue;
             if ((npcEcs.getMapId(ecsId) | 0) !== mapId) continue;
 
-            const localX = npcEcs.getX(ecsId) | 0;
-            const localY = npcEcs.getY(ecsId) | 0;
-            const worldX = baseX + localX / 128.0;
-            const worldZ = baseY + localY / 128.0;
+            const worldX = (npcEcs.getWorldX(ecsId) | 0) / 128.0;
+            const worldZ = (npcEcs.getWorldY(ecsId) | 0) / 128.0;
             const size = Math.max(1, npcEcs.getSize(ecsId) | 0);
             const interactId = npcEcs.getNpcTypeId(ecsId) | 0;
             if (!(interactId > 0)) continue;
@@ -489,17 +585,29 @@ export class SceneRaycaster {
             if (typeof basePlane === "number" && (npcPlane | 0) !== (basePlane | 0)) {
                 continue;
             }
-            const aabb = buildNpcAabb({
-                worldX,
-                worldZ,
-                level: npcPlane,
-                size,
-                mapManager: this.mapManager,
-                npcTypeId: interactId,
-                npcTypeLoader: this.osrsClient.npcTypeLoader,
-            });
-            const min: [number, number, number] = [aabb.minX, aabb.minY, aabb.minZ];
-            const max: [number, number, number] = [aabb.maxX, aabb.maxY, aabb.maxZ];
+            let resizeX = 1.0;
+            let resizeY = 1.0;
+            let resizeZ = 1.0;
+            try {
+                const npcType = this.osrsClient.npcTypeLoader?.load?.(interactId | 0);
+                if (npcType) {
+                    if (typeof npcType.widthScale === "number") {
+                        resizeX = Math.max(0.25, npcType.widthScale / 128);
+                    }
+                    if (typeof npcType.widthScale === "number") {
+                        resizeY = Math.max(0.25, npcType.widthScale / 128);
+                    }
+                    if (typeof npcType.heightScale === "number") {
+                        resizeZ = Math.max(0.25, npcType.heightScale / 128);
+                    }
+                }
+            } catch {}
+            const horizScale = Math.max(resizeX, resizeY);
+            const half = Math.max(0.32, size * 0.42 * horizScale);
+            const groundY = this.sampleHeightAt(worldX, worldZ, npcPlane | 0);
+            const height = Math.max(1.55, size * 1.1 * resizeZ);
+            const min: [number, number, number] = [worldX - half, groundY - height, worldZ - half];
+            const max: [number, number, number] = [worldX + half, groundY - 0.05, worldZ + half];
 
             const boxHit = rayIntersectsBox(ray, min, max);
             if (!boxHit) continue;
@@ -538,13 +646,18 @@ export class SceneRaycaster {
             if (typeof basePlane === "number" && (playerPlane | 0) !== (basePlane | 0)) {
                 continue;
             }
-            const px = pe.getX(i) | 0;
-            const py = pe.getY(i) | 0;
-            const tileX = (px >> 7) | 0;
-            const tileY = (py >> 7) | 0;
-            const mapX = getMapIndexFromTile(tileX);
-            const mapY = getMapIndexFromTile(tileY);
-            const mapId = getMapSquareId(mapX, mapY);
+            const worldViewId = pe.getWorldViewId(i) | 0;
+            const mapId =
+                worldViewId >= 0
+                    ? (this.osrsClient.worldViewManager.getWorldView(worldViewId)?.overlayMapId ??
+                          getMapSquareId(
+                              getMapIndexFromTile((pe.getX(i) | 0) >> 7),
+                              getMapIndexFromTile((pe.getY(i) | 0) >> 7),
+                          )) | 0
+                    : getMapSquareId(
+                          getMapIndexFromTile((pe.getX(i) | 0) >> 7),
+                          getMapIndexFromTile((pe.getY(i) | 0) >> 7),
+                      );
             let list = byMap.get(mapId);
             if (!list) {
                 list = [];
@@ -574,14 +687,7 @@ export class SceneRaycaster {
                 if (typeof basePlane === "number" && (playerPlane | 0) !== (basePlane | 0)) {
                     continue;
                 }
-                const hSample = sampleBridgeHeightForWorldTile(
-                    this.mapManager,
-                    worldX,
-                    worldZ,
-                    playerPlane,
-                    BridgePlaneStrategy.RENDER,
-                );
-                const groundY = hSample.height;
+                const groundY = this.sampleHeightAt(worldX, worldZ, playerPlane | 0);
                 const topY = groundY - 2.5;
                 const minY = Math.min(groundY, topY);
                 const maxY = Math.max(groundY, topY);

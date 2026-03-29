@@ -10373,6 +10373,20 @@ export class OsrsClient {
         }
     }
 
+    private getNpcInstanceRenderMapId(
+        instance: Pick<NpcInstance, "worldViewId" | "x" | "y">,
+    ): number {
+        const worldViewId = instance.worldViewId;
+        if (typeof worldViewId === "number" && worldViewId >= 0) {
+            const overlayMapX = 200 + (worldViewId | 0);
+            const overlayMapY = 200 + (worldViewId | 0);
+            return getMapSquareId(overlayMapX, overlayMapY);
+        }
+        const mapX = getMapIndexFromTile(instance.x | 0);
+        const mapY = getMapIndexFromTile(instance.y | 0);
+        return getMapSquareId(mapX, mapY);
+    }
+
     private spawnNpcBinary(
         spawn: import("./sync/NpcUpdateDecoder").NpcSpawn,
         loopCycle: number,
@@ -10457,6 +10471,7 @@ export class OsrsClient {
                 worldTileX,
                 worldTileY,
                 spawn.level | 0,
+                (spawn as any).worldViewId,
             );
             return;
         }
@@ -10525,6 +10540,7 @@ export class OsrsClient {
             worldTileX,
             worldTileY,
             spawn.level | 0,
+            (spawn as any).worldViewId,
         );
     }
 
@@ -10583,6 +10599,7 @@ export class OsrsClient {
                             st.tileX | 0,
                             st.tileY | 0,
                             st.plane | 0,
+                            this.npcEcs.getWorldViewId(ecsId) | 0,
                         );
                     }
                 }
@@ -10691,35 +10708,41 @@ export class OsrsClient {
         worldTileX: number,
         worldTileY: number,
         level: number,
+        worldViewId?: number,
     ): void {
         const sid = serverId | 0;
         const key = `sid:${sid}`;
-        const mapX = getMapIndexFromTile(worldTileX | 0);
-        const mapY = getMapIndexFromTile(worldTileY | 0);
-        const mapId = getMapSquareId(mapX, mapY);
-
         const prev = this.npcInstanceMap.get(key);
+        const nextWorldViewId =
+            typeof worldViewId === "number"
+                ? worldViewId >= 0
+                    ? worldViewId | 0
+                    : undefined
+                : prev?.worldViewId;
+        const nextInstance: NpcInstance = {
+            serverId: sid,
+            typeId: typeId | 0,
+            x: worldTileX | 0,
+            y: worldTileY | 0,
+            level: level | 0,
+            ...(nextWorldViewId !== undefined ? { worldViewId: nextWorldViewId } : {}),
+        };
+        const mapId = this.getNpcInstanceRenderMapId(nextInstance);
+
         if (prev) {
-            const prevMapX = getMapIndexFromTile(prev.x | 0);
-            const prevMapY = getMapIndexFromTile(prev.y | 0);
-            const prevMapId = getMapSquareId(prevMapX, prevMapY);
+            const prevMapId = this.getNpcInstanceRenderMapId(prev);
             if (prevMapId !== mapId) {
                 this.npcInstanceMapsPendingReload.add(prevMapId);
                 this.npcInstanceMapsPendingReload.add(mapId);
             }
-            prev.typeId = typeId | 0;
-            prev.x = worldTileX | 0;
-            prev.y = worldTileY | 0;
-            prev.level = level | 0;
+            prev.typeId = nextInstance.typeId;
+            prev.x = nextInstance.x;
+            prev.y = nextInstance.y;
+            prev.level = nextInstance.level;
             prev.serverId = sid;
+            prev.worldViewId = nextInstance.worldViewId;
         } else {
-            this.npcInstanceMap.set(key, {
-                serverId: sid,
-                typeId: typeId | 0,
-                x: worldTileX | 0,
-                y: worldTileY | 0,
-                level: level | 0,
-            });
+            this.npcInstanceMap.set(key, nextInstance);
             this.npcInstanceMapsPendingReload.add(mapId);
         }
         this.scheduleNpcInstanceFlush();
@@ -10741,9 +10764,7 @@ export class OsrsClient {
         }
         this.npcInstanceMap.delete(instanceKey);
         if (existingInstance) {
-            const mapX = getMapIndexFromTile(existingInstance.x | 0);
-            const mapY = getMapIndexFromTile(existingInstance.y | 0);
-            const mapId = getMapSquareId(mapX, mapY);
+            const mapId = this.getNpcInstanceRenderMapId(existingInstance);
             this.npcInstanceMapsPendingReload.add(mapId);
             this.scheduleNpcInstanceFlush();
         }
@@ -10854,7 +10875,8 @@ export class OsrsClient {
             const mapY = mapId & 0xff;
 
             // Skip maps that are not in the current streaming grid.
-            if (!mapManager.isMapInCurrentGrid(mapX, mapY)) {
+            const isWorldEntityOverlay = mapManager.worldEntityMapIds.has(mapId);
+            if (!isWorldEntityOverlay && !mapManager.isMapInCurrentGrid(mapX, mapY)) {
                 remaining.add(mapId);
                 continue;
             }

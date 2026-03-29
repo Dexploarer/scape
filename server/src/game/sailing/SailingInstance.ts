@@ -134,6 +134,10 @@ function buildDockedBoatLocs(): BoatLoc[] {
 
 export const SAILING_DOCKED_BOAT_LOCS = buildDockedBoatLocs();
 
+export const SAILING_DOCKED_PLAYER_X = DOCK_OFFSET_X + 4;
+export const SAILING_DOCKED_PLAYER_Y = DOCK_OFFSET_Y + 4;
+export const SAILING_DOCKED_PLAYER_LEVEL = 0;
+
 export const SAILING_DOCKED_NPC_SPAWNS = [
     { id: 14959, x: DOCK_OFFSET_X + 4, y: DOCK_OFFSET_Y + 3, level: 0 },
     { id: 14964, x: DOCK_OFFSET_X + 4, y: DOCK_OFFSET_Y + 2, level: 0 },

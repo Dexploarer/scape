@@ -10,7 +10,7 @@ import { NpcType } from "../../../rs/config/npctype/NpcType";
 import { ObjModelLoader } from "../../../rs/config/objtype/ObjModelLoader";
 import { SeqTypeLoader } from "../../../rs/config/seqtype/SeqTypeLoader";
 import { VarManager } from "../../../rs/config/vartype/VarManager";
-import { getMapIndexFromTile } from "../../../rs/map/MapFileIndex";
+import { getMapIndexFromTile, getMapSquareId } from "../../../rs/map/MapFileIndex";
 import { Model } from "../../../rs/model/Model";
 import { Scene } from "../../../rs/scene/Scene";
 import { LocLoadType } from "../../../rs/scene/SceneBuilder";
@@ -785,6 +785,8 @@ function buildNpcGeometry(
     textureLoader: TextureLoader,
     textureIdIndexMap: Map<number, number>,
     npcInstances: NpcInstance[],
+    baseTileX: number,
+    baseTileY: number,
 ) {
     const npcSceneBuf = new SceneBuffer(textureLoader, textureIdIndexMap, 20000);
     const npcRenderBundles = createNpcRenderBundles(
@@ -793,7 +795,7 @@ function buildNpcGeometry(
         npcSceneBuf,
         npcInstances,
     );
-    const npcs = createNpcDatas(npcRenderBundles);
+    const npcs = createNpcDatas(npcRenderBundles, baseTileX, baseTileY);
     return { npcSceneBuf, npcs };
 }
 
@@ -1053,8 +1055,15 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
         let npcInstances: NpcInstance[] = [];
         if (loadNpcs) {
             const maxPlane = Math.max(0, maxLevel | 0);
+            const currentMapId = getMapSquareId(mapX, mapY);
             npcInstances = state.npcInstances.filter((instance) => {
                 if ((instance.level | 0) > maxPlane) return false;
+                const worldViewId = instance.worldViewId;
+                if (typeof worldViewId === "number" && worldViewId >= 0) {
+                    const overlayMapX = 200 + (worldViewId | 0);
+                    const overlayMapY = 200 + (worldViewId | 0);
+                    return getMapSquareId(overlayMapX, overlayMapY) === currentMapId;
+                }
                 const npcMapX = getMapIndexFromTile(instance.x);
                 const npcMapY = getMapIndexFromTile(instance.y);
                 return npcMapX === mapX && npcMapY === mapY;
@@ -1076,6 +1085,12 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             textureLoader,
             textureIdIndexMap,
             npcInstances,
+            renderPosX != null
+                ? Math.floor(renderPosX * Scene.MAP_SQUARE_SIZE)
+                : mapX * Scene.MAP_SQUARE_SIZE,
+            renderPosY != null
+                ? Math.floor(renderPosY * Scene.MAP_SQUARE_SIZE)
+                : mapY * Scene.MAP_SQUARE_SIZE,
         );
 
         // Build per-level CSR mappings of loc IDs per interior tile (64x64 region) at tile origin.
@@ -1706,6 +1721,8 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             textureLoader,
             textureIdIndexMap,
             npcInstances,
+            mapX * Scene.MAP_SQUARE_SIZE,
+            mapY * Scene.MAP_SQUARE_SIZE,
         );
 
         const vertices = npcSceneBuf.vertexBuf.byteArray();

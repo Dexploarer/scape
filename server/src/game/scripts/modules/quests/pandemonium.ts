@@ -2,6 +2,9 @@ import { BaseComponentUids } from "../../../../widgets/viewport/ViewportEnumServ
 import {
     buildSailingOverlayTemplates,
     SAILING_DOCKED_NPC_SPAWNS,
+    SAILING_DOCKED_PLAYER_LEVEL,
+    SAILING_DOCKED_PLAYER_X,
+    SAILING_DOCKED_PLAYER_Y,
     SAILING_INTRO_BOAT_LOCS,
     SAILING_INTRO_BUILD_AREAS,
     SAILING_WORLD_ENTITY_CONFIG_ID,
@@ -92,8 +95,6 @@ const SCRIPT_CAMERA_BOUNDS = 603;
 
 const SYNTH_BOARD_BOAT = 10754;
 const SAILING_DOCKED_WORLD_ID = 425;
-const PORT_SARIM_DOCK_BOAT_X = 3054;
-const PORT_SARIM_DOCK_BOAT_Y = 3193;
 
 // Quest states:
 // 0 = not started
@@ -318,7 +319,7 @@ type DialogFn = (id: string, lines: string[], animId: number, onContinue?: () =>
 type PandemoniumDockedSailingServices = Pick<
     ScriptServices,
     | "disposeSailingInstance"
-    | "applySailingDeckCollision"
+    | "buildSailingDockedCollision"
     | "teleportPlayer"
     | "sendWorldEntity"
     | "spawnNpc"
@@ -751,8 +752,13 @@ function sendDockedBoatArrival(
 ): void {
     services.disposeSailingInstance?.(player);
     player.worldViewId = SAILING_WORLD_ENTITY_INDEX;
-    services.teleportPlayer?.(player, PORT_SARIM_DOCK_BOAT_X, PORT_SARIM_DOCK_BOAT_Y, 0);
-    services.applySailingDeckCollision?.();
+    services.teleportPlayer?.(
+        player,
+        SAILING_DOCKED_PLAYER_X,
+        SAILING_DOCKED_PLAYER_Y,
+        SAILING_DOCKED_PLAYER_LEVEL,
+    );
+    services.buildSailingDockedCollision?.();
 
     const templateChunks = buildSailingOverlayTemplates();
     services.sendWorldEntity?.(

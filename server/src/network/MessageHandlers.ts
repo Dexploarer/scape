@@ -193,6 +193,7 @@ export interface MessageHandlerServices {
     spawnNpc?: (config: NpcSpawnConfig) => NpcState | undefined;
     initSailingInstance?: (player: PlayerState) => void;
     disposeSailingInstance?: (player: PlayerState) => void;
+    buildSailingDockedCollision?: () => void;
     requestTeleportAction: (
         player: PlayerState,
         request: TeleportActionRequest,

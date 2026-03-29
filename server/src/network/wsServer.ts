@@ -480,6 +480,7 @@ import {
 import { GameTicker, TickEvent } from "../game/ticker";
 import { TradeManager } from "../game/trade/TradeManager";
 import { PathService } from "../pathfinding/PathService";
+import { MapCollisionService } from "../world/MapCollisionService";
 import { RectAdjacentRouteStrategy } from "../pathfinding/legacy/pathfinder/RouteStrategy";
 import { CollisionFlag } from "../pathfinding/legacy/pathfinder/flag/CollisionFlag";
 import { logger } from "../utils/logger";
@@ -1262,6 +1263,7 @@ export interface WSServerOptions {
     tickMs: number;
     ticker: GameTicker;
     pathService?: PathService;
+    mapService?: MapCollisionService;
     npcManager?: NpcManager;
     cacheEnv?: CacheEnv;
     serverName?: string;
@@ -1691,7 +1693,8 @@ export class WSServer {
                     this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
                 spawnNpc: (config) => this.npcManager!.spawnTransientNpc(config)!,
                 removeNpc: (npcId) => this.npcManager!.removeNpc(npcId),
-                collisionOverlay: collisionOverlays,
+                pathService: opts.pathService,
+                mapCollision: opts.mapService,
             });
         }
         const sendGameMessageFn = (player: PlayerState, text: string): void => {
@@ -1909,8 +1912,7 @@ export class WSServer {
                 removeNpc: (npcId) => this.npcManager?.removeNpc(npcId) ?? false,
                 initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
                 disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
-                applySailingDeckCollision: () => this.sailingInstanceManager?.applyDeckCollision(),
-                clearSailingDeckCollision: () => this.sailingInstanceManager?.clearDeckCollision(),
+                buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
                 openDialog: (player, request) =>
                     this.widgetDialogHandler.openDialog(player, request as any),
                 openDialogOptions: (player, options) =>
@@ -8729,6 +8731,7 @@ export class WSServer {
             spawnNpc: (config: any) => this.npcManager?.spawnTransientNpc(config),
             initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
             disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
+            buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
             applySailingDeckCollision: () => this.sailingInstanceManager?.applyDeckCollision(),
             clearSailingDeckCollision: () => this.sailingInstanceManager?.clearDeckCollision(),
             requestTeleportAction: (player, request) => this.requestTeleportAction(player, request),
@@ -13515,16 +13518,16 @@ export class WSServer {
 
                         // Sailing restore: rebuild whichever sailing scene the persisted player
                         // state says they were aboard before disconnecting.
-                        if (this.sailingInstanceManager?.isInSailingInstanceRegion(p)) {
+                        if (isPlayerOnDockedSailingBoat(p)) {
+                            restoreDockedSailingState(p, this.scriptRuntime.getServices());
+                            logger.info(
+                                `[handshake] Restored docked sailing boat for player ${p.id}`,
+                            );
+                        } else if (this.sailingInstanceManager?.isInSailingInstanceRegion(p)) {
                             this.sailingInstanceManager.initInstance(p);
                             restoreSailingInstanceUi(p, this.scriptRuntime.getServices());
                             logger.info(
                                 `[handshake] Restored sailing instance for player ${p.id}`,
-                            );
-                        } else if (isPlayerOnDockedSailingBoat(p)) {
-                            restoreDockedSailingState(p, this.scriptRuntime.getServices());
-                            logger.info(
-                                `[handshake] Restored docked sailing boat for player ${p.id}`,
                             );
                         }
 

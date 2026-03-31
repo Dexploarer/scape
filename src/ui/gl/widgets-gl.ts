@@ -2659,58 +2659,6 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                         }
                     }
 
-                    // Draw minimap icons (bank, quest, transport icons)
-                    // Icons stay upright (don't rotate with map)
-                    const renderer = osrsClient.renderer;
-                    if (renderer?.getMinimapIcons) {
-                        // PERF: Cache icon textures to avoid string concat + lookup per frame
-                        // null = looked up but not found, undefined = not yet looked up
-                        const iconTexCache: Map<
-                            number,
-                            ReturnType<typeof tc.getByNameToken> | null
-                        > = (canvasAny.__iconTexCache ??= new Map());
-
-                        // Check all visible map squares (3x3 grid around player)
-                        for (let mx = -1; mx <= 1; mx++) {
-                            for (let my = -1; my <= 1; my++) {
-                                const iconMapX = cameraMapX + mx;
-                                const iconMapY = cameraMapY + my;
-                                const icons = renderer.getMinimapIcons(iconMapX, iconMapY);
-                                if (!icons) continue;
-
-                                for (let i = 0; i < icons.length; i++) {
-                                    const icon = icons[i];
-                                    const spriteId = icon.spriteId;
-
-                                    // Get cached texture or load it by sprite ID
-                                    let iconTex = iconTexCache.get(spriteId);
-                                    if (iconTex === undefined) {
-                                        iconTex = tc.getBySpriteId(spriteId);
-                                        iconTexCache.set(spriteId, iconTex ?? null);
-                                    }
-                                    if (!iconTex) continue;
-
-                                    // Calculate world position of icon
-                                    const iconWorldX = iconMapX * 64 + icon.localX;
-                                    const iconWorldY = iconMapY * 64 + icon.localY;
-
-                                    // Calculate relative position (in minimap pixels)
-                                    const relX = (iconWorldX - worldX) * 4;
-                                    const relY = (worldY - iconWorldY) * 4;
-
-                                    // Transform to screen position (applies rotation)
-                                    // then draw as overlay (stays upright)
-                                    const iconScreen = minimapRenderer.relativeToScreen(relX, relY);
-                                    minimapRenderer.drawOverlay(
-                                        iconTex,
-                                        iconScreen.x,
-                                        iconScreen.y,
-                                    );
-                                }
-                            }
-                        }
-                    }
-
                     // Flush all queued dots (batched by texture)
                     minimapRenderer.flushDots();
 
@@ -2774,7 +2722,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     const capturedWorldX = worldX;
                     const capturedWorldY = worldY;
                     const capturedCameraYaw = cameraYaw;
-                    const capturedZoomScale = zoomScale;
+                    const capturedAdjustedZoom = adjustedZoom;
                     const capturedMinimapCenterX = centerX;
                     const capturedMinimapCenterY = centerY;
 
@@ -2804,8 +2752,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                             const relPixelY = -offsetX * sin + offsetY * cos;
 
                             // Convert from pixels to tiles (4 pixels per tile, scaled by zoom)
-                            const relTileX = relPixelX / (4 * capturedZoomScale);
-                            const relTileY = relPixelY / (4 * capturedZoomScale);
+                            const relTileX = relPixelX / (4 * capturedAdjustedZoom);
+                            const relTileY = relPixelY / (4 * capturedAdjustedZoom);
 
                             // Calculate target world tile
                             // Flag uses: relTileY = worldY - destWorldY, so destWorldY = worldY - relTileY

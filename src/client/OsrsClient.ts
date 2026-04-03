@@ -4184,6 +4184,7 @@ export class OsrsClient {
                 "wield",
                 "equip",
                 "bury",
+                "scatter",
                 "light",
                 "read",
                 "open",

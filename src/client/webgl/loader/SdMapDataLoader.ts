@@ -2,6 +2,7 @@ import { ConfigType } from "../../../rs/cache/ConfigType";
 import { IndexType } from "../../../rs/cache/IndexType";
 import { BasTypeLoader } from "../../../rs/config/bastype/BasTypeLoader";
 import { ContourGroundInfo, LocModelLoader } from "../../../rs/config/loctype/LocModelLoader";
+import { LocModelType } from "../../../rs/config/loctype/LocModelType";
 import { LocType } from "../../../rs/config/loctype/LocType";
 import { LocTypeLoader } from "../../../rs/config/loctype/LocTypeLoader";
 import { ArchiveMapElementTypeLoader } from "../../../rs/config/meltype/MapElementTypeLoader";
@@ -822,6 +823,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             minimizeDrawCalls,
             loadedTextureIds,
             locOverrides,
+            locSpawns,
             extraObjSpawns,
             instance: instanceInput,
             extraLocs: extraLocsInput,
@@ -945,6 +947,25 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
         } else {
             state.sceneBuilder.clearLocOverrides();
         }
+
+        // Apply loc spawns (locs not present in base map data, e.g. fires on empty ground)
+        if (locSpawns && locSpawns.size > 0) {
+            state.sceneBuilder.clearLocSpawns();
+            for (const [key, spawnValue] of locSpawns.entries()) {
+                const parts = key.split(",");
+                if (parts.length !== 3) continue;
+                const worldX = parseInt(parts[0]);
+                const worldY = parseInt(parts[1]);
+                const level = parseInt(parts[2]);
+                const sceneX = worldX - baseX;
+                const sceneY = worldY - baseY;
+                state.sceneBuilder.setLocSpawn(sceneX, sceneY, level, spawnValue.id | 0, spawnValue.type as LocModelType, spawnValue.rotation & 0x3);
+            }
+        } else {
+            state.sceneBuilder.clearLocSpawns();
+        }
+
+        const mapSize = Scene.MAP_SQUARE_SIZE + borderSize * 2;
 
         console.time(`build scene ${mapX},${mapY}`);
         let scene: Scene;

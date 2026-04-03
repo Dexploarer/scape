@@ -21,3 +21,13 @@ export const BURIABLE_BONES_XP: ReadonlyMap<number, number> = new Map<number, nu
 ]);
 
 export const BURIABLE_BONE_IDS: readonly number[] = Array.from(BURIABLE_BONES_XP.keys());
+
+export const DEMONIC_ASHES_XP: ReadonlyMap<number, number> = new Map<number, number>([
+    [25766, 10], // Fiendish ashes
+    [25769, 25], // Vile ashes
+    [25772, 65], // Malicious ashes
+    [25775, 85], // Abyssal ashes
+    [25778, 110], // Infernal ashes
+]);
+
+export const DEMONIC_ASHES_IDS: readonly number[] = Array.from(DEMONIC_ASHES_XP.keys());

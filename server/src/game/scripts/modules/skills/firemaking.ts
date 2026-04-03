@@ -4,8 +4,8 @@ import type {
     SkillFiremakingActionData,
 } from "../../../actions/skillActionPayloads";
 import {
+    FIRE_LIGHTING_ANIMATION,
     FIREMAKING_LOG_IDS,
-    FIRE_REMAINS_LOC_ID,
     TINDERBOX_ITEM_IDS,
     computeFireLightingDelayTicks,
     getFiremakingLogDefinition,
@@ -34,6 +34,11 @@ export const firemakingModule: ScriptModule = {
                         }
                         const slot = source.itemId === logDef.logId ? source.slot : target.slot;
                         const delay = computeFireLightingDelayTicks(level);
+
+                        // OSRS parity: animation starts immediately on the click tick, not
+                        // after the lighting delay has elapsed.
+                        services.playPlayerSeq?.(player, FIRE_LIGHTING_ANIMATION);
+
                         const request: SkillActionRequest<"skill.firemaking"> = {
                             kind: "skill.firemaking",
                             data: {
@@ -61,21 +66,5 @@ export const firemakingModule: ScriptModule = {
             }
         }
 
-        const collectAshHandler = (event: {
-            player: any;
-            tile: { x: number; y: number };
-            level: number;
-        }) => {
-            const handled = services.collectAshesFromFire?.(
-                event.player,
-                { x: event.tile.x, y: event.tile.y },
-                event.level,
-            );
-            if (!handled) {
-                services.sendGameMessage(event.player, "There are no usable ashes here.");
-            }
-        };
-        registry.registerLocInteraction(FIRE_REMAINS_LOC_ID, collectAshHandler);
-        registry.registerLocInteraction(FIRE_REMAINS_LOC_ID, collectAshHandler, "search");
     },
 };

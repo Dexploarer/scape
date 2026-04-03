@@ -19,6 +19,8 @@ export type SdMapLoaderInput = {
         string,
         { newId: number; newRotation?: number; moveToX?: number; moveToY?: number }
     >;
+    // Dynamic loc spawns: Map<"x,y,level", {id,type,rotation}> - locs not in base map data
+    locSpawns?: Map<string, { id: number; type: number; rotation: number }>;
     extraObjSpawns?: ObjSpawn[];
 
     /**

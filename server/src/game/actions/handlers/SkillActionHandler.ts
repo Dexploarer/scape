@@ -189,7 +189,7 @@ export interface FiremakingLogDef {
     logId: number;
     level: number;
     xp: number;
-    burnTicks: number;
+    burnTicks: { min: number; max: number };
     fireObjectId: number;
 }
 
@@ -333,7 +333,7 @@ export interface SkillActionServices {
         level: number;
         logItemId: number;
         currentTick: number;
-        burnTicks: number;
+        burnTicks: { min: number; max: number };
         fireObjectId: number;
         previousLocId: number;
         ownerId: number;
@@ -388,9 +388,14 @@ export interface SkillActionServices {
 
     // --- Firemaking Helpers ---
     computeFireLightingDelayTicks(level: number): number;
+    /**
+     * Walk the player one tile west of the fire tile (OSRS parity: player is pushed
+     * off the fire tile after successfully lighting it).
+     */
+    walkPlayerAwayFromFire(player: PlayerState, fireTile: Vec2): void;
 
     // --- Location Changes ---
-    emitLocChange(fromLocId: number, toLocId: number, tile: Vec2, level: number): void;
+    emitLocChange(fromLocId: number, toLocId: number, tile: Vec2, level: number, opts?: { newShape?: number; newRotation?: number }): void;
     enqueueSoundBroadcast(soundId: number, x: number, y: number, level: number): void;
     sendSound(player: PlayerState, soundId: number, opts?: { delay?: number }): void;
 
@@ -499,6 +504,7 @@ const SINEW_ANIMATION_ID = 1249;
 const SINEW_CRAFT_XP = 5;
 const SINEW_DELAY_TICKS = 2;
 const FIRE_LIGHTING_ANIMATION = 733;
+const FIRE_LIT_SYNTH_SOUND = 2596;
 const FURNACE_ANIMATION = 899;
 const DEFAULT_COOKING_BURN_BONUS = 3;
 const ITEM_PICKUP_SOUND = 2739;
@@ -511,8 +517,6 @@ const BOLT_ENCHANT_BOLTS_PER_SET = 10;
 const BOLT_ENCHANT_DELAY_TICKS = 3;
 const BOLT_ENCHANT_ACTION_GROUP = "skill.bolt_enchant";
 const BOLT_ENCHANT_DEFAULT_ANIMATION = 4462;
-// OSRS: 2735 = "woodchop" - plays every swing animation
-const WOODCUTTING_CHOP_SOUND = 2735;
 // OSRS: 2734 = "tree_fall" - plays when tree depletes
 const WOODCUTTING_DEPLETE_SOUND = 2734;
 const WOODCUTTING_INVENTORY_FULL_SOUND = 2277;
@@ -2151,7 +2155,12 @@ export class SkillActionHandler {
         }
 
         this.services.faceGatheringTarget(player, tile);
-        player.queueOneShotSeq(FIRE_LIGHTING_ANIMATION);
+
+        // OSRS parity: animation plays on every attempt (first attempt was started by the script
+        // handler; retries restart it here).
+        if (data.started) {
+            player.queueOneShotSeq(FIRE_LIGHTING_ANIMATION);
+        }
 
         const success = this.services.rollFiremakingSuccess(skill.baseLevel, logDef.level);
         if (!success) {
@@ -2222,6 +2231,12 @@ export class SkillActionHandler {
         });
 
         this.services.emitLocChange(0, fire.fireObjectId, tile, plane);
+
+        // OSRS parity: stop the lighting animation, walk the player west off the fire tile,
+        // and play the fire-crackle synth sound.
+        player.stopAnimation();
+        this.services.walkPlayerAwayFromFire(player, tile);
+        this.services.sendSound(player, FIRE_LIT_SYNTH_SOUND);
 
         return { ok: true, effects };
     }
@@ -2388,9 +2403,6 @@ export class SkillActionHandler {
                 }
                 inventorySnapshot = true;
             }
-
-            // RSMod: Sound plays only when successfully getting a log
-            this.services.sendSound(player, WOODCUTTING_CHOP_SOUND);
 
             const logName = this.services.describeLog(tree.logItemId);
             effects.push(this.services.buildSkillMessageEffect(player, `You get some ${logName}.`));

@@ -2104,6 +2104,7 @@ function processServerMessage(msg: any): void {
                     newTile: payload.newTile ?? payload.tile,
                     oldRotation: payload.oldRotation,
                     newRotation: payload.newRotation,
+                    newShape: payload.newShape,
                 });
             }
         } catch (err) {

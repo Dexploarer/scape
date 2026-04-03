@@ -91,7 +91,7 @@ import {
     isTouchDevice,
     isWebGL2Supported,
 } from "../../util/DeviceUtil";
-import { getUiScale } from "../../ui/UiScale";
+import { computeDesktopCssZoom, getUiScale } from "../../ui/UiScale";
 import { clamp } from "../../util/MathUtil";
 import { ClientState } from "../ClientState";
 import { GameRenderer } from "../GameRenderer";
@@ -374,6 +374,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         string,
         { locId: number; x: number; y: number; level: number; shape: number; rotation: number }
     > = new Map();
+    // Track spawned locs not in base map data: Map<"x,y,level", {id,type,rotation}>
+    private locSpawns: Map<string, { id: number; type: number; rotation: number }> = new Map();
     private pendingLocUpdates: Set<number> = new Set();
     private pendingLocReloadMaps: Map<number, { mapX: number; mapY: number }> = new Map();
     private pendingLocReloadFlushTimer?: ReturnType<typeof setTimeout>;
@@ -430,6 +432,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     // Framebuffers
     needsFramebufferUpdate: boolean = false;
+
+    // Whether overlay scales have been initialized for the current session.
+    private _overlaysScaleInitialized: boolean = false;
+    // Track login-like state to detect login→gameplay transition and re-sync overlay scales.
+    // null = not yet seen; true = was in login/download state; false = was in gameplay.
+    private _lastLoginLikeState: boolean | null = null;
 
     colorTarget?: Renderbuffer;
     depthTarget?: Renderbuffer;
@@ -916,8 +924,15 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         if (!isLoginLikeState) {
             if (!isMobileGameplayRoot) {
                 const desktopUiScale = getUiScale(cssW, cssH);
-                const layoutW = Math.max(1, Math.round(cssW / desktopUiScale));
-                const layoutH = Math.max(1, Math.round(cssH / desktopUiScale));
+                const cssZoom = computeDesktopCssZoom(cssW, cssH, desktopUiScale);
+                // cssZoom > 1 (scale=1 boost): buffer is reduced to 1/cssZoom in getCanvasResolutionScale;
+                //   layout divisor increases by cssZoom so renderScaleX stays at 1.0 (integer, crisp).
+                // cssZoom < 1 (scale≥3 trim): buffer unchanged; layout divisor shrinks so each OSRS
+                //   pixel spans slightly fewer CSS pixels — UI appears slightly smaller, no buffer change.
+                // cssZoom = 1: no adjustment.
+                const effectiveDivisor = desktopUiScale * cssZoom;
+                const layoutW = Math.max(1, Math.round(cssW / effectiveDivisor));
+                const layoutH = Math.max(1, Math.round(cssH / effectiveDivisor));
                 return {
                     layoutW,
                     layoutH,
@@ -967,6 +982,18 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         const dpr = window.devicePixelRatio || 1;
         if (!Number.isFinite(dpr) || dpr <= 1) {
+            // At DPR=1, the scale-1 zoom boost is achieved by rendering the canvas buffer at
+            // 1/cssZoom of the CSS size. The browser's compositor then stretches the buffer to
+            // fill the full CSS box (same quality as CSS zoom, no CSS DOM mutations needed,
+            // no ResizeObserver loop, no layout-coverage gaps).
+            const gameState = this.osrsClient.gameState;
+            const isLoginLikeState =
+                gameState === GameState.DOWNLOADING || this.osrsClient.isOnLoginScreen();
+            if (!isLoginLikeState && !isMobileMode) {
+                const intScale = getUiScale(cssWidth, cssHeight);
+                const cssZoom = computeDesktopCssZoom(cssWidth, cssHeight, intScale);
+                if (cssZoom > 1) return 1 / cssZoom;
+            }
             return 1;
         }
 
@@ -5162,6 +5189,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             loadedTextureIds: this.loadedTextureIds,
             locOverrides: this.locOverrides,
             extraLocs: this.getExtraLocsForMap(mapX, mapY),
+            locSpawns: this.locSpawns,
         };
 
         const mapData = await this.osrsClient.workerPool.queueLoad<
@@ -5984,6 +6012,15 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             const uiMetrics = this.computeUiRenderMetrics(width, height);
             this.osrsClient?.widgetManager?.resize(uiMetrics.layoutW, uiMetrics.layoutH);
 
+            // All in-world overlays render in buffer pixel space, so their scale must match
+            // renderScaleX (uiScale × DPR) so sprites/text appear the correct physical size.
+            const overlayScale = uiMetrics.renderScaleX;
+            if (this.overheadTextOverlay) this.overheadTextOverlay.scale = overlayScale;
+            if (this.hitsplatOverlay) this.hitsplatOverlay.scale = overlayScale;
+            if (this.clickCrossOverlay) this.clickCrossOverlay.scale = overlayScale;
+            if (this.groundItemOverlay) this.groundItemOverlay.scale = overlayScale;
+            (this.canvas as any).__uiRenderScale = overlayScale;
+
             // Trigger framebuffer recreation
             this.needsFramebufferUpdate = true;
 
@@ -5995,9 +6032,45 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     override render(time: number, deltaTime: number, resized: boolean): void {
         profiler.startFrame();
+
+        // One-time initialization of overlay scales. onResize fires before this.app is
+        // initialized (early-return guard at the top of onResize), so overlay scales may not
+        // have been set yet. We set them here on the first render frame where this.app exists.
+        if (!this._overlaysScaleInitialized && this.app) {
+            const bufW = this.canvas.width;
+            const bufH = this.canvas.height;
+            if (bufW > 0 && bufH > 0) {
+                const metrics = this.computeUiRenderMetrics(bufW, bufH);
+                const overlayScale = metrics.renderScaleX;
+                if (this.overheadTextOverlay) this.overheadTextOverlay.scale = overlayScale;
+                if (this.hitsplatOverlay) this.hitsplatOverlay.scale = overlayScale;
+                if (this.clickCrossOverlay) this.clickCrossOverlay.scale = overlayScale;
+                if (this.groundItemOverlay) this.groundItemOverlay.scale = overlayScale;
+                (this.canvas as any).__uiRenderScale = overlayScale;
+                this._overlaysScaleInitialized = true;
+            }
+        }
+
         const onLoginScreen = this.osrsClient.isOnLoginScreen();
         const loggedIn = this.osrsClient.isLoggedIn();
         const loginLikeState = !loggedIn;
+        // When transitioning from login→gameplay, re-sync overlay scales. The first-frame sync
+        // runs during login state (renderScaleX≈1) but gameplay uses a different scale formula.
+        // No onResize fires on this transition so we must re-compute here.
+        if (this._lastLoginLikeState === true && !loginLikeState && this.app) {
+            const bufW = this.canvas.width;
+            const bufH = this.canvas.height;
+            if (bufW > 0 && bufH > 0) {
+                const metrics = this.computeUiRenderMetrics(bufW, bufH);
+                const overlayScale = metrics.renderScaleX;
+                if (this.overheadTextOverlay) this.overheadTextOverlay.scale = overlayScale;
+                if (this.hitsplatOverlay) this.hitsplatOverlay.scale = overlayScale;
+                if (this.clickCrossOverlay) this.clickCrossOverlay.scale = overlayScale;
+                if (this.groundItemOverlay) this.groundItemOverlay.scale = overlayScale;
+                (this.canvas as any).__uiRenderScale = overlayScale;
+            }
+        }
+        this._lastLoginLikeState = loginLikeState;
         const desiredImageRendering = loginLikeState && isMobileMode ? "pixelated" : "";
         if (this.canvas.style.imageRendering !== desiredImageRendering) {
             this.canvas.style.imageRendering = desiredImageRendering;
@@ -12830,7 +12903,10 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         mapY: localY,
                         actionIndex: actionIdx,
                         deprioritized: followerDeprioritized,
-                        onClick: () => {
+                        onClick: (_entry?: any, _evt?: any, ctx?: any) => {
+                            // When called as a side-effect by MenuState.invoke (worldMenuStateDispatch),
+                            // menuAction already handles packet dispatch via sendNpcInteract.
+                            if (ctx?.worldMenuStateDispatch) return;
                             try {
                                 this.osrsClient.interactNpc({
                                     npcServerId: sid | 0,
@@ -12873,7 +12949,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         mapY: localY,
                         actionIndex: actionIdx,
                         deprioritized,
-                        onClick: () => {
+                        onClick: (_entry?: any, _evt?: any, ctx?: any) => {
+                            if (ctx?.worldMenuStateDispatch) return;
                             try {
                                 this.osrsClient.attackNpc({
                                     npcServerId: sid | 0,
@@ -13643,8 +13720,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.hitsplatSeenNpc.clear();
         this.actorServerTilesSeenNpc.clear();
 
-        // Clear loc overrides (door state changes accumulate)
+        // Clear loc overrides and spawns (door state changes accumulate)
         this.locOverrides.clear();
+        this.locSpawns.clear();
         this.mapsToLoad.clear();
         this.pendingStreamMapsByGeneration.clear();
         this.observedGridRevision = -1;
@@ -13789,6 +13867,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             newTile?: { x: number; y: number };
             oldRotation?: number;
             newRotation?: number;
+            newShape?: number;
         },
     ): void {
         try {
@@ -13836,8 +13915,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 typeof opts?.newRotation === "number"
                     ? opts.newRotation & 0x3
                     : undefined;
-            // Store the override
-            const overrideKey = `${oldTile.x},${oldTile.y},${level},${oldId}`;
+
+            const spawnKey = `${oldTile.x | 0},${oldTile.y | 0},${level | 0}`;
+            const existingSpawn = this.locSpawns.get(spawnKey);
+            // Use locSpawns for: locs spawned on empty ground (oldId===0) or ongoing lifecycle of a spawned loc
+            const isSpawnedLoc = (oldId | 0) === 0 || (existingSpawn !== undefined && existingSpawn.id === (oldId | 0));
+
             const clearOverridesAtTile = (tileX: number, tileY: number): void => {
                 const keyPrefix = `${tileX | 0},${tileY | 0},${level},`;
                 for (const key of Array.from(this.locOverrides.keys())) {
@@ -13850,20 +13933,42 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             if (newTile) {
                 clearOverridesAtTile(newTile.x, newTile.y);
             }
-            this.locOverrides.set(overrideKey, {
-                newId: newId | 0,
-                newRotation: overrideRotation,
-                moveToX:
-                    newTile &&
-                    ((newTile.x | 0) !== (oldTile.x | 0) || (newTile.y | 0) !== (oldTile.y | 0))
-                        ? newTile.x | 0
-                        : undefined,
-                moveToY:
-                    newTile &&
-                    ((newTile.x | 0) !== (oldTile.x | 0) || (newTile.y | 0) !== (oldTile.y | 0))
-                        ? newTile.y | 0
-                        : undefined,
-            });
+
+            if (isSpawnedLoc) {
+                // Manage via locSpawns
+                if ((newId | 0) === 0) {
+                    this.locSpawns.delete(spawnKey);
+                } else {
+                    // Use the shape from the server (matches loc_add_change_v2 OSRS packet),
+                    // or inherit from the existing spawn, or default to NORMAL (10).
+                    const spawnType =
+                        typeof opts?.newShape === "number"
+                            ? (opts.newShape as LocModelType)
+                            : existingSpawn?.type ?? LocModelType.NORMAL;
+                    this.locSpawns.set(spawnKey, {
+                        id: newId | 0,
+                        type: spawnType,
+                        rotation: overrideRotation ?? 0,
+                    });
+                }
+            } else {
+                // Regular map loc override
+                const overrideKey = `${oldTile.x},${oldTile.y},${level},${oldId}`;
+                this.locOverrides.set(overrideKey, {
+                    newId: newId | 0,
+                    newRotation: overrideRotation,
+                    moveToX:
+                        newTile &&
+                        ((newTile.x | 0) !== (oldTile.x | 0) || (newTile.y | 0) !== (oldTile.y | 0))
+                            ? newTile.x | 0
+                            : undefined,
+                    moveToY:
+                        newTile &&
+                        ((newTile.x | 0) !== (oldTile.x | 0) || (newTile.y | 0) !== (oldTile.y | 0))
+                            ? newTile.y | 0
+                            : undefined,
+                });
+            }
 
             // Moving locs can cross map-square boundaries (e.g., edge gates).
             // Reload both affected map squares so moved geometry can appear on the new side.

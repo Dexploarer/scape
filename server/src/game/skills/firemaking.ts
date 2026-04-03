@@ -43,9 +43,6 @@ export const FIRE_LIGHTING_ANIMATION = 733;
 export const TINDERBOX_ITEM_IDS: number[] = [590, 2946];
 
 export const ASHES_ITEM_ID = 592;
-export const FIRE_REMAINS_LOC_ID = 5252;
-
-const ASH_PERSISTENCE_TICKS = 200;
 
 export function getFiremakingLogDefinition(itemId: number): FiremakingLogDefinition | undefined {
     return LOGS_BY_ID.get(itemId);
@@ -71,18 +68,8 @@ type FireNode = {
     ownerId?: number;
 };
 
-type AshNode = {
-    key: string;
-    tile: Vec2;
-    level: number;
-    previousLocId: number;
-    ownerId?: number;
-    expiresTick: number;
-};
-
 export class FiremakingTracker {
     private readonly fires = new Map<string, FireNode>();
-    private readonly ashes = new Map<string, AshNode>();
 
     getFireNode(tile: Vec2, level: number): FireNode | undefined {
         return this.fires.get(buildFireTileKey(tile, level));
@@ -132,38 +119,4 @@ export class FiremakingTracker {
         }
     }
 
-    spawnAshFromFire(node: FireNode, currentTick: number, durationTicks?: number): AshNode {
-        const expiresTick = currentTick + Math.max(1, durationTicks ?? ASH_PERSISTENCE_TICKS);
-        const ash: AshNode = {
-            key: node.key,
-            tile: { ...node.tile },
-            level: node.level,
-            previousLocId: node.previousLocId,
-            ownerId: node.ownerId,
-            expiresTick,
-        };
-        this.ashes.set(node.key, ash);
-        return ash;
-    }
-
-    getAshNode(tile: Vec2, level: number): AshNode | undefined {
-        return this.ashes.get(buildFireTileKey(tile, level));
-    }
-
-    removeAshNode(tile: Vec2, level: number): AshNode | undefined {
-        const key = buildFireTileKey(tile, level);
-        const node = this.ashes.get(key);
-        if (node) {
-            this.ashes.delete(key);
-        }
-        return node;
-    }
-
-    processAshes(currentTick: number, cb: (node: AshNode) => void): void {
-        for (const [key, node] of [...this.ashes.entries()]) {
-            if (currentTick < node.expiresTick) continue;
-            this.ashes.delete(key);
-            cb(node);
-        }
-    }
 }

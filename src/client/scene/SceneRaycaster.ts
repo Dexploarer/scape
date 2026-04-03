@@ -1,4 +1,4 @@
-import { vec3 } from "gl-matrix";
+import { mat4, vec3 } from "gl-matrix";
 
 import { LocModelLoader } from "../../rs/config/loctype/LocModelLoader";
 import { LocModelType } from "../../rs/config/loctype/LocModelType";
@@ -69,6 +69,7 @@ export class SceneRaycaster {
     private interactLocModelLoader?: LocModelLoader;
     private resolvedLocTypeCache: Map<number, LocType | null> = new Map();
     private locModelMeshCache: Map<string, LocModelMesh | null> = new Map();
+    worldEntityTransformProvider?: (map: WebGLMapSquare) => Float32Array | undefined;
 
     constructor(
         private readonly mapManager: MapManager<WebGLMapSquare>,
@@ -79,6 +80,39 @@ export class SceneRaycaster {
         this.resolvedLocTypeCache.clear();
         this.locModelMeshCache.clear();
         this.interactLocModelLoader?.clearCache();
+    }
+
+    /**
+     * For world entity maps, compute a ray transformed into the static model space
+     * to account for the ship bobbing/rotation animation. The shader applies the
+     * world entity transform in view space: `weTransform * viewMatrix * worldPos`,
+     * so the equivalent world-space inverse is `viewInv * weTransformInv * view`.
+     */
+    private getWorldEntityAdjustedRay(ray: Ray, map: WebGLMapSquare): Ray | undefined {
+        if (!this.mapManager.worldEntityMapIds.has(map.id)) return undefined;
+        const weTransform = this.worldEntityTransformProvider?.(map);
+        if (!weTransform || weTransform === WebGLMapSquare.IDENTITY_MAT4) return undefined;
+
+        const viewMatrix = this.osrsClient.camera?.viewMatrix;
+        if (!viewMatrix) return undefined;
+
+        const weInv = mat4.invert(mat4.create(), weTransform);
+        if (!weInv) return undefined;
+
+        // T_inv = viewInv * weTransformInv * view
+        const viewInv = mat4.invert(mat4.create(), viewMatrix);
+        if (!viewInv) return undefined;
+        const T_inv = mat4.create();
+        mat4.multiply(T_inv, weInv, viewMatrix);
+        mat4.multiply(T_inv, viewInv, T_inv);
+
+        const newOrigin = vec3.transformMat4(vec3.create(), ray.origin, T_inv);
+        const farPoint = vec3.scaleAndAdd(vec3.create(), ray.origin, ray.direction, 1.0);
+        const newFar = vec3.transformMat4(vec3.create(), farPoint, T_inv);
+        const newDir = vec3.subtract(vec3.create(), newFar, newOrigin);
+        vec3.normalize(newDir, newDir);
+
+        return new Ray(newOrigin, newDir);
     }
 
     private getControlledPlayerWorldViewId(): number {
@@ -245,6 +279,10 @@ export class SceneRaycaster {
             const map = visibleMaps[i] as WebGLMapSquare | undefined;
             if (!map) continue;
 
+            // For world entity maps (ships), transform the ray to account for the
+            // bobbing/rotation animation so loc hit-testing matches the rendered position.
+            const effectiveRay = this.getWorldEntityAdjustedRay(ray, map) ?? ray;
+
             const baseX = map.getRenderBaseWorldX();
             const baseY = map.getRenderBaseWorldY();
             const mapTileSpan = map.getLocalTileSpan();
@@ -255,7 +293,7 @@ export class SceneRaycaster {
                 1000,
                 baseY + mapTileSpan,
             ];
-            const hitBox = rayIntersectsBox(ray, boxMin, boxMax);
+            const hitBox = rayIntersectsBox(effectiveRay, boxMin, boxMax);
             if (!hitBox) continue;
 
             let tEnter = Math.max(hitBox.tMin, 0);
@@ -268,10 +306,10 @@ export class SceneRaycaster {
             // Ground/OBJ hits via tile traversal in this map along the ray segment [tEnter, tExit]
             // Collect ground items and LOCs via efficient DDA tile traversal
             // (only visits tiles the ray actually passes through)
-            this.traverseMapTiles(map, ray, tEnter, tExit, maxDistance, hits, basePlane);
+            this.traverseMapTiles(map, effectiveRay, tEnter, tExit, maxDistance, hits, basePlane);
 
             // NPC hits for this map (3D AABB in world space)
-            this.collectNpcHitsForMap(map, ray, maxDistance, hits, basePlane);
+            this.collectNpcHitsForMap(map, effectiveRay, maxDistance, hits, basePlane);
         }
 
         // Player hits (global, then bucketed per map)
@@ -453,14 +491,16 @@ export class SceneRaycaster {
         // LOC hits: check LOCs anchored at this tile AND adjacent tiles.
         // Use exact loc model geometry (AABB + per-triangle ray test) so thin/tall walls
         // like doors register reliably across their full silhouette.
-        const MAX_LOC_SIZE = 4;
+        // Search range must cover both multi-tile footprints (negative offsets) AND
+        // locs whose models extend beyond their footprint in any direction (e.g. sails).
+        const LOC_SEARCH_RANGE = 6;
         const startPlane = typeof interactionLevel === "number" ? interactionLevel : 0;
         const endPlane =
             typeof interactionLevel === "number" ? interactionLevel + 1 : Scene.MAX_LEVELS;
 
         for (let level = startPlane; level < endPlane; level++) {
-            for (let anchorDx = -(MAX_LOC_SIZE - 1); anchorDx <= 0; anchorDx++) {
-                for (let anchorDy = -(MAX_LOC_SIZE - 1); anchorDy <= 0; anchorDy++) {
+            for (let anchorDx = -LOC_SEARCH_RANGE; anchorDx <= LOC_SEARCH_RANGE; anchorDx++) {
+                for (let anchorDy = -LOC_SEARCH_RANGE; anchorDy <= LOC_SEARCH_RANGE; anchorDy++) {
                     const anchorLocalX = localX + anchorDx;
                     const anchorLocalY = localY + anchorDy;
                     if (
@@ -508,17 +548,6 @@ export class SceneRaycaster {
                             const tmp = sizeX;
                             sizeX = sizeY;
                             sizeY = tmp;
-                        }
-
-                        const locMaxX = anchorWorldX + sizeX;
-                        const locMaxY = anchorWorldY + sizeY;
-                        if (
-                            worldTileX < anchorWorldX ||
-                            worldTileX >= locMaxX ||
-                            worldTileY < anchorWorldY ||
-                            worldTileY >= locMaxY
-                        ) {
-                            continue;
                         }
 
                         if (seenLocs) {

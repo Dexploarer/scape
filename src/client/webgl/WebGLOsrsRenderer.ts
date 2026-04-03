@@ -814,6 +814,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.toCssEvent(gx, gy, this.currentFrameCount);
         // Initialize SceneRaycaster for raycast-all menu behavior
         this.sceneRaycaster = new SceneRaycaster(this.mapManager, osrsClient);
+        this.sceneRaycaster.worldEntityTransformProvider = (map) =>
+            this.getWorldEntityTransformForMap(map);
         const previousOnMapRemoved = this.mapManager.onMapRemoved;
         this.mapManager.onMapRemoved = (mapX: number, mapY: number) => {
             this.minimapIcons.delete(getMapSquareId(mapX | 0, mapY | 0));

@@ -7,9 +7,9 @@ import {
     VARBIT_LEAGUE_RELIC_6,
     VARBIT_LEAGUE_RELIC_7,
     VARBIT_LEAGUE_RELIC_8,
-} from "../../../../src/shared/vars";
-import type { PlayerState } from "../player";
-import { isLeagueVWorld } from "../rules/playerWorldRules";
+} from "../../../../../src/shared/vars";
+import type { PlayerState } from "../../player";
+import { isLeagueVWorld } from "./playerWorldRules";
 
 const LEAGUE_V_ZULRAH_TYPE_IDS = new Set([2042, 2043, 2044]);
 const ITEM_MAGIC_FANG = 12932;

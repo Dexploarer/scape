@@ -11,8 +11,8 @@ import {
     VARP_SIDE_JOURNAL_STATE,
 } from "../../../../../../src/shared/vars";
 import { getViewportTrackerFrontUid } from "../../../../widgets/viewport";
-import { LeagueTaskService } from "../../../leagues/LeagueTaskService";
-import { syncLeagueGeneralVarp } from "../../../leagues/leagueGeneral";
+import { LeagueTaskService } from "../LeagueTaskService";
+import { syncLeagueGeneralVarp } from "../leagueGeneral";
 import { type ScriptModule } from "../../../scripts/types";
 
 // Interface/group IDs

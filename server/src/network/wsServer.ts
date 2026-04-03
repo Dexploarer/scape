@@ -56,7 +56,6 @@ import {
     SIDE_JOURNAL_GROUP_ID,
     SIDE_JOURNAL_TAB_CONTAINER_UID,
     decodeSideJournalTabFromStateVarp,
-    getSideJournalLeaguesContentGroupId,
 } from "../../../src/shared/ui/sideJournal";
 import {
     MUSIC_UNLOCK_VARPS,
@@ -2206,7 +2205,7 @@ export class WSServer {
                     } catch {}
                 },
                 openRemainingTabs: (player) => {
-                    // Open the remaining tab interfaces when the league tutorial completes
+                    // Open the remaining tab interfaces when the gamemode tutorial completes
                     // During tutorial, only Quest tab was shown. Now open all other tabs.
                     const { getRemainingTabInterfaces } = require("../widgets/WidgetManager");
                     const displayMode = player.displayMode ?? 1; // Default to RESIZABLE_NORMAL
@@ -7748,7 +7747,7 @@ export class WSServer {
                 }
             },
 
-            // --- League Tasks ---
+            // --- Gamemode Events ---
             onNpcKill: (playerId, npcId) => {
                 this.gamemode.onNpcKill(playerId, npcId);
             },
@@ -8875,16 +8874,6 @@ export class WSServer {
             getWeaponSpecialCostPercent: (weaponId) => this.getWeaponSpecialCostPercent(weaponId),
             queueCombatState: (player) => this.queueCombatState(player),
             ensureEquipArray: (player) => this.ensureEquipArray(player),
-            completeLeagueTask: (player, taskId) => {
-                const svc = this.gamemode.getGamemodeServices?.() as any;
-                return svc?.completeLeagueTask?.(player, taskId) ?? { changed: false };
-            },
-            getSideJournalLeaguesContentGroupId: (leagueType) =>
-                getSideJournalLeaguesContentGroupId(leagueType),
-            syncLeagueGeneralVarp: (player) => {
-                const svc = this.gamemode.getGamemodeServices?.() as any;
-                return svc?.syncLeagueGeneralVarp?.(player) ?? { changed: false, value: 0 };
-            },
             gamemodeServices: this.gamemode.getGamemodeServices?.() ?? {},
 
             // Chat
@@ -13183,15 +13172,13 @@ export class WSServer {
                                     // We no longer blindly set varps 0-499 to 1, as this overwrites many
                                     // non-quest varps (e.g., varp 83 = PRAYER0, and others affecting prayerbook state).
 
-                                    // LEAGUE TAB: Include league varps/varbits in the open_sub payload so they're
-                                    // applied synchronously BEFORE the interface's CS2 scripts run.
-                                    // The side_journal_additional proc checks ~league_world (reads varp 3717 bit 30)
-                                    // and %league_tutorial_completed (varbit 10037) to show/hide the league tab.
-                                    const leagueSideJournalBootstrap =
+                                    // Include gamemode-specific varps/varbits in the open_sub payload
+                                    // so they're applied synchronously BEFORE the interface's CS2 scripts run.
+                                    const gamemodeSideJournalBootstrap =
                                         this.gamemodeUi?.getSideJournalBootstrapState(p)
                                         ?? { varps: {}, varbits: {} };
-                                    Object.assign(questVarps, leagueSideJournalBootstrap.varps);
-                                    Object.assign(questVarbits, leagueSideJournalBootstrap.varbits);
+                                    Object.assign(questVarps, gamemodeSideJournalBootstrap.varps);
+                                    Object.assign(questVarbits, gamemodeSideJournalBootstrap.varbits);
 
                                     // Quest count varbits - these control the "Completed: X/Y" and "Quest Points: X/Y" display
                                     // Varbit 6347 = QUESTS_COMPLETED_COUNT - number of completed quests

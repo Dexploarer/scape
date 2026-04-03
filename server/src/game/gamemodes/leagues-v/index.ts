@@ -23,15 +23,15 @@ import {
 import type { PlayerState } from "../../player";
 import type { ScriptManifestEntry } from "../../scripts/manifest";
 import type { ScriptModule } from "../../scripts/types";
-import { getLeagueVDropRateMultiplier, getLeagueVReplacementItemId, isLeagueVWorldPlayer } from "../../drops/leagueDrops";
-import { LeagueTaskManager } from "../../leagues/LeagueTaskManager";
-import { LeagueTaskService } from "../../leagues/LeagueTaskService";
-import { syncLeagueGeneralVarp } from "../../leagues/leagueGeneral";
-import { getLeaguePackedVarpsForPlayer } from "../../leagues/leaguePackedVarps";
-import { getLeagueSkillXpMultiplier } from "../../leagues/leagueXp";
-import { getActiveLeagueType, isLeagueVWorld, isLeagueWorld } from "../../rules/playerWorldRules";
+import { getLeagueVDropRateMultiplier, getLeagueVReplacementItemId, isLeagueVWorldPlayer } from "./leagueDrops";
+import { LeagueTaskManager } from "./LeagueTaskManager";
+import { LeagueTaskService } from "./LeagueTaskService";
+import { syncLeagueGeneralVarp } from "./leagueGeneral";
+import { getLeaguePackedVarpsForPlayer } from "./leaguePackedVarps";
+import { getLeagueSkillXpMultiplier } from "./leagueXp";
+import { getActiveLeagueType, isLeagueVWorld, isLeagueWorld } from "./playerWorldRules";
 import { LEAGUE_SUMMARY_GROUP_ID } from "../../../../../src/shared/ui/leagueSummary";
-import { LeagueSummaryTracker } from "../../../network/leagueSummary";
+import { LeagueSummaryTracker } from "./leagueSummary";
 import type {
     GamemodeBridge,
     GamemodeDefinition,

@@ -50,11 +50,11 @@ import {
 } from "../../../../../../src/shared/vars";
 import type { WidgetAction } from "../../../../widgets/WidgetManager";
 import { getMainmodalUid, getViewportTrackerFrontUid } from "../../../../widgets/viewport";
-import { syncLeagueGeneralVarp } from "../../../leagues/leagueGeneral";
+import { syncLeagueGeneralVarp } from "../leagueGeneral";
 import {
     getLeaguePackedVarpsForPlayer,
     syncLeaguePackedVarps,
-} from "../../../leagues/leaguePackedVarps";
+} from "../leaguePackedVarps";
 import { type ScriptModule, type WidgetActionEvent } from "../../../scripts/types";
 
 export type LeagueWsUiPlayer = {

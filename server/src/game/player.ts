@@ -72,7 +72,6 @@ import {
     TimerMap,
 } from "./model/timer";
 import { NpcState } from "./npc";
-import { hasInfiniteRunEnergy as hasInfiniteRunEnergyRule } from "./rules/playerWorldRules";
 import type { ScriptRuntime } from "./scripts/ScriptRuntime";
 import { RING_OF_FORGING_ITEM_ID, RING_OF_FORGING_MAX_CHARGES } from "./skills/smithingBonuses";
 import { normalizePlayerAccountName } from "./state/PlayerSessionKeys";
@@ -1350,7 +1349,7 @@ export class PlayerState extends Actor {
     }
 
     hasInfiniteRunEnergy(): boolean {
-        return hasInfiniteRunEnergyRule(this);
+        return PlayerState.gamemodeRef?.hasInfiniteRunEnergy(this) ?? false;
     }
 
     wantsToRun(): boolean {

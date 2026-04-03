@@ -1,8 +1,4 @@
-Just a heads up everyone, nothing needs to be changed for now and submit your PRs as usual.
-
-But currently as it stands: PR’s are going to go all over the place without any form of system or process to transition features into the XRSPS
-
-I’m proposing to introduce two kinds of components that will be used to expand XRSPS in content as it grows:
+Two kinds of components that will be used to expand XRSPS in content as it grows:
 
 1) Gamemodes: servers will run a gamemode which will be the “heart” of the server. For example a leagues server would have a “league.ts” gamemode in a folder alongside other scripts inside it which is required
 2) Extrascripts: these will work independently of which gamemode is running. A good example is default osrs skill functionality like cooking.ts

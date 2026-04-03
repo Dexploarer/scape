@@ -735,4 +735,5 @@ export interface ScriptServices {
     setWorldEntityPosition?: (playerId: number, entityIndex: number, position: { x: number; y: number; z: number; orientation: number }) => void;
     queueWorldEntityMask?: (playerId: number, entityIndex: number, mask: { animationId?: number; sequenceFrame?: number; actionMask?: number }) => void;
     buildSailingDockedCollision?: () => void;
+    gamemodeServices?: Record<string, unknown>;
 }

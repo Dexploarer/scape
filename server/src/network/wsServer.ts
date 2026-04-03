@@ -45,13 +45,11 @@ import {
     MODIFIER_FLAG_CTRL,
     MODIFIER_FLAG_CTRL_SHIFT,
 } from "../../../src/shared/input/modifierFlags";
-import { LEAGUE_TASK_COMPLETION_VARPS } from "../../../src/shared/leagues/leagueTaskVarps";
 import type { ProjectileLaunch } from "../../../src/shared/projectiles/ProjectileLaunch";
 import { adjustProjectileLaunchesForElapsedCycles } from "../../../src/shared/projectiles/projectileDelivery";
 import { PLAYER_CHEST_OFFSET_UNITS } from "../../../src/shared/projectiles/projectileHeights";
 import { resolveSelectedSpellPayload } from "../../../src/shared/spells/selectedSpellPayload";
 import { ACCOUNT_SUMMARY_GROUP_ID } from "../../../src/shared/ui/accountSummary";
-import { LEAGUE_SUMMARY_GROUP_ID } from "../../../src/shared/ui/leagueSummary";
 import { MUSIC_GROUP_ID } from "../../../src/shared/ui/music";
 import {
     SIDE_JOURNAL_CONTENT_GROUP_BY_TAB,
@@ -61,7 +59,6 @@ import {
     getSideJournalLeaguesContentGroupId,
 } from "../../../src/shared/ui/sideJournal";
 import {
-    MAP_FLAGS_LEAGUE_WORLD,
     MUSIC_UNLOCK_VARPS,
     VARBIT_ACCOUNT_TYPE,
     VARBIT_ARCEUUS_FAVOR,
@@ -72,24 +69,10 @@ import {
     VARBIT_CLIENT_OF_KOUREND,
     VARBIT_DEADMAN_IN_WILDERNESS,
     VARBIT_DEADMAN_PROTECTION_LEFT,
-    VARBIT_FLASHSIDE,
     VARBIT_IBAN_BOOK_READ,
     VARBIT_IN_LMS,
     VARBIT_IN_RAID,
     VARBIT_IN_WILDERNESS,
-    VARBIT_LEAGUE_MAGIC_MASTERY,
-    VARBIT_LEAGUE_MELEE_MASTERY,
-    VARBIT_LEAGUE_RANGED_MASTERY,
-    VARBIT_LEAGUE_RELIC_1,
-    VARBIT_LEAGUE_RELIC_2,
-    VARBIT_LEAGUE_RELIC_3,
-    VARBIT_LEAGUE_RELIC_4,
-    VARBIT_LEAGUE_RELIC_5,
-    VARBIT_LEAGUE_RELIC_6,
-    VARBIT_LEAGUE_RELIC_7,
-    VARBIT_LEAGUE_RELIC_8,
-    VARBIT_LEAGUE_TUTORIAL_COMPLETED,
-    VARBIT_LEAGUE_TYPE,
     VARBIT_MAGE_ARENA_2_PROGRESS,
     VARBIT_MULTICOMBAT_AREA,
     VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE,
@@ -108,11 +91,6 @@ import {
     VARP_FOLLOWER_INDEX,
     VARP_LAST_HOME_TELEPORT,
     VARP_LAST_MINIGAME_TELEPORT,
-    VARP_LEAGUE_5_POINTS,
-    VARP_LEAGUE_GENERAL,
-    VARP_LEAGUE_POINTS_CLAIMED,
-    VARP_LEAGUE_POINTS_COMPLETED,
-    VARP_LEAGUE_POINTS_CURRENCY,
     VARP_LEGENDS_QUEST,
     VARP_LUNAR_DIPLOMACY,
     VARP_MAGE_ARENA,
@@ -286,7 +264,6 @@ import { getCategoryForWeaponInterface } from "../game/combat/WeaponInterfaces";
 import { PlayerDeathService, type PlayerDeathServices } from "../game/death";
 import { DropRollService } from "../game/drops/DropRollService";
 import { NpcDropRegistry } from "../game/drops/NpcDropRegistry";
-import { getLeagueVDropRateMultiplier, isLeagueVWorldPlayer } from "../game/drops/leagueDrops";
 import { getEmoteSeq } from "../game/emotes";
 import {
     consumeEquippedAmmoApply,
@@ -313,11 +290,8 @@ import {
     type OwnedItemLocation,
     findOwnedItemLocation as findOwnedItemLocationInSnapshot,
 } from "../game/items/playerItemOwnership";
-import { LeagueTaskManager } from "../game/leagues/LeagueTaskManager";
-import { LeagueTaskService } from "../game/leagues/LeagueTaskService";
-import { syncLeagueGeneralVarp } from "../game/leagues/leagueGeneral";
-import { getLeaguePackedVarpsForPlayer } from "../game/leagues/leaguePackedVarps";
-import { getLeagueSkillXpMultiplier as getActiveLeagueSkillXpMultiplier } from "../game/leagues/leagueXp";
+import type { GamemodeDefinition, GamemodeUiController } from "../game/gamemodes/GamemodeDefinition";
+import { createGamemode } from "../game/gamemodes/GamemodeRegistry";
 import { LockState } from "../game/model/LockState";
 import {
     handleBoardingTick1,
@@ -344,22 +318,9 @@ import {
     SkillSyncUpdate,
 } from "../game/player";
 import { PrayerSystem } from "../game/prayer/PrayerSystem";
-import { getActiveLeagueType, isLeagueWorld } from "../game/rules/playerWorldRules";
 import { ScriptRegistry } from "../game/scripts/ScriptRegistry";
 import { ScriptRuntime } from "../game/scripts/ScriptRuntime";
 import { bootstrapScripts } from "../game/scripts/bootstrap";
-import {
-    type LeagueWsUiBridge,
-    type LeagueWsUiPlayer,
-    applyLeagueTutorialStepFiveUi as applyLeagueTutorialStepFiveUiWs,
-    applyLeagueTutorialStepNineUi as applyLeagueTutorialStepNineUiWs,
-    getLeagueSideJournalBootstrapState as getLeagueSideJournalBootstrapStateWs,
-    handleLeagueAreasTutorialCloseViaWidgetClose as handleLeagueAreasTutorialCloseViaWidgetCloseWs,
-    normalizeSideJournalLeagueState as normalizeSideJournalLeagueStateWs,
-    queueActivateQuestSideTab as queueActivateQuestSideTabWs,
-    queueLeagueTutorialOverlayUi as queueLeagueTutorialOverlayUiWs,
-    queueSideJournalLeagueOnlyUi as queueSideJournalLeagueOnlyUiWs,
-} from "../game/scripts/modules/leagueWidgets";
 import type {
     ScriptDialogOptionRequest,
     ScriptDialogRequest,
@@ -534,7 +495,6 @@ import {
     type PlayerTickFrameData,
 } from "./encoding";
 import { encodeAppearanceBinary } from "./encoding/AppearanceEncoder";
-import { LeagueSummaryTracker } from "./leagueSummary";
 import {
     LEVELUP_COMBAT_COMPONENT,
     LEVELUP_CONTINUE_COMPONENT,
@@ -604,8 +564,6 @@ const NPC_SIM_RADIUS_TILES = NPC_STREAM_EXIT_RADIUS_TILES + 12;
 const DEBUG_NPC_STREAM =
     (process?.env?.DEBUG_NPC_STREAM ?? "").toString().toLowerCase() === "1" ||
     (process?.env?.DEBUG_NPC_STREAM ?? "").toString().toLowerCase() === "true";
-const ADMIN_CHAT_PLAYER_TYPE = 2; // Jagex moderator crown (gold) for admin chat display.
-const LEAGUE_WORLD_CHAT_PLAYER_TYPE = 6; // r235 PlayerType id with modIcon 22 (<img=22>).
 const ADMIN_CROWN_ICON = 1; // r235 Jagex moderator crown icon id.
 const ADMIN_USERNAMES_ENV = (
     process?.env?.ADMIN_USERNAMES ??
@@ -1275,6 +1233,7 @@ export interface WSServerOptions {
     cacheEnv?: CacheEnv;
     serverName?: string;
     maxPlayers?: number;
+    gamemode?: GamemodeDefinition;
 }
 
 export class WSServer {
@@ -1288,7 +1247,8 @@ export class WSServer {
     private locTypeLoader?: any;
     private enumTypeLoader?: EnumTypeLoader;
     private structTypeLoader?: any;
-    private leagueTaskManager?: LeagueTaskManager;
+    private readonly gamemode: GamemodeDefinition;
+    private gamemodeUi: GamemodeUiController | undefined;
     private cacheEnv?: CacheEnv;
     private huffman?: Huffman;
     private healthBarDefLoader?: ArchiveHealthBarDefinitionLoader;
@@ -1474,7 +1434,6 @@ export class WSServer {
     private groundItemHandler!: GroundItemHandler;
     private playerDeathService!: PlayerDeathService;
     private readonly accountSummary: AccountSummaryTracker;
-    private readonly leagueSummary: LeagueSummaryTracker;
     private readonly reportGameTime: ReportGameTimeTracker;
 
     // Login rate limiting
@@ -1487,12 +1446,8 @@ export class WSServer {
 
     constructor(opts: WSServerOptions) {
         this.options = opts;
+        this.gamemode = opts.gamemode ?? createGamemode("leagues-v");
         this.accountSummary = new AccountSummaryTracker({
-            queueWidgetEvent: (playerId, action) => this.queueWidgetEvent(playerId, action),
-            isWidgetGroupOpenInLedger: (playerId, groupId) =>
-                this.isWidgetGroupOpenInLedger(playerId, groupId),
-        });
-        this.leagueSummary = new LeagueSummaryTracker({
             queueWidgetEvent: (playerId, action) => this.queueWidgetEvent(playerId, action),
             isWidgetGroupOpenInLedger: (playerId, groupId) =>
                 this.isWidgetGroupOpenInLedger(playerId, groupId),
@@ -2272,7 +2227,7 @@ export class WSServer {
             "[scripts] loaded",
             JSON.stringify({ modules: [] }),
         );
-        bootstrapScripts(this.scriptRuntime);
+        bootstrapScripts(this.scriptRuntime, this.gamemode);
         if (opts.pathService) {
             this.players = new PlayerManager(
                 opts.pathService,
@@ -2511,24 +2466,42 @@ export class WSServer {
                 this.loadSpecialAttackCacheData(enumTypeLoader);
             }
 
-            // Initialize league task manager with indexed lookups
-            try {
-                this.leagueTaskManager = LeagueTaskManager.create(
-                    this.npcTypeLoader,
-                    this.objTypeLoader,
-                    {
-                        getPlayer: (playerId) => this.players?.getById(playerId),
-                        queueVarp: (playerId, varpId, value) =>
-                            this.queueVarp(playerId, varpId, value),
-                        queueVarbit: (playerId, varbitId, value) =>
-                            this.queueVarbit(playerId, varbitId, value),
-                        queueNotification: (playerId, notification) =>
-                            this.queueNotification(playerId, notification),
-                    },
-                );
-            } catch (err) {
-                logger.warn("[leagues] failed to initialize task manager", err);
+            // Initialize the active gamemode
+            this.gamemode.initialize({
+                npcTypeLoader: this.npcTypeLoader,
+                objTypeLoader: this.objTypeLoader,
+                bridge: {
+                    getPlayer: (playerId) => this.players?.getById(playerId),
+                    queueVarp: (playerId, varpId, value) =>
+                        this.queueVarp(playerId, varpId, value),
+                    queueVarbit: (playerId, varbitId, value) =>
+                        this.queueVarbit(playerId, varbitId, value),
+                    queueNotification: (playerId, notification) =>
+                        this.queueNotification(playerId, notification),
+                    queueWidgetEvent: (playerId, event) =>
+                        this.queueWidgetEvent(playerId, event),
+                    queueClientScript: (playerId, scriptId, ...args) =>
+                        this.queueClientScript(playerId, scriptId, ...args),
+                    sendGameMessage: (player, text) =>
+                        sendGameMessageFn(player, text),
+                },
+            });
+            logger.info(`Boot: gamemode "${this.gamemode.id}" initialized`);
+
+            if (this.gamemode.createUiController) {
+                this.gamemodeUi = this.gamemode.createUiController({
+                    queueWidgetEvent: (playerId, action) =>
+                        this.queueWidgetEvent(playerId, action),
+                    queueVarp: (playerId, varpId, value) =>
+                        this.queueVarp(playerId, varpId, value),
+                    queueVarbit: (playerId, varbitId, value) =>
+                        this.queueVarbit(playerId, varbitId, value),
+                    isWidgetGroupOpenInLedger: (playerId, groupId) =>
+                        this.isWidgetGroupOpenInLedger(playerId, groupId),
+                });
+                logger.info(`Boot: gamemode UI controller created`);
             }
+
         }
 
         // Derive default player sequences from BAS (player base animations), not an NPC
@@ -4127,7 +4100,7 @@ export class WSServer {
             const nowMs = Date.now();
             this.players.forEach((_, player) => {
                 this.accountSummary.syncPlayer(player, nowMs);
-                this.leagueSummary.syncPlayer(player, nowMs);
+                this.gamemode.onPlayerTick?.(player, nowMs);
                 this.reportGameTime.syncPlayer(player, nowMs);
                 const seqData = player.popPendingSeq() as
                     | { seqId: number; delay: number }
@@ -4165,29 +4138,6 @@ export class WSServer {
         this.tradeManager?.tick(frame.tick);
     }
 
-    private getLeagueWsUiBridge(): LeagueWsUiBridge {
-        return {
-            queueWidgetEvent: (playerId, action) => this.queueWidgetEvent(playerId, action),
-            isWidgetGroupOpenInLedger: (playerId, groupId) =>
-                this.isWidgetGroupOpenInLedger(playerId, groupId),
-            queueVarp: (playerId, varpId, value) => this.queueVarp(playerId, varpId, value),
-            queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
-        };
-    }
-
-    private applyLeagueTutorialStepFiveUi(player: PlayerState): void {
-        applyLeagueTutorialStepFiveUiWs(
-            player as unknown as LeagueWsUiPlayer,
-            this.getLeagueWsUiBridge(),
-        );
-    }
-
-    private applyLeagueTutorialStepNineUi(player: PlayerState): void {
-        applyLeagueTutorialStepNineUiWs(
-            player as unknown as LeagueWsUiPlayer,
-            this.getLeagueWsUiBridge(),
-        );
-    }
 
     /**
      * Process orphaned players - players who disconnected while in combat.
@@ -5036,12 +4986,28 @@ export class WSServer {
         const pid = playerId;
         this.widgetOpenLedgerByPlayer.delete(pid);
         this.accountSummary.clearPlayer(pid);
-        this.leagueSummary.clearPlayer(pid);
+        this.gamemode.onPlayerDisconnect?.(pid);
         this.reportGameTime.clearPlayer(pid);
     }
 
+    private getGamemodeBridge(): GamemodeBridge {
+        return {
+            getPlayer: (playerId) => this.players?.getById(playerId),
+            queueVarp: (playerId, varpId, value) => this.queueVarp(playerId, varpId, value),
+            queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
+            queueNotification: (playerId, notification) => this.queueNotification(playerId, notification),
+            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event),
+            queueClientScript: (playerId, scriptId, ...args) => this.queueClientScript(playerId, scriptId, ...args),
+            sendGameMessage: (player, text) => this.queueChatMessage({
+                messageType: "game",
+                text,
+                targetPlayerIds: [player.id],
+            }),
+        };
+    }
+
     private queueActivateQuestSideTab(playerId: number): void {
-        queueActivateQuestSideTabWs(playerId, this.getLeagueWsUiBridge());
+        this.gamemodeUi?.activateQuestTab(playerId);
     }
 
     private syncPostWidgetOpenState(playerId: number, action: WidgetAction): void {
@@ -5063,21 +5029,16 @@ export class WSServer {
         this.soundManager.syncMusicInterfaceForPlayer(player);
     }
 
-    private normalizeSideJournalLeagueState(
+    private normalizeSideJournalState(
         player: PlayerState,
         incomingStateVarp?: number,
     ): { tab: number; stateVarp: number } {
-        return normalizeSideJournalLeagueStateWs(
-            player as unknown as LeagueWsUiPlayer,
-            incomingStateVarp,
-        );
+        return this.gamemodeUi?.normalizeSideJournalState(player, incomingStateVarp)
+            ?? { tab: 0, stateVarp: incomingStateVarp ?? 0 };
     }
 
-    private queueSideJournalLeagueOnlyUi(player: PlayerState): void {
-        queueSideJournalLeagueOnlyUiWs(
-            player as unknown as LeagueWsUiPlayer,
-            this.getLeagueWsUiBridge(),
-        );
+    private queueSideJournalGamemodeUi(player: PlayerState): void {
+        this.gamemodeUi?.applySideJournalUi(player);
     }
 
     private queueNotification(playerId: number, payload: any): void {
@@ -5114,10 +5075,10 @@ export class WSServer {
                 this.accountSummary.syncPlayer(player, Date.now(), true);
             }
         }
-        if (action.action === "open_sub" && (action.groupId ?? 0) === LEAGUE_SUMMARY_GROUP_ID) {
+        if (action.action === "open_sub") {
             const player = this.players?.getById(event.playerId);
             if (player) {
-                this.leagueSummary.syncPlayer(player, Date.now(), true);
+                this.gamemode.onWidgetOpen?.(player, action.groupId ?? 0);
             }
         }
         if (action.action === "open_sub" && (action.groupId ?? 0) === REPORT_GAME_TIME_GROUP_ID) {
@@ -6629,20 +6590,10 @@ export class WSServer {
         return ADMIN_USERNAMES.has(normalizedName);
     }
 
-    private isLeagueWorldPlayer(player: PlayerState | undefined): boolean {
-        return isLeagueWorld(player);
-    }
 
-    private getLeagueSkillXpMultiplier(player: PlayerState | undefined): number {
-        if (!this.isLeagueWorldPlayer(player)) return 1;
-        const leagueType = getActiveLeagueType(player);
-        const pointsClaimed = player?.getVarpValue(VARP_LEAGUE_POINTS_CLAIMED);
-        return getActiveLeagueSkillXpMultiplier(leagueType, pointsClaimed ?? 0);
-    }
 
-    private getLeagueDropRateMultiplier(player: PlayerState | undefined): number {
-        return getLeagueVDropRateMultiplier(player);
-    }
+
+
 
     private getNpcDropRollService(): DropRollService | undefined {
         if (!this.npcDropRollService && this.npcTypeLoader) {
@@ -6661,8 +6612,7 @@ export class WSServer {
         const recipients: Array<{
             ownerId?: number;
             player?: PlayerState;
-            isLeagueVWorld: boolean;
-            leagueDropRateMultiplier: number;
+            dropRateMultiplier: number;
         }> = [];
         const seen = new Set<number>();
         for (const looter of eligibility?.eligibleLooters ?? []) {
@@ -6672,8 +6622,7 @@ export class WSServer {
             recipients.push({
                 ownerId: playerId,
                 player: looter,
-                isLeagueVWorld: isLeagueVWorldPlayer(looter),
-                leagueDropRateMultiplier: this.getLeagueDropRateMultiplier(looter),
+                dropRateMultiplier: this.gamemode.getDropRateMultiplier(looter),
             });
         }
         if (
@@ -6684,8 +6633,7 @@ export class WSServer {
             recipients.push({
                 ownerId: eligibility.primaryLooter.id,
                 player: eligibility.primaryLooter,
-                isLeagueVWorld: isLeagueVWorldPlayer(eligibility.primaryLooter),
-                leagueDropRateMultiplier: this.getLeagueDropRateMultiplier(
+                dropRateMultiplier: this.gamemode.getDropRateMultiplier(
                     eligibility.primaryLooter,
                 ),
             });
@@ -6694,8 +6642,7 @@ export class WSServer {
             recipients.push({
                 ownerId: undefined,
                 player: undefined,
-                isLeagueVWorld: false,
-                leagueDropRateMultiplier: 1,
+                dropRateMultiplier: 1,
             });
         }
         let npcName = "";
@@ -6709,22 +6656,22 @@ export class WSServer {
             isWilderness: isInWilderness(npc.tileX, npc.tileY),
             recipients,
             worldViewId: npc.worldViewId,
+            transformItemId: (npcTypeId, itemId, recipient) =>
+                this.gamemode.transformDropItemId(npcTypeId, itemId, recipient.player),
         });
     }
 
     private getAppearanceDisplayName(player: PlayerState | undefined): string {
         const baseName = player?.name ?? "";
-        if (!baseName) return "";
-        if (!this.isAdminPlayer(player) || !this.isLeagueWorldPlayer(player)) return baseName;
-        const prefix = `<img=${ADMIN_CROWN_ICON}>`;
-        return baseName.startsWith(prefix) ? baseName : `${prefix}${baseName}`;
+        return this.gamemode.getDisplayName(
+            player as PlayerState,
+            baseName,
+            this.isAdminPlayer(player),
+        );
     }
 
     private getPublicChatPlayerType(player: PlayerState): number {
-        if (this.isLeagueWorldPlayer(player)) {
-            return LEAGUE_WORLD_CHAT_PLAYER_TYPE;
-        }
-        return this.isAdminPlayer(player) ? ADMIN_CHAT_PLAYER_TYPE : 0;
+        return this.gamemode.getChatPlayerType(player, this.isAdminPlayer(player));
     }
 
     private syncAccountTypeVarbit(sock: WebSocket, player: PlayerState): void {
@@ -7720,7 +7667,7 @@ export class WSServer {
             // --- XP Awards ---
             awardCombatXp: (player, damage, hitData, effects) =>
                 this.awardCombatXp(player, damage, hitData, effects),
-            getSkillXpMultiplier: (player) => this.getLeagueSkillXpMultiplier(player),
+            getSkillXpMultiplier: (player) => this.gamemode.getSkillXpMultiplier(player),
 
             // --- Special Attacks ---
             getSpecialAttack: (weaponId) => getSpecialAttack(weaponId),
@@ -7803,7 +7750,7 @@ export class WSServer {
 
             // --- League Tasks ---
             onNpcKill: (playerId, npcId) => {
-                this.leagueTaskManager?.onNpcKill(playerId, npcId);
+                this.gamemode.onNpcKill(playerId, npcId);
             },
         };
         return new CombatActionHandler(services);
@@ -8928,10 +8875,17 @@ export class WSServer {
             getWeaponSpecialCostPercent: (weaponId) => this.getWeaponSpecialCostPercent(weaponId),
             queueCombatState: (player) => this.queueCombatState(player),
             ensureEquipArray: (player) => this.ensureEquipArray(player),
-            completeLeagueTask: (player, taskId) => LeagueTaskService.completeTask(player, taskId),
+            completeLeagueTask: (player, taskId) => {
+                const svc = this.gamemode.getGamemodeServices?.() as any;
+                return svc?.completeLeagueTask?.(player, taskId) ?? { changed: false };
+            },
             getSideJournalLeaguesContentGroupId: (leagueType) =>
                 getSideJournalLeaguesContentGroupId(leagueType),
-            syncLeagueGeneralVarp: (player) => syncLeagueGeneralVarp(player),
+            syncLeagueGeneralVarp: (player) => {
+                const svc = this.gamemode.getGamemodeServices?.() as any;
+                return svc?.syncLeagueGeneralVarp?.(player) ?? { changed: false, value: 0 };
+            },
+            gamemodeServices: this.gamemode.getGamemodeServices?.() ?? {},
 
             // Chat
             queueChatMessage: (msg) => this.queueChatMessage(msg),
@@ -8962,13 +8916,9 @@ export class WSServer {
                 VARP_ATTACK_STYLE,
                 VARP_AUTO_RETALIATE,
                 VARP_MAP_FLAGS_CACHED,
-                VARP_LEAGUE_GENERAL,
             }),
             getVarbitConstants: () => ({
                 VARBIT_SIDE_JOURNAL_TAB,
-                VARBIT_LEAGUE_TYPE,
-                VARBIT_LEAGUE_TUTORIAL_COMPLETED,
-                VARBIT_FLASHSIDE,
             }),
             getSideJournalConstants: () => ({
                 SIDE_JOURNAL_CONTENT_GROUP_BY_TAB: Object.values(
@@ -9610,7 +9560,7 @@ export class WSServer {
         this.playerCombatManager?.cleanupNpc?.(npc);
 
         const killerId = eligibility?.primaryLooter?.id ?? player.id;
-        this.leagueTaskManager?.onNpcKill(killerId, npc.typeId);
+        this.gamemode.onNpcKill(killerId, npc.typeId);
     }
 
     private ensureEquipArray(p: PlayerState): number[] {
@@ -11418,7 +11368,7 @@ export class WSServer {
     private awardSkillXp(player: PlayerState, skillId: SkillId, xp: number): void {
         if (!(xp > 0)) return;
         try {
-            const multiplier = this.getLeagueSkillXpMultiplier(player);
+            const multiplier = this.gamemode.getSkillXpMultiplier(player);
             const skill = player.getSkill(skillId);
             const prev = skill.xp;
             const oldLevel = skill.baseLevel;
@@ -12580,23 +12530,17 @@ export class WSServer {
                                 p.widgets.close(679);
                             } catch {}
 
-                            // While the Leagues tutorial is active, force the player into the tutorial area.
-                            // This server requires the tutorial, so saved locations shouldn't bypass it.
+                            // If the gamemode has post-design logic (e.g. tutorial spawn), apply it.
                             try {
-                                const tutorial =
-                                    p.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
-                                const leagueType = p.getVarbitValue(VARBIT_LEAGUE_TYPE) ?? 0;
-                                const tutorialCompleteStep = leagueType === 3 ? 14 : 12;
-                                // Leagues tutorial is required on this server: keep the player in the tutorial area
-                                // until the tutorial is completed.
-                                if (tutorial < tutorialCompleteStep) {
-                                    p.teleport(3094, 3107, 0);
+                                this.gamemode.onPostDesignComplete?.(p);
+                                if (this.gamemode.isTutorialActive(p)) {
+                                    const spawn = this.gamemode.getSpawnLocation(p);
                                     const name = p.name;
                                     const appearanceSnapshot = p.appearance;
                                     this.queueAppearanceSnapshot(p, {
-                                        x: (3094 << 7) + 64,
-                                        y: (3107 << 7) + 64,
-                                        level: 0,
+                                        x: (spawn.x << 7) + 64,
+                                        y: (spawn.y << 7) + 64,
+                                        level: spawn.level,
                                         rot: p.rot,
                                         orientation: p.getOrientation() & 2047,
                                         running: false,
@@ -12609,18 +12553,9 @@ export class WSServer {
                                 }
                             } catch {}
 
-                            // If the leagues tutorial is active, open the overlay now (it was suppressed during design).
-                            // Note: Quest tab is NOT opened here - it opens when the player clicks "Get Started".
-                            let tutorial = p.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
-                            const leagueType = p.getVarbitValue(VARBIT_LEAGUE_TYPE) ?? 0;
-                            const tutorialCompleteStep = leagueType === 3 ? 14 : 12;
-                            if (tutorial < tutorialCompleteStep) {
-                                queueLeagueTutorialOverlayUiWs(
-                                    p as unknown as LeagueWsUiPlayer,
-                                    this.getLeagueWsUiBridge(),
-                                    tutorial,
-                                    { queueFlashsideVarbitOnStep3: true },
-                                );
+                            // Gamemode post-design UI (e.g. tutorial overlay)
+                            if (this.gamemode.isTutorialActive(p)) {
+                                this.gamemodeUi?.queueTutorialOverlay(p, { queueFlashsideVarbitOnStep3: true });
                             }
                             continue;
                         }
@@ -12765,10 +12700,10 @@ export class WSServer {
 
                     if (!p) {
                         // No orphaned session - create new player
-                        // Leagues-only server: start new players in the leagues tutorial area.
-                        const spawnX = 3094,
-                            spawnY = 3107,
-                            level = 0;
+                        const spawn = this.gamemode.getSpawnLocation(undefined as any);
+                        const spawnX = spawn.x,
+                            spawnY = spawn.y,
+                            level = spawn.level;
                         p = this.players?.add(ws, spawnX, spawnY, level);
                     }
 
@@ -12833,14 +12768,9 @@ export class WSServer {
                             } catch {
                                 if (!Number.isFinite(p.accountStage)) p.accountStage = 1;
                             }
-                            // If the tutorial is already completed, ensure stage reflects it.
+                            // Let the gamemode resolve account stage (e.g. tutorial completion).
                             try {
-                                const tutorial = p.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
-                                const completeStep =
-                                    p.getVarbitValue(VARBIT_LEAGUE_TYPE) === 3 ? 14 : 12;
-                                if (tutorial >= completeStep && p.accountStage < 2) {
-                                    p.accountStage = 2;
-                                }
+                                this.gamemode.resolveAccountStage?.(p);
                             } catch {}
                             // Force run mode on login (default to enabled)
                             p.setRunToggle(true);
@@ -13110,7 +13040,7 @@ export class WSServer {
                         this.sendSavedAutocastTransmitVarbits(ws, p);
                         // Account type (varbit 1777) drives ownership filtering for ground items.
                         this.syncAccountTypeVarbit(ws, p);
-                        const sideJournalState = this.normalizeSideJournalLeagueState(p);
+                        const sideJournalState = this.normalizeSideJournalState(p);
                         // Send side-journal tab state immediately so varp/varbit selection state
                         // is synchronized before side_journal scripts execute.
                         this.withDirectSendBypass("varp", () =>
@@ -13154,169 +13084,29 @@ export class WSServer {
                             );
                         }
 
-                        // Enable League mode
-                        // Set map_flags_cached to indicate this is a league world (bit 30 set).
-                        // Keep player state in sync with what we send so later IF_OPENSUB var snapshots don't overwrite it.
-                        p.setVarpValue(VARP_MAP_FLAGS_CACHED, MAP_FLAGS_LEAGUE_WORLD);
-                        this.withDirectSendBypass("varp", () =>
-                            this.sendWithGuard(
-                                ws,
-                                encodeMessage({
-                                    type: "varp",
-                                    payload: {
-                                        varpId: VARP_MAP_FLAGS_CACHED,
-                                        value: MAP_FLAGS_LEAGUE_WORLD,
-                                    },
-                                }),
-                                "varp",
-                            ),
-                        );
-
-                        // Set league type (varbit 10032) and packed league general state (varp 2606).
-                        // OSRS: league_general is a packed varp containing multiple league varbits (including league_type).
-                        const leagueType = 5;
-                        p.setVarbitValue(VARBIT_LEAGUE_TYPE, leagueType);
-                        const { value: leagueGeneral } = syncLeagueGeneralVarp(p);
-                        this.withDirectSendBypass("varp", () =>
-                            this.sendWithGuard(
-                                ws,
-                                encodeMessage({
-                                    type: "varp",
-                                    payload: { varpId: VARP_LEAGUE_GENERAL, value: leagueGeneral },
-                                }),
-                                "varp",
-                            ),
-                        );
-
-                        // Send league_type varbit to match the packed varp above.
-                        this.withDirectSendBypass("varbit", () =>
-                            this.sendWithGuard(
-                                ws,
-                                encodeMessage({
-                                    type: "varbit",
-                                    payload: { varbitId: VARBIT_LEAGUE_TYPE, value: leagueType },
-                                }),
-                                "varbit",
-                            ),
-                        );
-                        // Leagues tutorial: ensure the Quest (journal) tab flashes during step 3.
-                        // %flashside (varbit 3756) uses (tabIndex + 1); Quest tab index is 2 => flashside=3.
-                        const tutorial = p.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
-                        if (tutorial === 3 && p.getVarbitValue(VARBIT_FLASHSIDE) === 0) {
-                            p.setVarbitValue(VARBIT_FLASHSIDE, 3);
-                            this.withDirectSendBypass("varbit", () =>
-                                this.sendWithGuard(
-                                    ws,
-                                    encodeMessage({
-                                        type: "varbit",
-                                        payload: { varbitId: VARBIT_FLASHSIDE, value: 3 },
-                                    }),
-                                    "varbit",
-                                ),
-                            );
-                        }
-                        // NOTE: Do NOT send a raw varp 2606 = 1 here.
-                        // Varbit 10032 (league_type) is stored in varp 2606 bits 1-5, so setting 2606 to 1 would
-                        // clear the league_type bits and break enum_2670 lookups. We send the packed varp above.
-                        // The IF_OPENSUB payload for side_journal includes the correct varbits
-                        // which will be applied synchronously before CS2 scripts run.
-                        // Send league points varps from saved state (not hardcoded to 0)
-                        this.withDirectSendBypass("varp", () =>
-                            this.sendWithGuard(
-                                ws,
-                                encodeMessage({
-                                    type: "varp",
-                                    payload: {
-                                        varpId: VARP_LEAGUE_POINTS_CLAIMED,
-                                        value: p.getVarpValue(VARP_LEAGUE_POINTS_CLAIMED),
-                                    },
-                                }),
-                                "varp",
-                            ),
-                        );
-                        this.withDirectSendBypass("varp", () =>
-                            this.sendWithGuard(
-                                ws,
-                                encodeMessage({
-                                    type: "varp",
-                                    payload: {
-                                        varpId: VARP_LEAGUE_POINTS_COMPLETED,
-                                        value: p.getVarpValue(VARP_LEAGUE_POINTS_COMPLETED),
-                                    },
-                                }),
-                                "varp",
-                            ),
-                        );
-                        this.withDirectSendBypass("varp", () =>
-                            this.sendWithGuard(
-                                ws,
-                                encodeMessage({
-                                    type: "varp",
-                                    payload: {
-                                        varpId: VARP_LEAGUE_POINTS_CURRENCY,
-                                        value: p.getVarpValue(VARP_LEAGUE_POINTS_CURRENCY),
-                                    },
-                                }),
-                                "varp",
-                            ),
-                        );
-                        // Send packed league varps that back relic/mastery varbits before any
-                        // default interfaces mount. The buff bar opens before the Quest tab, so it
-                        // cannot rely on later side-journal snapshots for these values.
-                        for (const [rawVarpId, rawValue] of Object.entries(
-                            getLeaguePackedVarpsForPlayer(p),
-                        )) {
-                            const varpId = parseInt(rawVarpId, 10);
-                            const value = rawValue;
-                            this.withDirectSendBypass("varp", () =>
-                                this.sendWithGuard(
-                                    ws,
-                                    encodeMessage({
+                        // Gamemode handshake: send gamemode-specific varps/varbits
+                        this.gamemode.onPlayerHandshake(p, {
+                            sendVarp: (varpId, value) =>
+                                this.withDirectSendBypass("varp", () =>
+                                    this.sendWithGuard(ws, encodeMessage({
                                         type: "varp",
                                         payload: { varpId, value },
-                                    }),
-                                    "varp",
+                                    }), "varp"),
                                 ),
-                            );
-                        }
-
-                        // Send varp 2612 which backs varbit 10046 (league_total_tasks_completed)
-                        // This is needed because varbit 10046 may not be in the client cache
-                        const VARP_LEAGUE_TASK_COUNT = 2612;
-                        const taskCountVarpValue = p.getVarpValue(VARP_LEAGUE_TASK_COUNT);
-                        if (taskCountVarpValue !== 0) {
-                            this.withDirectSendBypass("varp", () =>
-                                this.sendWithGuard(
-                                    ws,
-                                    encodeMessage({
-                                        type: "varp",
-                                        payload: {
-                                            varpId: VARP_LEAGUE_TASK_COUNT,
-                                            value: taskCountVarpValue,
-                                        },
-                                    }),
-                                    "varp",
+                            sendVarbit: (varbitId, value) =>
+                                this.withDirectSendBypass("varbit", () =>
+                                    this.sendWithGuard(ws, encodeMessage({
+                                        type: "varbit",
+                                        payload: { varbitId, value },
+                                    }), "varbit"),
                                 ),
-                            );
-                        }
-
-                        // Send league task completion bitfield varps.
-                        // OSRS parity: these are NOT contiguous (see shared/leagues/leagueTaskVarps.ts).
-                        for (const varpId of LEAGUE_TASK_COMPLETION_VARPS) {
-                            const value = p.getVarpValue(varpId);
-                            if (value !== 0) {
-                                this.withDirectSendBypass("varp", () =>
-                                    this.sendWithGuard(
-                                        ws,
-                                        encodeMessage({
-                                            type: "varp",
-                                            payload: { varpId, value },
-                                        }),
-                                        "varp",
-                                    ),
-                                );
-                            }
-                        }
+                            queueVarp: (playerId, varpId, value) =>
+                                this.queueVarp(playerId, varpId, value),
+                            queueVarbit: (playerId, varbitId, value) =>
+                                this.queueVarbit(playerId, varbitId, value),
+                            queueNotification: (playerId, notification) =>
+                                this.queueNotification(playerId, notification),
+                        });
 
                         const clientType = parsed.payload.clientType;
                         const isMobileClient = clientType === 1;
@@ -13370,10 +13160,7 @@ export class WSServer {
                             // - accountStage 1, step >= 1 (in tutorial): Quest tab only
                             // - accountStage 2 (tutorial complete): all tabs
                             const accountStage = p.accountStage;
-                            const tutorialStep = p.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
-                            const leagueType = p.getVarbitValue(VARBIT_LEAGUE_TYPE);
-                            const tutorialDoneAt = leagueType === 3 ? 14 : 12;
-                            const tutorialMode = accountStage >= 1 && tutorialStep < tutorialDoneAt;
+                            const tutorialMode = accountStage >= 1 && this.gamemode.isTutorialActive(p);
                             const charCreationMode = accountStage === 0;
                             // Hide ALL tabs (including Quest) until "Get Started" is clicked
                             const preStartMode = charCreationMode || tutorialStep === 0;
@@ -13401,9 +13188,8 @@ export class WSServer {
                                     // The side_journal_additional proc checks ~league_world (reads varp 3717 bit 30)
                                     // and %league_tutorial_completed (varbit 10037) to show/hide the league tab.
                                     const leagueSideJournalBootstrap =
-                                        getLeagueSideJournalBootstrapStateWs(
-                                            p as unknown as LeagueWsUiPlayer,
-                                        );
+                                        this.gamemodeUi?.getSideJournalBootstrapState(p)
+                                        ?? { varps: {}, varbits: {} };
                                     Object.assign(questVarps, leagueSideJournalBootstrap.varps);
                                     Object.assign(questVarbits, leagueSideJournalBootstrap.varbits);
 
@@ -13456,9 +13242,7 @@ export class WSServer {
 
                                 // Side journal (quest tab) content is mounted onto 629:43.
                                 if (intf.groupId === SIDE_JOURNAL_GROUP_ID) {
-                                    this.queueSideJournalLeagueOnlyUi(p);
-                                    this.applyLeagueTutorialStepFiveUi(p);
-                                    this.applyLeagueTutorialStepNineUi(p);
+                                    this.queueSideJournalGamemodeUi(p);
                                 }
                             }
                             if (tutorialMode && !preStartMode) {
@@ -13469,15 +13253,8 @@ export class WSServer {
                             // OSRS parity: shown when %league_tutorial_completed is below the completion threshold.
                             //
                             // Project behavior: do not show the overlay over PlayerDesign (accountStage=0).
-                            let tutorial = p.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
-                            const tutorialCompleteStep =
-                                p.getVarbitValue(VARBIT_LEAGUE_TYPE) === 3 ? 14 : 12;
-                            if (p.accountStage >= 1 && tutorial < tutorialCompleteStep) {
-                                queueLeagueTutorialOverlayUiWs(
-                                    p as unknown as LeagueWsUiPlayer,
-                                    this.getLeagueWsUiBridge(),
-                                    tutorial,
-                                );
+                            if (p.accountStage >= 1 && this.gamemode.isTutorialActive(p)) {
+                                this.gamemodeUi?.queueTutorialOverlay(p);
                             }
 
                             // ============================================================
@@ -13588,13 +13365,9 @@ export class WSServer {
                         // Leagues tutorial spawn: while the tutorial is not completed, force the player
                         // into the tutorial area regardless of saved location.
                         try {
-                            const accountStage = p.accountStage;
-                            const tutorialStep =
-                                p.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
-                            const leagueType = p.getVarbitValue(VARBIT_LEAGUE_TYPE) ?? 0;
-                            const tutorialDoneAt = leagueType === 3 ? 14 : 12;
-                            if (accountStage >= 1 && tutorialStep < tutorialDoneAt) {
-                                p.teleport(3094, 3107, 0);
+                            if (p.accountStage >= 1 && this.gamemode.isTutorialActive(p)) {
+                                const spawn = this.gamemode.getSpawnLocation(p);
+                                p.teleport(spawn.x, spawn.y, spawn.level);
                             }
                         } catch {}
 
@@ -13737,7 +13510,7 @@ export class WSServer {
                         });
                         p.widgets.open(groupId, { modal });
                         if (groupId === SIDE_JOURNAL_GROUP_ID) {
-                            const sideJournalState = this.normalizeSideJournalLeagueState(p);
+                            const sideJournalState = this.normalizeSideJournalState(p);
                             // Ensure icon/optext/tab var state is corrected before side-journal scripts re-run.
                             this.withDirectSendBypass("varp", () =>
                                 this.sendWithGuard(
@@ -13765,9 +13538,7 @@ export class WSServer {
                                     "varbit",
                                 ),
                             );
-                            this.queueSideJournalLeagueOnlyUi(p);
-                            this.applyLeagueTutorialStepFiveUi(p);
-                            this.applyLeagueTutorialStepNineUi(p);
+                            this.queueSideJournalGamemodeUi(p);
                         }
                         if (groupId === MUSIC_GROUP_ID) {
                             this.soundManager.syncMusicInterfaceForPlayer(p);
@@ -13807,19 +13578,7 @@ export class WSServer {
                             );
                         }
 
-                        if (closedGroupId === SIDE_JOURNAL_GROUP_ID) {
-                            this.applyLeagueTutorialStepFiveUi(p);
-                            this.applyLeagueTutorialStepNineUi(p);
-                        }
-
-                        // Leagues tutorial parity for Areas close (group 512):
-                        // keep behavior in leagueWidgets (single source of truth).
-                        if (closedGroupId === 512) {
-                            handleLeagueAreasTutorialCloseViaWidgetCloseWs(
-                                p as unknown as LeagueWsUiPlayer,
-                                this.getLeagueWsUiBridge(),
-                            );
-                        }
+                        this.gamemodeUi?.handleWidgetClose(p, closedGroupId);
                     }
                 } catch {}
             } else if (parsed.type === "varp_transmit") {
@@ -13841,7 +13600,7 @@ export class WSServer {
                         // OSRS parity: server sends IF_OPENSUB to swap the mounted content interface under 629:43.
                         if (varpId === VARP_SIDE_JOURNAL_STATE) {
                             const { tab: sideJournalTab, stateVarp: normalizedSideJournalVarp } =
-                                this.normalizeSideJournalLeagueState(p, value);
+                                this.normalizeSideJournalState(p, value);
                             if (normalizedSideJournalVarp !== value) {
                                 this.withDirectSendBypass("varp", () =>
                                     this.sendWithGuard(
@@ -13864,52 +13623,13 @@ export class WSServer {
                             if (sideJournalSelectionChanged) {
                                 // Mount the selected content interface into side_journal container (629:43).
                                 // Tabs: 0=Summary, 1=Quests, 2=Diary, 3=Adventure Log, 4=Leagues
-                                this.queueSideJournalLeagueOnlyUi(p);
-                                this.applyLeagueTutorialStepFiveUi(p);
-                                this.applyLeagueTutorialStepNineUi(p);
+                                this.queueSideJournalGamemodeUi(p);
                             }
 
-                            // If the player opened the Leagues tab, complete the league task
-                            // "Open the Leagues Menu" (league_task_id=189) and award its points once.
-                            if (sideJournalTab === 4) {
-                                try {
-                                    const result = LeagueTaskService.completeTask(p, 189);
-                                    if (result.changed) {
-                                        for (const v of result.varpUpdates) {
-                                            this.queueVarp(p.id, v.id, v.value);
-                                        }
-                                        for (const v of result.varbitUpdates) {
-                                            this.queueVarbit(p.id, v.id, v.value);
-                                        }
-                                        if (result.notification) {
-                                            this.queueNotification(p.id, result.notification);
-                                        }
-                                    }
-                                } catch (err) {
-                                    logger.warn(
-                                        "[league_task] open leagues menu award failed",
-                                        err,
-                                    );
-                                }
-                            }
-
-                            // Leagues tutorial progression:
-                            // When the player opens the Leagues tab in the journal, the tutorial advances
-                            // to the "Tasks" step (5).
-                            const tutorial = p.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
-                            if (sideJournalTab === 4 && (tutorial === 3 || tutorial === 4)) {
-                                p.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 5);
-                                this.queueVarbit(p.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 5);
-                                // Keep packed league_general (varp 2606) in sync with tutorial bits.
-                                syncLeagueGeneralVarp(p);
-                                // Clear flashing quest icon now that the Leagues tab is open.
-                                if (p.getVarbitValue(VARBIT_FLASHSIDE) !== 0) {
-                                    p.setVarbitValue(VARBIT_FLASHSIDE, 0);
-                                    this.queueVarbit(p.id, VARBIT_FLASHSIDE, 0);
-                                }
-
-                                this.applyLeagueTutorialStepFiveUi(p);
-                                this.applyLeagueTutorialStepNineUi(p);
+                            // Delegate gamemode-specific varp handling (task completion, tutorial progression)
+                            this.gamemode.onVarpTransmit?.(p, varpId, value, previousVarpValue);
+                            if (sideJournalSelectionChanged) {
+                                this.gamemodeUi?.applySideJournalUi(p);
                             }
                         }
                         if (varpId === VARP_MUSICPLAY) {
@@ -14819,7 +14539,7 @@ export class WSServer {
         // Apply XP to each skill - setSkillXp handles level computation and marking dirty
         let xpChanged = false;
         const oldCombatLevel = player.combatLevel;
-        const multiplier = this.getLeagueSkillXpMultiplier(player);
+        const multiplier = this.gamemode.getSkillXpMultiplier(player);
         for (const award of awards) {
             const skill = player.getSkill(award.skillId);
             const currentXp = skill?.xp ?? 0;

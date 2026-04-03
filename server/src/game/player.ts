@@ -17,20 +17,9 @@ import {
 } from "../../../src/rs/skill/skills";
 import {
     VARBIT_HAM_TRAPDOOR,
-    VARBIT_LEAGUE_AREA_LAST_VIEWED,
-    VARBIT_LEAGUE_AREA_SELECTION_0,
-    VARBIT_LEAGUE_AREA_SELECTION_1,
-    VARBIT_LEAGUE_AREA_SELECTION_2,
-    VARBIT_LEAGUE_AREA_SELECTION_3,
-    VARBIT_LEAGUE_AREA_SELECTION_4,
-    VARBIT_LEAGUE_AREA_SELECTION_5,
-    VARBIT_LEAGUE_TOTAL_TASKS_COMPLETED,
-    VARBIT_LEAGUE_TUTORIAL_COMPLETED,
-    VARBIT_LEAGUE_TYPE,
     VARBIT_XPDROPS_ENABLED,
     VARP_AREA_SOUNDS_VOLUME,
     VARP_COMBAT_TARGET_PLAYER_INDEX,
-    VARP_LEAGUE_GENERAL,
     VARP_MASTER_VOLUME,
     VARP_MUSIC_VOLUME,
     VARP_SOUND_EFFECTS_VOLUME,
@@ -70,7 +59,7 @@ import {
     GroundItemInteractionState,
     PlayerInteractionState,
 } from "./interactions/types";
-import { syncLeagueGeneralVarp } from "./leagues/leagueGeneral";
+import type { GamemodeDefinition } from "./gamemodes/GamemodeDefinition";
 import { LockState, LockStateChecks } from "./model/LockState";
 import { QueueTaskSet, TaskGenerator } from "./model/queue";
 import {
@@ -375,6 +364,7 @@ export interface PlayerPersistentVars {
     varps?: Record<number, number>;
     varbits?: Record<number, number>;
     leagueTaskProgress?: Record<number, number>;
+    gamemodeData?: Record<string, unknown>;
     /** Server-only onboarding progression (project-specific). */
     accountStage?: number;
     accountCreationTimeMs?: number;
@@ -429,10 +419,14 @@ export interface PlayerPersistentVars {
 }
 
 export class PlayerState extends Actor {
+    static gamemodeRef: GamemodeDefinition | undefined;
+
     [key: symbol]: unknown;
 
     __leagueRelicPendingSelection?: unknown;
     __leagueMasteryPendingSelection?: unknown;
+
+    readonly gamemodeState: Map<string, unknown> = new Map();
 
     override readonly isPlayer = true;
     widgets: PlayerWidgetManager;
@@ -925,35 +919,8 @@ export class PlayerState extends Actor {
         // Default to post-design for existing saves; new accounts can override to 0.
         this.accountStage = 1;
 
-        // League defaults (project behavior).
-        // These are persisted varbits and should be initialized on new accounts rather than
-        // relying on UI-time fallbacks in widget scripts.
-        if (this.getVarbitValue(VARBIT_LEAGUE_TYPE) === 0) {
-            this.setVarbitValue(VARBIT_LEAGUE_TYPE, 5); // Raging Echoes
-        }
-        // OSRS: league_type and league_tutorial_completed are packed into league_general (varp 2606).
-        // Keep a sane default so CS2 scripts depending on the packed varp can resolve immediately.
-        if (this.getVarpValue(VARP_LEAGUE_GENERAL) === 0) {
-            syncLeagueGeneralVarp(this);
-        }
-        // OSRS parity: participants start with Misthalin; Karamja is unlocked during the Leagues tutorial.
-        const a0 = this.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_0);
-        const a1 = this.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_1);
-        const a2 = this.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_2);
-        const a3 = this.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_3);
-        const a4 = this.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_4);
-        const a5 = this.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_5);
-        if ((a0 | a1 | a2 | a3 | a4 | a5) === 0) {
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_0, 1);
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_1, 0);
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_2, 0);
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_3, 0);
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_4, 0);
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_5, 0);
-        }
-        if (this.getVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED) === 0) {
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED, 1);
-        }
+        // Delegate gamemode-specific player initialization (league defaults, etc.)
+        PlayerState.gamemodeRef?.initializePlayer(this);
         // OSRS parity: XP drops are enabled by default until the player explicitly hides them.
         if (!this.varbitValues.has(VARBIT_XPDROPS_ENABLED)) {
             this.setVarbitValue(VARBIT_XPDROPS_ENABLED, DEFAULT_XPDROPS_ENABLED);
@@ -1150,6 +1117,9 @@ export class PlayerState extends Actor {
     }
 
     private hasCompletedLeagueTutorial(): boolean {
+        if (PlayerState.gamemodeRef) {
+            return PlayerState.gamemodeRef.canInteract(this);
+        }
         const tutorialStep = this.getVarbitValue?.(10037) ?? 0;
         const leagueType = this.getVarbitValue?.(10038) ?? 0;
         return tutorialStep >= (leagueType === 3 ? 14 : 12);
@@ -2656,6 +2626,10 @@ export class PlayerState extends Actor {
         if (Object.keys(leagueTaskProgress).length > 0) {
             snapshot.leagueTaskProgress = leagueTaskProgress;
         }
+        const gamemodeData = PlayerState.gamemodeRef?.serializePlayerState(this);
+        if (gamemodeData && Object.keys(gamemodeData).length > 0) {
+            snapshot.gamemodeData = gamemodeData;
+        }
         // Persist character design (gender/body kits/colors). Equipment is stored separately.
         snapshot.accountStage = Number.isFinite(this.accountStage) ? this.accountStage : 1;
         if (this.appearance) {
@@ -2750,6 +2724,7 @@ export class PlayerState extends Actor {
         this.varpValues.clear();
         this.varbitValues.clear();
         this.leagueTaskProgress.clear();
+        this.gamemodeState.clear();
         if (!state) {
             this.setVarbitValue(VARBIT_XPDROPS_ENABLED, DEFAULT_XPDROPS_ENABLED);
             this.ensureBankInitialized();
@@ -2802,6 +2777,12 @@ export class PlayerState extends Actor {
                     this.setLeagueTaskProgress(taskId, value);
                 }
             }
+        }
+        if (state.gamemodeData) {
+            PlayerState.gamemodeRef?.deserializePlayerState(
+                this,
+                state.gamemodeData as Record<string, unknown>,
+            );
         }
         if (
             !state.varbits ||

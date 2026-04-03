@@ -965,8 +965,6 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             state.sceneBuilder.clearLocSpawns();
         }
 
-        const mapSize = Scene.MAP_SQUARE_SIZE + borderSize * 2;
-
         console.time(`build scene ${mapX},${mapY}`);
         let scene: Scene;
         if (instanceInput) {

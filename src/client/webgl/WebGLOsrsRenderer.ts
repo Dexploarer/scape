@@ -361,6 +361,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         sizeZ: number;
         extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>;
         extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>;
+        basePlane: number;
         deckHeight?: number;
     }> = new Map();
     private worldEntityLocRebuildTimer: ReturnType<typeof setTimeout> | null = null;
@@ -5343,6 +5344,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
         configId: number = -1,
         extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>,
+        basePlane: number = 0,
     ): Promise<void> {
         if (!this.osrsClient.loadedCache) return;
 
@@ -5371,7 +5373,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         this.worldEntityOverlays.set(entityIndex, {
             entityIndex, configId, templateChunks, regionX, regionY,
-            worldX, worldY, sizeX, sizeZ, extraLocs, extraNpcs,
+            worldX, worldY, sizeX, sizeZ, extraLocs, extraNpcs, basePlane,
         });
 
         // Register with WorldViewManager
@@ -5477,6 +5479,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 overlay.extraLocs,
                 overlay.configId,
                 overlay.extraNpcs,
+                overlay.basePlane,
             );
         }
     }
@@ -5496,6 +5499,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 overlay.extraLocs,
                 overlay.configId,
                 overlay.extraNpcs,
+                overlay.basePlane,
             );
         }, 150);
     }
@@ -7341,20 +7345,26 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     this.skipMapFadeIn ? -1.0 : timeSec,
                 );
 
-                // Compute deck height for world entity overlay maps
+                // Configure world entity overlay maps: set interactionPlane + deck height
                 for (const [entityIndex, overlay] of this.worldEntityOverlays) {
-                    if (overlay.deckHeight !== undefined && overlay.deckHeight !== 0) continue;
                     const overlayMapX = 200 + entityIndex;
                     const overlayMapY = 200 + entityIndex;
                     if (pendingMap.mapX !== overlayMapX || pendingMap.mapY !== overlayMapY) continue;
                     const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
                     const overlayMap = this.mapManager.mapSquares.get(overlayMapId);
-                    if (!overlayMap?.heightMapData) continue;
+                    if (!overlayMap) continue;
+                    // Use server-provided basePlane (authoritative), fall back to cache
                     const weType = this.osrsClient.worldEntityTypeLoader?.load(overlay.configId);
-                    const basePlane = weType?.basePlane ?? 0;
+                    const basePlane = overlay.basePlane || (weType?.basePlane ?? 0);
+
+                    // Single source of truth: all interaction/height queries
+                    // on this overlay map use the deck plane.
+                    overlayMap.interactionPlane = basePlane;
+
+                    if (overlay.deckHeight !== undefined && overlay.deckHeight !== 0) continue;
                     if (basePlane === 0) { overlay.deckHeight = 0; continue; }
+                    if (!overlayMap.heightMapData) continue;
                     const hmSize = overlayMap.heightMapSize;
-                    // Instance scenes have borderSize=0, so no offset needed
                     const hmX = 48 + 4;
                     const hmY = 48 + 4;
                     if (hmX >= 0 && hmX < hmSize && hmY >= 0 && hmY < hmSize) {
@@ -8553,6 +8563,21 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.syncInteractHighlightActiveTargetFromLocalInteraction();
         this.maybeExpireInteractHighlightTarget();
 
+        const getWeTransform = (target: InteractHighlightTarget): Float32Array | undefined => {
+            if (target.kind === "npc") {
+                const wvId = this.osrsClient.npcEcs.getWorldViewId?.(target.ecsId) ?? -1;
+                if (wvId >= 0) return this.worldEntityAnimator?.getTransform(wvId);
+            }
+            if (target.kind === "loc") {
+                const map = this.getPreferredMapForWorldTile(target.tileX, target.tileY);
+                if (map && this.mapManager.worldEntityMapIds.has(map.id)) {
+                    const weIdx = this.getWorldEntityIndexForMapId(map.id);
+                    if (weIdx !== undefined) return this.worldEntityAnimator?.getTransform(weIdx);
+                }
+            }
+            return undefined;
+        };
+
         if (config.showInteract && this.interactHighlightActiveTarget) {
             const trianglePoints = this.buildHighlightTrianglePoints(
                 this.interactHighlightActiveTarget,
@@ -8562,6 +8587,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     trianglePoints,
                     color: config.interactColor,
                     alpha: 0.45,
+                    worldEntityTransform: getWeTransform(this.interactHighlightActiveTarget),
                 });
             }
         }
@@ -8582,6 +8608,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         trianglePoints,
                         color: config.hoverColor,
                         alpha: 0.45,
+                        worldEntityTransform: getWeTransform(this.interactHighlightHoverTarget),
                     });
                 }
             }
@@ -8781,12 +8808,34 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             modelRotation = (rawRotation + 4) & 0x7;
         }
 
+        // Find the current animation frame from the map's animated loc list.
+        // LocAnimated stores scene-local tile coords; target has world tile coords.
+        let seqId = locType.seqId ?? -1;
+        let seqFrame = 0;
+        const locMap = this.getPreferredMapForWorldTile(target.tileX, target.tileY);
+        if (locMap) {
+            const localTile = this.getMapLocalTile(locMap, target.tileX, target.tileY);
+            const sceneX = localTile ? localTile.x + locMap.borderSize : -1;
+            const sceneY = localTile ? localTile.y + locMap.borderSize : -1;
+            for (const anim of locMap.locsAnimated) {
+                if (
+                    anim.id === (target.locId | 0) &&
+                    anim.x === sceneX &&
+                    anim.y === sceneY &&
+                    anim.level === (target.plane | 0)
+                ) {
+                    seqId = anim.seqType?.id ?? seqId;
+                    seqFrame = anim.frame | 0;
+                    break;
+                }
+            }
+        }
         const model = locModelLoader.getModelAnimated(
             locType,
             modelType as LocModelType,
             modelRotation,
-            -1,
-            -1,
+            seqId,
+            seqFrame,
         );
         if (!model || !model.verticesX || !model.verticesY || !model.verticesZ) {
             return undefined;
@@ -8799,16 +8848,22 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
         const entityX = (target.tileX << 7) + (sizeX << 6);
         const entityZ = (target.tileY << 7) + (sizeY << 6);
-        // Match SceneLoc rendering: loc geometry stays on its map level, but bridge tiles sample
-        // height from the promoted render surface. Using exact plane height here puts highlights
-        // under bridge walkways.
-        const baseY = sampleBridgeHeightForWorldTile(
+        // For world entity overlay locs, sample overworld height (plane 0) — the GPU
+        // renders at the overlay's source plane height which sits at sea level, not a
+        // full UNITS_LEVEL_HEIGHT below.
+        const heightMap = this.getPreferredMapForWorldTile(target.tileX, target.tileY);
+        const isOverlay = heightMap && heightMap.interactionPlane >= 0;
+        const heightPlane = isOverlay ? 0 : (target.plane | 0);
+        let baseY = sampleBridgeHeightForWorldTile(
             this.mapManager,
             entityX / 128.0,
             entityZ / 128.0,
-            target.plane | 0,
+            heightPlane,
             BridgePlaneStrategy.RENDER,
         ).height;
+        if (isOverlay) {
+            baseY += this.getWorldEntityDeckHeight(0, 0) / 128.0;
+        }
         return this.buildModelTrianglePoints(model, (i) => ({
             x: (entityX + model.verticesX[i]) / 128.0,
             y: baseY + model.verticesY[i] / 128.0,
@@ -8874,14 +8929,19 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const centerSceneZ = (mapY << 13) + (npcEcs.getY(ecsId) | 0);
         const plane = npcEcs.getLevel(ecsId) | 0;
         target.plane = plane;
-        // Match NPC rendering/overlay height sampling on bridge tiles.
-        const baseY = sampleBridgeHeightForWorldTile(
+        // Match NPC rendering height: bridge-aware sampling + deck height for world entities.
+        let baseY = sampleBridgeHeightForWorldTile(
             this.mapManager,
             centerSceneX / 128.0,
             centerSceneZ / 128.0,
             plane | 0,
             BridgePlaneStrategy.RENDER,
         ).height;
+        const wvId = npcEcs.getWorldViewId?.(ecsId) ?? -1;
+        if (wvId >= 0) {
+            const deckH = this.getWorldEntityDeckHeight(0, 0);
+            baseY += deckH / 128.0;
+        }
         const angle = (npcEcs.getRotation(ecsId) | 0) * RS_TO_RADIANS;
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
@@ -9484,6 +9544,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     // Derive the effective surface plane for a given world tile based on basePlane and bridge flag.
     private getEffectivePlaneForTile(tileX: number, tileY: number, basePlane: number): number {
         const map = this.getPreferredMapForWorldTile(tileX, tileY);
+        if (map && map.interactionPlane >= 0) return map.interactionPlane;
         const local = map ? this.getMapLocalTile(map, tileX, tileY) : undefined;
         if (!map || !local) {
             return resolveInteractionPlaneForWorldTile(this.mapManager, basePlane, tileX, tileY);

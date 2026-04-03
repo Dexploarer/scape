@@ -6227,6 +6227,8 @@ export class WSServer {
             templateChunks, buildAreas, this.cacheEnv!, false,
         );
         (payload as any).extraNpcs = extraNpcs ?? [];
+        // Pass basePlane so the client knows which plane deck content lives on
+        (payload as any).basePlane = 1;
         const packet = encodeMessage({ type: "rebuild_worldentity", payload } as any);
         this.withDirectSendBypass("rebuild_worldentity", () =>
             this.sendWithGuard(ws, packet, "rebuild_worldentity"),

@@ -111,10 +111,9 @@ export const SAILING_INTRO_NPC_SPAWNS = {
 // Docked Boat at Port Sarim (overworld locs for ::sail visibility)
 // ============================================================================
 
-// World entity renders at coord=(3054.5, 3193.5, 0) with sizeX=8 chunks.
-// fineBase = sizeChunks * 64 = 512 fine = 4 tiles from entity center.
+// World entity scene anchor: entityCoord(3050) + sizeChunks(8)*4 = 3054.
 // Boat locs at source offset (n, m) appear at overworld:
-//   worldX = 3054.5 + n - 4,  worldY = 3193.5 + m - 4
+//   worldX = 3054 + n - 4,  worldY = 3193 + m - 4
 export const DOCK_OFFSET_X = 3054 - 4; // 3050
 export const DOCK_OFFSET_Y = 3193 - 4; // 3189
 
@@ -175,7 +174,7 @@ export function buildSailingOverlayTemplates(): number[][][] {
 }
 
 /**
- * Build template chunks for the instance scene (::sailboard, on the boat).
+ * Build template chunks for the sailing instance scene.
  * Boat at center, ocean everywhere else for the sailing environment.
  */
 export function buildSailingIntroTemplates(): number[][][] {

@@ -170,9 +170,10 @@ export class SceneRaycaster {
         localTileX = Math.max(0, Math.min(mapTileSpan - 1, localTileX));
         localTileY = Math.max(0, Math.min(mapTileSpan - 1, localTileY));
 
+        const effectiveBasePlane = map.interactionPlane >= 0 ? map.interactionPlane : basePlane;
         const samplePlane = resolveHeightSamplePlaneForLocal(
             map,
-            basePlane | 0,
+            effectiveBasePlane | 0,
             localTileX,
             localTileY,
         );
@@ -402,10 +403,12 @@ export class SceneRaycaster {
         const mapId = map.id;
         const groundItems = this.osrsClient.groundItems;
 
+        const effectivePlane = map.interactionPlane >= 0 ? map.interactionPlane : basePlane;
         const interactionLevel =
-            typeof basePlane === "number"
-                ? resolveInteractionPlaneForLocal(map, basePlane | 0, localX | 0, localY | 0)
+            typeof effectivePlane === "number"
+                ? resolveInteractionPlaneForLocal(map, effectivePlane | 0, localX | 0, localY | 0)
                 : undefined;
+
         const groundItemPlane =
             typeof basePlane === "number" ? resolveGroundItemStackPlane(basePlane | 0) : undefined;
 
@@ -454,6 +457,7 @@ export class SceneRaycaster {
         const startPlane = typeof interactionLevel === "number" ? interactionLevel : 0;
         const endPlane =
             typeof interactionLevel === "number" ? interactionLevel + 1 : Scene.MAX_LEVELS;
+
         for (let level = startPlane; level < endPlane; level++) {
             for (let anchorDx = -(MAX_LOC_SIZE - 1); anchorDx <= 0; anchorDx++) {
                 for (let anchorDy = -(MAX_LOC_SIZE - 1); anchorDy <= 0; anchorDy++) {

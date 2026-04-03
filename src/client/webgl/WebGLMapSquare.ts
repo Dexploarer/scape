@@ -211,6 +211,7 @@ export class WebGLMapSquare {
     static readonly IDENTITY_MAT4 = mat4.create() as Float32Array;
 
     readonly id: number;
+    interactionPlane: number;
 
     npcDataTextureOffsets: number[];
     projectileDataTextureOffsets?: number[];
@@ -906,6 +907,10 @@ export class WebGLMapSquare {
         public tileLocTypeRotByLevel?: Uint8Array[],
     ) {
         this.id = getMapSquareId(mapX, mapY);
+        /** When >= 0, all interaction/height queries on this map use this plane
+         *  instead of the caller's basePlane.  Set for world entity overlays
+         *  whose content lives on a specific source plane (e.g. boat deck = 1). */
+        this.interactionPlane = -1;
         this.npcDataTextureOffsets = new Array(NPC_DATA_TEXTURE_BUFFER_SIZE).fill(-1);
         this.playerDataTextureOffsets = new Array(NPC_DATA_TEXTURE_BUFFER_SIZE).fill(-1);
         this.worldGfxDataTextureOffsets = new Array(NPC_DATA_TEXTURE_BUFFER_SIZE).fill(-1);
@@ -2156,7 +2161,6 @@ export class WebGLMapSquare {
         this.groundItemDrawRangePlanes = data.planes;
     }
 
-    // Return loc ids present at the origin of the given interior tile (0..63 local) for a specific level.
     // Returns a reusable buffer - caller must consume results before next call.
     getLocIdsAtLocal(level: number, localX: number, localY: number): number[] {
         const out = this.locIdsAtLocalBuffer;
@@ -2164,10 +2168,11 @@ export class WebGLMapSquare {
         try {
             if (!this.tileLocOffsetsByLevel || !this.tileLocIdsByLevel) return out;
             if (level < 0 || level >= this.tileLocOffsetsByLevel.length) return out;
-            if (localX < 0 || localY < 0 || localX >= 64 || localY >= 64) return out;
+            const span = this.getLocalTileSpan();
+            if (localX < 0 || localY < 0 || localX >= span || localY >= span) return out;
             const offsets = this.tileLocOffsetsByLevel[level];
             const ids = this.tileLocIdsByLevel[level];
-            const idx = (localY | 0) * 64 + (localX | 0);
+            const idx = (localY | 0) * span + (localX | 0);
             const start = offsets[idx] | 0;
             const end = offsets[idx + 1] | 0;
             if (end <= start) return out;
@@ -2199,11 +2204,12 @@ export class WebGLMapSquare {
                 return out;
             }
             if (level < 0 || level >= this.tileLocOffsetsByLevel.length) return out;
-            if (localX < 0 || localY < 0 || localX >= 64 || localY >= 64) return out;
+            const span = this.getLocalTileSpan();
+            if (localX < 0 || localY < 0 || localX >= span || localY >= span) return out;
             const offsets = this.tileLocOffsetsByLevel[level];
             const ids = this.tileLocIdsByLevel[level];
             const typeRots = this.tileLocTypeRotByLevel[level];
-            const idx = (localY | 0) * 64 + (localX | 0);
+            const idx = (localY | 0) * span + (localX | 0);
             const start = offsets[idx] | 0;
             const end = offsets[idx + 1] | 0;
             if (end <= start) return out;

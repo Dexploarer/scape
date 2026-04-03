@@ -3182,16 +3182,17 @@ export class OsrsClient {
                     console.log(
                         `[OsrsClient] REBUILD_WORLDENTITY received: entity=${payload.entityIndex} config=${payload.configId} size=${payload.sizeX}x${payload.sizeZ} regionX=${payload.regionX} regionY=${payload.regionY} regions=${payload.mapRegions.length}`,
                     );
-                    // World entity coord from the packet (half-tile precision)
-                    // Entity renders at this position in the overworld
-                    const entityWorldX = 3054.5;
-                    const entityWorldY = 3193.5;
+                    // World entity scene anchor: entityCoord + sizeChunks * 4 (tile precision).
+                    // entityCoord=3050, sizeChunks=8, fineBase=8*64=512fine=4tiles → anchor=3054.
+                    const entityWorldX = 3054;
+                    const entityWorldY = 3193;
 
                     // Collect extra locs from addedLocs that fall in source region
                     const extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }> = [];
 
                     if (this.renderer && "loadWorldEntityScene" in this.renderer) {
                         const weNpcs = (payload as any).extraNpcs;
+                        const basePlane = (payload as any).basePlane ?? 0;
                         (this.renderer as any).loadWorldEntityScene(
                             payload.entityIndex,
                             payload.templateChunks,
@@ -3204,6 +3205,7 @@ export class OsrsClient {
                             extraLocs,
                             payload.configId,
                             weNpcs,
+                            basePlane,
                         );
                         // Schedule a single deferred rebuild to pick up LOC_ADD_CHANGE
                         // packets that arrive after the initial scene build

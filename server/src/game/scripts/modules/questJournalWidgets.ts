@@ -267,7 +267,7 @@ export const questJournalWidgetsModule: ScriptModule = {
 
         // Handle quest journal Close button (119:8)
         registry.onButton(QUEST_JOURNAL_GROUP_ID, QJ_CLOSE_CHILD, (event) => {
-            const floaterUid = BaseComponentUids.MAINMODAL_BACKGROUNDS;
+            const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
             services.closeSubInterface?.(event.player, floaterUid, QUEST_JOURNAL_GROUP_ID);
         });
 
@@ -289,7 +289,7 @@ export const questJournalWidgetsModule: ScriptModule = {
             }
 
             // Re-open journal with overview text
-            const floaterUid = BaseComponentUids.MAINMODAL_BACKGROUNDS;
+            const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
             services.openSubInterface?.(player, floaterUid, QUEST_JOURNAL_GROUP_ID, 0);
 
             services.queueWidgetEvent?.(player.id, {
@@ -357,7 +357,7 @@ function openQuestJournal(
     // 2. Open quest journal interface on the floater container.
     // Use type=0 (modal) so PlayerWidgetManager tracks it and closeInterruptibleInterfaces
     // closes it on walk/interaction, matching OSRS behavior where the journal dismisses on move.
-    const floaterUid = BaseComponentUids.MAINMODAL_BACKGROUNDS;
+    const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
     services.openSubInterface?.(player, floaterUid, QUEST_JOURNAL_GROUP_ID, 0);
 
     // 2b. Enable transmit flags on Close (119:8) and Switch View (119:9) buttons.

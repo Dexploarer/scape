@@ -23,8 +23,6 @@ export {
     type SkillSync,
 } from "./CombatActionHandler";
 
-export { SkillActionHandler, type SkillActionServices } from "./SkillActionHandler";
-
 export {
     SpellActionHandler,
     type SpellActionServices,

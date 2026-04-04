@@ -18,6 +18,22 @@ import { getCollectionLogItems } from "../game/collectionlog";
 import { clearAutocastState } from "../game/combat/AutocastState";
 import type { NpcState } from "../game/npc";
 import type { PlayerState } from "../game/player";
+import type { NpcSpawnConfig } from "../game/npc";
+import {
+    handleBoardingTick1,
+    handleBoardingTick2,
+} from "../game/scripts/modules/quests/pandemonium";
+import type { ScriptDialogRequest } from "../game/scripts/types";
+import type { WidgetAction } from "../widgets/WidgetManager";
+import type { WorldEntityBuildArea } from "../../../src/shared/worldentity/WorldEntityTypes";
+import type { WorldEntityMaskUpdate, WorldEntityPosition } from "./encoding/WorldEntityInfoEncoder";
+import {
+    type BoatLoc,
+    SAILING_WORLD_ENTITY_CONFIG_ID,
+    SAILING_WORLD_ENTITY_INDEX,
+    SAILING_WORLD_ENTITY_SIZE_X,
+    SAILING_WORLD_ENTITY_SIZE_Z,
+} from "../game/sailing/SailingInstance";
 import { logger } from "../utils/logger";
 import type { MessageHandler, MessagePayload, MessageRouter } from "./MessageRouter";
 import type { IndexedMenuRequest } from "./managers/Cs2ModalManager";
@@ -138,10 +154,69 @@ export interface MessageHandlerServices {
         level: number,
         forceRebuild?: boolean,
     ) => void;
+    teleportToInstance: (
+        player: PlayerState,
+        x: number,
+        y: number,
+        level: number,
+        templateChunks: number[][][],
+        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+    ) => void;
+    teleportToWorldEntity?: (
+        player: PlayerState,
+        x: number,
+        y: number,
+        level: number,
+        entityIndex: number,
+        configId: number,
+        sizeX: number,
+        sizeZ: number,
+        templateChunks: number[][][],
+        buildAreas: WorldEntityBuildArea[],
+        extraLocs?: BoatLoc[],
+    ) => void;
+    sendWorldEntity?: (
+        player: PlayerState,
+        entityIndex: number,
+        configId: number,
+        sizeX: number,
+        sizeZ: number,
+        templateChunks: number[][][],
+        buildAreas: WorldEntityBuildArea[],
+        extraLocs?: BoatLoc[],
+        extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>,
+        drawMode?: number,
+    ) => void;
+    spawnLocForPlayer: (
+        player: PlayerState,
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ) => void;
+    spawnNpc?: (config: NpcSpawnConfig) => NpcState | undefined;
+    initSailingInstance?: (player: PlayerState) => void;
+    disposeSailingInstance?: (player: PlayerState) => void;
+    buildSailingDockedCollision?: () => void;
+    removeWorldEntity?: (playerId: number, entityIndex: number) => void;
+    queueWorldEntityPosition?: (playerId: number, entityIndex: number, position: WorldEntityPosition) => void;
+    setWorldEntityPosition?: (playerId: number, entityIndex: number, position: WorldEntityPosition) => void;
+    queueWorldEntityMask?: (playerId: number, entityIndex: number, mask: WorldEntityMaskUpdate) => void;
+    applySailingDeckCollision?: () => void;
+    clearSailingDeckCollision?: () => void;
     requestTeleportAction: (
         player: PlayerState,
         request: TeleportActionRequest,
     ) => { ok: boolean; reason?: string };
+    sendVarp?: (player: PlayerState, varpId: number, value: number) => void;
+    sendVarbit?: (player: PlayerState, varbitId: number, value: number) => void;
+    sendSound?: (
+        player: PlayerState,
+        soundId: number,
+        opts?: { loops?: number; delayMs?: number },
+    ) => void;
+    sendGameMessage: (player: PlayerState, text: string) => void;
 
     // Combat/NPC
     getNpcById: (npcId: number) => NpcState | undefined;
@@ -195,18 +270,25 @@ export interface MessageHandlerServices {
     handleWidgetCloseState: (player: PlayerState, groupId: number) => void;
     openModal: (player: PlayerState, interfaceId: number, data?: unknown) => void;
     openIndexedMenu: (player: PlayerState, request: IndexedMenuRequest) => void;
-    queueWidgetEvent: (playerId: number, event: any) => void;
+    openSubInterface?: (
+        player: PlayerState,
+        targetUid: number,
+        groupId: number,
+        type?: number,
+        opts?: { modal?: boolean },
+    ) => void;
+    openDialog?: (player: PlayerState, request: ScriptDialogRequest) => void;
+    queueWidgetEvent: (playerId: number, event: WidgetAction) => void;
     queueVarp: (playerId: number, varpId: number, value: number) => void;
     queueVarbit: (playerId: number, varbitId: number, value: number) => void;
+    queueClientScript?: (playerId: number, scriptId: number, ...args: (number | string)[]) => void;
     queueNotification: (playerId: number, notification: any) => void;
     trackCollectionLogItem: (player: PlayerState, itemId: number) => void;
     sendRunEnergyState: (ws: WebSocket, player: PlayerState) => void;
     getWeaponSpecialCostPercent: (weaponId: number) => number | undefined;
     queueCombatState: (player: PlayerState) => void;
     ensureEquipArray: (player: PlayerState) => number[];
-    completeLeagueTask: (player: PlayerState, taskId: number) => any;
-    getSideJournalLeaguesContentGroupId: (leagueType: number) => number;
-    syncLeagueGeneralVarp: (player: PlayerState) => void;
+    gamemodeServices: Record<string, unknown>;
 
     // Chat
     queueChatMessage: (msg: {
@@ -224,8 +306,8 @@ export interface MessageHandlerServices {
     }) => void;
     getPublicChatPlayerType: (player: PlayerState) => number;
     enqueueLevelUpPopup: (player: PlayerState, data: any) => void;
-    handleVoteCommand: (player: PlayerState, args: string[]) => string | undefined;
-    handleItemSpawnerCommand: (player: PlayerState, args: string[]) => string | undefined;
+    findScriptCommand: (name: string) => ((event: { player: PlayerState; command: string; args: string[]; tick: number; services: any }) => string | void | Promise<string | void>) | undefined;
+    getCurrentTick: () => number;
 
     // Debug
     broadcast: (message: string | Uint8Array, context: string) => void;
@@ -248,18 +330,15 @@ export interface MessageHandlerServices {
         VARP_ATTACK_STYLE: number;
         VARP_AUTO_RETALIATE: number;
         VARP_MAP_FLAGS_CACHED: number;
-        VARP_LEAGUE_GENERAL: number;
     };
     getVarbitConstants: () => {
         VARBIT_SIDE_JOURNAL_TAB: number;
-        VARBIT_LEAGUE_TYPE: number;
-        VARBIT_LEAGUE_TUTORIAL_COMPLETED: number;
-        VARBIT_FLASHSIDE: number;
     };
     getSideJournalConstants: () => {
         SIDE_JOURNAL_CONTENT_GROUP_BY_TAB: number[];
         SIDE_JOURNAL_TAB_CONTAINER_UID: number;
     };
+
 }
 
 const DEFAULT_CHAT_PREFIX = "";
@@ -876,7 +955,7 @@ export function registerMessageHandlers(
     });
 
     // NOTE: widget and varp_transmit handlers remain in wsServer.ts due to
-    // complex leagues tutorial logic that requires many wsServer dependencies
+    // complex tutorial logic that requires many wsServer dependencies
 
     // =========================================================================
     // DEBUG HANDLER
@@ -1209,32 +1288,6 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                 const parts = cmd.split(/\s+/).filter((part) => part.length > 0);
                 const root = parts[0] ?? "";
 
-                if (root === "vote") {
-                    const voteArgs = parts.slice(1);
-                    const response = services.handleVoteCommand(sender, voteArgs);
-                    if (response?.trim()) {
-                        services.queueChatMessage({
-                            messageType: "game",
-                            text: response.trim(),
-                            targetPlayerIds: [sender.id],
-                        });
-                    }
-                    return;
-                }
-
-                if (root === "itemspawner") {
-                    const searchArgs = parts.slice(1);
-                    const response = services.handleItemSpawnerCommand(sender, searchArgs);
-                    if (response?.trim()) {
-                        services.queueChatMessage({
-                            messageType: "game",
-                            text: response.trim(),
-                            targetPlayerIds: [sender.id],
-                        });
-                    }
-                    return;
-                }
-
                 if (root === "clear") {
                     try {
                         services.clearActionsInGroup(sender.id, "inventory");
@@ -1437,6 +1490,27 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     return;
                 }
 
+                if (root === "spawn") {
+                    services.teleportPlayer(sender, 3222, 3218, 0);
+                    services.queueChatMessage({
+                        messageType: "game",
+                        text: "Teleported to Lumbridge.",
+                        targetPlayerIds: [sender.id],
+                    });
+                    logger.info(`[cmd] ::spawn - Player ${sender.id} teleported to Lumbridge`);
+                    return;
+                }
+
+                if (root === "sail") {
+                    const playerName = sender.name ?? "You";
+                    handleBoardingTick1(sender, { playerName }, services);
+                    handleBoardingTick2(sender, services);
+                    logger.info(
+                        `[cmd] ::sail - Player ${sender.id} fast-forwarded to Pandemonium docked sailing state`,
+                    );
+                    return;
+                }
+
                 if (root === "pos") {
                     services.queueChatMessage({
                         messageType: "game",
@@ -1551,6 +1625,31 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     logger.info(
                         `[cmd] ::${root} - Player ${sender.id} switched to ${root} spellbook`,
                     );
+                    return;
+                }
+
+                // Fallthrough to script-registered commands
+                const scriptCmd = services.findScriptCommand?.(root);
+                if (scriptCmd) {
+                    try {
+                        const result = scriptCmd({
+                            player: sender,
+                            command: root,
+                            args: parts.slice(1),
+                            tick: services.getCurrentTick(),
+                            services,
+                        });
+                        const response = typeof result === "string" ? result : undefined;
+                        if (response?.trim()) {
+                            services.queueChatMessage({
+                                messageType: "game",
+                                text: response.trim(),
+                                targetPlayerIds: [sender.id],
+                            });
+                        }
+                    } catch (err) {
+                        logger.warn(`[cmd] script command ::${root} failed`, err);
+                    }
                 }
                 return;
             }

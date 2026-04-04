@@ -1,8 +1,8 @@
 /**
- * ClientState - Global client state matching OSRS reference
+ * ClientState - Global client state
  *
  * This contains all the global state variables that were scattered across
- * various classes in the reference client (Client.java, KeyHandler.java, etc.)
+ * various classes (Client, KeyHandler, etc.)
  */
 
 /**
@@ -29,7 +29,7 @@ export const DEFAULT_SCREEN_WIDTH = 765;
 export const DEFAULT_SCREEN_HEIGHT = 503;
 
 /**
- * Global client state - matches reference client fields
+ * Global client state fields
  */
 export class ClientState {
     // ========================================
@@ -76,6 +76,18 @@ export class ClientState {
 
     /** Current plane/level (0-3) */
     static plane: number = 0;
+
+    /** True when the player is in a dynamic instance (REBUILD_REGION). */
+    static inInstance: boolean = false;
+
+    /** Template chunk grid for the current instance (4×13×13, -1 = empty). */
+    static instanceTemplateChunks: number[][][] | null = null;
+
+    /** Current region center X in chunk coordinates (from last REBUILD_REGION/REBUILD_NORMAL). */
+    static regionX: number = -1;
+
+    /** Current region center Y in chunk coordinates (from last REBUILD_REGION/REBUILD_NORMAL). */
+    static regionY: number = -1;
 
     // ========================================
     // SPELL/ITEM SELECTION STATE
@@ -195,13 +207,13 @@ export class ClientState {
 
     /**
      * Active follower NPC server index.
-     * Matches the reference client's `followerIndex` menu-ownership gate.
+     * Used as a menu-ownership gate for follower interactions.
      */
     static followerIndex: number = -1;
 
     /**
      * Active combat-target player server index.
-     * Matches the reference client's `combatTargetPlayerIndex`.
+     * Tracks the active combat target player server index.
      */
     static combatTargetPlayerIndex: number = -1;
 
@@ -214,7 +226,7 @@ export class ClientState {
 
     /**
      * Check if a keybind is currently pressed
-     * Key 82 = Ctrl key in reference client
+     * Key 82 = Ctrl key
      */
     static isKeybindPressed(keyCode: number): boolean {
         return this.keybindStates.get(keyCode) === true;
@@ -342,6 +354,10 @@ export class ClientState {
         this.destinationY = 0;
         this.destinationWorldX = 0;
         this.destinationWorldY = 0;
+        this.inInstance = false;
+        this.instanceTemplateChunks = null;
+        this.regionX = -1;
+        this.regionY = -1;
         this.clearSpellSelection();
         this.clearItemSelection();
         this.isMenuOpen = false;

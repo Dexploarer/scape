@@ -102,7 +102,7 @@ export interface ChatUpdate {
     /** True when the server flagged it as autochat. */
     autoChat: boolean;
     text: string;
-    /** Optional extra bytes used by some chat blocks (e.g., 0x8000 in r215). */
+    /** Optional extra bytes used by some chat blocks (e.g., 0x8000 flag). */
     extra?: Uint8Array;
 }
 
@@ -118,7 +118,7 @@ export interface PlayerUpdateBlock {
     spotAnimation?: SpotAnimationUpdate;
     forcedMovement?: ForcedMovementUpdate;
     faceEntity?: number;
-    /** Absolute actor orientation (0..2047), stored as Actor.field1208 in the reference client. */
+    /** Absolute actor orientation (0..2047). */
     faceDir?: number;
     forcedChat?: string;
     chat?: ChatUpdate;
@@ -154,6 +154,8 @@ export interface PlayerSpawnEvent {
     /** When true the server flagged the spawn as preserving its existing walking queue. */
     preserveQueue: boolean;
     needsAppearance: boolean;
+    /** WorldView this player belongs to (-1 = overworld, >=0 = entity index). */
+    worldViewId?: number;
 }
 
 export interface PlayerRemovalEvent {
@@ -183,7 +185,7 @@ export interface PlayerSpotAnimationEvent {
 }
 
 export const enum PlayerUpdateMask {
-    // OSRS parity (r215): see `references/runescape-client/src/main/java/SoundSystem.java` method877.
+    // Bitmask values for player update blocks.
     ForcedChat = 0x01,
     // Actor.field1208 (face direction), read via readUnsignedShortLE.
     FaceDirection = 0x02,

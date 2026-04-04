@@ -157,31 +157,6 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/pohPools.ts")],
     },
     {
-        id: "skills.prayer",
-        load: loadModule("modules/skills/prayer", "prayerModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/skills/prayer.ts")],
-    },
-    {
-        id: "skills.prayer-altars",
-        load: loadModule("modules/skills/prayerAltars", "prayerAltarModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/skills/prayerAltars.ts")],
-    },
-    {
-        id: "skills.fletching",
-        load: loadModule("modules/skills/fletching", "fletchingModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/skills/fletching.ts")],
-    },
-    {
-        id: "skills.flax",
-        load: loadModule("modules/skills/flax", "flaxModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/skills/flax.ts")],
-    },
-    {
-        id: "skills.spinning",
-        load: loadModule("modules/skills/spinning", "spinningModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/skills/spinning.ts")],
-    },
-    {
         id: "skills.firemaking",
         load: loadModule("modules/skills/firemaking", "firemakingModule"),
         watch: [path.resolve(MODULE_DIR, "modules/skills/firemaking.ts")],

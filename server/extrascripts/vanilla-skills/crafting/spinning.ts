@@ -1,15 +1,15 @@
-import { SkillId } from "../../../../../../src/rs/skill/skills";
-import type { PlayerState } from "../../../player";
+import { SkillId } from "../../../../src/rs/skill/skills";
+import type { PlayerState } from "../../../src/game/player";
 import {
     SPINNING_RECIPES,
     SPINNING_WHEEL_LOC_IDS,
     type SpinningRecipe,
-} from "../../../skills/spinning";
+} from "../../../src/game/skills/spinning";
 import {
     type LocInteractionEvent,
     type ScriptInventoryEntry,
     type ScriptModule,
-} from "../../types";
+} from "../../../src/game/scripts/types";
 
 const MAX_BATCH = 28;
 const SPIN_ACTION = "spin";
@@ -87,7 +87,7 @@ const enqueueSpinAction = (
 };
 
 export const spinningModule: ScriptModule = {
-    id: "skills.spinning",
+    id: "vanilla-skills.crafting.spinning",
     register(registry, services) {
         const getInventoryItems = services.getInventoryItems;
         const openDialogOptions = services.openDialogOptions;
@@ -95,8 +95,7 @@ export const spinningModule: ScriptModule = {
 
         const handleSpinRequest = ({ player, tick }: { player: PlayerState; tick?: number }) => {
             const inventory = getInventoryItems(player);
-            const skill = player.getSkill(SkillId.Crafting);
-            const level = skill.baseLevel;
+            const level = services.getSkill?.(player, SkillId.Crafting)?.baseLevel ?? 1;
 
             const choices: CraftableChoice[] = SPINNING_RECIPES.map((recipe) => {
                 const batch = computeBatchCount(inventory as InventoryEntry[], recipe);
@@ -147,25 +146,13 @@ export const spinningModule: ScriptModule = {
                         onSelect: (index) => {
                             const selected = batches[index];
                             if (!selected) {
-                                services.sendGameMessage(
-                                    player,
-                                    "You decide not to spin anything.",
-                                );
+                                services.sendGameMessage(player, "You decide not to spin anything.");
                                 return;
                             }
                             closeDialog?.(player, dialogId);
-                            const ok = enqueueSpinAction(
-                                services,
-                                player,
-                                target.recipe,
-                                selected.count,
-                                tick,
-                            );
+                            const ok = enqueueSpinAction(services, player, target.recipe, selected.count, tick);
                             if (!ok) {
-                                services.sendGameMessage(
-                                    player,
-                                    "You're too busy to spin anything right now.",
-                                );
+                                services.sendGameMessage(player, "You're too busy to spin anything right now.");
                             }
                         },
                     });
@@ -188,17 +175,11 @@ export const spinningModule: ScriptModule = {
                     onSelect: (index) => {
                         const selected = choices[index];
                         if (!selected) {
-                            services.sendGameMessage(
-                                player,
-                                "You step away from the spinning wheel.",
-                            );
+                            services.sendGameMessage(player, "You step away from the spinning wheel.");
                             return;
                         }
                         if (!selected.levelMet) {
-                            services.sendGameMessage(
-                                player,
-                                `You need Crafting level ${selected.recipe.level} to spin ${selected.recipe.name}.`,
-                            );
+                            services.sendGameMessage(player, `You need Crafting level ${selected.recipe.level} to spin ${selected.recipe.name}.`);
                             return;
                         }
                         closeDialog?.(player, dialogId);

@@ -1,8 +1,7 @@
-import { SkillId } from "../../../../../../src/rs/skill/skills";
-import { ALTAR_LOC_IDS } from "../../../../data/locEffects";
-import { type ScriptModule } from "../../types";
-import { readNonNegativeEnvInteger } from "../../utils/env";
-import { triggerLocEffect } from "../../utils/locEffects";
+import { SkillId } from "../../../../src/rs/skill/skills";
+import { ALTAR_LOC_IDS } from "../../../src/data/locEffects";
+import { type ScriptModule } from "../../../src/game/scripts/types";
+import { triggerLocEffect } from "../../../src/game/scripts/utils/locEffects";
 import { BURIABLE_BONES_XP } from "./prayerData";
 import { formatOfferMessage } from "./prayerMessages";
 
@@ -19,11 +18,9 @@ const OFFER_ACTIONS = ["offer", "offer-all"] as const;
 
 const PRAY_AT_ALTAR_ANIM = 645;
 const OFFER_AT_ALTAR_ANIM = 713;
-export const ALTAR_FLAME_SPOT_ID = 624;
-export const ALTAR_SOUND_ID = 2395;
 
-const PRAY_COOLDOWN_TICKS = readNonNegativeEnvInteger("PRAYER_ALTAR_COOLDOWN_TICKS") ?? 6;
-const OFFER_COOLDOWN_TICKS = readNonNegativeEnvInteger("PRAYER_ALTAR_OFFER_COOLDOWN_TICKS") ?? 4;
+const PRAY_COOLDOWN_TICKS = 6;
+const OFFER_COOLDOWN_TICKS = 4;
 
 const OFFER_ALL_LIMIT = 28;
 const FULL_PRAYER_MESSAGE = "You already have full Prayer points.";
@@ -34,12 +31,8 @@ const lastPrayTickByPlayer = new Map<number, number>();
 const lastOfferTickByPlayer = new Map<number, number>();
 
 const getMultiplierForAltar = (locId: number): number => {
-    if (POH_ALTAR_IDS.has(locId)) {
-        return 3.5;
-    }
-    if (CHAOS_ALTAR_IDS.has(locId)) {
-        return 3.5;
-    }
+    if (POH_ALTAR_IDS.has(locId)) return 3.5;
+    if (CHAOS_ALTAR_IDS.has(locId)) return 3.5;
     return 2;
 };
 
@@ -70,7 +63,7 @@ const markCooldown = (map: Map<number, number>, playerId: number, tick: number):
 };
 
 export const prayerAltarModule: ScriptModule = {
-    id: "skills.prayer-altars",
+    id: "vanilla-skills.prayer.altars",
     register(registry, services) {
         for (const action of PRAY_ACTIONS) {
             registry.registerLocAction(action, (event) => {
@@ -78,13 +71,11 @@ export const prayerAltarModule: ScriptModule = {
                 const player = event.player;
                 const pid = player.id;
                 const tick = event.tick;
-                if (hasCooldown(lastPrayTickByPlayer, pid, tick, PRAY_COOLDOWN_TICKS)) {
-                    return;
-                }
+                if (hasCooldown(lastPrayTickByPlayer, pid, tick, PRAY_COOLDOWN_TICKS)) return;
                 services.playPlayerSeq?.(player, PRAY_AT_ALTAR_ANIM);
-                const prayerSkill = player.getSkill(SkillId.Prayer);
-                const baseLevel = Math.max(1, prayerSkill.baseLevel);
-                const currentLevel = Math.max(0, prayerSkill.baseLevel + prayerSkill.boost);
+                const prayerSkill = services.getSkill?.(player, SkillId.Prayer);
+                const baseLevel = Math.max(1, prayerSkill?.baseLevel ?? 1);
+                const currentLevel = Math.max(0, baseLevel + (prayerSkill?.boost ?? 0));
                 if (currentLevel >= baseLevel) {
                     services.sendGameMessage(player, FULL_PRAYER_MESSAGE);
                     markCooldown(lastPrayTickByPlayer, pid, tick);
@@ -103,9 +94,7 @@ export const prayerAltarModule: ScriptModule = {
                 const player = event.player;
                 const pid = player.id;
                 const tick = event.tick;
-                if (hasCooldown(lastOfferTickByPlayer, pid, tick, OFFER_COOLDOWN_TICKS)) {
-                    return;
-                }
+                if (hasCooldown(lastOfferTickByPlayer, pid, tick, OFFER_COOLDOWN_TICKS)) return;
                 const inventory = services.getInventoryItems(player);
                 if (inventory.length === 0) {
                     services.sendGameMessage(player, OFFER_NONE_MESSAGE);

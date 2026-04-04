@@ -422,9 +422,6 @@ export class PlayerState extends Actor {
 
     [key: symbol]: unknown;
 
-    __leagueRelicPendingSelection?: unknown;
-    __leagueMasteryPendingSelection?: unknown;
-
     readonly gamemodeState: Map<string, unknown> = new Map();
 
     override readonly isPlayer = true;
@@ -741,7 +738,7 @@ export class PlayerState extends Actor {
         if (!LockStateChecks.canMove(this._lockState)) return false;
         if (this.timers.has(FROZEN_TIMER)) return false;
         if (this.timers.has(STUN_TIMER)) return false;
-        if (!this.hasCompletedLeagueTutorial()) return false;
+        if (!this.canInteractWithWorld()) return false;
         return true;
     }
 
@@ -1113,13 +1110,8 @@ export class PlayerState extends Actor {
         return this.aggressionState?.aggressionExpired ?? false;
     }
 
-    private hasCompletedLeagueTutorial(): boolean {
-        if (PlayerState.gamemodeRef) {
-            return PlayerState.gamemodeRef.canInteract(this);
-        }
-        const tutorialStep = this.getVarbitValue?.(10037) ?? 0;
-        const leagueType = this.getVarbitValue?.(10038) ?? 0;
-        return tutorialStep >= (leagueType === 3 ? 14 : 12);
+    private canInteractWithWorld(): boolean {
+        return PlayerState.gamemodeRef?.canInteract(this) ?? true;
     }
 
     /**
@@ -1134,12 +1126,8 @@ export class PlayerState extends Actor {
         this.aggressionState = null;
     }
 
-    /**
-     * Check if player can interact with NPCs, objects, ground items, etc.
-     * Blocked during the league tutorial until completion.
-     */
     public canInteract(): boolean {
-        return this.hasCompletedLeagueTutorial();
+        return this.canInteractWithWorld();
     }
 
     public override setPath(steps: Tile[], run: boolean): void {

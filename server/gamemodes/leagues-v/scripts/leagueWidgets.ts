@@ -64,6 +64,7 @@ export type LeagueWsUiPlayer = {
     getVarpValue: (id: number) => number;
     setVarbitValue: (id: number, value: number) => void;
     setVarpValue: (id: number, value: number) => void;
+    gamemodeState: Map<string, unknown>;
 };
 
 type LeagueWidgetEventAction = WidgetAction;
@@ -1498,7 +1499,7 @@ export const leagueWidgetModule: ScriptModule = {
             console.log(`[league] L5 View Relics clicked`);
             ensureLeagueBasicsInitialized(player, services);
             try {
-                delete player.__leagueRelicPendingSelection;
+                player.gamemodeState.delete("leagueRelicPendingSelection");
             } catch {}
             const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
             if (tutorial === 9) {
@@ -2120,10 +2121,10 @@ export const leagueWidgetModule: ScriptModule = {
         // ========== League Relics (655) ==========
 
         const getPendingRelicSelection = (player: any): LeagueRelicIndexEntry | undefined =>
-            player.__leagueRelicPendingSelection as LeagueRelicIndexEntry | undefined;
+            player.gamemodeState.get("leagueRelicPendingSelection") as LeagueRelicIndexEntry | undefined;
         const clearPendingRelicSelection = (player: any): void => {
             try {
-                delete player.__leagueRelicPendingSelection;
+                player.gamemodeState.delete("leagueRelicPendingSelection");
             } catch {}
         };
 
@@ -2185,7 +2186,7 @@ export const leagueWidgetModule: ScriptModule = {
                 return;
             }
 
-            player.__leagueRelicPendingSelection = entry;
+            player.gamemodeState.set("leagueRelicPendingSelection", entry);
             console.log(
                 `[league] Pending relic selection leagueType=${leagueType} tier=${entry.tierIndex} key=${entry.relicKey} idx=${globalIndex}`,
             );
@@ -2439,10 +2440,10 @@ export const leagueWidgetModule: ScriptModule = {
         }
 
         const getPendingMasterySelection = (player: any): PendingMasterySelection | undefined =>
-            player.__leagueMasteryPendingSelection as PendingMasterySelection | undefined;
+            player.gamemodeState.get("leagueMasteryPendingSelection") as PendingMasterySelection | undefined;
         const clearPendingMasterySelection = (player: any): void => {
             try {
-                delete player.__leagueMasteryPendingSelection;
+                player.gamemodeState.delete("leagueMasteryPendingSelection");
             } catch {}
         };
 
@@ -2508,13 +2509,13 @@ export const leagueWidgetModule: ScriptModule = {
             }
 
             // Store pending selection for confirm button
-            player.__leagueMasteryPendingSelection = {
+            player.gamemodeState.set("leagueMasteryPendingSelection", {
                 slot,
                 masteryType,
                 tier,
                 masteryStructId,
                 passiveStructId,
-            } as PendingMasterySelection;
+            } as PendingMasterySelection);
             console.log(
                 `[league] Pending mastery selection: type=${masteryType} tier=${tier} struct=${masteryStructId}`,
             );
@@ -2997,7 +2998,7 @@ export const leagueWidgetModule: ScriptModule = {
 
             // Clear any stale pending selection since Tasks can also route into Relics.
             try {
-                delete player.__leagueRelicPendingSelection;
+                player.gamemodeState.delete("leagueRelicPendingSelection");
             } catch {}
 
             // Check tutorial state before opening interface

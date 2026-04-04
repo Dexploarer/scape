@@ -8,14 +8,12 @@ export default defineConfig({
         nav: [
             { text: 'Home', link: '/' },
             { text: 'Architecture', link: '/ARCHITECTURE' },
-            { text: 'WorldView', link: '/WORLDVIEW' },
         ],
         sidebar: [
             {
                 text: 'Documentation',
                 items: [
                     { text: 'Architecture', link: '/ARCHITECTURE' },
-                    { text: 'WorldView', link: '/WORLDVIEW' },
                 ],
             },
         ],

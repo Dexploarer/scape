@@ -306,8 +306,9 @@ export class LeaguesVGamemode extends VanillaGamemode {
 
     // === Scripts ===
 
-    getGamemodeServices(): Record<string, unknown> {
+    override getGamemodeServices(): Record<string, unknown> {
         return {
+            ...super.getGamemodeServices(),
             completeLeagueTask: (player: PlayerState, taskId: number) =>
                 LeagueTaskService.completeTask(player, taskId),
             syncLeagueGeneralVarp: (player: PlayerState) =>
@@ -365,6 +366,7 @@ export class LeaguesVGamemode extends VanillaGamemode {
     // === Server Lifecycle ===
 
     override initialize(context: GamemodeInitContext): void {
+        super.initialize(context);
         this.initBridge = context.bridge;
         this.contentProvider.build();
         try {

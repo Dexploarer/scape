@@ -122,18 +122,6 @@ import { MusicCatalogService } from "../audio/MusicCatalogService";
 import { MusicRegionService } from "../audio/MusicRegionService";
 import { MusicUnlockService } from "../audio/MusicUnlockService";
 import { NpcSoundLookup, type NpcSoundType } from "../audio/NpcSoundLookup";
-import {
-    BankLimits,
-    BankMainChild,
-    BankSideChild,
-    BankVarbit,
-    BankVarp,
-    TAB_SLOT_OFFSET,
-    WidgetGroup,
-    getWidgetChild,
-    getWidgetGroup,
-    slotToTabIndex,
-} from "../constants/bank";
 import { getItemDefinition } from "../data/items";
 import { populateLocEffectsFromLoader } from "../data/locEffects";
 import { getProjectileParams } from "../data/projectileParams";
@@ -177,7 +165,7 @@ import type {
     MovementTeleportActionData,
 } from "../game/actions/actionPayloads";
 import { DEBUG_PLAYER_IDS, RUN_ENERGY_MAX } from "../game/actor";
-import { BankingManager, type BankingServices } from "../game/banking";
+import type { BankingProvider, BankServerUpdate as BankingPayload } from "../../../gamemodes/vanilla/banking";
 import {
     COLLECTION_LOG_GROUP_ID,
     COLLECTION_OVERVIEW_GROUP_ID,
@@ -408,11 +396,6 @@ import { logger } from "../utils/logger";
 import { InterfaceService, SHOP_INTERFACE_ID } from "../widgets/InterfaceService";
 import type { WidgetAction, WidgetEntry } from "../widgets/WidgetManager";
 import {
-    BANK_INTERFACE_ID,
-    type BankOpenData,
-    registerBankInterfaceHooks,
-} from "../widgets/hooks/BankInterfaceHooks";
-import {
     type CollectionLogOpenData,
     registerCollectionLogInterfaceHooks,
 } from "../widgets/hooks/CollectionLogInterfaceHooks";
@@ -480,7 +463,6 @@ import {
     type SoundManagerServices,
 } from "./managers";
 import {
-    BankServerUpdate,
     GroundItemActionPayload,
     GroundItemsServerPayload,
     type Appearance as HandshakeAppearance,
@@ -652,7 +634,7 @@ const DEFAULT_HIT_SOUND = 1979; // Generic blade hit sound
  */
 // Shop/Bank group IDs imported from interface hooks
 const SHOP_GROUP_ID = SHOP_INTERFACE_ID;
-const BANK_GROUP_ID = BANK_INTERFACE_ID;
+const BANK_GROUP_ID = 12;
 const SMITHING_GROUP_ID = 312;
 const SMITHING_BAR_TYPE_VARBIT_ID = 3216;
 const SMITHING_BAR_ENUM_ID = 1253;
@@ -1005,7 +987,7 @@ interface TickFrame {
     }>;
     bankSnapshots: Array<{
         playerId: number;
-        payload: Parameters<BankingServices["queueBankSnapshot"]>[1];
+        payload: BankingPayload;
     }>;
     appearanceSnapshots: Array<{
         playerId: number;
@@ -1281,7 +1263,7 @@ export class WSServer {
     }> = [];
     private pendingBankSnapshots: Array<{
         playerId: number;
-        payload: Parameters<BankingServices["queueBankSnapshot"]>[1];
+        payload: BankingPayload;
     }> = [];
     private pendingAppearanceSnapshots: Array<{
         playerId: number;
@@ -1376,7 +1358,7 @@ export class WSServer {
     private playerGroundChunk = new Map<number, number>();
     private readonly playerDynamicLocSceneKeys = new Map<number, string>();
     private readonly dynamicLocState = new DynamicLocStateStore();
-    private bankingManager!: BankingManager;
+    private bankingProvider: BankingProvider | undefined;
     private npcPacketEncoder!: NpcPacketEncoder;
     private playerPacketEncoder!: PlayerPacketEncoder;
     private combatActionHandler!: CombatActionHandler;
@@ -1649,7 +1631,6 @@ export class WSServer {
 
         // Register interface lifecycle hooks
         registerShopInterfaceHooks(this.interfaceService);
-        registerBankInterfaceHooks(this.interfaceService);
         registerDialogInterfaceHooks(this.interfaceService);
         registerCollectionLogInterfaceHooks(this.interfaceService);
         registerEquipmentStatsInterfaceHooks(this.interfaceService);
@@ -1895,15 +1876,15 @@ export class WSServer {
                                 : this.options.ticker.currentTick(),
                         );
                     })(),
-                openBank: (player, opts) => this.bankingManager.openBank(player, opts),
-                depositInventoryToBank: (player) => this.bankingManager.depositInventory(player),
-                depositEquipmentToBank: (player) => this.bankingManager.depositEquipment(player),
+                openBank: (player, opts) => this.bankingProvider!.openBank(player, opts),
+                depositInventoryToBank: (player) => this.bankingProvider!.depositInventory(player),
+                depositEquipmentToBank: (player) => this.bankingProvider!.depositEquipment(player),
                 depositInventoryItemToBank: (player, slot, quantity, opts) => {
                     const slotIndex = Math.trunc(slot);
                     const amount = Math.trunc(quantity);
                     const itemIdHintRaw = opts?.itemIdHint;
                     const tabRaw = opts?.tab;
-                    return this.bankingManager.depositItem(
+                    return this.bankingProvider!.depositItem(
                         player,
                         slotIndex,
                         amount,
@@ -1916,15 +1897,15 @@ export class WSServer {
                     );
                 },
                 withdrawFromBankSlot: (player, slot, quantity, opts) =>
-                    this.bankingManager.withdraw(player, slot, quantity, {
+                    this.bankingProvider!.withdraw(player, slot, quantity, {
                         overrideNoted: opts?.noted,
                     }),
                 getBankEntryAtClientSlot: (player, clientSlot) =>
-                    this.bankingManager.getBankEntryAtClientSlot(player, clientSlot),
+                    this.bankingProvider!.getBankEntryAtClientSlot(player, clientSlot),
                 findOwnedItemLocation: (player, itemId) =>
                     this.findOwnedItemLocation(player, itemId),
-                queueBankSnapshot: (player) => this.bankingManager.queueBankSnapshot(player),
-                sendBankTabVarbits: (player) => this.bankingManager.sendBankTabVarbits(player),
+                queueBankSnapshot: (player) => this.bankingProvider!.queueBankSnapshot(player),
+                sendBankTabVarbits: (player) => this.bankingProvider!.sendBankTabVarbits(player),
                 openShop: (player, opts) => this.openShopInterface(player, opts),
                 closeShop: (player) => this.closeShopInterface(player),
                 buyFromShop: (player, params) => this.handleShopBuy(player, params),
@@ -2217,7 +2198,7 @@ export class WSServer {
                 faceGatheringTarget: (player, tile) => this.faceGatheringTarget(player, tile),
                 collectCarriedItemIds: (player) => this.collectCarriedItemIds(player),
                 addItemToBank: (player, itemId, qty) =>
-                    this.bankingManager.addItemToBank(player, itemId, qty),
+                    this.bankingProvider!.addItemToBank(player, itemId, qty),
                 findInventorySlotWithItem: (player, itemId) =>
                     this.findInventorySlotWithItem(player, itemId),
                 canStoreItem: (player, itemId) => this.canStoreItem(player, itemId),
@@ -2432,8 +2413,6 @@ export class WSServer {
             this.players.setNpcCombatPermissionCallback((attacker, npc, currentTick) =>
                 multiCombatSystem.canAttack(attacker, npc, currentTick),
             );
-            // Initialize BankingManager
-            this.bankingManager = this.createBankingManager();
             // Initialize NpcPacketEncoder
             this.npcPacketEncoder = this.createNpcPacketEncoder();
             // Initialize PlayerPacketEncoder
@@ -2541,8 +2520,15 @@ export class WSServer {
                     sendGameMessage: (player, text) =>
                         sendGameMessageFn(player, text),
                 },
+                serverServices: {
+                    bankingServices: this.buildBankingProviderServices(),
+                },
             });
             logger.info(`Boot: gamemode "${this.gamemode.id}" initialized`);
+
+            // Get banking provider from gamemode (if it provides one)
+            const gamemodeServices = this.gamemode.getGamemodeServices?.() ?? {};
+            this.bankingProvider = gamemodeServices.banking as BankingProvider | undefined;
 
             if (this.gamemode.createUiController) {
                 this.gamemodeUi = this.gamemode.createUiController({
@@ -4237,9 +4223,9 @@ export class WSServer {
                 this.sendInventorySnapshotImmediate(ws, player);
             }
         }
-        if (player.hasBankUpdate()) {
+        if (player.hasBankUpdate() && this.bankingProvider) {
             const snapshot = player.takeBankSnapshot();
-            if (snapshot) this.bankingManager.queueBankSnapshot(player);
+            if (snapshot) this.bankingProvider.queueBankSnapshot(player);
         }
         if (player.hasAppearanceUpdate()) {
             // Don't call takeAppearanceSnapshot or send immediately.
@@ -4768,9 +4754,9 @@ export class WSServer {
                     );
                     // Keep slot decoding aligned to what the client has been sent.
                     const player = this.players.getById(playerId);
-                    if (player) {
+                    if (player && this.bankingProvider) {
                         player.setBankClientSlotMapping(
-                            this.bankingManager.buildBankSlotMapping(player),
+                            this.bankingProvider.buildBankSlotMapping(player),
                         );
                     }
                 }
@@ -4863,9 +4849,9 @@ export class WSServer {
                             );
                         }
                     }
-                    if (player.hasBankUpdate()) {
+                    if (player.hasBankUpdate() && this.bankingProvider) {
                         const snapshot = player.takeBankSnapshot();
-                        if (snapshot) this.bankingManager.queueBankSnapshot(player);
+                        if (snapshot) this.bankingProvider.queueBankSnapshot(player);
                     }
                     const appearanceDirty = player.hasAppearanceUpdate();
                     if (appearanceDirty) {
@@ -5165,14 +5151,14 @@ export class WSServer {
      */
     private queueBankSnapshot(
         playerId: number,
-        payload: Parameters<BankingServices["queueBankSnapshot"]>[1],
+        payload: BankingPayload,
     ): void {
         const event = { playerId: playerId, payload };
 
         const upsert = (
             queue: Array<{
                 playerId: number;
-                payload: Parameters<BankingServices["queueBankSnapshot"]>[1];
+                payload: BankingPayload;
             }>,
         ) => {
             const idx = queue.findIndex((entry) => entry.playerId === event.playerId);
@@ -7401,10 +7387,10 @@ export class WSServer {
     }
 
     /**
-     * Create the BankingManager with all required services.
+     * Build the services bag that a gamemode's banking provider needs from the server.
      */
-    private createBankingManager(): BankingManager {
-        const services: BankingServices = {
+    private buildBankingProviderServices(): import("../../../gamemodes/vanilla/banking").BankingProviderServices {
+        return {
             getInventory: (player) => this.getInventory(player),
             getEquipArray: (player) => this.ensureEquipArray(player),
             getEquipQtyArray: (player) => this.ensureEquipQtyArray(player),
@@ -7445,7 +7431,6 @@ export class WSServer {
             queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
             queueBankSnapshot: (playerId, payload) => this.queueBankSnapshot(playerId, payload),
             sendBankSnapshot: (playerId, payload) => {
-                // OSRS parity: keep bank snapshots tick-dispatched.
                 this.queueBankSnapshot(playerId, payload);
             },
             queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
@@ -7461,7 +7446,6 @@ export class WSServer {
             getInterfaceService: () => this.interfaceService,
             logger: logger,
         };
-        return new BankingManager(services);
     }
 
     /**
@@ -8541,7 +8525,7 @@ export class WSServer {
                 this.handleBankDepositEquipment(ws, payload),
             handleBankDepositItem: (ws, payload) => this.handleBankDepositItem(ws, payload as any),
             moveBankSlot: (player, from, to, opts) =>
-                this.bankingManager.moveBankSlot(player, from, to, opts),
+                this.bankingProvider?.moveBankSlot(player, from, to, opts) ?? false,
 
             // Movement
             setPendingWalkCommand: (ws, command) => this.pendingWalkCommands.set(ws, command),
@@ -8615,7 +8599,7 @@ export class WSServer {
 
             // Widget/Interface
             handleIfButtonD: (player, payload) =>
-                this.bankingManager.handleIfButtonD(player, payload),
+                this.bankingProvider?.handleIfButtonD(player, payload),
             handleWidgetAction: (player, payload) => {},
             handleWidgetCloseState: (player, groupId) => {
                 this.cs2ModalManager.handleWidgetCloseState(player, groupId);
@@ -10785,23 +10769,26 @@ export class WSServer {
     }
 
     private handleBankDepositInventory(ws: WebSocket, payload?: { tab?: number }): void {
+        if (!this.bankingProvider) return;
         const player = this.players?.get(ws);
         if (!player) return;
         const tab = payload?.tab !== undefined && payload.tab > 0 ? payload.tab : undefined;
-        this.bankingManager.depositInventory(player, tab);
+        this.bankingProvider.depositInventory(player, tab);
     }
 
     private handleBankDepositEquipment(ws: WebSocket, payload?: { tab?: number }): void {
+        if (!this.bankingProvider) return;
         const player = this.players?.get(ws);
         if (!player) return;
         const tab = payload?.tab !== undefined && payload.tab > 0 ? payload.tab : undefined;
-        this.bankingManager.depositEquipment(player, tab);
+        this.bankingProvider.depositEquipment(player, tab);
     }
 
     private handleBankDepositItem(
         ws: WebSocket,
         payload: { slot?: number; quantity?: number; itemId?: number; tab?: number } | undefined,
     ): void {
+        if (!this.bankingProvider) return;
         if (!payload) return;
         const player = this.players?.get(ws);
         if (!player) return;
@@ -10809,7 +10796,7 @@ export class WSServer {
         const quantity = typeof payload.quantity === "number" ? payload.quantity : 0;
         const itemIdHint = payload.itemId;
         const tab = payload.tab !== undefined && payload.tab > 0 ? payload.tab : undefined;
-        const result = this.bankingManager.depositItem(player, slot, quantity, itemIdHint, tab);
+        const result = this.bankingProvider.depositItem(player, slot, quantity, itemIdHint, tab);
         if (!result.ok && result.message) {
             this.queueChatMessage({
                 messageType: "game",
@@ -15055,9 +15042,9 @@ export class WSServer {
 
             case "if_buttond": {
                 const player = this.players?.get(ws);
-                if (player && parsed.payload) {
+                if (player && parsed.payload && this.bankingProvider) {
                     const payload = parsed.payload;
-                    this.bankingManager.handleIfButtonD(player, {
+                    this.bankingProvider.handleIfButtonD(player, {
                         sourceWidgetId: payload.sourceWidgetId,
                         sourceSlot: payload.sourceSlot,
                         sourceItemId: payload.sourceItemId,

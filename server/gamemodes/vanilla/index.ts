@@ -1,12 +1,20 @@
+import path from "path";
+
+import type { BankingProviderServices } from "./banking/BankingProvider";
 import type { PlayerState } from "../../src/game/player";
 import type { ScriptManifestEntry } from "../../src/game/scripts/manifest";
+import type { ScriptModule } from "../../src/game/scripts/types";
 import type { GamemodeBridge, GamemodeDefinition, GamemodeInitContext, HandshakeBridge } from "../../src/game/gamemodes/GamemodeDefinition";
+import { BankingManager } from "./banking";
+import { registerBankInterfaceHooks } from "./banking";
 
 const DEFAULT_SPAWN = { x: 3222, y: 3218, level: 0 };
 
 export class VanillaGamemode implements GamemodeDefinition {
     readonly id = "vanilla";
     readonly name = "Vanilla";
+
+    private bankingManager: BankingManager | undefined;
 
     getSkillXpMultiplier(_player: PlayerState): number {
         return 1;
@@ -62,11 +70,47 @@ export class VanillaGamemode implements GamemodeDefinition {
         return 0;
     }
 
-    getScriptManifest(): ScriptManifestEntry[] {
-        return [];
+    getGamemodeServices(): Record<string, unknown> {
+        return {
+            banking: this.bankingManager,
+        };
     }
 
-    initialize(_context: GamemodeInitContext): void {}
+    getScriptManifest(): ScriptManifestEntry[] {
+        const BANKING_DIR = path.resolve(__dirname, "banking");
+        const loadModule = (relativePath: string, exportName: string): (() => ScriptModule) => {
+            const resolved = path.resolve(BANKING_DIR, relativePath);
+            return () => {
+                const mod = require(resolved);
+                return mod[exportName] as ScriptModule;
+            };
+        };
+        return [
+            {
+                id: "vanilla.banking",
+                load: loadModule("index", "bankingModule"),
+                watch: [
+                    path.resolve(BANKING_DIR, "index.ts"),
+                    path.resolve(BANKING_DIR, "bankWidgets.ts"),
+                    path.resolve(BANKING_DIR, "BankInterfaceHooks.ts"),
+                    path.resolve(BANKING_DIR, "BankingManager.ts"),
+                    path.resolve(BANKING_DIR, "bankConstants.ts"),
+                ],
+            },
+        ];
+    }
+
+    initialize(context: GamemodeInitContext): void {
+        const bankingServices = context.serverServices.bankingServices as BankingProviderServices | undefined;
+        if (bankingServices) {
+            this.bankingManager = new BankingManager(bankingServices);
+
+            const interfaceService = bankingServices.getInterfaceService();
+            if (interfaceService) {
+                registerBankInterfaceHooks(interfaceService);
+            }
+        }
+    }
 }
 
 export function createGamemode(): GamemodeDefinition {

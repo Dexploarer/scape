@@ -41,6 +41,8 @@ export interface GamemodeInitContext {
     npcTypeLoader: { load: (id: number) => { name?: string } | undefined } | undefined;
     objTypeLoader: { load: (id: number) => { name?: string } | undefined } | undefined;
     bridge: GamemodeBridge;
+    /** Generic server services bag for gamemode features to consume. */
+    serverServices: Record<string, unknown>;
 }
 
 export interface HandshakeBridge {

@@ -32,26 +32,6 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/doors.ts")],
     },
     {
-        id: "content.bankers",
-        load: loadModule("modules/bankers", "bankerInteractionsModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/bankers.ts")],
-    },
-    {
-        id: "content.bank-widgets",
-        load: loadModule("modules/bankWidgets", "bankWidgetActionsModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/bankWidgets.ts")],
-    },
-    {
-        id: "content.bankside-widgets",
-        load: loadModule("modules/banksideWidgets", "banksideWidgetActionsModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/banksideWidgets.ts")],
-    },
-    {
-        id: "content.bank-locations",
-        load: loadModule("modules/bankLocations", "bankLocationModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/bankLocations.ts")],
-    },
-    {
         id: "content.combat-widgets",
         load: loadModule("modules/combatWidgets", "combatWidgetModule"),
         watch: [path.resolve(MODULE_DIR, "modules/combatWidgets.ts")],

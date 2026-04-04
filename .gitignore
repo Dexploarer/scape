@@ -57,3 +57,4 @@ CLAUDE.md
 docs/.vitepress/cache
 docs/.vitepress/dist
 server/data/gamemodes/leagues-v/player-state.json
+server/data/gamemodes/vanilla/player-state.json

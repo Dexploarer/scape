@@ -1,8 +1,6 @@
 /**
- * BankingManager - Handles all banking operations
- *
- * Extracted from wsServer.ts to reduce file size and improve maintainability.
- * All bank deposit, withdraw, tab management, and related operations.
+ * BankingManager - Vanilla gamemode banking implementation.
+ * Handles all bank deposit, withdraw, tab management, and related operations.
  */
 import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
 import {
@@ -14,125 +12,24 @@ import {
     TAB_SLOT_OFFSET,
     WidgetGroup,
     slotToTabIndex,
-} from "../../constants/bank";
-import { getItemDefinition } from "../../data/items";
-import { BANK_INTERFACE_ID, type BankOpenData } from "../../widgets/hooks/BankInterfaceHooks";
+} from "./bankConstants";
+import { getItemDefinition } from "../../../src/data/items";
+import { BANK_INTERFACE_ID, type BankOpenData } from "./BankInterfaceHooks";
+import type { BankingProvider, BankingProviderServices, BankOperationResult, BankServerUpdate } from "./BankingProvider";
 import {
     type BankEntry,
     DEFAULT_BANK_CAPACITY,
-    type InventoryAddResult,
     type PlayerState,
-} from "../player";
+} from "../../../src/game/player";
 
 const INVENTORY_SLOT_COUNT = 28;
 
-/** Logger interface for banking operations */
-interface Logger {
-    debug(message: string, ...args: any[]): void;
-    info(message: string, ...args: any[]): void;
-    warn(message: string, ...args: any[]): void;
-}
-
-/** Result of a bank operation */
-export interface BankOperationResult {
-    ok: boolean;
-    message?: string;
-}
-
-/** Bank snapshot payload for sending to client */
-export interface BankServerUpdate {
-    kind: "snapshot";
-    capacity: number;
-    slots: Array<{
-        slot: number;
-        itemId: number;
-        quantity: number;
-        placeholder: boolean;
-        filler: boolean;
-        tab: number;
-    }>;
-}
-
-/** Inventory entry type */
-interface InventoryEntry {
-    itemId: number;
-    quantity: number;
-}
-
-/** Services required by BankingManager from the server */
-export interface BankingServices {
-    /** Get player's inventory */
-    getInventory(player: PlayerState): InventoryEntry[];
-
-    /** Get player's equipment array */
-    getEquipArray(player: PlayerState): number[];
-
-    /** Get player's equipment quantity array */
-    getEquipQtyArray(player: PlayerState): number[];
-
-    /** Add item to player's inventory */
-    addItemToInventory(player: PlayerState, itemId: number, quantity: number): InventoryAddResult;
-
-    /** Send inventory snapshot to client */
-    sendInventorySnapshot(playerId: number): void;
-
-    /** Refresh player appearance after equipment change */
-    refreshAppearance(player: PlayerState): void;
-
-    /** Refresh combat weapon category after equipment change */
-    refreshCombatWeapon(player: PlayerState): {
-        categoryChanged: boolean;
-        weaponItemChanged: boolean;
-    };
-
-    /** Send appearance update to client */
-    sendAppearanceUpdate(playerId: number): void;
-
-    /** Queue combat snapshot */
-    queueCombatSnapshot(
-        playerId: number,
-        category: number,
-        weaponItemId: number,
-        autoRetaliate: boolean,
-        styleSlot: number,
-        activePrayers: string[],
-        combatSpellId?: number,
-    ): void;
-
-    /** Queue chat message */
-    queueChatMessage(opts: { messageType: string; text: string; targetPlayerIds: number[] }): void;
-
-    /** Queue varbit update */
-    queueVarbit(playerId: number, varbitId: number, value: number): void;
-
-    /** Queue bank snapshot for sending */
-    queueBankSnapshot(playerId: number, payload: BankServerUpdate): void;
-
-    /** Send bank snapshot directly */
-    sendBankSnapshot(playerId: number, payload: BankServerUpdate): void;
-
-    /** Queue widget event */
-    queueWidgetEvent(playerId: number, event: any): void;
-
-    /** Get object type definition */
-    getObjType(itemId: number): any;
-
-    /** Get display mode helpers */
-    getMainmodalUid(displayMode: number): number;
-    getInventoryTabUid(displayMode: number): number;
-
-    /** InterfaceService for modal management */
-    getInterfaceService(): import("../../widgets/InterfaceService").InterfaceService | undefined;
-
-    /** Logger */
-    logger: Logger;
-}
-
 /**
  * BankingManager handles all banking operations for players.
+ * Implements the BankingProvider interface from the core server.
  */
-export class BankingManager {
-    constructor(private readonly services: BankingServices) {}
+export class BankingManager implements BankingProvider {
+    constructor(private readonly services: BankingProviderServices) {}
 
     private formatBankCapacityText(capacity: number): string {
         const safe = Math.max(1, Math.min(BankLimits.MAX_SLOTS, capacity));

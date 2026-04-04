@@ -2,11 +2,11 @@ import { defineConfig } from 'vitepress';
 
 export default defineConfig({
     title: 'XRSPS',
-    description: 'OSRS Leagues V - 1:1 TypeScript Remake',
+    description: 'A community-driven project inspired by Project Zanaris',
     base: '/',
     head: [
         ['meta', { property: 'og:title', content: 'XRSPS' }],
-        ['meta', { property: 'og:description', content: 'A community-driven 1:1 OSRS Leagues V remake in TypeScript' }],
+        ['meta', { property: 'og:description', content: 'A community-driven project inspired by Project Zanaris' }],
         ['meta', { name: 'theme-color', content: '#4a9eff' }],
     ],
     themeConfig: {

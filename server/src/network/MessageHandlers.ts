@@ -24,6 +24,7 @@ import {
 import type { ScriptDialogRequest } from "../game/scripts/types";
 import type { WidgetAction } from "../widgets/WidgetManager";
 import type { WorldEntityBuildArea } from "../../../src/shared/worldentity/WorldEntityTypes";
+import type { WorldEntityMaskUpdate, WorldEntityPosition } from "./encoding/WorldEntityInfoEncoder";
 import {
     type BoatLoc,
     SAILING_WORLD_ENTITY_CONFIG_ID,
@@ -181,6 +182,8 @@ export interface MessageHandlerServices {
         templateChunks: number[][][],
         buildAreas: WorldEntityBuildArea[],
         extraLocs?: BoatLoc[],
+        extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>,
+        drawMode?: number,
     ) => void;
     spawnLocForPlayer: (
         player: PlayerState,
@@ -194,6 +197,12 @@ export interface MessageHandlerServices {
     initSailingInstance?: (player: PlayerState) => void;
     disposeSailingInstance?: (player: PlayerState) => void;
     buildSailingDockedCollision?: () => void;
+    removeWorldEntity?: (playerId: number, entityIndex: number) => void;
+    queueWorldEntityPosition?: (playerId: number, entityIndex: number, position: WorldEntityPosition) => void;
+    setWorldEntityPosition?: (playerId: number, entityIndex: number, position: WorldEntityPosition) => void;
+    queueWorldEntityMask?: (playerId: number, entityIndex: number, mask: WorldEntityMaskUpdate) => void;
+    applySailingDeckCollision?: () => void;
+    clearSailingDeckCollision?: () => void;
     requestTeleportAction: (
         player: PlayerState,
         request: TeleportActionRequest,
@@ -264,6 +273,7 @@ export interface MessageHandlerServices {
         targetUid: number,
         groupId: number,
         type?: number,
+        opts?: { modal?: boolean },
     ) => void;
     openDialog?: (player: PlayerState, request: ScriptDialogRequest) => void;
     queueWidgetEvent: (playerId: number, event: WidgetAction) => void;

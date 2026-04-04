@@ -102,6 +102,8 @@ export function buildRebuildWorldEntityPayload(
         xteaKeys,
         mapRegions,
         buildAreas,
+        extraLocs: [],
+        extraNpcs: [],
     };
 }
 

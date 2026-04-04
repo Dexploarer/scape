@@ -271,7 +271,7 @@ import {
     findOwnedItemLocation as findOwnedItemLocationInSnapshot,
 } from "../game/items/playerItemOwnership";
 import { CustomItemRegistry } from "../../../src/custom/items/CustomItemRegistry";
-import type { GamemodeDefinition, GamemodeUiController } from "../game/gamemodes/GamemodeDefinition";
+import type { GamemodeBridge, GamemodeDefinition, GamemodeUiController } from "../game/gamemodes/GamemodeDefinition";
 import { getGamemodeDataDir } from "../game/gamemodes/GamemodeRegistry";
 import { LockState } from "../game/model/LockState";
 import {
@@ -8080,7 +8080,7 @@ export class WSServer {
                         source: { slot: slotIndex, itemId },
                         target: { slot: -1, itemId: -1 },
                         option,
-                        tick,
+                        tick: tick ?? 0,
                         services: this.scriptRuntime.getServices(),
                     });
                     return { handled: true };
@@ -8567,8 +8567,8 @@ export class WSServer {
             setWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.setPosition(playerId, entityIndex, position),
             queueWorldEntityMask: (playerId, entityIndex, mask) => this.worldEntityInfoEncoder.queueMaskUpdate(playerId, entityIndex, mask),
             buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
-            applySailingDeckCollision: () => this.sailingInstanceManager?.applyDeckCollision(),
-            clearSailingDeckCollision: () => this.sailingInstanceManager?.clearDeckCollision(),
+            applySailingDeckCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
+            clearSailingDeckCollision: () => this.sailingInstanceManager?.clearDockedCollision(),
             requestTeleportAction: (player, request) => this.requestTeleportAction(player, request),
 
             // Combat/NPC

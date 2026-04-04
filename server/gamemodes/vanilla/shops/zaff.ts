@@ -1,4 +1,4 @@
-import { type ScriptModule } from "../types";
+import { type ScriptModule } from "../../../src/game/scripts/types";
 
 const ZAFF_NPC_ID = 2880;
 

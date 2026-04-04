@@ -1,5 +1,5 @@
-import { getMainmodalUid, getSidemodalUid } from "../../../widgets/viewport";
-import type { ScriptModule, ScriptServices } from "../types";
+import { getMainmodalUid, getSidemodalUid } from "../../../src/widgets/viewport";
+import type { ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
 
 /**
  * Equipment widget handlers for equipment interfaces.

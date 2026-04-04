@@ -1,6 +1,6 @@
 import { ObjStackability } from "../../../../src/rs/config/objtype/ObjStackability";
 import type { ObjType } from "../../../../src/rs/config/objtype/ObjType";
-import { type InventoryAddResult, type PlayerState } from "../player";
+import { type InventoryAddResult, type PlayerState } from "../../../src/game/player";
 import { getAllShopDefinitions, getShopDefinitionByNpcId } from "./definitions";
 import { type ShopDefinition } from "./types";
 

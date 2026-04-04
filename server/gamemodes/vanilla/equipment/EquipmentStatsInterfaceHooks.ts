@@ -14,7 +14,7 @@
  * registerEquipmentStatsInterfaceHooks(interfaceService);
  * ```
  */
-import type { InterfaceService } from "../InterfaceService";
+import type { InterfaceService } from "../../../src/widgets/InterfaceService";
 
 // Equipment stats interface (main screen showing bonuses)
 const EQUIPMENT_STATS_INTERFACE_ID = 84;

@@ -1,4 +1,4 @@
-import { type ScriptModule } from "../types";
+import { type ScriptModule } from "../../../src/game/scripts/types";
 
 const AUBURY_NPC_TYPE_IDS = [2886, 11434];
 const COMBAT_PATH_VOUCHER_ITEM_ID = 24131;

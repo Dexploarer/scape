@@ -17,8 +17,8 @@
  * interfaceService.openModal(player, SHOP_INTERFACE_ID, { shopSnapshot });
  * ```
  */
-import type { PlayerState } from "../../game/player";
-import type { InterfaceHookContext, InterfaceService } from "../InterfaceService";
+import type { PlayerState } from "../../../src/game/player";
+import type { InterfaceHookContext, InterfaceService } from "../../../src/widgets/InterfaceService";
 import {
     GameframeTab,
     PLAYER_INV_ID,
@@ -30,7 +30,7 @@ import {
     SHOP_STOCK_COMPONENT,
     SHOP_STOCK_FLAGS,
     SHOP_STOCK_INV_ID,
-} from "../InterfaceService";
+} from "../../../src/widgets/InterfaceService";
 
 /**
  * Shop snapshot data passed when opening a shop.

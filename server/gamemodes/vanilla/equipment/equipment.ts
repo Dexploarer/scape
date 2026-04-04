@@ -1,4 +1,4 @@
-import { type ScriptModule } from "../types";
+import { type ScriptModule } from "../../../src/game/scripts/types";
 
 const DFS_ITEM_IDS = [11283, 11284];
 

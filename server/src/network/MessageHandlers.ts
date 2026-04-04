@@ -122,23 +122,6 @@ export interface MessageHandlerServices {
         tick: number,
     ) => void;
 
-    // Banking
-    handleBankDepositInventory: (
-        ws: WebSocket,
-        payload: MessagePayload<"bank_deposit_inventory">,
-    ) => void;
-    handleBankDepositEquipment: (
-        ws: WebSocket,
-        payload: MessagePayload<"bank_deposit_equipment">,
-    ) => void;
-    handleBankDepositItem: (ws: WebSocket, payload: MessagePayload<"bank_deposit_item">) => void;
-    moveBankSlot: (
-        player: PlayerState,
-        from: number,
-        to: number,
-        opts: { insert: boolean; tab?: number },
-    ) => void;
-
     // Movement
     setPendingWalkCommand: (
         ws: WebSocket,
@@ -265,7 +248,7 @@ export interface MessageHandlerServices {
     handleSpellCastOnItem: (ws: WebSocket, payload: MessagePayload<"spell_cast_item">) => void;
 
     // Widget/Interface
-    handleIfButtonD: (player: PlayerState, payload: MessagePayload<"if_buttond">) => void;
+    handleIfButtonD?: (player: PlayerState, payload: MessagePayload<"if_buttond">) => void;
     handleWidgetAction: (player: PlayerState, payload: MessagePayload<"widget_action">) => void;
     handleWidgetCloseState: (player: PlayerState, groupId: number) => void;
     openModal: (player: PlayerState, interfaceId: number, data?: unknown) => void;
@@ -446,49 +429,6 @@ export function registerMessageHandlers(
     // =========================================================================
     // BANKING HANDLERS
     // =========================================================================
-
-    router.register("bank_deposit_inventory", (ctx) => {
-        try {
-            services.handleBankDepositInventory(ctx.ws, ctx.payload);
-        } catch (err) {
-            logger.warn("[bank] bank_deposit_inventory handling failed", err);
-        }
-    });
-
-    router.register("bank_deposit_equipment", (ctx) => {
-        try {
-            services.handleBankDepositEquipment(ctx.ws, ctx.payload);
-        } catch (err) {
-            logger.warn("[bank] bank_deposit_equipment handling failed", err);
-        }
-    });
-
-    router.register("bank_move", (ctx) => {
-        try {
-            if (!ctx.player) return;
-            const { from, to, mode: modeRaw, tab } = ctx.payload;
-            const insert =
-                modeRaw === "insert"
-                    ? true
-                    : modeRaw === "swap"
-                    ? false
-                    : ctx.player.getBankInsertMode?.() ?? false;
-            services.moveBankSlot(ctx.player, from, to, {
-                insert,
-                tab,
-            });
-        } catch (err) {
-            logger.warn("[bank] bank_move handling failed", err);
-        }
-    });
-
-    router.register("bank_deposit_item", (ctx) => {
-        try {
-            services.handleBankDepositItem(ctx.ws, ctx.payload);
-        } catch (err) {
-            logger.warn("[bank] bank_deposit_item handling failed", err);
-        }
-    });
 
     router.register("resume_countdialog", (ctx) => {
         if (!ctx.player) return;
@@ -944,15 +884,6 @@ export function registerMessageHandlers(
     // WIDGET/INTERFACE HANDLERS
     // =========================================================================
 
-    router.register("if_buttond", (ctx) => {
-        try {
-            if (ctx.player) {
-                services.handleIfButtonD(ctx.player, ctx.payload);
-            }
-        } catch (err) {
-            logger.warn("[widget] if_buttond handling failed", err);
-        }
-    });
 
     // NOTE: widget and varp_transmit handlers remain in wsServer.ts due to
     // complex tutorial logic that requires many wsServer dependencies

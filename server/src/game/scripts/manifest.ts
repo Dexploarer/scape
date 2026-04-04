@@ -67,19 +67,9 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/skillGuideWidgets.ts")],
     },
     {
-        id: "content.shops",
-        load: loadModule("modules/shops", "shopInteractionsModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/shops.ts")],
-    },
-    {
         id: "content.romeo",
         load: loadModule("modules/romeo", "romeoModule"),
         watch: [path.resolve(MODULE_DIR, "modules/romeo.ts")],
-    },
-    {
-        id: "content.zaff",
-        load: loadModule("modules/zaff", "zaffModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/zaff.ts")],
     },
     {
         id: "content.al-kharid-border",
@@ -95,11 +85,6 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         id: "content.default-talk",
         load: loadModule("modules/defaultTalk", "defaultTalkModule"),
         watch: [path.resolve(MODULE_DIR, "modules/defaultTalk.ts")],
-    },
-    {
-        id: "content.shop-widgets",
-        load: loadModule("modules/shopWidgets", "shopWidgetActionsModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/shopWidgets.ts")],
     },
     {
         id: "content.settings-widgets",
@@ -120,16 +105,6 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         id: "content.collection-log-widgets",
         load: loadModule("modules/collectionLogWidgets", "collectionLogWidgetsModule"),
         watch: [path.resolve(MODULE_DIR, "modules/collectionLogWidgets.ts")],
-    },
-    {
-        id: "content.equipment",
-        load: loadModule("modules/equipment", "equipmentActionsModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/equipment.ts")],
-    },
-    {
-        id: "content.equipment-widgets",
-        load: loadModule("modules/equipmentWidgets", "equipmentWidgetModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/equipmentWidgets.ts")],
     },
     {
         id: "content.poh-pools",

@@ -1,6 +1,8 @@
+import type { InterfaceService } from "../../widgets/InterfaceService";
 import type { WidgetAction } from "../../widgets/WidgetManager";
 import type { PlayerState } from "../player";
 import type { ScriptManifestEntry } from "../scripts/manifest";
+import type { ScriptServices } from "../scripts/types";
 
 export interface GamemodeUiController {
     normalizeSideJournalState(
@@ -37,12 +39,69 @@ export interface GamemodeBridge {
     sendGameMessage(player: PlayerState, text: string): void;
 }
 
+/**
+ * Server-level services exposed to gamemodes during initialization.
+ * Any gamemode feature (banking, shops, etc.) can use these to interact with
+ * core server systems without importing server internals.
+ */
+export interface GamemodeServerServices {
+    getPlayer(playerId: number): PlayerState | undefined;
+    getInventory(player: PlayerState): Array<{ itemId: number; quantity: number }>;
+    getEquipArray(player: PlayerState): number[];
+    getEquipQtyArray(player: PlayerState): number[];
+    addItemToInventory(
+        player: PlayerState,
+        itemId: number,
+        quantity: number,
+    ): { slot: number; added: number };
+    sendInventorySnapshot(playerId: number): void;
+    refreshAppearance(player: PlayerState): void;
+    refreshCombatWeapon(player: PlayerState): {
+        categoryChanged: boolean;
+        weaponItemChanged: boolean;
+    };
+    sendAppearanceUpdate(playerId: number): void;
+    queueCombatSnapshot(
+        playerId: number,
+        category: number,
+        weaponItemId: number,
+        autoRetaliate: boolean,
+        styleSlot: number,
+        activePrayers: string[],
+        combatSpellId?: number,
+    ): void;
+    queueChatMessage(opts: {
+        messageType: string;
+        text: string;
+        targetPlayerIds: number[];
+    }): void;
+    queueVarbit(playerId: number, varbitId: number, value: number): void;
+    queueWidgetEvent(playerId: number, event: unknown): void;
+    queueGamemodeSnapshot(key: string, playerId: number, payload: unknown): void;
+    registerSnapshotEncoder(
+        key: string,
+        encoder: (playerId: number, payload: unknown) => {
+            message: string | Uint8Array;
+            context: string;
+        } | undefined,
+        onSent?: (playerId: number, payload: unknown) => void,
+    ): void;
+    getObjType(itemId: number): unknown;
+    getInterfaceService(): InterfaceService | undefined;
+    getCurrentTick(): number;
+    registerTickCallback(callback: (tick: number) => void): void;
+    logger: {
+        debug(message: string, ...args: unknown[]): void;
+        info(message: string, ...args: unknown[]): void;
+        warn(message: string, ...args: unknown[]): void;
+    };
+}
+
 export interface GamemodeInitContext {
     npcTypeLoader: { load: (id: number) => { name?: string } | undefined } | undefined;
     objTypeLoader: { load: (id: number) => { name?: string } | undefined } | undefined;
     bridge: GamemodeBridge;
-    /** Generic server services bag for gamemode features to consume. */
-    serverServices: Record<string, unknown>;
+    serverServices: GamemodeServerServices;
 }
 
 export interface HandshakeBridge {
@@ -101,6 +160,8 @@ export interface GamemodeDefinition {
     // === Scripts ===
     getScriptManifest(): ScriptManifestEntry[];
     getGamemodeServices?(): Record<string, unknown>;
+    /** Mutate the ScriptServices object to add gamemode-provided methods. */
+    contributeScriptServices?(services: ScriptServices): void;
 
     // === UI Controller ===
     createUiController?(bridge: GamemodeUiBridge): GamemodeUiController;

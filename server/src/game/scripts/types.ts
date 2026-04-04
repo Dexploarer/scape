@@ -436,8 +436,8 @@ export interface ScriptServices {
     ) => ScriptInventoryAddResult;
     setInventorySlot: (player: PlayerState, slotIndex: number, itemId: number, qty: number) => void;
     openBank: (player: PlayerState, opts?: { mode?: "bank" | "collect" }) => void;
-    depositInventoryToBank: (player: PlayerState) => boolean;
-    depositEquipmentToBank: (player: PlayerState) => boolean;
+    depositInventoryToBank: (player: PlayerState, tab?: number) => boolean;
+    depositEquipmentToBank: (player: PlayerState, tab?: number) => boolean;
     depositInventoryItemToBank?: (
         player: PlayerState,
         slotIndex: number,

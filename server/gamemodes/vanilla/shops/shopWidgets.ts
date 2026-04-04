@@ -2,8 +2,8 @@ import {
     SHOP_INTERFACE_ID,
     SHOP_INVENTORY_INTERFACE_ID,
     SHOP_STOCK_COMPONENT,
-} from "../../../widgets/InterfaceService";
-import { type ScriptModule } from "../types";
+} from "../../../src/widgets/InterfaceService";
+import { type ScriptModule } from "../../../src/game/scripts/types";
 
 // Widget UIDs for shop stock (300:16) and shop inventory (301:0)
 const SHOP_STOCK_WIDGET_ID = (SHOP_INTERFACE_ID << 16) | SHOP_STOCK_COMPONENT;

@@ -165,7 +165,6 @@ import type {
     MovementTeleportActionData,
 } from "../game/actions/actionPayloads";
 import { DEBUG_PLAYER_IDS, RUN_ENERGY_MAX } from "../game/actor";
-import type { BankingProvider, BankServerUpdate as BankingPayload } from "../../../gamemodes/vanilla/banking";
 import {
     COLLECTION_LOG_GROUP_ID,
     COLLECTION_OVERVIEW_GROUP_ID,
@@ -295,7 +294,6 @@ import type {
     ScriptDialogRequest,
     ScriptInventoryAddResult,
 } from "../game/scripts/types";
-import { ShopManager, type ShopStockEntry } from "../game/shops/ShopManager";
 import {
     FiremakingTracker,
     TINDERBOX_ITEM_IDS,
@@ -393,15 +391,13 @@ import { MapCollisionService } from "../world/MapCollisionService";
 import { RectAdjacentRouteStrategy } from "../pathfinding/legacy/pathfinder/RouteStrategy";
 import { CollisionFlag } from "../pathfinding/legacy/pathfinder/flag/CollisionFlag";
 import { logger } from "../utils/logger";
-import { InterfaceService, SHOP_INTERFACE_ID } from "../widgets/InterfaceService";
+import { InterfaceService } from "../widgets/InterfaceService";
 import type { WidgetAction, WidgetEntry } from "../widgets/WidgetManager";
 import {
     type CollectionLogOpenData,
     registerCollectionLogInterfaceHooks,
 } from "../widgets/hooks/CollectionLogInterfaceHooks";
 import { registerDialogInterfaceHooks } from "../widgets/hooks/DialogInterfaceHooks";
-import { registerEquipmentStatsInterfaceHooks } from "../widgets/hooks/EquipmentStatsInterfaceHooks";
-import { type ShopOpenData, registerShopInterfaceHooks } from "../widgets/hooks/ShopInterfaceHooks";
 import { type CacheEnv, initCacheEnv } from "../world/CacheEnv";
 import { buildRebuildNormalPayload, buildRebuildRegionPayload, buildRebuildWorldEntityPayload } from "../world/InstanceManager";
 import { SailingInstanceManager } from "../game/sailing/SailingInstanceManager";
@@ -466,8 +462,6 @@ import {
     GroundItemActionPayload,
     GroundItemsServerPayload,
     type Appearance as HandshakeAppearance,
-    ShopServerPayload,
-    ShopStockEntryMessage,
     SmithingOptionMessage,
     SmithingServerPayload,
     SpellCastLocPayload,
@@ -633,8 +627,6 @@ const DEFAULT_HIT_SOUND = 1979; // Generic blade hit sound
  * Recovery formula: floor(8 + floor(agility/6))
  */
 // Shop/Bank group IDs imported from interface hooks
-const SHOP_GROUP_ID = SHOP_INTERFACE_ID;
-const BANK_GROUP_ID = 12;
 const SMITHING_GROUP_ID = 312;
 const SMITHING_BAR_TYPE_VARBIT_ID = 3216;
 const SMITHING_BAR_ENUM_ID = 1253;
@@ -976,7 +968,6 @@ interface TickFrame {
     npcViews: Map<number, NpcViewSnapshot>;
     widgetEvents: WidgetEvent[];
     notifications: Array<{ playerId: number; payload: any }>;
-    shopMessages: Array<{ playerId: number; payload: ShopServerPayload }>;
     smithingMessages: Array<{ playerId: number; payload: SmithingServerPayload }>;
     tradeMessages: Array<{ playerId: number; payload: TradeServerPayload }>;
     locChanges: LocChangePayload[];
@@ -985,10 +976,7 @@ interface TickFrame {
         playerId: number;
         slots?: Array<{ slot: number; itemId: number; quantity: number }>;
     }>;
-    bankSnapshots: Array<{
-        playerId: number;
-        payload: BankingPayload;
-    }>;
+    gamemodeSnapshots: Map<string, Array<{ playerId: number; payload: unknown }>>;
     appearanceSnapshots: Array<{
         playerId: number;
         payload: {
@@ -1220,7 +1208,6 @@ export class WSServer {
     private followerManager?: FollowerManager;
     private followerCombatManager?: FollowerCombatManager;
     private playerCombatManager?: PlayerCombatManager;
-    private shopManager?: ShopManager;
     private tradeManager?: TradeManager;
     private interfaceService?: InterfaceService;
     private sailingInstanceManager?: SailingInstanceManager;
@@ -1249,7 +1236,6 @@ export class WSServer {
     }
 
     private pendingWidgetEvents: WidgetEvent[] = [];
-    private pendingShopMessages: Array<{ playerId: number; payload: ShopServerPayload }> = [];
     private pendingSmithingMessages: Array<{ playerId: number; payload: SmithingServerPayload }> =
         [];
     private smithingBarTypeToItemId = new Map<number, number>();
@@ -1261,10 +1247,12 @@ export class WSServer {
         playerId: number;
         slots?: Array<{ slot: number; itemId: number; quantity: number }>;
     }> = [];
-    private pendingBankSnapshots: Array<{
-        playerId: number;
-        payload: BankingPayload;
-    }> = [];
+    private pendingGamemodeSnapshots = new Map<string, Array<{ playerId: number; payload: unknown }>>();
+    private gamemodeTickCallbacks: Array<(tick: number) => void> = [];
+    private gamemodeSnapshotEncoders = new Map<string, {
+        encode: (playerId: number, payload: unknown) => { message: string | Uint8Array; context: string } | undefined;
+        onSent?: (playerId: number, payload: unknown) => void;
+    }>();
     private pendingAppearanceSnapshots: Array<{
         playerId: number;
         payload: {
@@ -1358,7 +1346,6 @@ export class WSServer {
     private playerGroundChunk = new Map<number, number>();
     private readonly playerDynamicLocSceneKeys = new Map<number, string>();
     private readonly dynamicLocState = new DynamicLocStateStore();
-    private bankingProvider: BankingProvider | undefined;
     private npcPacketEncoder!: NpcPacketEncoder;
     private playerPacketEncoder!: PlayerPacketEncoder;
     private combatActionHandler!: CombatActionHandler;
@@ -1615,25 +1602,14 @@ export class WSServer {
                 if (sock) this.sendInventorySnapshot(sock, player);
             } catch {}
         };
-        this.shopManager = new ShopManager({
-            logger,
-            getObjType: (id) => this.getObjType(id),
-            addItemToInventory: (player, itemId, qty) =>
-                this.addItemToInventory(player, itemId, qty),
-            snapshotInventory: snapshotInventoryFn,
-            sendGameMessage: sendGameMessageFn,
-        });
-
-        // Initialize InterfaceService for modular modal interface management (shops, banks, etc.)
+        // Initialize InterfaceService for modular modal interface management
         this.interfaceService = new InterfaceService({
             queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
         });
 
         // Register interface lifecycle hooks
-        registerShopInterfaceHooks(this.interfaceService);
         registerDialogInterfaceHooks(this.interfaceService);
         registerCollectionLogInterfaceHooks(this.interfaceService);
-        registerEquipmentStatsInterfaceHooks(this.interfaceService);
 
         this.groundItems = new GroundItemManager({
             defaultDurationTicks: GROUND_ITEM_DESPAWN_TICKS,
@@ -1876,46 +1852,8 @@ export class WSServer {
                                 : this.options.ticker.currentTick(),
                         );
                     })(),
-                openBank: (player, opts) => this.bankingProvider!.openBank(player, opts),
-                depositInventoryToBank: (player) => this.bankingProvider!.depositInventory(player),
-                depositEquipmentToBank: (player) => this.bankingProvider!.depositEquipment(player),
-                depositInventoryItemToBank: (player, slot, quantity, opts) => {
-                    const slotIndex = Math.trunc(slot);
-                    const amount = Math.trunc(quantity);
-                    const itemIdHintRaw = opts?.itemIdHint;
-                    const tabRaw = opts?.tab;
-                    return this.bankingProvider!.depositItem(
-                        player,
-                        slotIndex,
-                        amount,
-                        itemIdHintRaw !== undefined && Number.isFinite(itemIdHintRaw)
-                            ? Math.trunc(itemIdHintRaw)
-                            : undefined,
-                        tabRaw !== undefined && Number.isFinite(tabRaw)
-                            ? Math.trunc(tabRaw)
-                            : undefined,
-                    );
-                },
-                withdrawFromBankSlot: (player, slot, quantity, opts) =>
-                    this.bankingProvider!.withdraw(player, slot, quantity, {
-                        overrideNoted: opts?.noted,
-                    }),
-                getBankEntryAtClientSlot: (player, clientSlot) =>
-                    this.bankingProvider!.getBankEntryAtClientSlot(player, clientSlot),
                 findOwnedItemLocation: (player, itemId) =>
                     this.findOwnedItemLocation(player, itemId),
-                queueBankSnapshot: (player) => this.bankingProvider!.queueBankSnapshot(player),
-                sendBankTabVarbits: (player) => this.bankingProvider!.sendBankTabVarbits(player),
-                openShop: (player, opts) => this.openShopInterface(player, opts),
-                closeShop: (player) => this.closeShopInterface(player),
-                buyFromShop: (player, params) => this.handleShopBuy(player, params),
-                sellToShop: (player, params) => this.handleShopSell(player, params),
-                setShopBuyMode: (player, mode) => this.updateShopMode(player, "buy", mode),
-                setShopSellMode: (player, mode) => this.updateShopMode(player, "sell", mode),
-                getShopSlotValue: (player, slotIndex) =>
-                    this.shopManager?.getShopSlotValue(player, slotIndex) ?? undefined,
-                getInventoryItemSellValue: (player, itemId) =>
-                    this.shopManager?.getInventoryItemSellValue(player, itemId) ?? undefined,
                 getWoodcuttingTree: (locId) => this.getWoodcuttingTreeDefinition(locId),
                 getMiningRock: (locId) => this.getMiningRockDefinition(locId),
                 getFishingSpot: (npcTypeId) => this.getFishingSpotDefinition(npcTypeId),
@@ -2197,8 +2135,6 @@ export class WSServer {
                 isAdjacentToNpc: (player, npc) => this.isAdjacentToNpc(player, npc),
                 faceGatheringTarget: (player, tile) => this.faceGatheringTarget(player, tile),
                 collectCarriedItemIds: (player) => this.collectCarriedItemIds(player),
-                addItemToBank: (player, itemId, qty) =>
-                    this.bankingProvider!.addItemToBank(player, itemId, qty),
                 findInventorySlotWithItem: (player, itemId) =>
                     this.findInventorySlotWithItem(player, itemId),
                 canStoreItem: (player, itemId) => this.canStoreItem(player, itemId),
@@ -2520,15 +2456,29 @@ export class WSServer {
                     sendGameMessage: (player, text) =>
                         sendGameMessageFn(player, text),
                 },
-                serverServices: {
-                    bankingServices: this.buildBankingProviderServices(),
-                },
+                serverServices: this.buildGamemodeServerServices(),
             });
             logger.info(`Boot: gamemode "${this.gamemode.id}" initialized`);
 
-            // Get banking provider from gamemode (if it provides one)
-            const gamemodeServices = this.gamemode.getGamemodeServices?.() ?? {};
-            this.bankingProvider = gamemodeServices.banking as BankingProvider | undefined;
+            // Let gamemode contribute additional ScriptServices methods (banking, etc.)
+            if (this.gamemode.contributeScriptServices) {
+                this.gamemode.contributeScriptServices(this.scriptRuntime.getServices());
+            }
+
+            // Wire fallback dispatcher so gamemode-registered message handlers
+            // (via registerClientMessageHandler) are checked for unhandled message types.
+            this.messageRouter.setFallbackDispatcher((type, ws, player, payload) => {
+                const handler = this.scriptRegistry.findClientMessageHandler(type);
+                if (!handler || !player) return false;
+                handler({
+                    player,
+                    messageType: type,
+                    payload: (payload ?? {}) as Record<string, unknown>,
+                    tick: this.options.ticker.currentTick(),
+                    services: this.scriptRuntime.getServices(),
+                });
+                return true;
+            });
 
             if (this.gamemode.createUiController) {
                 this.gamemodeUi = this.gamemode.createUiController({
@@ -2943,9 +2893,6 @@ export class WSServer {
         if (frame.notifications.length > 0) {
             this.broadcastScheduler.restoreNotifications(frame.notifications);
         }
-        if (frame.shopMessages.length > 0) {
-            this.pendingShopMessages = frame.shopMessages.concat(this.pendingShopMessages);
-        }
         if (frame.smithingMessages.length > 0) {
             this.pendingSmithingMessages = frame.smithingMessages.concat(
                 this.pendingSmithingMessages,
@@ -2965,8 +2912,11 @@ export class WSServer {
                 this.pendingInventorySnapshots,
             );
         }
-        if (frame.bankSnapshots.length > 0) {
-            this.pendingBankSnapshots = frame.bankSnapshots.concat(this.pendingBankSnapshots);
+        for (const [key, snapshots] of frame.gamemodeSnapshots) {
+            if (snapshots.length > 0) {
+                const existing = this.pendingGamemodeSnapshots.get(key) ?? [];
+                this.pendingGamemodeSnapshots.set(key, snapshots.concat(existing));
+            }
         }
         if (frame.varps && frame.varps.length > 0) {
             this.broadcastScheduler.restoreVarps(frame.varps);
@@ -3265,13 +3215,12 @@ export class WSServer {
         const npcUpdates = this.pendingNpcUpdates;
         const widgetEvents = this.pendingWidgetEvents;
         const notifications = this.broadcastScheduler.drainNotifications();
-        const shopMessages = this.pendingShopMessages;
         const smithingMessages = this.pendingSmithingMessages;
         const tradeMessages = this.pendingTradeMessages;
         const locChanges = this.pendingLocChanges;
         const chatMessages = this.broadcastScheduler.drainChatMessages();
         const inventorySnapshots = this.pendingInventorySnapshots;
-        const bankSnapshots = this.pendingBankSnapshots;
+        const gamemodeSnapshots = new Map(this.pendingGamemodeSnapshots);
         const appearanceSnapshots = this.pendingAppearanceSnapshots;
         const skillSnapshots = this.broadcastScheduler.drainSkillSnapshots();
         const combatSnapshots = this.pendingCombatSnapshots;
@@ -3288,12 +3237,11 @@ export class WSServer {
         const varbits = this.broadcastScheduler.drainVarbits();
         const clientScripts = this.broadcastScheduler.drainClientScripts();
         this.pendingWidgetEvents = [];
-        this.pendingShopMessages = [];
         this.pendingSmithingMessages = [];
         this.pendingTradeMessages = [];
         this.pendingLocChanges = [];
         this.pendingInventorySnapshots = [];
-        this.pendingBankSnapshots = [];
+        this.pendingGamemodeSnapshots = new Map();
         this.pendingAppearanceSnapshots = [];
         this.pendingCombatSnapshots = [];
         this.pendingSpellResults = [];
@@ -3319,13 +3267,12 @@ export class WSServer {
             npcViews: new Map<number, NpcViewSnapshot>(),
             widgetEvents,
             notifications,
-            shopMessages,
             smithingMessages,
             tradeMessages,
             locChanges,
             chatMessages,
             inventorySnapshots,
-            bankSnapshots,
+            gamemodeSnapshots,
             appearanceSnapshots,
             skillSnapshots,
             combatSnapshots,
@@ -4004,7 +3951,7 @@ export class WSServer {
         }
         frame.actionEffects = combatResult.effects;
         this.refreshInteractionFacing(frame);
-        this.processShopRestocks(frame);
+        this.processGamemodeTickCallbacks(frame);
     }
 
     private refreshInteractionFacing(frame: TickFrame): void {
@@ -4069,11 +4016,13 @@ export class WSServer {
         });
     }
 
-    private processShopRestocks(frame: TickFrame): void {
-        if (!this.shopManager) return;
-        const updates = this.shopManager.tick(frame.tick);
-        for (const update of updates) {
-            this.broadcastShopSlot(update.shopId, update.slot);
+    private processGamemodeTickCallbacks(frame: TickFrame): void {
+        for (const callback of this.gamemodeTickCallbacks) {
+            try {
+                callback(frame.tick);
+            } catch (err) {
+                logger.warn("[gamemode-tick] Tick callback error", err);
+            }
         }
     }
 
@@ -4222,10 +4171,6 @@ export class WSServer {
                 // Send immediately instead of queueing
                 this.sendInventorySnapshotImmediate(ws, player);
             }
-        }
-        if (player.hasBankUpdate() && this.bankingProvider) {
-            const snapshot = player.takeBankSnapshot();
-            if (snapshot) this.bankingProvider.queueBankSnapshot(player);
         }
         if (player.hasAppearanceUpdate()) {
             // Don't call takeAppearanceSnapshot or send immediately.
@@ -4657,16 +4602,6 @@ export class WSServer {
                     );
                 }
             }
-            if (frame.shopMessages.length > 0 && this.players) {
-                for (const evt of frame.shopMessages) {
-                    const sock = this.players.getSocketByPlayerId(evt.playerId);
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({ type: "shop", payload: evt.payload }),
-                        "shop_event",
-                    );
-                }
-            }
             if (frame.smithingMessages.length > 0 && this.players) {
                 for (const evt of frame.smithingMessages) {
                     const sock = this.players.getSocketByPlayerId(evt.playerId);
@@ -4742,22 +4677,19 @@ export class WSServer {
                     );
                 }
             }
-            if (frame.bankSnapshots.length > 0 && this.players) {
-                for (const snapshot of frame.bankSnapshots) {
-                    const playerId = snapshot.playerId;
-                    const sock = this.players.getSocketByPlayerId(playerId);
+            for (const [key, snapshots] of frame.gamemodeSnapshots) {
+                if (snapshots.length === 0 || !this.players) continue;
+                const encoder = this.gamemodeSnapshotEncoders.get(key);
+                if (!encoder) continue;
+                for (const snapshot of snapshots) {
+                    const sock = this.players.getSocketByPlayerId(snapshot.playerId);
                     if (!sock) continue;
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({ type: "bank", payload: snapshot.payload }),
-                        "bank_snapshot",
-                    );
-                    // Keep slot decoding aligned to what the client has been sent.
-                    const player = this.players.getById(playerId);
-                    if (player && this.bankingProvider) {
-                        player.setBankClientSlotMapping(
-                            this.bankingProvider.buildBankSlotMapping(player),
-                        );
+                    const encoded = encoder.encode(snapshot.playerId, snapshot.payload);
+                    if (encoded) {
+                        this.sendWithGuard(sock, encoded.message, encoded.context);
+                    }
+                    if (encoder.onSent) {
+                        encoder.onSent(snapshot.playerId, snapshot.payload);
                     }
                 }
             }
@@ -4848,10 +4780,6 @@ export class WSServer {
                                 "inventory_snapshot",
                             );
                         }
-                    }
-                    if (player.hasBankUpdate() && this.bankingProvider) {
-                        const snapshot = player.takeBankSnapshot();
-                        if (snapshot) this.bankingProvider.queueBankSnapshot(player);
                     }
                     const appearanceDirty = player.hasAppearanceUpdate();
                     if (appearanceDirty) {
@@ -5131,9 +5059,6 @@ export class WSServer {
         }
     }
 
-    private queueShopMessage(playerId: number, payload: ShopServerPayload): void {
-        this.pendingShopMessages.push({ playerId: playerId, payload });
-    }
 
     private queueSmithingInterfaceMessage(playerId: number, payload: SmithingServerPayload): void {
         this.pendingSmithingMessages.push({ playerId: playerId, payload });
@@ -5144,23 +5069,13 @@ export class WSServer {
     }
 
     /**
-     * Queue a bank snapshot update for tick-phase delivery.
-     *
-     * OSRS parity: bank state changes are dispatched on tick flush, not direct-sent
-     * immediately from out-of-band handlers.
+     * Queue a gamemode snapshot for tick-phase delivery.
+     * Snapshots are keyed by type (e.g. "bank") and upserted per player.
      */
-    private queueBankSnapshot(
-        playerId: number,
-        payload: BankingPayload,
-    ): void {
-        const event = { playerId: playerId, payload };
+    private queueGamemodeSnapshot(key: string, playerId: number, payload: unknown): void {
+        const event = { playerId, payload };
 
-        const upsert = (
-            queue: Array<{
-                playerId: number;
-                payload: BankingPayload;
-            }>,
-        ) => {
+        const upsert = (queue: Array<{ playerId: number; payload: unknown }>) => {
             const idx = queue.findIndex((entry) => entry.playerId === event.playerId);
             if (idx >= 0) {
                 queue[idx] = event;
@@ -5170,16 +5085,23 @@ export class WSServer {
         };
 
         if (this.activeFrame && !this.isBroadcastPhase) {
-            upsert(this.activeFrame.bankSnapshots);
+            const frameQueue = this.activeFrame.gamemodeSnapshots.get(key) ?? [];
+            upsert(frameQueue);
+            this.activeFrame.gamemodeSnapshots.set(key, frameQueue);
             return;
         }
 
-        if (this.activeFrame) {
-            upsert(this.pendingBankSnapshots);
-            return;
-        }
+        const pendingQueue = this.pendingGamemodeSnapshots.get(key) ?? [];
+        upsert(pendingQueue);
+        this.pendingGamemodeSnapshots.set(key, pendingQueue);
+    }
 
-        upsert(this.pendingBankSnapshots);
+    private registerSnapshotEncoder(
+        key: string,
+        encoder: (playerId: number, payload: unknown) => { message: string | Uint8Array; context: string } | undefined,
+        onSent?: (playerId: number, payload: unknown) => void,
+    ): void {
+        this.gamemodeSnapshotEncoders.set(key, { encode: encoder, onSent });
     }
 
     /**
@@ -5197,31 +5119,6 @@ export class WSServer {
             )}`,
         );
         this.broadcastScheduler.queueClientScript(playerId, scriptId, args);
-    }
-
-    private toShopStockMessage(entry: ShopStockEntry): ShopStockEntryMessage {
-        return {
-            slot: entry.slot,
-            itemId: entry.itemId,
-            quantity: Math.max(0, entry.quantity),
-            defaultQuantity: Math.max(0, entry.defaultQuantity),
-            priceEach: entry.priceEach !== undefined ? Math.max(0, entry.priceEach) : undefined,
-            sellPrice: entry.sellPrice !== undefined ? Math.max(0, entry.sellPrice) : undefined,
-        };
-    }
-
-    private broadcastShopSlot(shopId: string, entry: ShopStockEntry): void {
-        if (!this.shopManager) return;
-        const watchers = this.shopManager.getWatchers(shopId);
-        if (!watchers.length) return;
-        const payloadEntry = this.toShopStockMessage(entry);
-        for (const watcherId of watchers) {
-            this.queueShopMessage(watcherId, {
-                kind: "slot",
-                shopId,
-                slot: payloadEntry,
-            });
-        }
     }
 
     private queueChatMessage(message: {
@@ -5310,91 +5207,6 @@ export class WSServer {
         });
     }
 
-    /**
-     * Open a shop interface for a player.
-     * Uses InterfaceService which handles all widget initialization via registered hooks.
-     */
-    private openShopInterface(
-        player: PlayerState,
-        opts?: { npcTypeId?: number; shopId?: string },
-    ): void {
-        if (!this.shopManager || !this.interfaceService) return;
-
-        // Get shop snapshot from ShopManager
-        let snapshot: ReturnType<ShopManager["openShopForNpc"]> | undefined;
-        if (opts?.npcTypeId !== undefined) {
-            snapshot = this.shopManager.openShopForNpc(player, opts.npcTypeId);
-        } else if (opts?.shopId) {
-            snapshot = this.shopManager.openShopById(player, opts.shopId);
-        }
-
-        if (!snapshot) {
-            this.queueChatMessage({
-                messageType: "game",
-                text: "Nothing interesting happens.",
-                targetPlayerIds: [player.id],
-            });
-            return;
-        }
-
-        // Build shop data for InterfaceService hooks
-        const shopData: ShopOpenData = {
-            shopId: snapshot.shopId,
-            name: snapshot.name,
-            currencyItemId: snapshot.currencyItemId,
-            generalStore: snapshot.generalStore,
-            showBuy50: true,
-            stock: snapshot.stock.map((entry) => ({
-                itemId: entry.itemId,
-                quantity: entry.quantity,
-                baseStock: entry.defaultQuantity,
-                basePrice: entry.priceEach,
-            })),
-        };
-
-        // Open the shop modal - InterfaceService handles all widget initialization
-        // via registered hooks (ShopInterfaceHooks)
-        this.interfaceService.openModal(player, SHOP_INTERFACE_ID, shopData);
-
-        // Send shop data to client for React UI rendering
-        this.queueShopMessage(player.id, {
-            kind: "open",
-            shopId: snapshot.shopId,
-            name: snapshot.name,
-            currencyItemId: snapshot.currencyItemId,
-            generalStore: snapshot.generalStore,
-            buyMode: player.getShopBuyMode(),
-            sellMode: player.getShopSellMode(),
-            stock: snapshot.stock.map((entry) => this.toShopStockMessage(entry)),
-        });
-
-        this.queueChatMessage({
-            messageType: "game",
-            text: "You open the shop.",
-            targetPlayerIds: [player.id],
-        });
-    }
-
-    /**
-     * Close a shop interface for a player.
-     * Uses InterfaceService which handles all cleanup via registered hooks.
-     */
-    private closeShopInterface(player: PlayerState, opts: { silent?: boolean } = {}): void {
-        if (!this.shopManager) return;
-
-        // Close shop in ShopManager (removes player from viewers, etc.)
-        const shop = this.shopManager.closeShopForPlayer(player);
-        if (!shop) return;
-
-        // Close the modal via InterfaceService - this triggers onClose hooks
-        // which restore normal inventory with script 6007
-        if (this.interfaceService) {
-            this.interfaceService.closeModal(player, opts.silent);
-        }
-
-        // Send close message to client for React UI
-        this.queueShopMessage(player.id, { kind: "close" });
-    }
 
     private buildSmeltingOptions(player: PlayerState): SmithingOptionMessage[] {
         const inventory = this.getInventory(player);
@@ -5527,64 +5339,6 @@ export class WSServer {
         this.queueSmithingInterfaceMessage(player.id, { kind: "close" });
     }
 
-    private handleShopBuy(
-        player: PlayerState,
-        params: { slotIndex: number; quantity?: number } | undefined,
-    ): void {
-        if (!this.shopManager || !params || !Number.isFinite(params.slotIndex)) return;
-        const result = this.shopManager.buyFromShop(
-            player,
-            params.slotIndex,
-            params.quantity ?? 0,
-            this.options.ticker.currentTick(),
-        );
-        if (!result?.shopId || !result.slot) return;
-        this.broadcastShopSlot(result.shopId, result.slot);
-    }
-
-    private handleShopSell(
-        player: PlayerState,
-        params: { inventorySlot: number; itemId: number; quantity?: number } | undefined,
-    ): void {
-        if (
-            !this.shopManager ||
-            !params ||
-            !Number.isFinite(params.inventorySlot) ||
-            !Number.isFinite(params.itemId)
-        ) {
-            return;
-        }
-        const result = this.shopManager.sellToShop(
-            player,
-            params.inventorySlot,
-            params.quantity ?? 0,
-            params.itemId,
-            this.options.ticker.currentTick(),
-        );
-        if (!result?.shopId || !result.slot) return;
-        this.broadcastShopSlot(result.shopId, result.slot);
-    }
-
-    private updateShopMode(player: PlayerState, kind: "buy" | "sell", mode: number): void {
-        if (!this.shopManager) return;
-        if (kind === "buy") {
-            const result = this.shopManager.setBuyMode(player, mode);
-            if (!result?.shopId) return;
-            this.queueShopMessage(player.id, {
-                kind: "mode",
-                shopId: result.shopId,
-                buyMode: result.buyMode,
-            });
-        } else {
-            const result = this.shopManager.setSellMode(player, mode);
-            if (!result?.shopId) return;
-            this.queueShopMessage(player.id, {
-                kind: "mode",
-                shopId: result.shopId,
-                sellMode: result.sellMode,
-            });
-        }
-    }
 
     private sendSound(
         player: PlayerState,
@@ -7387,10 +7141,12 @@ export class WSServer {
     }
 
     /**
-     * Build the services bag that a gamemode's banking provider needs from the server.
+     * Build the generic server services bag for gamemodes to consume.
+     * Any gamemode feature (banking, shops, etc.) uses these to interact with core server systems.
      */
-    private buildBankingProviderServices(): import("../../../gamemodes/vanilla/banking").BankingProviderServices {
+    private buildGamemodeServerServices(): import("../game/gamemodes/GamemodeDefinition").GamemodeServerServices {
         return {
+            getPlayer: (playerId) => this.players?.getById(playerId),
             getInventory: (player) => this.getInventory(player),
             getEquipArray: (player) => this.ensureEquipArray(player),
             getEquipQtyArray: (player) => this.ensureEquipQtyArray(player),
@@ -7429,21 +7185,15 @@ export class WSServer {
             },
             queueChatMessage: (opts) => this.queueChatMessage(opts),
             queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
-            queueBankSnapshot: (playerId, payload) => this.queueBankSnapshot(playerId, payload),
-            sendBankSnapshot: (playerId, payload) => {
-                this.queueBankSnapshot(playerId, payload);
-            },
             queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
+            queueGamemodeSnapshot: (key, playerId, payload) =>
+                this.queueGamemodeSnapshot(key, playerId, payload),
+            registerSnapshotEncoder: (key, encoder, onSent) =>
+                this.registerSnapshotEncoder(key, encoder, onSent),
             getObjType: (itemId) => this.getObjType(itemId),
-            getMainmodalUid: (displayMode) => {
-                const { getMainmodalUid } = require("../widgets/viewport");
-                return getMainmodalUid(displayMode);
-            },
-            getInventoryTabUid: (displayMode) => {
-                const { getInventoryTabUid } = require("../widgets/viewport");
-                return getInventoryTabUid(displayMode);
-            },
             getInterfaceService: () => this.interfaceService,
+            getCurrentTick: () => this.options.ticker.currentTick(),
+            registerTickCallback: (callback) => this.gamemodeTickCallbacks.push(callback),
             logger: logger,
         };
     }
@@ -8161,14 +7911,14 @@ export class WSServer {
             queueWidgetAction: (request) => this.scriptRuntime.queueWidgetAction(request),
 
             // --- Shop/Smithing/Bank ---
-            closeShopInterface: (player, options) => this.closeShopInterface(player, options),
+            closeShopInterface: (player, options) => this.scriptRuntime.getServices().closeShop?.(player),
             closeBank: (player) => this.interfaceService?.closeModal(player),
             queueSmithingInterfaceMessage: (playerId, payload) =>
                 this.queueSmithingInterfaceMessage(playerId, payload as any),
 
             // --- Constants ---
-            getShopGroupId: () => SHOP_GROUP_ID,
-            getBankGroupId: () => BANK_GROUP_ID,
+            getShopGroupId: () => 300,
+            getBankGroupId: () => 12,
             getSmithingGroupId: () => SMITHING_GROUP_ID,
 
             // --- Logging ---
@@ -8521,15 +8271,6 @@ export class WSServer {
                 this.tradeManager?.handleAction(player, payload, tick);
             },
 
-            // Banking
-            handleBankDepositInventory: (ws, payload) =>
-                this.handleBankDepositInventory(ws, payload),
-            handleBankDepositEquipment: (ws, payload) =>
-                this.handleBankDepositEquipment(ws, payload),
-            handleBankDepositItem: (ws, payload) => this.handleBankDepositItem(ws, payload as any),
-            moveBankSlot: (player, from, to, opts) =>
-                this.bankingProvider?.moveBankSlot(player, from, to, opts) ?? false,
-
             // Movement
             setPendingWalkCommand: (ws, command) => this.pendingWalkCommands.set(ws, command),
             clearPendingWalkCommand: (ws) => this.pendingWalkCommands.delete(ws),
@@ -8601,8 +8342,7 @@ export class WSServer {
             handleSpellCastOnItem: (ws, payload) => this.handleSpellCastOnItem(ws, payload),
 
             // Widget/Interface
-            handleIfButtonD: (player, payload) =>
-                this.bankingProvider?.handleIfButtonD(player, payload),
+            handleIfButtonD: () => {},
             handleWidgetAction: (player, payload) => {},
             handleWidgetCloseState: (player, groupId) => {
                 this.cs2ModalManager.handleWidgetCloseState(player, groupId);
@@ -10060,7 +9800,7 @@ export class WSServer {
                 return { ok: true };
             case "npc.trade": {
                 const tradeData = action.data as { npcTypeId?: number; shopId?: string };
-                this.openShopInterface(player, tradeData);
+                this.scriptRuntime.getServices().openShop?.(player, tradeData);
                 return { ok: true, effects: [] };
             }
             default: {
@@ -10769,44 +10509,6 @@ export class WSServer {
      */
     private doTrackCollectionLogItem(player: PlayerState, itemId: number): void {
         trackCollectionLogItem(player, itemId, this.getCollectionLogServices());
-    }
-
-    private handleBankDepositInventory(ws: WebSocket, payload?: { tab?: number }): void {
-        if (!this.bankingProvider) return;
-        const player = this.players?.get(ws);
-        if (!player) return;
-        const tab = payload?.tab !== undefined && payload.tab > 0 ? payload.tab : undefined;
-        this.bankingProvider.depositInventory(player, tab);
-    }
-
-    private handleBankDepositEquipment(ws: WebSocket, payload?: { tab?: number }): void {
-        if (!this.bankingProvider) return;
-        const player = this.players?.get(ws);
-        if (!player) return;
-        const tab = payload?.tab !== undefined && payload.tab > 0 ? payload.tab : undefined;
-        this.bankingProvider.depositEquipment(player, tab);
-    }
-
-    private handleBankDepositItem(
-        ws: WebSocket,
-        payload: { slot?: number; quantity?: number; itemId?: number; tab?: number } | undefined,
-    ): void {
-        if (!this.bankingProvider) return;
-        if (!payload) return;
-        const player = this.players?.get(ws);
-        if (!player) return;
-        const slot = typeof payload.slot === "number" ? payload.slot : -1;
-        const quantity = typeof payload.quantity === "number" ? payload.quantity : 0;
-        const itemIdHint = payload.itemId;
-        const tab = payload.tab !== undefined && payload.tab > 0 ? payload.tab : undefined;
-        const result = this.bankingProvider.depositItem(player, slot, quantity, itemIdHint, tab);
-        if (!result.ok && result.message) {
-            this.queueChatMessage({
-                messageType: "game",
-                text: result.message,
-                targetPlayerIds: [player.id],
-            });
-        }
     }
 
     /**
@@ -13618,7 +13320,7 @@ export class WSServer {
                     if (id !== undefined) {
                         this.widgetDialogHandler.cleanupPlayerDialogState(id);
                     }
-                    this.closeShopInterface(player, { silent: true });
+                    this.scriptRuntime.getServices().closeShop?.(player);
                     // Clean up InterfaceService state (handles any open modals)
                     this.interfaceService?.onPlayerDisconnect(player);
                     // Close any open widgets before cleanup
@@ -15045,18 +14747,7 @@ export class WSServer {
             }
 
             case "if_buttond": {
-                const player = this.players?.get(ws);
-                if (player && parsed.payload && this.bankingProvider) {
-                    const payload = parsed.payload;
-                    this.bankingProvider.handleIfButtonD(player, {
-                        sourceWidgetId: payload.sourceWidgetId,
-                        sourceSlot: payload.sourceSlot,
-                        sourceItemId: payload.sourceItemId,
-                        targetWidgetId: payload.targetWidgetId,
-                        targetSlot: payload.targetSlot,
-                        targetItemId: payload.targetItemId,
-                    });
-                }
+                this.messageRouter.dispatch(ws, parsed);
                 break;
             }
 

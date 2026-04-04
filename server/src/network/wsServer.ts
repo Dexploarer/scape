@@ -290,6 +290,7 @@ import {
     findOwnedItemLocation as findOwnedItemLocationInSnapshot,
 } from "../game/items/playerItemOwnership";
 import type { GamemodeDefinition, GamemodeUiController } from "../game/gamemodes/GamemodeDefinition";
+import { getGamemodeDataDir } from "../game/gamemodes/GamemodeRegistry";
 import { LockState } from "../game/model/LockState";
 import {
     handleBoardingTick1,
@@ -1270,7 +1271,7 @@ export class WSServer {
     private readonly scriptScheduler = new ScriptScheduler();
     private readonly scriptRegistry = new ScriptRegistry();
     private readonly scriptRuntime: ScriptRuntime;
-    private readonly playerPersistence = new PlayerPersistence();
+    private readonly playerPersistence: PlayerPersistence;
     private movementSystem?: MovementSystem;
     private followerManager?: FollowerManager;
     private followerCombatManager?: FollowerCombatManager;
@@ -1442,6 +1443,9 @@ export class WSServer {
     constructor(opts: WSServerOptions) {
         this.options = opts;
         this.gamemode = opts.gamemode;
+        this.playerPersistence = new PlayerPersistence({
+            dataDir: getGamemodeDataDir(this.gamemode.id),
+        });
         this.accountSummary = new AccountSummaryTracker({
             queueWidgetEvent: (playerId, action) => this.queueWidgetEvent(playerId, action),
             isWidgetGroupOpenInLedger: (playerId, groupId) =>

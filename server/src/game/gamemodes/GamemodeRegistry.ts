@@ -4,6 +4,7 @@ import path from "path";
 import type { GamemodeDefinition } from "./GamemodeDefinition";
 
 const GAMEMODES_DIR = path.resolve(__dirname, "../../../gamemodes");
+const DATA_DIR = path.resolve(__dirname, "../../../data/gamemodes");
 
 export function createGamemode(id: string): GamemodeDefinition {
     const gamemodeDir = path.resolve(GAMEMODES_DIR, id);
@@ -20,6 +21,10 @@ export function createGamemode(id: string): GamemodeDefinition {
         );
     }
     return mod.createGamemode() as GamemodeDefinition;
+}
+
+export function getGamemodeDataDir(id: string): string {
+    return path.resolve(DATA_DIR, id);
 }
 
 export function listAvailableGamemodes(): string[] {

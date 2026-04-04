@@ -12231,32 +12231,48 @@ export class WSServer {
                                 p.widgets.close(679);
                             } catch {}
 
-                            // If the gamemode has post-design logic (e.g. tutorial spawn), apply it.
+                            // Apply post-design logic and teleport to spawn.
                             try {
                                 this.gamemode.onPostDesignComplete?.(p);
-                                if (this.gamemode.isTutorialActive(p)) {
-                                    const spawn = this.gamemode.getSpawnLocation(p);
-                                    const name = p.name;
-                                    const appearanceSnapshot = p.appearance;
-                                    this.queueAppearanceSnapshot(p, {
-                                        x: (spawn.x << 7) + 64,
-                                        y: (spawn.y << 7) + 64,
-                                        level: spawn.level,
-                                        rot: p.rot,
-                                        orientation: p.getOrientation() & 2047,
-                                        running: false,
-                                        appearance: appearanceSnapshot,
-                                        name,
-                                        moved: true,
-                                        turned: false,
-                                        snap: true,
-                                    });
-                                }
+                                const spawn = this.gamemode.getSpawnLocation(p);
+                                this.teleportPlayer(p, spawn.x, spawn.y, spawn.level);
+                                const name = p.name;
+                                const appearanceSnapshot = p.appearance;
+                                this.queueAppearanceSnapshot(p, {
+                                    x: (spawn.x << 7) + 64,
+                                    y: (spawn.y << 7) + 64,
+                                    level: spawn.level,
+                                    rot: p.rot,
+                                    orientation: p.getOrientation() & 2047,
+                                    running: false,
+                                    appearance: appearanceSnapshot,
+                                    name,
+                                    moved: true,
+                                    turned: false,
+                                    snap: true,
+                                });
                             } catch {}
 
                             // Gamemode post-design UI (e.g. tutorial overlay)
                             if (this.gamemode.isTutorialActive(p)) {
                                 this.gamemodeUi?.queueTutorialOverlay(p, { queueFlashsideVarbitOnStep3: true });
+                            } else {
+                                // No tutorial — open all tabs and advance to full account stage.
+                                p.accountStage = 2;
+                                const displayMode = p.displayMode ?? 1;
+                                const { getDefaultInterfaces: getDefIntf } = require("../widgets/WidgetManager");
+                                const allInterfaces = getDefIntf(displayMode);
+                                for (const intf of allInterfaces) {
+                                    this.queueWidgetEvent(p.id, {
+                                        action: "open_sub",
+                                        targetUid: intf.targetUid,
+                                        groupId: intf.groupId,
+                                        type: intf.type,
+                                        ...(Array.isArray(intf.postScripts) && intf.postScripts.length > 0
+                                            ? { postScripts: intf.postScripts }
+                                            : {}),
+                                    });
+                                }
                             }
                             continue;
                         }

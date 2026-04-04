@@ -56,6 +56,7 @@ export interface GamemodeDefinition {
     readonly name: string;
 
     // === XP ===
+    getDefaultSkillXp?(skillId: number): number | undefined;
     getSkillXpMultiplier(player: PlayerState): number;
 
     // === Drops ===

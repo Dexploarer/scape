@@ -212,9 +212,7 @@ function createEmptyInventory(): InventoryEntry[] {
 }
 
 const DEFAULT_SKILL_XP: Partial<Record<SkillId, number>> = {
-    [SkillId.Hitpoints]: getXpForLevel(99),
-    [SkillId.Magic]: getXpForLevel(99),
-    [SkillId.Prayer]: getXpForLevel(99),
+    [SkillId.Hitpoints]: getXpForLevel(10),
 };
 
 const SKILL_XP_PRECISION = 10;
@@ -325,8 +323,9 @@ const COMBAT_STYLE_MAX_SLOT_BY_CATEGORY: Record<number, number> = {
 
 function createInitialSkills(): PlayerSkillState[] {
     const skills: PlayerSkillState[] = new Array(SKILL_COUNT);
+    const gamemodeXpFn = PlayerState.gamemodeRef?.getDefaultSkillXp;
     for (const id of SKILL_IDS) {
-        const xp = DEFAULT_SKILL_XP[id] ?? 0;
+        const xp = gamemodeXpFn?.(id) ?? DEFAULT_SKILL_XP[id] ?? 0;
         const baseLevel = getLevelForXp(xp, { virtual: false });
         const virtualLevel = getLevelForXp(xp, { virtual: true });
         skills[id] = {

@@ -844,4 +844,11 @@ export interface ScriptServices {
     getCookingRecipeByRawItemId?: (itemId: number) => { cookedItemId: number; xp: number } | undefined;
     // --- Inventory restore ---
     restoreInventoryItems?: (player: PlayerState, itemId: number, removed: Map<number, number>) => void;
+    // --- Production skill services ---
+    takeInventoryItems?: (player: PlayerState, inputs: Array<{ itemId: number; quantity: number }>) => { ok: boolean; removed: Map<number, { itemId: number; quantity: number }> };
+    restoreInventoryRemovals?: (player: PlayerState, removed: Map<number, { itemId: number; quantity: number }>) => void;
+    updateSmithingInterface?: (player: PlayerState) => void;
+    updateSmeltingInterface?: (player: PlayerState) => void;
+    getRingOfForgingCharges?: (player: PlayerState) => number | undefined;
+    consumeRingOfForgingCharge?: (player: PlayerState) => void;
 }

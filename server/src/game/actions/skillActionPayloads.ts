@@ -29,11 +29,8 @@ export interface SkillBoltEnchantActionData {
 }
 
 export type SkillActionPayloadByKind = {
-    "skill.smith": SkillSmithActionData;
-    "skill.cook": SkillCookActionData;
-    "skill.tan": SkillTanActionData;
-    "skill.smelt": SkillSmeltActionData;
-    "skill.bolt_enchant": SkillBoltEnchantActionData;
+    // Skill actions are now registered via extrascripts (vanilla-skills/production).
+    // Data interfaces above are retained for consumers that construct these payloads.
 };
 
 export type SkillActionRequest<K extends keyof SkillActionPayloadByKind> = {

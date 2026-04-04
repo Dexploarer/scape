@@ -18,11 +18,6 @@ export type BuiltInActionKind =
     | "combat.playerHit"
     | "combat.npcRetaliate"
     | "combat.companionHit"
-    | "skill.smith"
-    | "skill.cook"
-    | "skill.tan"
-    | "skill.smelt"
-    | "skill.bolt_enchant"
     | "movement.teleport"
     | "emote.play";
 

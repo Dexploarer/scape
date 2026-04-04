@@ -1,8 +1,7 @@
-import { SKILL_IDS, SkillId } from "../../../../../../src/rs/skill/skills";
-import type { PlayerState } from "../../../player";
-import { type ScriptModule } from "../../types";
-import { type ConsumableProfile, scheduleConsumableAction } from "../../utils/consumables";
-import { readPositiveEnvInteger } from "../../utils/env";
+import { SKILL_IDS, SkillId } from "../../../../src/rs/skill/skills";
+import type { PlayerState } from "../../../src/game/player";
+import type { ScriptModule } from "../../../src/game/scripts/types";
+import { type ConsumableProfile, scheduleConsumableAction } from "../../../src/game/scripts/utils/consumables";
 
 // ============================================================================
 // Common constants
@@ -15,7 +14,12 @@ const EAT_SEQ = 829;
 const DRINK_SEQ = 829;
 const EAT_SOUND = 2393;
 const DRINK_SOUND = 2401;
-const DEFAULT_TICK_MS = readPositiveEnvInteger("TICK_MS") ?? 600;
+const DEFAULT_TICK_MS = (() => {
+    const raw = process.env.TICK_MS;
+    if (!raw) return 600;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : 600;
+})();
 
 const secondsToTicks = (seconds?: number): number => {
     if (!seconds || !Number.isFinite(seconds)) return 0;
@@ -103,7 +107,13 @@ const FOOD_DEFS: FoodDef[] = [
 // ============================================================================
 
 const STAMINA_BASE_SECONDS = 120;
-const configuredStaminaDurationTicks = readPositiveEnvInteger("STAMINA_DURATION_TICKS");
+const readEnvPositiveInt = (key: string): number | undefined => {
+    const raw = process.env[key];
+    if (!raw) return undefined;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+};
+const configuredStaminaDurationTicks = readEnvPositiveInt("STAMINA_DURATION_TICKS");
 const STAMINA_MIX_DURATION_TICKS =
     configuredStaminaDurationTicks !== undefined
         ? configuredStaminaDurationTicks
@@ -379,7 +389,7 @@ const RUN_ENERGY_CONSUMABLE_DEFS: RunEnergyConsumableDef[] = [
 const STAMINA_RUN_ENERGY_BOOST = 20;
 const STAMINA_EFFECT_MULTIPLIER = 0.3;
 const STAMINA_EFFECT_SECONDS = 120;
-const configuredStaminaEffectDurationTicks = readPositiveEnvInteger("STAMINA_DURATION_TICKS");
+const configuredStaminaEffectDurationTicks = readEnvPositiveInt("STAMINA_DURATION_TICKS");
 const STAMINA_DURATION_TICKS =
     configuredStaminaEffectDurationTicks !== undefined
         ? configuredStaminaEffectDurationTicks
@@ -746,11 +756,10 @@ const applyStatBoost = (player: PlayerState, skillId: SkillId, formula: BoostFor
 // ============================================================================
 
 export const consumablesModule: ScriptModule = {
-    id: "consumables",
+    id: "vanilla-skills.consumables",
     register(registry, services) {
         const setInventorySlot = services.setInventorySlot;
 
-        // Register food items
         for (const def of FOOD_DEFS) {
             const option = def.option ?? "eat";
             registry.registerItemAction(
@@ -795,16 +804,13 @@ export const consumablesModule: ScriptModule = {
                         },
                     });
                     if (!ok) {
-                        services.logger?.debug?.(
-                            `[script:food] consume rejected item=${def.itemId}`,
-                        );
+                        console.log(`[script:food] consume rejected item=${def.itemId}`);
                     }
                 },
                 option,
             );
         }
 
-        // Register run energy consumables
         for (const def of RUN_ENERGY_CONSUMABLE_DEFS) {
             const option = def.option ?? "drink";
             registry.registerItemAction(
@@ -891,16 +897,13 @@ export const consumablesModule: ScriptModule = {
                         },
                     });
                     if (!ok) {
-                        services.logger?.debug?.(
-                            `[script:energy] consume rejected item=${def.itemId}`,
-                        );
+                        console.log(`[script:energy] consume rejected item=${def.itemId}`);
                     }
                 },
                 option,
             );
         }
 
-        // Register stamina potions
         for (const def of STAMINA_POTIONS) {
             registry.registerItemAction(
                 def.itemId,
@@ -939,16 +942,13 @@ export const consumablesModule: ScriptModule = {
                         },
                     });
                     if (!ok) {
-                        services.logger?.debug?.(
-                            `[script:stamina] consume rejected item=${def.itemId}`,
-                        );
+                        console.log(`[script:stamina] consume rejected item=${def.itemId}`);
                     }
                 },
                 "drink",
             );
         }
 
-        // Register prayer restore consumables
         for (const def of PRAYER_CONSUMABLE_DEFS) {
             const option = def.option ?? "drink";
             registry.registerItemAction(
@@ -994,16 +994,13 @@ export const consumablesModule: ScriptModule = {
                         },
                     });
                     if (!ok) {
-                        services.logger?.debug?.(
-                            `[script:prayer-restores] consume rejected item=${def.itemId}`,
-                        );
+                        console.log(`[script:prayer-restores] consume rejected item=${def.itemId}`);
                     }
                 },
                 option,
             );
         }
 
-        // Register combat potions
         for (const def of ALL_COMBAT_POTION_DEFS) {
             registry.registerItemAction(
                 def.itemId,
@@ -1039,9 +1036,7 @@ export const consumablesModule: ScriptModule = {
                         },
                     });
                     if (!ok) {
-                        services.logger?.debug?.(
-                            `[script:combat-potions] consume rejected item=${def.itemId}`,
-                        );
+                        console.log(`[script:combat-potions] consume rejected item=${def.itemId}`);
                     }
                 },
                 "drink",

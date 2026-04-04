@@ -790,14 +790,10 @@ function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecuti
                 services.addItemToInventory(player, itemId, qty);
                 effects.push({ type: "inventorySnapshot", playerId: player.id });
 
-                services.queueClientScript?.(
-                    player.id,
-                    PICKPOCKET_NOTIFY_SCRIPT,
-                    data.npcTypeId,
-                    tick,
-                    itemId,
-                    qty,
-                );
+                // Loot tracker notification (script 7192) disabled: it relies on
+                // NXT-only engine opcodes (loottracker_lootadd 7628, stringvector 7408, etc.)
+                // that have no Java client reference to implement against.
+                // services.queueClientScript?.(player.id, PICKPOCKET_NOTIFY_SCRIPT, data.npcTypeId, tick, itemId, qty);
             }
 
             services.addSkillXp?.(player, THIEVING_SKILL_ID, data.xp);

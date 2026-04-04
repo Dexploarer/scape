@@ -147,19 +147,9 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/equipmentWidgets.ts")],
     },
     {
-        id: "content.skill-surfaces",
-        load: loadModule("modules/skills", "skillSurfaceModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/skills.ts")],
-    },
-    {
         id: "content.poh-pools",
         load: loadModule("modules/pohPools", "pohPoolModule"),
         watch: [path.resolve(MODULE_DIR, "modules/pohPools.ts")],
-    },
-    {
-        id: "consumables",
-        load: loadModule("modules/items/consumables", "consumablesModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/items/consumables.ts")],
     },
     {
         id: "followers",

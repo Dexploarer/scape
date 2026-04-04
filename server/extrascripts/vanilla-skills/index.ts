@@ -1,4 +1,5 @@
 import type { ScriptModule } from "../../src/game/scripts/types";
+import { consumablesModule } from "./consumables/index";
 import { craftingSkillModule } from "./crafting/index";
 import { firemakingModule } from "./firemaking/index";
 import { fishingModule } from "./fishing/index";
@@ -6,6 +7,7 @@ import { fletchingModule } from "./fletching/index";
 import { herbloreModule } from "./herblore/index";
 import { miningModule } from "./mining/index";
 import { prayerSkillModule } from "./prayer/index";
+import { productionModule } from "./production/index";
 import { thievingModule } from "./thieving/index";
 import { woodcuttingModule } from "./woodcutting/index";
 
@@ -19,6 +21,8 @@ const skillModules: ScriptModule[] = [
     woodcuttingModule,
     miningModule,
     fishingModule,
+    productionModule,
+    consumablesModule,
 ];
 
 export const module: ScriptModule = {

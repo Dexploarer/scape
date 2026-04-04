@@ -156,8 +156,6 @@ import {
     InventoryActionHandler,
     type InventoryActionServices,
     ScheduledAction,
-    SkillActionHandler,
-    type SkillActionServices,
     SpellActionHandler,
     type SpellActionServices,
     WidgetDialogHandler,
@@ -178,13 +176,6 @@ import type {
     InventoryUseOnActionData,
     MovementTeleportActionData,
 } from "../game/actions/actionPayloads";
-import type {
-    SkillBoltEnchantActionData,
-    SkillCookActionData,
-    SkillSmeltActionData,
-    SkillSmithActionData,
-    SkillTanActionData,
-} from "../game/actions/skillActionPayloads";
 import { DEBUG_PLAYER_IDS, RUN_ENERGY_MAX } from "../game/actor";
 import { BankingManager, type BankingServices } from "../game/banking";
 import {
@@ -1389,7 +1380,6 @@ export class WSServer {
     private npcPacketEncoder!: NpcPacketEncoder;
     private playerPacketEncoder!: PlayerPacketEncoder;
     private combatActionHandler!: CombatActionHandler;
-    private skillActionHandler!: SkillActionHandler;
     private spellActionHandler!: SpellActionHandler;
     private inventoryActionHandler!: InventoryActionHandler;
     private effectDispatcher!: EffectDispatcher;
@@ -2277,6 +2267,18 @@ export class WSServer {
                 },
                 restoreInventoryItems: (player, itemId, removed) =>
                     this.restoreInventoryItems(player, itemId, removed),
+                takeInventoryItems: (player, inputs) =>
+                    this.takeInventoryItems(player, inputs),
+                restoreInventoryRemovals: (player, removed) =>
+                    this.restoreInventoryRemovals(player, removed),
+                updateSmithingInterface: (player) =>
+                    this.updateSmithingInterface(player),
+                updateSmeltingInterface: (player) =>
+                    this.updateSmeltingInterface(player),
+                getRingOfForgingCharges: (player) =>
+                    player.getRingOfForgingCharges(),
+                consumeRingOfForgingCharge: (player) =>
+                    this.consumeRingOfForgingCharge(player, []),
             },
         });
         logger.info(
@@ -2438,8 +2440,6 @@ export class WSServer {
             this.playerPacketEncoder = this.createPlayerPacketEncoder();
             // Initialize CombatActionHandler
             this.combatActionHandler = this.createCombatActionHandler();
-            // Initialize SkillActionHandler
-            this.skillActionHandler = this.createSkillActionHandler();
             // Initialize SpellActionHandler
             this.spellActionHandler = this.createSpellActionHandler();
             // Initialize InventoryActionHandler
@@ -7813,92 +7813,6 @@ export class WSServer {
     }
 
     /**
-     * Create the SkillActionHandler with all required services.
-     */
-    private createSkillActionHandler(): SkillActionHandler {
-        const services: SkillActionServices = {
-            // --- Player Skills ---
-            getSkill: (player, skillId) => {
-                const skill = player.getSkill(skillId);
-                return {
-                    baseLevel: skill.baseLevel,
-                    boost: skill.boost,
-                    xp: skill.xp,
-                };
-            },
-            awardSkillXp: (player, skillId, xp) => this.awardSkillXp(player, skillId, xp),
-
-            // --- Inventory Operations ---
-            getInventory: (player) => this.getInventory(player),
-            findInventorySlotWithItem: (player, itemId) =>
-                this.findInventorySlotWithItem(player, itemId),
-            consumeItem: (player, slot) => this.consumeItem(player, slot),
-            setInventorySlot: (player, slot, itemId, quantity) =>
-                this.setInventorySlot(player, slot, itemId, quantity),
-            addItemToInventory: (player, itemId, quantity) =>
-                this.addItemToInventory(player, itemId, quantity),
-            hasInventorySlot: (player) => this.hasInventorySlot(player),
-            playerHasItem: (player, itemId) => this.playerHasItem(player, itemId),
-            restoreInventoryItems: (player, itemId, removed) =>
-                this.restoreInventoryItems(player, itemId, removed),
-            takeInventoryItems: (player, inputs) => this.takeInventoryItems(player, inputs),
-            restoreInventoryRemovals: (player, removed) =>
-                this.restoreInventoryRemovals(player, removed),
-            getEquipArray: (player) => this.ensureEquipArray(player),
-
-            // --- Action Scheduling ---
-            scheduleAction: (playerId, request, tick) =>
-                this.actionScheduler.requestAction(playerId, request, tick),
-
-            // --- Effect Building ---
-            buildSkillFailure: (player, message, reason) =>
-                this.buildSkillFailure(player, message, reason),
-            buildSkillMessageEffect: (player, message) =>
-                this.buildSkillMessageEffect(player, message),
-            smithingInterfaceFailure: (player, message, reason, mode) =>
-                this.smithingInterfaceFailure(player, message, reason, mode as any),
-
-            // --- Recipe Lookups ---
-            getSmithingRecipeById: (id) => getSmithingRecipeById(id),
-            getCookingRecipeById: (id) => getCookingRecipeById(id),
-            getCookingRecipeByRawItemId: (itemId) => getCookingRecipeByRawItemId(itemId),
-            getTanningRecipeById: (id) => getTanningRecipeById(id),
-            getSmeltingRecipeById: (id) => getSmeltingRecipeById(id),
-
-            // --- Skill Success Rolls ---
-            rollCookingOutcome: (recipe, level, options) =>
-                rollCookingOutcome(recipe as any, level, options),
-            rollSmeltingSuccess: (level, recipe, equip, ringCharges) =>
-                this.rollSmeltingSuccess(level, recipe as any, equip, ringCharges),
-
-            // --- Description Helpers ---
-            describeBar: (itemId) => this.describeBar(itemId),
-
-            // --- Interface Updates ---
-            updateSmithingInterface: (player) => this.updateSmithingInterface(player),
-            updateSmeltingInterface: (player) => this.updateSmeltingInterface(player),
-
-            // --- Smelting Helpers ---
-            firstRemovedSlot: (removed) => this.firstRemovedSlot(removed),
-            getSmeltingXpWithBonuses: (recipe, equip) =>
-                getSmeltingXpWithBonuses(recipe as any, equip),
-            getRingOfForgingCharges: (player) => player.getRingOfForgingCharges(),
-            consumeRingOfForgingCharge: (player, effects) =>
-                this.consumeRingOfForgingCharge(player, effects),
-
-            // --- Logging ---
-            log: (level, message, data) => {
-                try {
-                    if (level === "warn") logger.warn(message, data);
-                    else if (level === "error") logger.error(message, data);
-                    else logger.info(message, data);
-                } catch {}
-            },
-        };
-        return new SkillActionHandler(services);
-    }
-
-    /**
      * Create the SpellActionHandler with all required services.
      */
     private createSpellActionHandler(): SpellActionHandler {
@@ -10136,36 +10050,6 @@ export class WSServer {
                 return this.combatActionHandler.executeCombatCompanionHitAction(
                     player,
                     action.data as CombatCompanionHitActionData,
-                    tick,
-                );
-            case "skill.smith":
-                return this.skillActionHandler.executeSkillSmithAction(
-                    player,
-                    action.data as SkillSmithActionData,
-                    tick,
-                );
-            case "skill.cook":
-                return this.skillActionHandler.executeSkillCookAction(
-                    player,
-                    action.data as SkillCookActionData,
-                    tick,
-                );
-            case "skill.tan":
-                return this.skillActionHandler.executeSkillTanAction(
-                    player,
-                    action.data as SkillTanActionData,
-                    tick,
-                );
-            case "skill.smelt":
-                return this.skillActionHandler.executeSkillSmeltAction(
-                    player,
-                    action.data as SkillSmeltActionData,
-                    tick,
-                );
-            case "skill.bolt_enchant":
-                return this.skillActionHandler.executeSkillBoltEnchantAction(
-                    player,
-                    action.data as SkillBoltEnchantActionData,
                     tick,
                 );
             case "movement.teleport":

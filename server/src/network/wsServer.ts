@@ -13157,10 +13157,11 @@ export class WSServer {
                             // - accountStage 1, step >= 1 (in tutorial): Quest tab only
                             // - accountStage 2 (tutorial complete): all tabs
                             const accountStage = p.accountStage;
-                            const tutorialMode = accountStage >= 1 && this.gamemode.isTutorialActive(p);
+                            const tutorialActive = this.gamemode.isTutorialActive(p);
+                            const tutorialMode = accountStage >= 1 && tutorialActive;
                             const charCreationMode = accountStage === 0;
-                            // Hide ALL tabs (including Quest) until "Get Started" is clicked
-                            const preStartMode = charCreationMode || tutorialStep === 0;
+                            // Hide ALL tabs until the player starts the tutorial
+                            const preStartMode = charCreationMode || (this.gamemode.isTutorialPreStart?.(p) ?? false);
 
                             const interfaces = getDefaultInterfaces(displayMode, {
                                 tutorialMode: tutorialMode || charCreationMode,

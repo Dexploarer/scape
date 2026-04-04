@@ -76,6 +76,7 @@ export interface GamemodeDefinition {
 
     // === Login / Handshake ===
     isTutorialActive(player: PlayerState): boolean;
+    isTutorialPreStart?(player: PlayerState): boolean;
     getSpawnLocation(player: PlayerState): { x: number; y: number; level: number };
     onPlayerHandshake(player: PlayerState, bridge: HandshakeBridge): void;
     onPlayerLogin(player: PlayerState, bridge: GamemodeBridge): void;

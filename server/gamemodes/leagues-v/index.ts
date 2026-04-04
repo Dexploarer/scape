@@ -162,6 +162,11 @@ export class LeaguesVGamemode implements GamemodeDefinition {
         return tutorialStep < getTutorialCompleteStep(player);
     }
 
+    isTutorialPreStart(player: PlayerState): boolean {
+        const tutorialStep = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        return tutorialStep === 0;
+    }
+
     getSpawnLocation(_player: PlayerState): { x: number; y: number; level: number } {
         return TUTORIAL_SPAWN;
     }

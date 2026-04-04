@@ -959,9 +959,11 @@ export class SceneRaycaster {
         if (tBoxMin > maxDistance) return undefined;
 
         let bestT = Number.POSITIVE_INFINITY;
+        let hasVisibleFace = false;
         for (let i = 0; i < mesh.faceCount; i++) {
             if (mesh.faceColors3 && mesh.faceColors3[i] === -2) continue;
             if (mesh.faceAlphas && (mesh.faceAlphas[i] & 0xff) >= 254) continue;
+            hasVisibleFace = true;
 
             const a = mesh.indices1[i] | 0;
             const b = mesh.indices2[i] | 0;
@@ -992,6 +994,12 @@ export class SceneRaycaster {
                 continue;
             }
             bestT = t;
+        }
+
+        // Invisible interaction volumes (all faces fully transparent) use AABB
+        // hit distance so they remain clickable.
+        if (!hasVisibleFace && Number.isFinite(tBoxMin)) {
+            return tBoxMin;
         }
 
         return Number.isFinite(bestT) ? bestT : undefined;

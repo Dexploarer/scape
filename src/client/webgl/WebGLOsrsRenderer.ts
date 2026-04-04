@@ -207,6 +207,10 @@ interface LocHighlightTarget {
     plane: number;
     locModelType?: number;
     locRotation?: number;
+    /** Set when the outline model was sourced from an overworld visual proxy
+     *  rather than the loc's own model.  Suppresses world-entity transforms
+     *  and deck-height offsets for the highlight. */
+    overworldProxy?: boolean;
 }
 
 interface NpcHighlightTarget {
@@ -8653,7 +8657,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 const wvId = this.osrsClient.npcEcs.getWorldViewId?.(target.ecsId) ?? -1;
                 if (wvId >= 0) return this.worldEntityAnimator?.getTransform(wvId);
             }
-            if (target.kind === "loc") {
+            if (target.kind === "loc" && !target.overworldProxy) {
                 const map = this.getPreferredMapForWorldTile(target.tileX, target.tileY);
                 if (map && this.mapManager.worldEntityMapIds.has(map.id)) {
                     const weIdx = this.getWorldEntityIndexForMapId(map.id);
@@ -8858,6 +8862,53 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         return this.interactNpcModelLoader;
     }
 
+    private hasNoVisibleFaces(model: Model): boolean {
+        if (!model.faceAlphas) return false;
+        for (let i = 0; i < model.faceAlphas.length; i++) {
+            if ((model.faceAlphas[i] & 0xff) < 254) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Finds a visible animated loc at the same tile to use as outline geometry
+     * for an invisible interaction volume (e.g. gangplank proxy pattern).
+     */
+    private findVisualProxyModel(
+        locModelLoader: LocModelLoader,
+        target: LocHighlightTarget,
+        modelType: number,
+        modelRotation: number,
+    ): Model | undefined {
+        for (let mi = 0; mi < this.mapManager.visibleMapCount; mi++) {
+            const map = this.mapManager.visibleMaps[mi];
+            if (!map) continue;
+            const local = this.getMapLocalTile(map, target.tileX, target.tileY);
+            if (!local) continue;
+            const rsX = (local.x * 128 + 64) | 0;
+            const rsY = (local.y * 128 + 64) | 0;
+            for (const anim of map.locsAnimated) {
+                if (anim.id === (target.locId | 0)) continue;
+                if (anim.x !== rsX || anim.y !== rsY) continue;
+                const proxyType = this.osrsClient.locTypeLoader.load(anim.id);
+                if (!proxyType) continue;
+                const proxyModel =
+                    locModelLoader.getModelAnimated(
+                        proxyType, LocModelType.NORMAL, anim.rotation ?? 0,
+                        anim.seqType?.id ?? -1, anim.frame | 0,
+                    ) ??
+                    locModelLoader.getModelAnimated(
+                        proxyType, modelType as LocModelType, modelRotation,
+                        anim.seqType?.id ?? -1, anim.frame | 0,
+                    );
+                if (proxyModel && !this.hasNoVisibleFaces(proxyModel)) {
+                    return proxyModel;
+                }
+            }
+        }
+        return undefined;
+    }
+
     private buildLocModelHighlightTriangles(
         target: LocHighlightTarget,
     ): ReadonlyArray<readonly [number, number, number]> | undefined {
@@ -8894,34 +8945,49 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
 
         // Find the current animation frame from the map's animated loc list.
-        // LocAnimated stores scene-local tile coords; target has world tile coords.
+        // LocAnimated x/y are in RS sub-tile units (localTile * 128 + 64).
         let seqId = locType.seqId ?? -1;
         let seqFrame = 0;
         const locMap = this.getPreferredMapForWorldTile(target.tileX, target.tileY);
         if (locMap) {
             const localTile = this.getMapLocalTile(locMap, target.tileX, target.tileY);
-            const sceneX = localTile ? localTile.x + locMap.borderSize : -1;
-            const sceneY = localTile ? localTile.y + locMap.borderSize : -1;
-            for (const anim of locMap.locsAnimated) {
-                if (
-                    anim.id === (target.locId | 0) &&
-                    anim.x === sceneX &&
-                    anim.y === sceneY &&
-                    anim.level === (target.plane | 0)
-                ) {
-                    seqId = anim.seqType?.id ?? seqId;
-                    seqFrame = anim.frame | 0;
-                    break;
+            if (localTile) {
+                const rsX = (localTile.x * 128 + 64) | 0;
+                const rsY = (localTile.y * 128 + 64) | 0;
+                for (const anim of locMap.locsAnimated) {
+                    if (
+                        anim.id === (target.locId | 0) &&
+                        anim.x === rsX &&
+                        anim.y === rsY &&
+                        anim.level === (target.plane | 0)
+                    ) {
+                        seqId = anim.seqType?.id ?? seqId;
+                        seqFrame = anim.frame | 0;
+                        break;
+                    }
                 }
             }
         }
-        const model = locModelLoader.getModelAnimated(
+        let model = locModelLoader.getModelAnimated(
             locType,
             modelType as LocModelType,
             modelRotation,
             seqId,
             seqFrame,
         );
+
+        // Invisible interaction volumes (all faces fully transparent) use a
+        // visual proxy loc at the same tile for the highlight outline.
+        if (model && this.hasNoVisibleFaces(model)) {
+            const proxy = this.findVisualProxyModel(
+                locModelLoader, target, modelType, modelRotation,
+            );
+            if (proxy) {
+                model = proxy;
+                target.overworldProxy = true;
+            }
+        }
+
         if (!model || !model.verticesX || !model.verticesY || !model.verticesZ) {
             return undefined;
         }
@@ -8937,7 +9003,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         // renders at the overlay's source plane height which sits at sea level, not a
         // full UNITS_LEVEL_HEIGHT below.
         const heightMap = this.getPreferredMapForWorldTile(target.tileX, target.tileY);
-        const isOverlay = heightMap && heightMap.interactionPlane >= 0;
+        const isOverlay = !target.overworldProxy && heightMap && heightMap.interactionPlane >= 0;
         const heightPlane = isOverlay ? 0 : (target.plane | 0);
         let baseY = sampleBridgeHeightForWorldTile(
             this.mapManager,
@@ -9913,20 +9979,32 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         plane: number,
     ): number | undefined {
         try {
-            const map = this.getPreferredMapForWorldTile(tileX, tileY) as any;
-            if (!map || typeof map.getLocIdsAtLocal !== "function") return undefined;
-            if (typeof map.getLocTypeRotsAtLocal !== "function") return undefined;
-            const local = this.getMapLocalTile(map, tileX, tileY);
-            if (!local) return undefined;
-            const level = Math.max(0, Math.min(Scene.MAX_LEVELS - 1, plane | 0));
-            const ids = map.getLocIdsAtLocal(level, local.x, local.y) as number[];
-            const typeRots = map.getLocTypeRotsAtLocal(level, local.x, local.y) as number[];
-            for (let i = 0; i < ids.length; i++) {
-                if ((ids[i] | 0) !== (locId | 0)) continue;
-                if (i < typeRots.length) {
-                    return (typeRots[i] | 0) & 0xff;
+            const tryMap = (map: any): number | undefined => {
+                if (!map || typeof map.getLocIdsAtLocal !== "function") return undefined;
+                if (typeof map.getLocTypeRotsAtLocal !== "function") return undefined;
+                const local = this.getMapLocalTile(map, tileX, tileY);
+                if (!local) return undefined;
+                const level = Math.max(0, Math.min(Scene.MAX_LEVELS - 1, plane | 0));
+                const ids = map.getLocIdsAtLocal(level, local.x, local.y) as number[];
+                const typeRots = map.getLocTypeRotsAtLocal(level, local.x, local.y) as number[];
+                for (let i = 0; i < ids.length; i++) {
+                    if ((ids[i] | 0) !== (locId | 0)) continue;
+                    if (i < typeRots.length) {
+                        return (typeRots[i] | 0) & 0xff;
+                    }
+                    break;
                 }
-                break;
+                return undefined;
+            };
+            // Check preferred map first, then fall back to all visible maps.
+            const preferred = this.getPreferredMapForWorldTile(tileX, tileY);
+            const result = tryMap(preferred);
+            if (result !== undefined) return result;
+            for (let i = 0; i < this.mapManager.visibleMapCount; i++) {
+                const map = this.mapManager.visibleMaps[i];
+                if (map === preferred) continue;
+                const r = tryMap(map);
+                if (r !== undefined) return r;
             }
             return undefined;
         } catch {

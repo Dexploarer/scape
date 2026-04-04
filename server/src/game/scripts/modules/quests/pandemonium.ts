@@ -96,6 +96,8 @@ const SCRIPT_CAMERA_BOUNDS = 603;
 const SYNTH_BOARD_BOAT = 10754;
 const SAILING_DOCKED_WORLD_ID = 425;
 
+const LOC_GANGPLANK = 59835;
+
 // Quest states:
 // 0 = not started
 // 2 = quest accepted (interview in progress)
@@ -266,6 +268,12 @@ export const pandemoniumQuestModule: ScriptModule = {
                 handler: playShipConversation,
             });
         }
+
+        registry.registerLocInteraction(LOC_GANGPLANK, (event) => {
+            const { player } = event;
+            if (!isPlayerOnDockedSailingBoat(player)) return;
+            executeDisembarkSequence(player, services);
+        }, "disembark");
     },
 };
 
@@ -950,12 +958,34 @@ function openSailingUi(
 
     services.queueClientScript?.(pid, SCRIPT_SAILING_CREW_INIT, playerName, 1, "", 1);
     services.queueClientScript?.(pid, SCRIPT_SIDEBAR_TAB, 0);
+
+    // Bundle critical varbits/varps with the interface open so they are applied
+    // client-side BEFORE the onLoad scripts fire. Without this, the CS2 script
+    // `script8727` sees %sailing_player_is_on_player_boat == 0 and early-returns
+    // without creating the scrollbar or facility content.
+    const sidepanelVarbits: Record<number, number> = {
+        [VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT]: player.getVarbitValue(VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT) || 1,
+        [VARBIT_SAILING_BOARDED_BOAT]: player.getVarbitValue(VARBIT_SAILING_BOARDED_BOAT) || 1,
+        [VARBIT_SAILING_BOARDED_BOAT_TYPE]: player.getVarbitValue(VARBIT_SAILING_BOARDED_BOAT_TYPE) || 3,
+        [VARBIT_SAILING_SIDEPANEL_VISIBLE]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_VISIBLE) || 1,
+        [VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB) || 1,
+        [VARBIT_SAILING_SIDEPANEL_PLAYER_ROLE]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_PLAYER_ROLE) || 10,
+        [VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE) || 4,
+        [VARBIT_SAILING_SIDEPANEL_PLAYERS_ON_BOARD_TOTAL]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_PLAYERS_ON_BOARD_TOTAL) || 1,
+        [VARBIT_SAILING_SIDEPANEL_BOAT_HP_MAX]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_BOAT_HP_MAX) || 170,
+        [VARBIT_SAILING_SIDEPANEL_BOAT_HP]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_BOAT_HP) || 170,
+        [VARBIT_SAILING_SIDEPANEL_HELM_STATUS]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_HELM_STATUS) || 1,
+    };
+    const sidepanelVarps: Record<number, number> = {
+        [VARP_SAILING_SIDEPANEL_BOAT_TYPE]: player.getVarpValue?.(VARP_SAILING_SIDEPANEL_BOAT_TYPE) ?? 8113,
+    };
+
     services.openSubInterface?.(
         player,
         BaseComponentUids.TAB_COMBAT,
         SAILING_SIDEPANEL_GROUP,
         1,
-        { modal: false },
+        { modal: false, varbits: sidepanelVarbits, varps: sidepanelVarps },
     );
     services.openSubInterface?.(
         player,

@@ -4,6 +4,9 @@ hero:
     name: XRSPS
     text: OSRS in the Browser
     tagline: Community-driven. Browser-native.
+    image:
+        src: /xrsps.png
+        alt: XRSPS
     actions:
         - theme: brand
           text: Get Started

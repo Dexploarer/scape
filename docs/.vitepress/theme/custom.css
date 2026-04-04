@@ -42,6 +42,11 @@
 }
 
 /* navbar */
+.VPNavBarTitle .logo {
+    height: 42px !important;
+    width: auto !important;
+}
+
 .VPNavBar .divider,
 .VPNavBar .divider-line {
     display: none !important;

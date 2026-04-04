@@ -10,6 +10,8 @@ export default defineConfig({
         ['meta', { name: 'theme-color', content: '#4a9eff' }],
     ],
     themeConfig: {
+        logo: '/xrsps.png',
+        siteTitle: false,
         nav: [
             { text: 'Home', link: '/' },
             { text: 'Setup', link: '/setup' },

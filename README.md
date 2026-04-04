@@ -1,107 +1,40 @@
-# xrsps-typescript
+<p align="center">
+  <img src="docs/public/xrsps.png" alt="XRSPS" width="128">
+</p>
 
-xRSPS is intended to explore OSRS in a similar spirit to Jagex's abandoned Project Zanaris.
+<p align="center">
+  <strong>A community-driven project inspired by Project Zanaris.</strong><br>
+  OSRS in the browser with a React/WebGL client and TypeScript WebSocket server.
+</p>
 
-Latest cache supported: osrs-237_2026-03-25
+<p align="center">
+  <a href="https://xrsps.com"><img src="https://img.shields.io/badge/Docs-xrsps.com-5b8def?style=for-the-badge&logo=bookstack&logoColor=white" alt="Docs"></a>
+  <br>
+  <a href="https://discord.gg/3dzttF2q73"><img src="https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
+  <br>
+  <a href="https://trello.com/b/UjMvJYrl/xrsps"><img src="https://img.shields.io/badge/Trello-Board-0052CC?style=for-the-badge&logo=trello&logoColor=white" alt="Trello"></a>
+</p>
 
-Discord: https://discord.gg/3dzttF2q73
+---
 
-This project contains:
+## Quick Start
 
-- a React/WebGL game client
-- a TypeScript WebSocket game server
-- cache-driven widgets, CS2/UI behaviour, map loading, models, audio, and gameplay systems
-
-## Status
-
-This is an active work-in-progress community project, not intended to be a finished game.
-
-## Tech Stack
-
-- TypeScript
-- React
-- WebGL / PicoGL
-- WebSockets
-- Cache-driven client and server tooling
-
-## Project Structure
-
-- `src`: browser client, rendering, widgets, cache loaders, gameplay client logic
-- `server`: WebSocket server, world logic, pathfinding, widgets, scripts
-- `scripts`: cache utilities and export tools
-
-## Requirements
-
-Ensure you have these or you might run into weird issues.
-
-- Node.js v22.16+
-- Yarn
-
-## Getting Started
-
-Install dependencies:
+Requires **Node.js v22.16+** and **Yarn**.
 
 ```bash
+git clone https://github.com/xrsps/xrsps-typescript.git
+cd xrsps-typescript
 yarn install
-```
-
-Build the server collision cache:
-
-```bash
 yarn server:build-collision
-```
-
-Build the world map into static images:
-
-```bash
 yarn export-map-images
+yarn server:start        # terminal 1
+yarn start               # terminal 2
 ```
 
-Start the server:
+See the [full setup guide](https://xrsps.com/setup) for details.
 
-```bash
-yarn server:start
-```
+---
 
-Start the client in another terminal:
-
-```bash
-yarn start
-```
-
-By default the WebSocket server runs on:
-
-- host: `0.0.0.0`
-- port: `43594`
-
-## Useful Scripts
-
-```bash
-yarn start
-yarn server:start
-yarn server:build-collision
-yarn download-caches
-yarn export-textures
-yarn export-map-images
-yarn mcp
-```
-
-## Design Goals
-
-- OSRS parity first
-- shared systems over one-off feature hacks
-- cache and CS2 driven UI behaviour
-- browser-first gameplay with desktop and mobile support
-
-## Notes
-
-- This repository is under active development and internal tooling/debug paths may change frequently.
-- Some systems are intentionally unfinished while parity work is still ongoing.
-- Cache assets are not embedded in the repo and must be downloaded locally.
-- Feel free to use your own AI tooling to submit any new features or contributions
-- UI is entirely CS2 driven on the client side, typically trigger by serverside scripts
-
-## Disclaimer
-
-This is a fan project and is not affiliated with, endorsed by, or connected to Jagex Ltd.  
-Old School RuneScape and related assets/trademarks belong to their respective owners.
+<p align="center">
+  <sub>Fan project. Not affiliated with, endorsed by, or connected to Jagex Ltd.<br>Old School RuneScape and related assets/trademarks belong to their respective owners.</sub>
+</p>

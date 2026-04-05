@@ -5,7 +5,7 @@ import {
     TANNING_RECIPES,
     type TanningRecipe,
     getTanningRecipeById,
-} from "../../../src/game/skills/skillSurfaces";
+} from "./tanningData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 import {
     type SkillDialogChoice,

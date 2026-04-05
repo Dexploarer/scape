@@ -8,7 +8,7 @@ import {
     DEFAULT_COOKING_BURN_BONUS,
     getCookingRecipeById,
     rollCookingOutcome,
-} from "../../../src/game/skills/skillSurfaces";
+} from "./cookingData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 import {
     type SkillDialogChoice,

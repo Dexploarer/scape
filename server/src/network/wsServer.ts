@@ -1,31 +1,24 @@
 import JavaRandom from "java-random";
 import { performance } from "perf_hooks";
-import { TextEncoder } from "util";
 import { WebSocket, WebSocketServer } from "ws";
 import { config } from "../config";
 
 import { ConfigType } from "../../../src/rs/cache/ConfigType";
 import { IndexType } from "../../../src/rs/cache/IndexType";
-// Tuned via docs/autosave-sizing.md (Nov 2025)
 import { getCacheLoaderFactory } from "../../../src/rs/cache/loader/CacheLoaderFactory";
 import { Huffman, tryLoadOsrsHuffman } from "../../../src/rs/chat/Huffman";
 import type { BasType } from "../../../src/rs/config/bastype/BasType";
 import type { BasTypeLoader } from "../../../src/rs/config/bastype/BasTypeLoader";
 import { DbRepository } from "../../../src/rs/config/db/DbRepository";
-import type { EnumType } from "../../../src/rs/config/enumtype/EnumType";
 import type { EnumTypeLoader } from "../../../src/rs/config/enumtype/EnumTypeLoader";
 import { ArchiveHealthBarDefinitionLoader } from "../../../src/rs/config/healthbar/HealthBarDefinitionLoader";
 import type { IdkType } from "../../../src/rs/config/idktype/IdkType";
 import type { IdkTypeLoader } from "../../../src/rs/config/idktype/IdkTypeLoader";
 import type { NpcTypeLoader } from "../../../src/rs/config/npctype/NpcTypeLoader";
-import { ObjStackability } from "../../../src/rs/config/objtype/ObjStackability";
 import type { ObjType } from "../../../src/rs/config/objtype/ObjType";
 import type { ObjTypeLoader } from "../../../src/rs/config/objtype/ObjTypeLoader";
 import {
-    EquipmentSlot,
-    HeadCoverage,
-    deriveEquipSlotFromParams,
-    getHeadCoverage,
+    EquipmentSlot
 } from "../../../src/rs/config/player/Equipment";
 import { PlayerAppearance as CachePlayerAppearance } from "../../../src/rs/config/player/PlayerAppearance";
 import {
@@ -36,11 +29,6 @@ import type { SeqTypeLoader } from "../../../src/rs/config/seqtype/SeqTypeLoader
 import { PRAYER_DEFINITIONS, type PrayerName } from "../../../src/rs/prayer/prayers";
 import { MAX_REAL_LEVEL, SkillId, getSkillName } from "../../../src/rs/skill/skills";
 import { faceAngleRs } from "../../../src/rs/utils/rotation";
-import {
-    MovementDirection,
-    deltaToRunDirection,
-    directionToDelta,
-} from "../../../src/shared/Direction";
 import {
     MODIFIER_FLAG_CTRL,
     MODIFIER_FLAG_CTRL_SHIFT,
@@ -65,8 +53,6 @@ import {
     VARBIT_AUTOCAST_SET,
     VARBIT_AUTOCAST_SPELL,
     VARBIT_CLIENT_OF_KOUREND,
-    VARBIT_DEADMAN_IN_WILDERNESS,
-    VARBIT_DEADMAN_PROTECTION_LEFT,
     VARBIT_IBAN_BOOK_READ,
     VARBIT_IN_LMS,
     VARBIT_IN_RAID,
@@ -77,7 +63,6 @@ import {
     VARBIT_PVP_SPEC_ORB,
     VARBIT_RAID_STATE,
     VARBIT_SIDE_JOURNAL_TAB,
-    VARBIT_TD_MULTIWAY_INDICATOR,
     VARBIT_XPDROPS_ENABLED,
     VARP_AREA_SOUNDS_VOLUME,
     VARP_ATTACK_STYLE,
@@ -311,13 +296,6 @@ import type {
     PickaxeDefinition,
 } from "../game/skills/mining";
 import {
-    DEFAULT_COOKING_BURN_BONUS,
-    getCookingRecipeById,
-    getCookingRecipeByRawItemId,
-    getTanningRecipeById,
-    rollCookingOutcome,
-} from "../game/skills/skillSurfaces";
-import {
     isSinewSourceItem,
     isSpinningWheelLocId,
 } from "../game/skills/spinning";
@@ -471,7 +449,6 @@ const EQUIP_SLOT_COUNT = 14;
 const NPC_STREAM_RADIUS_TILES = 15;
 // Use a small hysteresis so NPCs don't rapidly despawn/respawn at the edge
 // Enter the stream at 15 tiles, exit once beyond 17 tiles
-const NPC_STREAM_ENTER_RADIUS_TILES = NPC_STREAM_RADIUS_TILES;
 const NPC_STREAM_EXIT_RADIUS_TILES = NPC_STREAM_RADIUS_TILES + 2;
 const SOUND_BROADCAST_RADIUS_TILES = NPC_STREAM_EXIT_RADIUS_TILES;
 
@@ -583,54 +560,15 @@ const SPEC_SPOT_GODSWORD_ARMADYL = 1206; // SpotanimID.GODWARS_GODSWORD_ARMADYL_
 const SPEC_SPOT_GODSWORD_SARADOMIN = 1207; // SpotanimID.GODWARS_GODSWORD_SARADOMIN_SPOT
 const SPEC_SPOT_GODSWORD_BANDOS = 1208; // SpotanimID.GODWARS_GODSWORD_BANDOS_SPOT
 
-// Extra lift for spell projectiles so they originate nearer the caster's hands/wand.
-// (Client uses a height map; this is a purely visual vertical offset in world units.)
-// Note: OSRS projectile packets encode vertical offsets as bytes scaled by *4.
-const PLAYER_CHUNK_HOP_SIZE = 8; // tiles per chunk-hop (OSRS external player semantics)
-// Network direction codes used by `Players.updateExternalPlayer` (type=2 chunk hop),
-// and by `readPlayerUpdate` (moveType=1 walk). Index order is NW,N,NE,W,E,SW,S,SE.
-const CHUNK_DIRECTION_DELTAS: ReadonlyArray<{ dx: number; dy: number }> = [
-    { dx: -1, dy: -1 },
-    { dx: 0, dy: -1 },
-    { dx: 1, dy: -1 },
-    { dx: -1, dy: 0 },
-    { dx: 1, dy: 0 },
-    { dx: -1, dy: 1 },
-    { dx: 0, dy: 1 },
-    { dx: 1, dy: 1 },
-];
 // OSRS parity: melee hits resolve 1 tick after the swing animation starts.
 const MELEE_HIT_DELAY_TICKS = 1;
 const COMBAT_SOUND_DELAY_MS = 50; // Small delay to ensure hitsplat renders before sound plays
 const DEFAULT_HIT_SOUND = 1979; // Generic blade hit sound
-/**
- * OSRS Run Energy Constants (docs/formulas.md)
- * Energy is stored as 0-10000 (percent * 100)
- * Drain formula: floor(67/100 * (min(64, weight) + 64))
- * Recovery formula: floor(8 + floor(agility/6))
- */
+
 // Shop/Bank group IDs imported from interface hooks
 const SMITHING_GROUP_ID = 312;
 const SMITHING_BAR_TYPE_VARBIT_ID = 3216;
-const SMITHING_BAR_ENUM_ID = 1253;
-const SMITHING_BAR_TYPE_FALLBACK: ReadonlyArray<readonly [number, number]> = [
-    [1, 2349], // bronze_bar
-    [2, 2351], // iron_bar
-    [3, 2353], // steel_bar
-    [4, 2359], // mithril_bar
-    [5, 2361], // adamantite_bar
-    [6, 2363], // runite_bar
-    [7, 13354], // lovakite_bar
-] as const;
-const SMITHING_BAR_MIN_LEVEL_BY_TYPE: Readonly<Record<number, number>> = {
-    1: 1,
-    2: 15,
-    3: 30,
-    4: 50,
-    5: 70,
-    6: 85,
-    7: 45,
-};
+
 const RANGED_WEAPON_CATEGORY_IDS = new Set([3, 5, 6, 7, 8, 19]);
 const MAGIC_WEAPON_CATEGORY_IDS = new Set([18, 24, 29, 31]);
 const PROTECTION_PRAYER_MAP: Record<AttackType, PrayerName> = {
@@ -651,9 +589,6 @@ const NPC_ATTACK_SOUND = 2549; // Generic NPC attack sound
 const PLAYER_TAKE_DAMAGE_SOUND = 510;
 const PLAYER_ZERO_DAMAGE_SOUND = 511;
 const DEFAULT_MAGIC_SPLASH_SOUND = 227;
-const WOODCUTTING_SUCCESS_SOUND = 3600;
-const WOODCUTTING_DEPLETE_SOUND = 2734;
-const ITEM_PICKUP_SOUND = 2582;
 const ITEM_DROP_SOUND = 2739;
 
 /**
@@ -682,13 +617,11 @@ const PRAYER_ACTIVATE_SOUNDS: Map<PrayerName, number> = new Map(
     PRAYER_DEFINITIONS.filter((p) => p.soundId != null).map((p) => [p.id, p.soundId!]),
 );
 
-const GROUND_ITEM_STREAM_RADIUS_TILES = 20;
 // OSRS: Items are private for 60 seconds (100 ticks) before becoming visible to others
 const GROUND_ITEM_PRIVATE_TICKS = 100;
 // OSRS: Items despawn after 3 minutes total (300 ticks = 180 seconds)
 // Note: Some items like untradeable drops may have different timers
 const GROUND_ITEM_DESPAWN_TICKS = 300;
-const GROUND_ITEM_PICKUP_RADIUS_TILES = 2;
 const DEBUG_LOG_ITEM_ID = 1511; // Normal logs
 const DEBUG_LOG_TILE = Object.freeze({ x: 3167, y: 3472, level: 0 });
 const DEBUG_LOG_STACK_QTY = 28;
@@ -719,7 +652,6 @@ function testRandFloat(): number {
 }
 
 const CONSUME_VERBS = ["eat", "drink", "quaff", "sip", "imbibe", "swig", "consume", "devour", "activate"];
-const FURNACE_ANIMATION = 899;
 const TELEPORT_ACTION_GROUP = "movement.teleport";
 
 type StepRecord = {
@@ -734,32 +666,10 @@ type StepRecord = {
     direction?: number;
 };
 
-type MovementInfo = {
-    mode: "idle" | "walk" | "run" | "teleport";
-    directions: number[];
-    traversals: number[];
-    targetSubX: number;
-    targetSubY: number;
-    level: number;
-    localOffsetX: number;
-    localOffsetY: number;
-    teleportType?: "relative" | "absolute";
-    absoluteTileX?: number;
-    absoluteTileY?: number;
-};
-
 type PendingWalkCommand = {
     to: { x: number; y: number };
     run: boolean;
     enqueuedTick: number;
-};
-
-type ScriptedConsumeContext = {
-    player: PlayerState;
-    slotIndex: number;
-    itemId: number;
-    option?: string;
-    tick: number;
 };
 
 type TeleportActionRequest = {
@@ -807,43 +717,6 @@ interface PlayerViewSnapshot {
     shouldSendPos: boolean;
     worldViewId?: number;
 }
-
-type SpawnEncoding =
-    | {
-          mode: 0;
-          offsetX: number;
-          offsetY: number;
-          tileX: number;
-          tileY: number;
-          level: number;
-      }
-    | { mode: 1; tileX: number; tileY: number; level: number }
-    | { mode: 2; tileX: number; tileY: number; level: number }
-    | {
-          mode: 3;
-          tileX: number;
-          tileY: number;
-          level: number;
-          planeDelta: number;
-          direction: number;
-      };
-
-const FORCED_CHAT_MASK = 0x01;
-// Player face direction (Actor.field1208).
-const FACE_DIR_MASK = 0x02;
-const APPEARANCE_MASK = 0x04;
-const ANIMATION_MASK = 0x08;
-const PUBLIC_CHAT_MASK = 0x10;
-const HIT_MASK = 0x20;
-const FACE_ENTITY_MASK = 0x40;
-const FIELD512_MASK = 0x200;
-// OSRS extended public chat (includes extra bytes for some overhead color ids).
-const EXT_PUBLIC_CHAT_MASK = 0x8000;
-const FORCE_MOVEMENT_MASK = 0x400;
-const ACTIONS_MASK = 0x800;
-const MOVEMENT_TYPE_MASK = 0x1000;
-const MOVEMENT_FLAG_MASK = 0x2000;
-const SPOT_ANIM_MASK = 0x10000;
 
 type HealthBarUpdatePayload = {
     id: number;
@@ -6650,8 +6523,8 @@ export class WSServer {
                 this.buildSkillFailure(player, message, reason),
             playLocSound: (request) => this.playLocSound(request),
 
-            // --- Cooking ---
-            getCookingRecipeByRawItemId: (itemId) => getCookingRecipeByRawItemId(itemId),
+            // --- Cooking (late-bound by production extrascript) ---
+            getCookingRecipeByRawItemId: undefined,
             getFireNode: (tile, level) => this.firemakingTracker.getFireNode(tile, level),
             isSmithingLoc: (locId) => {
                 const normalizedLocId = locId;
@@ -7552,11 +7425,7 @@ export class WSServer {
                         player.setPath([westTile], false);
                     }
                 },
-                getCookingRecipeByRawItemId: (itemId) => {
-                    const recipe = getCookingRecipeByRawItemId(itemId);
-                    if (!recipe) return undefined;
-                    return { cookedItemId: recipe.cookedItemId, xp: recipe.xp };
-                },
+                getCookingRecipeByRawItemId: undefined,
                 production: {
                     takeInventoryItems: (player, inputs) =>
                         this.takeInventoryItems(player, inputs),

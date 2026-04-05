@@ -1,7 +1,9 @@
 import type { ActionEffect, ActionExecutionResult } from "../../../src/game/actions/types";
 import type { PlayerState } from "../../../src/game/player";
 import type { ScriptInventoryEntry, ScriptServices } from "../../../src/game/scripts/types";
-import type { CookingHeatSource, SkillSurfaceKind } from "../../../src/game/skills/skillSurfaces";
+import type { CookingHeatSource } from "./cookingData";
+
+export type SkillSurfaceKind = "smith" | "cook" | "tan" | "smelt";
 
 export type InventoryEntry = ScriptInventoryEntry;
 export type RequestActionFn = NonNullable<ScriptServices["requestAction"]>;

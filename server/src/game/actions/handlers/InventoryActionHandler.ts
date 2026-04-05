@@ -201,7 +201,7 @@ export interface InventoryActionServices {
     playLocSound(request: { soundId: number; tile: Vec2; level: number }): void;
 
     // --- Cooking ---
-    getCookingRecipeByRawItemId(itemId: number): CookingRecipe | undefined;
+    getCookingRecipeByRawItemId?(itemId: number): CookingRecipe | undefined;
     getFireNode(tile: Vec2, level: number): unknown | undefined;
     isSmithingLoc(locId: number): boolean;
     getSmithingBarTypeByItem(itemId: number): number | undefined;
@@ -730,7 +730,7 @@ export class InventoryActionHandler {
         const level = target.plane ?? player.level;
         const fire = this.services.getFireNode(tile, level);
         if (!fire) return undefined;
-        const recipe = this.services.getCookingRecipeByRawItemId(itemId);
+        const recipe = this.services.getCookingRecipeByRawItemId?.(itemId);
         if (!recipe) return undefined;
         const available = this.services.countInventoryItem(player, recipe.rawItemId);
         if (available <= 0) {

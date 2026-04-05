@@ -142,16 +142,7 @@ export interface ScriptServiceDependencies {
     getCookingRecipeByRawItemId: (itemId: number) => any;
 
     // Production
-    production: {
-        openSmeltingInterface: (player: PlayerState) => void;
-        openSmithingInterface: (player: PlayerState) => void;
-        smeltBars: (player: PlayerState, params: any) => void;
-        smithItems: (player: PlayerState, params: any) => void;
-        updateSmithingInterface: (player: PlayerState) => void;
-        updateSmeltingInterface: (player: PlayerState) => void;
-        getRingOfForgingCharges: (player: PlayerState) => number | undefined;
-        consumeRingOfForgingCharge: (player: PlayerState) => void;
-    };
+    production: import("../scripts/serviceInterfaces").ProductionServiceFacade;
 
     // Followers
     followers: {
@@ -344,12 +335,7 @@ export function buildScriptServices(deps: ScriptServiceDependencies): ScriptServ
         getCookingRecipeByRawItemId: deps.getCookingRecipeByRawItemId,
 
         // Production
-        production: {
-            ...deps.production,
-            takeInventoryItems: deps.takeInventoryItems,
-            restoreInventoryRemovals: deps.restoreInventoryRemovals,
-            restoreInventoryItems: deps.restoreInventoryItems,
-        },
+        production: deps.production,
 
         // Followers
         followers: deps.followers,

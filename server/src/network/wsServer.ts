@@ -320,7 +320,6 @@ import {
 import {
     RING_OF_FORGING_ITEM_ID,
     RING_OF_FORGING_MAX_CHARGES,
-    getSmeltingXpWithBonuses,
 } from "../game/skills/smithingBonuses";
 import {
     isSinewSourceItem,
@@ -354,7 +353,6 @@ import {
     GatheringSystemManager,
     type GatheringSystemServices,
 } from "../game/systems/GatheringSystemManager";
-import { SmithingSystem } from "../game/skills/SmithingSystem";
 import { MovementSystem } from "../game/systems/MovementSystem";
 import { ProjectileSystem, type ProjectileSystemServices } from "../game/systems/ProjectileSystem";
 import { ScriptScheduler } from "../game/systems/ScriptScheduler";
@@ -1207,7 +1205,6 @@ export class WSServer {
     private miningLocMap: Map<number, MiningLocMapping> = new Map();
     private fishingSpotMap: Map<number, string> = new Map();
     private gatheringSystem!: GatheringSystemManager;
-    private smithingSystem!: SmithingSystem;
     private equipmentHandler!: EquipmentHandler;
     private tickOrchestrator!: TickPhaseOrchestrator;
     private broadcastScheduler = new BroadcastScheduler();
@@ -1673,7 +1670,7 @@ export class WSServer {
                     const sock = this.players?.getSocketByPlayerId(player.id);
                     if (sock) this.sendInventorySnapshot(sock, player);
                 },
-                sendGameMessage: sendGameMessageFn,
+                sendGameMessage: (player: PlayerState, text: string) => this.sendGameMessageToPlayer(player, text),
                 openTradeWidget: (player) => player.widgets.open(335, { modal: true }),
                 closeTradeWidget: (player) => player.widgets.close(335),
                 getInventory: (player) => this.getInventory(player),
@@ -1708,7 +1705,7 @@ export class WSServer {
                 }
             });
             this.players.setGameMessageCallback((player, text) => {
-                sendGameMessageFn(player, text);
+                this.sendGameMessageToPlayer(player, text);
             });
             // OSRS parity: Wire up skill action interruption callback
             this.players.setInterruptSkillActionsCallback((playerId) => {
@@ -1766,21 +1763,7 @@ export class WSServer {
             this.gatheringSystem = this.createGatheringSystem();
             // Initialize EquipmentHandler
             this.equipmentHandler = this.createEquipmentHandler();
-            this.smithingSystem = new SmithingSystem({
-                getInventory: (player) => this.getInventory(player),
-                playerHasItem: (player, itemId) => this.playerHasItem(player, itemId),
-                countInventoryItem: (player, itemId) => this.countInventoryItem(player, itemId),
-                queueSmithingMessage: (playerId, payload) => this.queueSmithingInterfaceMessage(playerId, payload),
-                queueChatMessage: (request) => this.queueChatMessage(request),
-                openModal: (player, groupId, data, opts) => this.interfaceService?.openModal(player, groupId, data, opts),
-                closeModal: (player) => this.interfaceService?.closeModal(player),
-                isModalOpen: (player, groupId) => this.interfaceService?.isModalOpen(player, groupId) ?? false,
-                openSmithingBarModal: (player) => this.cs2ModalManager.openSmithingBarModal(player),
-                requestAction: (playerId, request, tick) => this.actionScheduler.requestAction(playerId, request, tick),
-                getCurrentTick: () => this.options.ticker.currentTick(),
-                getEnumTypeLoader: () => this.enumTypeLoader as any,
-                buildSkillFailure: (player, message, reason) => this.buildSkillFailure(player, message, reason),
-            });
+            // SmithingSystem is now managed by the vanilla-skills/production extrascript
             // Initialize TickPhaseOrchestrator
             this.tickOrchestrator = this.createTickOrchestrator();
             // Initialize MessageRouter
@@ -1789,10 +1772,10 @@ export class WSServer {
             this.chatBroadcaster.setForEachPlayer((fn) => this.players?.forEach(fn));
             this.actorSyncBroadcaster.setForEachPlayer((fn) => this.players?.forEach(fn));
             this.actorSyncBroadcaster.setApplyAppearanceSnapshots((frame) =>
-                this.applyAppearanceSnapshotsToViews(frame),
+                this.applyAppearanceSnapshotsToViews(frame as TickFrame),
             );
             this.actorSyncBroadcaster.setSyncCallback((sock, player, frame, ctx) =>
-                this.buildAndSendActorSync(sock, player, frame, ctx),
+                this.buildAndSendActorSync(sock, player, frame as TickFrame, ctx),
             );
         }
         if (this.npcManager) {
@@ -1863,7 +1846,7 @@ export class WSServer {
                     queueClientScript: (playerId, scriptId, ...args) =>
                         this.queueClientScript(playerId, scriptId, ...args),
                     sendGameMessage: (player, text) =>
-                        sendGameMessageFn(player, text),
+                        this.sendGameMessageToPlayer(player, text),
                 },
                 serverServices: this.buildGamemodeServerServices(),
             });
@@ -4128,6 +4111,14 @@ export class WSServer {
             )}`,
         );
         this.broadcastScheduler.queueClientScript(playerId, scriptId, args);
+    }
+
+    private sendGameMessageToPlayer(player: PlayerState, text: string): void {
+        this.queueChatMessage({
+            messageType: "game",
+            text,
+            targetPlayerIds: [player.id],
+        });
     }
 
     private queueChatMessage(message: {
@@ -6679,7 +6670,7 @@ export class WSServer {
                 return false;
             },
             getSmithingBarTypeByItem: (itemId) => {
-                return this.smithingSystem.getBarTypeByItemId(itemId);
+                return this.scriptRuntime.getServices().production?.getBarTypeByItemId?.(itemId);
             },
             setSmithingBarType: (player, barType) => {
                 player.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType);
@@ -6830,7 +6821,9 @@ export class WSServer {
                 }),
             setSmithingBarType: (player, barType) =>
                 player.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType),
-            openSmithingForgeInterface: (player) => this.smithingSystem.openForgeInterface(player),
+            openSmithingForgeInterface: (player) => {
+                this.scriptRuntime.getServices().production?.openForgeInterface?.(player);
+            },
         };
         return new Cs2ModalManager(services);
     }
@@ -7094,13 +7087,6 @@ export class WSServer {
         locTypeLoader: any,
         combatEffectApplicator: any,
     ): import("../game/scripts/types").ScriptServices {
-        const sendGameMessageFn = (player: PlayerState, text: string): void => {
-            this.queueChatMessage({
-                messageType: "game",
-                text,
-                targetPlayerIds: [player.id],
-            });
-        };
         const snapshotInventoryFn = (player: PlayerState): void => {
             try {
                 const sock = this.players?.getSocketByPlayerId(player.id);
@@ -7209,7 +7195,7 @@ export class WSServer {
                 getMusicTrackId: (trackName) => this.getMusicTrackIdByName(trackName),
                 getMusicTrackBySlot: (slot) =>
                     this.musicCatalogService?.getBaseListTrackBySlot(slot),
-                sendGameMessage: sendGameMessageFn,
+                sendGameMessage: (player: PlayerState, text: string) => this.sendGameMessageToPlayer(player, text),
                 getCurrentTick: () => this.options.ticker.currentTick(),
                 getPathService: () => this.options.pathService,
                 snapshotInventory: snapshotInventoryFn,
@@ -7513,7 +7499,7 @@ export class WSServer {
                 },
                 isPlayerStunned: (player) => player.timers.has(STUN_TIMER),
                 isPlayerInCombat: (player) => player.isBeingAttacked(),
-                hasInventorySlot: (player) => this.hasInventorySlot(player),
+                hasInventorySlot: (player) => player.getFreeSlotCount() > 0,
                 applyPlayerHitsplat: (player, style, damage, tick) =>
                     combatEffectApplicator.applyPlayerHitsplat(player, style, damage, tick),
                 stunPlayer: (player, ticks) => {
@@ -7578,34 +7564,27 @@ export class WSServer {
                     return { cookedItemId: recipe.cookedItemId, xp: recipe.xp };
                 },
                 production: {
-                    openSmeltingInterface: (player) => this.smithingSystem.openSmeltingInterface(player),
-                    openSmithingInterface: (player) => this.smithingSystem.openSmithingInterface(player),
-                    smeltBars: (player, params) =>
-                        this.smithingSystem.handleSmeltingSelection(
-                            player,
-                            params.recipeId,
-                            params.count > 0 ? params.count : undefined,
-                        ),
-                    smithItems: (player, params) =>
-                        this.smithingSystem.handleSmithingSelection(
-                            player,
-                            params.recipeId,
-                            params.count > 0 ? params.count : undefined,
-                        ),
                     takeInventoryItems: (player, inputs) =>
                         this.takeInventoryItems(player, inputs),
                     restoreInventoryRemovals: (player, removed) =>
                         this.restoreInventoryRemovals(player, removed),
                     restoreInventoryItems: (player, itemId, removed) =>
                         this.restoreInventoryItems(player, itemId, removed),
-                    updateSmithingInterface: (player) =>
-                        this.smithingSystem.updateSmithingInterface(player),
-                    updateSmeltingInterface: (player) =>
-                        this.smithingSystem.updateSmeltingInterface(player),
                     getRingOfForgingCharges: (player) =>
                         player.getRingOfForgingCharges(),
                     consumeRingOfForgingCharge: (player) =>
                         this.consumeRingOfForgingCharge(player, []),
+                    queueSmithingMessage: (playerId, payload) =>
+                        this.queueSmithingInterfaceMessage(playerId, payload),
+                    openSmithingModal: (player, groupId, varbits) =>
+                        this.interfaceService?.openModal(player, groupId, undefined, varbits ? { varbits } : undefined),
+                    closeSmithingModal: (player) =>
+                        this.interfaceService?.closeModal(player),
+                    isSmithingModalOpen: (player, groupId) =>
+                        this.interfaceService?.isModalOpen(player, groupId) ?? false,
+                    openSmithingBarModal: (player) =>
+                        this.cs2ModalManager.openSmithingBarModal(player),
+                    getBarTypeByItemId: (_itemId) => undefined,
                 },
                 followers: {
                     summonFollowerFromItem: (player, itemId, npcTypeId) => {
@@ -7679,9 +7658,9 @@ export class WSServer {
                     queueWorldEntityMask: (playerId, entityIndex, mask) => this.worldEntityInfoEncoder.queueMaskUpdate(playerId, entityIndex, mask),
                     buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
                 },
-            },
         };
     }
+
     /**
      * Create the TickPhaseOrchestrator with all required services.
      */
@@ -7948,22 +7927,6 @@ export class WSServer {
             } catch {}
         });
 
-        router.register("smithing_make", (ctx) => {
-            if (!ctx.player) return;
-            const recipeId = ctx.payload.recipeId ?? "";
-            const mode = ctx.payload.mode === "forge" ? "forge" : "smelt";
-            if (mode === "forge") this.smithingSystem.handleSmithingSelection(ctx.player, recipeId);
-            else this.smithingSystem.handleSmeltingSelection(ctx.player, recipeId);
-        });
-
-        router.register("smithing_mode", (ctx) => {
-            if (!ctx.player) return;
-            this.smithingSystem.handleModeChange(
-                ctx.player,
-                ctx.payload.mode ?? ctx.player.getSmithingQuantityMode(),
-                ctx.payload.custom,
-            );
-        });
 
         // More handlers will be added incrementally...
     }
@@ -12378,6 +12341,185 @@ export class WSServer {
             isHidden: false,
             actions: ["", "", ""],
         });
+    }
+
+    private takeInventoryItems(
+        player: PlayerState,
+        requirements: Array<{ itemId: number; quantity: number }>,
+    ): { ok: boolean; removed: Map<number, { itemId: number; quantity: number }> } {
+        const removed = new Map<number, { itemId: number; quantity: number }>();
+        for (const req of requirements) {
+            const needed = Math.max(1, req.quantity);
+            for (let i = 0; i < needed; i++) {
+                const slot = this.findInventorySlotWithItem(player, req.itemId);
+                if (slot === undefined || !this.consumeItem(player, slot)) {
+                    this.restoreInventoryRemovals(player, removed);
+                    return { ok: false, removed: new Map() };
+                }
+                const existing = removed.get(slot);
+                if (existing) existing.quantity += 1;
+                else removed.set(slot, { itemId: req.itemId, quantity: 1 });
+            }
+        }
+        return { ok: true, removed };
+    }
+
+    private restoreInventoryRemovals(
+        player: PlayerState,
+        removed: Map<number, { itemId: number; quantity: number }>,
+    ): void {
+        if (!removed.size) return;
+        const inv = this.getInventory(player);
+        for (const [slot, info] of removed.entries()) {
+            if (!(slot >= 0 && slot < inv.length)) {
+                this.addItemToInventory(player, info.itemId, info.quantity);
+                continue;
+            }
+            const entry = inv[slot];
+            if (!entry || entry.itemId <= 0 || entry.quantity <= 0) {
+                this.setInventorySlot(player, slot, info.itemId, info.quantity);
+            } else if (entry.itemId === info.itemId) {
+                this.setInventorySlot(player, slot, info.itemId, entry.quantity + info.quantity);
+            } else {
+                this.addItemToInventory(player, info.itemId, info.quantity);
+            }
+        }
+    }
+
+    private hasInventorySlot(player: PlayerState): boolean {
+        const inv = this.getInventory(player);
+        return inv.some((entry) => entry.itemId <= 0 || entry.quantity <= 0);
+    }
+
+    private canStoreItem(player: PlayerState, itemId: number): boolean {
+        const def = getItemDefinition(itemId);
+        const stackable = !!def?.stackable;
+        if (!stackable) {
+            return this.hasInventorySlot(player);
+        }
+        const slot = this.findInventorySlotWithItem(player, itemId);
+        if (slot !== undefined) {
+            return true;
+        }
+        return this.hasInventorySlot(player);
+    }
+
+    private isAdjacentToTile(player: PlayerState, tile: { x: number; y: number }, radius = 1): boolean {
+        const dx = Math.abs(player.tileX - tile.x);
+        const dy = Math.abs(player.tileY - tile.y);
+        return dx <= radius && dy <= radius;
+    }
+
+    private isAdjacentToLoc(
+        player: PlayerState,
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+    ): boolean {
+        if (!(locId > 0)) {
+            return this.isAdjacentToTile(player, tile);
+        }
+        const rect = this.getLocAdjacencyRect(locId, tile, level);
+        if (!rect) {
+            return this.isAdjacentToTile(player, tile);
+        }
+        const minX = rect.tile.x;
+        const minY = rect.tile.y;
+        const maxX = minX + Math.max(1, rect.sizeX) - 1;
+        const maxY = minY + Math.max(1, rect.sizeY) - 1;
+        const px = player.tileX;
+        const py = player.tileY;
+        const clampedX = Math.max(minX, Math.min(px, maxX));
+        const clampedY = Math.max(minY, Math.min(py, maxY));
+        return Math.abs(px - clampedX) <= 1 && Math.abs(py - clampedY) <= 1;
+    }
+
+    private getLocAdjacencyRect(
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+    ): { tile: { x: number; y: number }; sizeX: number; sizeY: number } | undefined {
+        const size = this.getLocSize(locId);
+        if (!size) return undefined;
+        const rect = this.deriveLocCollisionRectForTile(tile, size.sizeX, size.sizeY, level);
+        if (rect) return rect;
+        return {
+            tile: { x: tile.x, y: tile.y },
+            sizeX: Math.max(1, size.sizeX),
+            sizeY: Math.max(1, size.sizeY),
+        };
+    }
+
+    private getLocSize(locId: number): { sizeX: number; sizeY: number } | undefined {
+        const loader = this.locTypeLoader;
+        if (!loader?.load) return undefined;
+        try {
+            const loc = loader.load(locId);
+            if (!loc) return undefined;
+            const sizeX = Math.max(1, loc.sizeX);
+            const sizeY = Math.max(1, loc.sizeY);
+            return { sizeX, sizeY };
+        } catch {
+            return undefined;
+        }
+    }
+
+    private deriveLocCollisionRectForTile(
+        tile: { x: number; y: number },
+        sizeX: number,
+        sizeY: number,
+        level: number,
+    ): { tile: { x: number; y: number }; sizeX: number; sizeY: number } | undefined {
+        const pathService = this.options.pathService;
+        if (!pathService?.getCollisionFlagAt) {
+            return undefined;
+        }
+        const mask = CollisionFlag.OBJECT | CollisionFlag.OBJECT_ROUTE_BLOCKER;
+        let minX = Number.POSITIVE_INFINITY;
+        let minY = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        let maxY = Number.NEGATIVE_INFINITY;
+        let found = false;
+        for (let dx = 0; dx < Math.max(1, sizeX); dx++) {
+            for (let dy = 0; dy < Math.max(1, sizeY); dy++) {
+                const wx = tile.x + dx;
+                const wy = tile.y + dy;
+                const flag = pathService.getCollisionFlagAt(wx, wy, level);
+                if (flag === undefined) continue;
+                if ((flag & mask) === 0) continue;
+                found = true;
+                if (wx < minX) minX = wx;
+                if (wy < minY) minY = wy;
+                if (wx > maxX) maxX = wx;
+                if (wy > maxY) maxY = wy;
+            }
+        }
+        if (!found) {
+            return undefined;
+        }
+        return {
+            tile: { x: minX, y: minY },
+            sizeX: Math.max(1, maxX - minX + 1),
+            sizeY: Math.max(1, maxY - minY + 1),
+        };
+    }
+
+    private faceGatheringTarget(player: PlayerState, tile: { x: number; y: number }): void {
+        const targetX = tile.x * TILE_UNIT + TILE_UNIT / 2;
+        const targetY = tile.y * TILE_UNIT + TILE_UNIT / 2;
+        try {
+            player.setForcedOrientation(faceAngleRs(player.x, player.y, targetX, targetY));
+        } catch {}
+    }
+
+    private isFiremakingTileBlocked(tile: { x: number; y: number }, level: number): boolean {
+        const pathService = this.options.pathService;
+        if (!pathService) return false;
+        const flag = pathService.getCollisionFlagAt(tile.x, tile.y, level);
+        if (flag === undefined || flag < 0) return false;
+        const blockingMask =
+            CollisionFlag.OBJECT | CollisionFlag.FLOOR_BLOCKED | CollisionFlag.OBJECT_ROUTE_BLOCKER;
+        return (flag & blockingMask) !== 0;
     }
 
     private isAdjacentToNpc(player: PlayerState, npc: NpcState): boolean {

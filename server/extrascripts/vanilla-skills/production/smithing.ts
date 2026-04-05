@@ -6,7 +6,7 @@ import {
     SMITHING_RECIPES,
     type SmithingRecipe,
     getSmithingRecipeById,
-} from "../../../src/game/skills/skillSurfaces";
+} from "./smithingData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 import {
     type InventoryEntry,

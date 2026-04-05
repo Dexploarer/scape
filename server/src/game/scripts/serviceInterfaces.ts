@@ -334,17 +334,24 @@ export interface GatheringServices {
 // ============================================================================
 
 export interface ProductionServiceFacade {
-    openSmeltingInterface: (player: PlayerState) => void;
-    smeltBars: (player: PlayerState, params: { recipeId: string; count: number }) => void;
-    openSmithingInterface: (player: PlayerState) => void;
-    smithItems: (player: PlayerState, params: { recipeId: string; count: number }) => void;
     takeInventoryItems: (player: PlayerState, inputs: Array<{ itemId: number; quantity: number }>) => { ok: boolean; removed: Map<number, { itemId: number; quantity: number }> };
     restoreInventoryRemovals: (player: PlayerState, removed: Map<number, { itemId: number; quantity: number }>) => void;
     restoreInventoryItems: (player: PlayerState, itemId: number, removed: Map<number, number>) => void;
-    updateSmithingInterface: (player: PlayerState) => void;
-    updateSmeltingInterface: (player: PlayerState) => void;
     getRingOfForgingCharges: (player: PlayerState) => number | undefined;
     consumeRingOfForgingCharge: (player: PlayerState) => void;
+    queueSmithingMessage?: (playerId: number, payload: any) => void;
+    openSmithingModal?: (player: PlayerState, groupId: number, varbits?: Record<number, number>) => void;
+    closeSmithingModal?: (player: PlayerState) => void;
+    isSmithingModalOpen?: (player: PlayerState, groupId: number) => boolean;
+    openSmithingBarModal?: (player: PlayerState) => void;
+    getBarTypeByItemId?: (itemId: number) => number | undefined;
+    openForgeInterface?: (player: PlayerState) => void;
+    openSmeltingInterface?: (player: PlayerState) => void;
+    smeltBars?: (player: PlayerState, params: { recipeId: string; count: number }) => void;
+    openSmithingInterface?: (player: PlayerState) => void;
+    smithItems?: (player: PlayerState, params: { recipeId: string; count: number }) => void;
+    updateSmithingInterface?: (player: PlayerState) => void;
+    updateSmeltingInterface?: (player: PlayerState) => void;
 }
 
 export interface ProductionServices {

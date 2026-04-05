@@ -1,4 +1,4 @@
-import { type IScriptRegistry, type ScriptServices } from "../../../../src/game/scripts/types";
+import { type IScriptRegistry, type ScriptServices } from "../../../../src/game/scripts";
 
 export function registerRomeoHandlers(registry: IScriptRegistry, services: ScriptServices): void {
     const activeConvos = new Set<number>();

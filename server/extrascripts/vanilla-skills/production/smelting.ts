@@ -7,11 +7,11 @@ import {
     calculateIronSmeltChance,
     computeSmeltingBatchCount,
     getSmeltingRecipeById,
-} from "../../../src/game/skills/skillSurfaces";
+} from "./smithingData";
 import {
     getSmeltingXpWithBonuses,
     shouldGuaranteeIronSmelt,
-} from "../../../src/game/skills/smithingBonuses";
+} from "./smithingBonuses";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 import {
     type SkillDialogChoice,

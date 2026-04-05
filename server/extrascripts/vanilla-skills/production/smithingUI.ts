@@ -1,7 +1,7 @@
 import { SkillId } from "../../../../src/rs/skill/skills";
-import type { PlayerState } from "../player";
-import type { SmithingOptionMessage, SmithingServerPayload } from "../../network/messages";
-import type { ActionScheduler } from "../actions/ActionScheduler";
+import type { SmithingOptionMessage, SmithingServerPayload } from "../../../src/network/messages";
+import type { PlayerState } from "../../../src/game/player";
+import type { ScriptServices } from "../../../src/game/scripts/types";
 import {
     HAMMER_ITEM_ID,
     SMELTING_RECIPES,
@@ -11,9 +11,8 @@ import {
     computeSmeltingBatchCount,
     getSmeltingRecipeById,
     getSmithingRecipeById,
-    shouldGuaranteeIronSmelt,
-} from "./smithingBonuses";
-import { getItemDefinition } from "../../data/items";
+} from "./smithingData";
+import { shouldGuaranteeIronSmelt } from "./smithingBonuses";
 
 const SMITHING_GROUP_ID = 312;
 const SMITHING_BAR_TYPE_VARBIT_ID = 3216;
@@ -25,36 +24,29 @@ const SMITHING_BAR_MIN_LEVEL_BY_TYPE: Readonly<Record<number, number>> = {
     1: 1, 2: 15, 3: 30, 4: 50, 5: 70, 6: 85, 7: 40, 8: 20,
 };
 
-export interface SmithingSystemServices {
-    getInventory(player: PlayerState): Array<{ itemId: number; quantity: number }>;
-    playerHasItem(player: PlayerState, itemId: number): boolean;
-    countInventoryItem(player: PlayerState, itemId: number): number;
-    queueSmithingMessage(playerId: number, payload: SmithingServerPayload): void;
-    queueChatMessage(request: { messageType: string; text: string; targetPlayerIds?: number[] }): void;
-    openModal(player: PlayerState, groupId: number, data?: unknown, opts?: { varbits?: Record<number, number> }): void;
-    closeModal(player: PlayerState): void;
-    isModalOpen(player: PlayerState, groupId: number): boolean;
-    openSmithingBarModal(player: PlayerState): void;
-    requestAction(playerId: number, request: any, tick: number): { ok: boolean };
-    getCurrentTick(): number;
-    getEnumTypeLoader(): { load(id: number): { keys: number[]; intValues: number[] } | undefined } | undefined;
-    buildSkillFailure(player: PlayerState, message: string, reason: string): any;
+function countInventoryItem(services: ScriptServices, player: PlayerState, itemId: number): number {
+    const inv = services.getInventoryItems(player);
+    let total = 0;
+    for (const entry of inv) {
+        if (entry.itemId === itemId) total += Math.max(0, entry.quantity);
+    }
+    return total;
 }
 
-/**
- * Extracted smithing/smelting system.
- * Manages the smithing interface, recipe resolution, bar enum cache,
- * and action scheduling for smithing/smelting operations.
- */
-export class SmithingSystem {
+function describeItem(services: ScriptServices, itemId: number): string {
+    const def = services.getObjType?.(itemId);
+    return def?.name ? def.name.toLowerCase() : "item";
+}
+
+export class SmithingUI {
     private barTypeToItemId = new Map<number, number>();
     private barItemIdToType = new Map<number, number>();
     private barEnumInitialized = false;
 
-    constructor(private readonly services: SmithingSystemServices) {}
+    constructor(private readonly services: ScriptServices) {}
 
     buildSmeltingOptions(player: PlayerState): SmithingOptionMessage[] {
-        const inventory = this.services.getInventory(player);
+        const inventory = this.services.getInventoryItems(player);
         const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
         return SMELTING_RECIPES.map((recipe) => {
             const available = Math.max(0, Math.min(28, computeSmeltingBatchCount(inventory, recipe)));
@@ -74,9 +66,9 @@ export class SmithingSystem {
     }
 
     buildForgingOptions(player: PlayerState): SmithingOptionMessage[] {
-        const inventory = this.services.getInventory(player);
+        const inventory = this.services.getInventoryItems(player);
         const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
-        const hammerAvailable = this.services.playerHasItem(player, HAMMER_ITEM_ID);
+        const hammerAvailable = !!this.services.playerHasItem?.(player, HAMMER_ITEM_ID);
         return SMITHING_RECIPES.map((recipe) => {
             const available = Math.max(
                 0,
@@ -93,7 +85,7 @@ export class SmithingSystem {
                 available,
                 canMake: (!requiresHammer || hammerAvailable) && canLevel && available > 0,
                 xp: recipe.xp,
-                ingredientsLabel: `${recipe.barCount} x ${this.describeBar(recipe.barItemId)}`,
+                ingredientsLabel: `${recipe.barCount} x ${describeItem(this.services, recipe.barItemId)}`,
                 mode: "forge",
                 barItemId: recipe.barItemId,
                 barCount: recipe.barCount,
@@ -108,6 +100,7 @@ export class SmithingSystem {
         action: "open" | "update",
         mode: "smelt" | "forge",
     ): void {
+        const production = this.services.production;
         if (action === "open") {
             try {
                 let openVarbits: Record<number, number> | undefined;
@@ -116,17 +109,12 @@ export class SmithingSystem {
                     if (!openState.ok) return;
                     openVarbits = openState.varbits;
                 }
-                this.services.openModal(
-                    player,
-                    SMITHING_GROUP_ID,
-                    undefined,
-                    openVarbits ? { varbits: openVarbits } : undefined,
-                );
+                production?.openSmithingModal?.(player, SMITHING_GROUP_ID, openVarbits);
             } catch {}
         }
         const options =
             mode === "smelt" ? this.buildSmeltingOptions(player) : this.buildForgingOptions(player);
-        this.services.queueSmithingMessage(player.id, {
+        production?.queueSmithingMessage?.(player.id, {
             kind: action,
             mode,
             title: mode === "smelt" ? "Smelting" : "Smithing",
@@ -149,7 +137,7 @@ export class SmithingSystem {
     }
 
     openSmithingInterface(player: PlayerState): void {
-        this.services.openSmithingBarModal(player);
+        this.services.production?.openSmithingBarModal?.(player);
     }
 
     updateSmithingInterface(player: PlayerState): void {
@@ -157,14 +145,15 @@ export class SmithingSystem {
     }
 
     closeInterface(player: PlayerState): void {
+        const production = this.services.production;
         try {
-            if (this.services.isModalOpen(player, SMITHING_GROUP_ID)) {
-                this.services.closeModal(player);
+            if (production?.isSmithingModalOpen?.(player, SMITHING_GROUP_ID)) {
+                this.services.closeModal?.(player);
             } else {
                 player.widgets.close(SMITHING_GROUP_ID);
             }
         } catch {}
-        this.services.queueSmithingMessage(player.id, { kind: "close" });
+        production?.queueSmithingMessage?.(player.id, { kind: "close" });
     }
 
     initializeBarEnumCache(): void {
@@ -174,7 +163,7 @@ export class SmithingSystem {
         this.barItemIdToType.clear();
 
         try {
-            const enumType = this.services.getEnumTypeLoader()?.load(SMITHING_BAR_ENUM_ID);
+            const enumType = this.services.getEnumTypeLoader?.()?.load(SMITHING_BAR_ENUM_ID);
             const keys = enumType?.keys ?? [];
             const values = enumType?.intValues ?? [];
             const count = Math.min(keys.length, values.length);
@@ -206,7 +195,7 @@ export class SmithingSystem {
             const requiredLevel = SMITHING_BAR_MIN_LEVEL_BY_TYPE[barType] ?? 1;
             if (smithLevel < requiredLevel) continue;
             unlockedTypes.push(barType);
-            if (this.services.countInventoryItem(player, itemId) > 0) {
+            if (countInventoryItem(this.services, player, itemId) > 0) {
                 inventoryTypes.push(barType);
             }
         }
@@ -228,18 +217,6 @@ export class SmithingSystem {
         if (barType === undefined || !(barType > 0)) return { ok: false };
         player.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType);
         return { ok: true, varbits: { [SMITHING_BAR_TYPE_VARBIT_ID]: barType } };
-    }
-
-    interfaceFailure(
-        player: PlayerState,
-        message: string,
-        reason: string,
-        mode: "smelt" | "forge" = "smelt",
-    ): any {
-        const result = this.services.buildSkillFailure(player, message, reason);
-        if (mode === "forge") this.updateSmithingInterface(player);
-        else this.updateSmeltingInterface(player);
-        return result;
     }
 
     resolveQuantity(mode: number, available: number, custom: number): number {
@@ -264,7 +241,7 @@ export class SmithingSystem {
         } else if (mode !== 3 && customRaw !== undefined) {
             player.setSmithingCustomQuantity(customRaw);
         }
-        this.services.queueSmithingMessage(player.id, {
+        this.services.production?.queueSmithingMessage?.(player.id, {
             kind: "mode",
             quantityMode: player.getSmithingQuantityMode(),
             customQuantity: player.getSmithingCustomQuantity(),
@@ -274,18 +251,18 @@ export class SmithingSystem {
     handleSmeltingSelection(player: PlayerState, recipeId: string, requestedCount?: number): void {
         const recipe = getSmeltingRecipeById(recipeId);
         if (!recipe) {
-            this.services.queueChatMessage({ messageType: "game", text: "You can't smelt that.", targetPlayerIds: [player.id] });
+            this.services.sendGameMessage(player, "You can't smelt that.");
             return;
         }
         const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
         if (smithLevel < recipe.level) {
-            this.services.queueChatMessage({ messageType: "game", text: `You need Smithing level ${recipe.level} to smelt that.`, targetPlayerIds: [player.id] });
+            this.services.sendGameMessage(player, `You need Smithing level ${recipe.level} to smelt that.`);
             return;
         }
-        const inventory = this.services.getInventory(player);
+        const inventory = this.services.getInventoryItems(player);
         const available = computeSmeltingBatchCount(inventory, recipe);
         if (available <= 0) {
-            this.services.queueChatMessage({ messageType: "game", text: "You need the proper ores to smelt that bar.", targetPlayerIds: [player.id] });
+            this.services.sendGameMessage(player, "You need the proper ores to smelt that bar.");
             this.updateSmeltingInterface(player);
             return;
         }
@@ -296,37 +273,38 @@ export class SmithingSystem {
             : this.resolveQuantity(currentMode, available, customAmount);
         const desired = Math.max(1, Math.min(available, desiredRaw));
         const delay = recipe.delayTicks !== undefined ? Math.max(1, recipe.delayTicks) : 4;
-        const tickNow = this.services.getCurrentTick();
-        const result = this.services.requestAction(player.id, {
+        const tick = this.services.getCurrentTick?.() ?? 0;
+        const result = this.services.requestAction(player, {
             kind: "skill.smelt",
             data: { recipeId: recipe.id, count: desired },
             delayTicks: delay,
             cooldownTicks: delay,
             groups: ["skill.smelt"],
-        }, tickNow);
+        }, tick);
         if (!result.ok) {
-            this.services.queueChatMessage({ messageType: "game", text: "You're too busy to do that right now.", targetPlayerIds: [player.id] });
+            this.services.sendGameMessage(player, "You're too busy to do that right now.");
         }
     }
 
     handleSmithingSelection(player: PlayerState, recipeId: string, requestedCount?: number): void {
         const recipe = getSmithingRecipeById(recipeId);
         if (!recipe) {
-            this.services.queueChatMessage({ messageType: "game", text: "You can't smith that.", targetPlayerIds: [player.id] });
+            this.services.sendGameMessage(player, "You can't smith that.");
             return;
         }
-        if (recipe.requireHammer !== false && !this.services.playerHasItem(player, HAMMER_ITEM_ID)) {
-            this.services.queueChatMessage({ messageType: "game", text: "You need a hammer to smith.", targetPlayerIds: [player.id] });
+        if (recipe.requireHammer !== false && !this.services.playerHasItem?.(player, HAMMER_ITEM_ID)) {
+            this.services.sendGameMessage(player, "You need a hammer to smith.");
             return;
         }
         const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
         if (smithLevel < recipe.level) {
-            this.services.queueChatMessage({ messageType: "game", text: `You need Smithing level ${recipe.level} to smith that.`, targetPlayerIds: [player.id] });
+            this.services.sendGameMessage(player, `You need Smithing level ${recipe.level} to smith that.`);
             return;
         }
-        const available = Math.max(0, Math.min(28, this.computeBatchCountFromInventory(this.services.getInventory(player), recipe)));
+        const inventory = this.services.getInventoryItems(player);
+        const available = Math.max(0, Math.min(28, this.computeBatchCountFromInventory(inventory, recipe)));
         if (available <= 0) {
-            this.services.queueChatMessage({ messageType: "game", text: "You need more bars to smith that.", targetPlayerIds: [player.id] });
+            this.services.sendGameMessage(player, "You need more bars to smith that.");
             this.updateSmithingInterface(player);
             return;
         }
@@ -337,15 +315,16 @@ export class SmithingSystem {
             : this.resolveQuantity(currentMode, available, customAmount);
         const desired = Math.max(1, Math.min(available, desiredRaw));
         const delay = recipe.delayTicks !== undefined ? Math.max(1, recipe.delayTicks) : 4;
-        const result = this.services.requestAction(player.id, {
+        const tick = this.services.getCurrentTick?.() ?? 0;
+        const result = this.services.requestAction(player, {
             kind: "skill.smith",
             data: { recipeId: recipe.id, count: desired },
             delayTicks: delay,
             cooldownTicks: delay,
             groups: ["skill.smith"],
-        }, this.services.getCurrentTick());
+        }, tick);
         if (!result.ok) {
-            this.services.queueChatMessage({ messageType: "game", text: "You're too busy to do that right now.", targetPlayerIds: [player.id] });
+            this.services.sendGameMessage(player, "You're too busy to do that right now.");
         }
         this.updateSmithingInterface(player);
     }
@@ -364,29 +343,9 @@ export class SmithingSystem {
         return true;
     }
 
-    computeBatchCountFromInventory(
-        inventory: Array<{ itemId: number; quantity: number }>,
-        recipe: NonNullable<ReturnType<typeof getSmithingRecipeById>>,
-    ): number {
-        const required = Math.max(1, recipe.barCount);
-        if (required <= 0) return 0;
-        let total = 0;
-        for (const entry of inventory) {
-            if (!entry || entry.itemId <= 0 || entry.quantity <= 0) continue;
-            if (entry.itemId === recipe.barItemId) total += entry.quantity;
-        }
-        if (total <= 0) return 0;
-        return Math.max(0, Math.floor(total / required));
-    }
-
-    describeBar(itemId: number): string {
-        const def = getItemDefinition(itemId);
-        return def?.name ? def.name.toLowerCase() : "bar";
-    }
-
-    describeOre(itemId: number): string {
-        const def = getItemDefinition(itemId);
-        return def?.name ? def.name.toLowerCase() : "ore";
+    getBarTypeByItemId(itemId: number): number | undefined {
+        this.initializeBarEnumCache();
+        return this.barItemIdToType.get(itemId);
     }
 
     getSmithingGroupId(): number {
@@ -397,8 +356,18 @@ export class SmithingSystem {
         return SMITHING_BAR_TYPE_VARBIT_ID;
     }
 
-    getBarTypeByItemId(itemId: number): number | undefined {
-        this.initializeBarEnumCache();
-        return this.barItemIdToType.get(itemId);
+    private computeBatchCountFromInventory(
+        inventory: Array<{ itemId: number; quantity: number }>,
+        recipe: { barItemId: number; barCount: number },
+    ): number {
+        const required = Math.max(1, recipe.barCount);
+        if (required <= 0) return 0;
+        let total = 0;
+        for (const entry of inventory) {
+            if (!entry || entry.itemId <= 0 || entry.quantity <= 0) continue;
+            if (entry.itemId === recipe.barItemId) total += entry.quantity;
+        }
+        if (total <= 0) return 0;
+        return Math.max(0, Math.floor(total / required));
     }
 }

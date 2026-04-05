@@ -228,7 +228,7 @@ export class VanillaGamemode implements GamemodeDefinition {
         ss.registerSnapshotEncoder(
             "bank",
             (_playerId, payload) => {
-                const { encodeMessage } = require("../../../src/network/messages");
+                const { encodeMessage } = require("../../src/network/messages");
                 return {
                     message: encodeMessage({ type: "bank", payload }),
                     context: "bank_snapshot",
@@ -257,7 +257,7 @@ export class VanillaGamemode implements GamemodeDefinition {
         });
 
         ss.registerSnapshotEncoder("shop", (_playerId, payload) => {
-            const { encodeMessage } = require("../../../src/network/messages");
+            const { encodeMessage } = require("../../src/network/messages");
             return {
                 message: encodeMessage({ type: "shop", payload }),
                 context: "shop_event",

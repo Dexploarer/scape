@@ -5,15 +5,12 @@ import { WidgetGroup, BankMainChild, BankSideChild, slotToTabIndex, BankLimits, 
 export function registerBankingHandlers(registry: IScriptRegistry, services: ScriptServices): void {
     registry.registerNpcAction("bank", ({ player, services }) => {
         services.openBank(player, { mode: "bank" });
-        services.sendGameMessage(player, "The bank interface opens.");
     });
     registry.registerNpcAction("collect", ({ player, services }) => {
         services.openBank(player, { mode: "collect" });
-        services.sendGameMessage(player, "The bank interface opens.");
     });
     registry.registerLocAction("bank", ({ player, services }) => {
         services.openBank(player, { mode: "bank" });
-        services.sendGameMessage(player, "The bank interface opens.");
     });
 
     registerBankWidgetHandlers(registry, services);

@@ -430,16 +430,16 @@ export interface ScriptServices {
         qty: number,
     ) => ScriptInventoryAddResult;
     setInventorySlot: (player: PlayerState, slotIndex: number, itemId: number, qty: number) => void;
-    openBank: (player: PlayerState, opts?: { mode?: "bank" | "collect" }) => void;
-    depositInventoryToBank: (player: PlayerState, tab?: number) => boolean;
-    depositEquipmentToBank: (player: PlayerState, tab?: number) => boolean;
+    openBank?: (player: PlayerState, opts?: { mode?: "bank" | "collect" }) => void;
+    depositInventoryToBank?: (player: PlayerState, tab?: number) => boolean;
+    depositEquipmentToBank?: (player: PlayerState, tab?: number) => boolean;
     depositInventoryItemToBank?: (
         player: PlayerState,
         slotIndex: number,
         quantity: number,
         opts?: { itemIdHint?: number; tab?: number },
     ) => { ok: boolean; message?: string };
-    withdrawFromBankSlot: (
+    withdrawFromBankSlot?: (
         player: PlayerState,
         slotIndex: number,
         quantity: number,
@@ -450,7 +450,7 @@ export interface ScriptServices {
      * OSRS PARITY: Client sees items reorganized by tab (tabs 1-9 first, then tab 0).
      * This translates the client's visual slot to the server's storage location.
      */
-    getBankEntryAtClientSlot: (
+    getBankEntryAtClientSlot?: (
         player: PlayerState,
         clientSlot: number,
     ) => { itemId: number; quantity: number; tab?: number } | undefined;

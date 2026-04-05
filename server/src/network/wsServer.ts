@@ -46,7 +46,6 @@ import {
     MODIFIER_FLAG_CTRL_SHIFT,
 } from "../../../src/shared/input/modifierFlags";
 import type { ProjectileLaunch } from "../../../src/shared/projectiles/ProjectileLaunch";
-import { adjustProjectileLaunchesForElapsedCycles } from "../../../src/shared/projectiles/projectileDelivery";
 import { PLAYER_CHEST_OFFSET_UNITS } from "../../../src/shared/projectiles/projectileHeights";
 import { resolveSelectedSpellPayload } from "../../../src/shared/spells/selectedSpellPayload";
 import { ACCOUNT_SUMMARY_GROUP_ID } from "../../../src/shared/ui/accountSummary";
@@ -205,7 +204,6 @@ import {
     HITMARK_HEAL,
     HITMARK_REGEN,
 } from "../game/combat/HitEffects";
-import { resolveHitsplatTypeForObserver } from "../game/combat/OsrsHitsplatIds";
 import {
     getWildernessLevel,
     isInLMS,
@@ -314,16 +312,8 @@ import type {
 } from "../game/skills/mining";
 import {
     DEFAULT_COOKING_BURN_BONUS,
-    HAMMER_ITEM_ID,
-    SMELTING_RECIPES,
-    SMITHING_RECIPES,
-    type SmeltingRecipe,
-    calculateIronSmeltChance,
-    computeSmeltingBatchCount,
     getCookingRecipeById,
     getCookingRecipeByRawItemId,
-    getSmeltingRecipeById,
-    getSmithingRecipeById,
     getTanningRecipeById,
     rollCookingOutcome,
 } from "../game/skills/skillSurfaces";
@@ -331,7 +321,6 @@ import {
     RING_OF_FORGING_ITEM_ID,
     RING_OF_FORGING_MAX_CHARGES,
     getSmeltingXpWithBonuses,
-    shouldGuaranteeIronSmelt,
 } from "../game/skills/smithingBonuses";
 import {
     isSinewSourceItem,
@@ -365,6 +354,7 @@ import {
     GatheringSystemManager,
     type GatheringSystemServices,
 } from "../game/systems/GatheringSystemManager";
+import { SmithingSystem } from "../game/skills/SmithingSystem";
 import { MovementSystem } from "../game/systems/MovementSystem";
 import { ProjectileSystem, type ProjectileSystemServices } from "../game/systems/ProjectileSystem";
 import { ScriptScheduler } from "../game/systems/ScriptScheduler";
@@ -408,6 +398,17 @@ import { DynamicLocStateStore } from "../world/DynamicLocStateStore";
 import { LocTileLookupService } from "../world/LocTileLookupService";
 import { loadVisibleLocTypeForPlayer, locCanResolveToId } from "../world/LocTransforms";
 import { BitWriter } from "./BitWriter";
+import {
+    type BroadcastContext,
+    SkillBroadcaster,
+    VarBroadcaster,
+    ChatBroadcaster,
+    InventoryBroadcaster,
+    WidgetBroadcaster,
+    CombatBroadcaster,
+    MiscBroadcaster,
+    ActorSyncBroadcaster,
+} from "./broadcast";
 import {
     type MessageHandlerServices,
     registerMessageHandlers as registerExtractedHandlers,
@@ -453,7 +454,6 @@ import {
     GroundItemActionPayload,
     GroundItemsServerPayload,
     type Appearance as HandshakeAppearance,
-    SmithingOptionMessage,
     SmithingServerPayload,
     SpellCastLocPayload,
     SpellCastModifiers,
@@ -1207,6 +1207,7 @@ export class WSServer {
     private miningLocMap: Map<number, MiningLocMapping> = new Map();
     private fishingSpotMap: Map<number, string> = new Map();
     private gatheringSystem!: GatheringSystemManager;
+    private smithingSystem!: SmithingSystem;
     private equipmentHandler!: EquipmentHandler;
     private tickOrchestrator!: TickPhaseOrchestrator;
     private broadcastScheduler = new BroadcastScheduler();
@@ -1226,57 +1227,12 @@ export class WSServer {
         return this.gatheringSystem?.flaxTracker;
     }
 
-    private pendingWidgetEvents: WidgetEvent[] = [];
-    private pendingSmithingMessages: Array<{ playerId: number; payload: SmithingServerPayload }> =
-        [];
-    private smithingBarTypeToItemId = new Map<number, number>();
-    private smithingBarItemIdToType = new Map<number, number>();
-    private smithingBarEnumInitialized = false;
-    private pendingTradeMessages: Array<{ playerId: number; payload: TradeServerPayload }> = [];
-    private pendingLocChanges: LocChangePayload[] = [];
-    private pendingInventorySnapshots: Array<{
-        playerId: number;
-        slots?: Array<{ slot: number; itemId: number; quantity: number }>;
-    }> = [];
-    private pendingGamemodeSnapshots = new Map<string, Array<{ playerId: number; payload: unknown }>>();
     private gamemodeTickCallbacks: Array<(tick: number) => void> = [];
     private gamemodeSnapshotEncoders = new Map<string, {
         encode: (playerId: number, payload: unknown) => { message: string | Uint8Array; context: string } | undefined;
         onSent?: (playerId: number, payload: unknown) => void;
     }>();
-    private pendingAppearanceSnapshots: Array<{
-        playerId: number;
-        payload: {
-            x: number;
-            y: number;
-            level: number;
-            rot: number;
-            orientation: number;
-            running: boolean;
-            appearance: PlayerAppearanceState | undefined;
-            name?: string;
-            anim?: PlayerAnimSet;
-            moved: boolean;
-            turned: boolean;
-            snap: boolean;
-            directions?: number[];
-            worldViewId?: number;
-        };
-    }> = [];
-    private pendingCombatSnapshots: Array<{
-        playerId: number;
-        weaponCategory: number;
-        weaponItemId: number;
-        autoRetaliate: boolean;
-        activeStyle?: number;
-        activePrayers?: string[];
-        activeSpellId?: number;
-        specialEnergy?: number;
-        specialActivated?: boolean;
-        quickPrayers?: string[];
-        quickPrayersEnabled?: boolean;
-    }> = [];
-    private pendingSpellResults: Array<{ playerId: number; payload: SpellResultPayload }> = [];
+    // NPC-specific pending state (not yet consolidated into BroadcastScheduler due to complex types)
     private pendingNpcPackets: Map<
         number,
         { snapshots: NpcViewSnapshot[]; updates: NpcUpdatePayload[]; despawns: number[] }
@@ -1353,6 +1309,16 @@ export class WSServer {
     private readonly accountSummary: AccountSummaryTracker;
     private readonly reportGameTime: ReportGameTimeTracker;
 
+    // Broadcast domain handlers
+    private readonly skillBroadcaster = new SkillBroadcaster();
+    private readonly varBroadcaster = new VarBroadcaster();
+    private readonly chatBroadcaster = new ChatBroadcaster();
+    private readonly inventoryBroadcaster: InventoryBroadcaster;
+    private readonly widgetBroadcaster: WidgetBroadcaster;
+    private readonly combatBroadcaster: CombatBroadcaster;
+    private readonly miscBroadcaster: MiscBroadcaster;
+    private readonly actorSyncBroadcaster = new ActorSyncBroadcaster();
+
     // Login rate limiting
     private loginAttempts = new Map<string, { count: number; resetTime: number }>();
     private readonly MAX_LOGIN_ATTEMPTS = 5;
@@ -1376,6 +1342,23 @@ export class WSServer {
             queueWidgetEvent: (playerId, action) => this.queueWidgetEvent(playerId, action),
             isWidgetGroupOpenInLedger: (playerId, groupId) =>
                 this.isWidgetGroupOpenInLedger(playerId, groupId),
+        });
+        this.inventoryBroadcaster = new InventoryBroadcaster({
+            getPlayerById: (id) => this.players?.getById(id),
+            getInventory: (player) => this.getInventory(player),
+        });
+        this.widgetBroadcaster = new WidgetBroadcaster({
+            syncPostWidgetOpenState: (playerId, action) =>
+                this.syncPostWidgetOpenState(playerId, action),
+        });
+        this.combatBroadcaster = new CombatBroadcaster({
+            enableBinaryNpcSync: this.enableBinaryNpcSync,
+            forEachPlayer: (fn) => this.players?.forEach(fn),
+            withDirectSendBypass: (ctx, fn) => this.withDirectSendBypass(ctx, fn),
+        });
+        this.miscBroadcaster = new MiscBroadcaster({
+            gamemodeSnapshotEncoders: this.gamemodeSnapshotEncoders,
+            forEachPlayer: (fn) => this.players?.forEach(fn),
         });
         this.actionScheduler = new ActionScheduler((player, action, tick) =>
             this.performScheduledAction(player, action, tick),
@@ -1580,19 +1563,6 @@ export class WSServer {
                 mapCollision: opts.mapService,
             });
         }
-        const sendGameMessageFn = (player: PlayerState, text: string): void => {
-            this.queueChatMessage({
-                messageType: "game",
-                text,
-                targetPlayerIds: [player.id],
-            });
-        };
-        const snapshotInventoryFn = (player: PlayerState): void => {
-            try {
-                const sock = this.players?.getSocketByPlayerId(player.id);
-                if (sock) this.sendInventorySnapshot(sock, player);
-            } catch {}
-        };
         // Initialize InterfaceService for modular modal interface management
         this.interfaceService = new InterfaceService({
             queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
@@ -1611,579 +1581,7 @@ export class WSServer {
             registry: this.scriptRegistry,
             scheduler: this.scriptScheduler,
             logger,
-            services: {
-                getDbRepository: () => this.dbRepository,
-                // Use functions to defer loading - cache loaders are initialized later
-                getEnumTypeLoader: () => this.enumTypeLoader,
-                getStructTypeLoader: () => this.structTypeLoader,
-                getIdkTypeLoader: () => this.idkTypeLoader,
-                doorManager: this.doorManager,
-                emitLocChange: (oldId, newId, tile, level, opts) =>
-                    this.emitLocChange(oldId, newId, tile, level, opts),
-                sendLocChangeToPlayer: (player, oldId, newId, tile, level) =>
-                    this.sendLocChangeToPlayer(player, oldId, newId, tile, level),
-                spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
-                    this.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
-                getObjType: (id) => this.getObjType(id),
-                getLocDefinition: (id) => {
-                    try {
-                        return locTypeLoader?.load?.(id);
-                    } catch {
-                        return undefined;
-                    }
-                },
-                consumeItem: (player, slotIndex) => this.consumeItem(player, slotIndex),
-                getInventoryItems: (player) =>
-                    this.getInventory(player).map((entry, idx) => ({
-                        slot: idx,
-                        itemId: entry ? entry.itemId : -1,
-                        quantity: entry ? entry.quantity : 0,
-                    })),
-                addSkillXp: (player, skillId, xp) => {
-                    try {
-                        this.awardSkillXp(player, skillId as SkillId, Number.isFinite(xp) ? xp : 0);
-                    } catch {}
-                },
-                playPlayerSeq: (player, seqId, delay = 0) => {
-                    try {
-                        player.queueOneShotSeq(seqId, delay);
-                    } catch {}
-                },
-                playPlayerSeqImmediate: (player, seqId) => {
-                    try {
-                        // OSRS parity: sequences are delivered via player update blocks.
-                        player.queueOneShotSeq(seqId, 0);
-                    } catch {}
-                },
-                getEquippedItem: (player, slot) => {
-                    try {
-                        const equip = this.ensureEquipArray(player);
-                        return equip[slot] ?? -1;
-                    } catch {
-                        return -1;
-                    }
-                },
-                unequipItem: (player, slot) => {
-                    try {
-                        const slotIndex = Math.max(0, Math.min(EQUIP_SLOT_COUNT - 1, slot));
-                        const equip = this.ensureEquipArray(player);
-                        const itemId = equip[slotIndex];
-                        if (!(itemId > 0)) return false;
-
-                        const result = this.inventoryActionHandler.executeInventoryUnequipAction(
-                            player,
-                            {
-                                slot: slotIndex,
-                                playSound: true,
-                            },
-                        );
-                        if (result.ok && result.effects) {
-                            this.effectDispatcher.dispatchActionEffects(result.effects);
-                        }
-                        return result.ok;
-                    } catch {
-                        return false;
-                    }
-                },
-                broadcastPlayerSpot: (player, spotId, height = 0, delay = 0, slotArg?: number) => {
-                    try {
-                        // OSRS parity: encode actor spot anim via the player update block.
-                        // Stage into the tick-frame so it is emitted alongside other state.
-                        const tick = this.options.ticker.currentTick();
-                        const slot =
-                            slotArg !== undefined && Number.isFinite(slotArg)
-                                ? slotArg & 0xff
-                                : undefined;
-                        this.enqueueSpotAnimation({
-                            tick,
-                            playerId: player.id,
-                            spotId: spotId,
-                            height: height,
-                            delay: delay,
-                            slot,
-                        });
-                    } catch {}
-                },
-                playLocGraphic: (opts) => this.playLocGraphic(opts),
-                playLocSound: (opts) => this.playLocSound(opts),
-                playAreaSound: (opts) => this.playAreaSound(opts),
-                playSong: (player, trackId, trackName) =>
-                    this.soundManager.playSongForPlayer(player, trackId, trackName),
-                skipMusicTrack: (player) => this.soundManager.skipTrackForPlayer(player),
-                getMusicTrackId: (trackName) => this.getMusicTrackIdByName(trackName),
-                getMusicTrackBySlot: (slot) =>
-                    this.musicCatalogService?.getBaseListTrackBySlot(slot),
-                sendGameMessage: sendGameMessageFn,
-                getCurrentTick: () => this.options.ticker.currentTick(),
-                getPathService: () => this.options.pathService,
-                snapshotInventory: snapshotInventoryFn,
-                snapshotInventoryImmediate: snapshotInventoryFn,
-                setInventorySlot: (player, slotIndex, itemId, qty) =>
-                    this.setInventorySlot(player, slotIndex, itemId, qty),
-                addItemToInventory: (player, itemId, qty) =>
-                    this.addItemToInventory(player, itemId, qty),
-                spawnNpc: (config) => this.npcManager?.spawnTransientNpc(config),
-                removeNpc: (npcId) => this.npcManager?.removeNpc(npcId) ?? false,
-                openDialog: (player, request) =>
-                    this.widgetDialogHandler.openDialog(player, request as any),
-                openDialogOptions: (player, options) =>
-                    this.widgetDialogHandler.openDialogOptions(player, options as any),
-                closeDialog: (player, dialogId) =>
-                    this.widgetDialogHandler.closeDialog(player, dialogId),
-                closeInterruptibleInterfaces: (player) => this.closeInterruptibleInterfaces(player),
-                queueForcedMovement: (player, params) => {
-                    const currentTick = this.options.ticker.currentTick();
-                    const deliveryTick = this.activeFrame ? this.activeFrame.tick : currentTick + 1;
-                    const requestedStartTick = params.startTick ?? deliveryTick;
-                    const requestedEndTick = params.endTick;
-                    const durationTicks = Math.max(0, requestedEndTick - requestedStartTick);
-                    // Dialog/widget callbacks can fire several ticks after the original interaction.
-                    // Exact-move timing must be rebased to the frame that will actually deliver it,
-                    // while preserving the requested duration.
-                    const normalizedStartTick = Math.max(deliveryTick, requestedStartTick);
-                    const normalizedEndTick = normalizedStartTick + durationTicks;
-                    const startTile = params.startTile;
-                    const endTile = params.endTile;
-                    const startX = (startTile.x << 7) + 64;
-                    const startY = (startTile.y << 7) + 64;
-                    const endX = (endTile.x << 7) + 64;
-                    const endY = (endTile.y << 7) + 64;
-                    this.enqueueForcedMovement({
-                        targetId: player.id,
-                        startDeltaX: startTile.x - player.tileX,
-                        startDeltaY: startTile.y - player.tileY,
-                        endDeltaX: endTile.x - player.tileX,
-                        endDeltaY: endTile.y - player.tileY,
-                        startCycle: normalizedStartTick,
-                        endCycle: normalizedEndTick,
-                        direction: params.direction ?? faceAngleRs(startX, startY, endX, endY),
-                    });
-                },
-                requestAction: (player, request, currentTick) =>
-                    (() => {
-                        try {
-                            const groups = Array.isArray(request?.groups) ? request.groups : [];
-                            // Starting a new woodcutting action should replace any in-progress chop loop.
-                            if (groups.includes("skill.woodcut")) {
-                                this.actionScheduler.clearActionsInGroup(
-                                    player.id,
-                                    "skill.woodcut",
-                                );
-                            }
-                        } catch {}
-                        return this.actionScheduler.requestAction(
-                            player.id,
-                            request,
-                            Number.isFinite(currentTick)
-                                ? (currentTick as number)
-                                : this.options.ticker.currentTick(),
-                        );
-                    })(),
-                findOwnedItemLocation: (player, itemId) =>
-                    this.findOwnedItemLocation(player, itemId),
-                getWoodcuttingTree: (locId) => this.getWoodcuttingTreeDefinition(locId),
-                getMiningRock: (locId) => this.getMiningRockDefinition(locId),
-                getFishingSpot: (npcTypeId) => this.getFishingSpotDefinition(npcTypeId),
-                applyPrayers: (player, prayers) => {
-                    // Capture previous prayers before applying changes
-                    const previousPrayers = new Set(player.getActivePrayers());
-                    const result = this.prayerSystem.applySelection(player, prayers);
-                    if (result.errors.length) {
-                        for (const err of result.errors) {
-                            this.queueChatMessage({
-                                messageType: "game",
-                                text: err.message,
-                                targetPlayerIds: [player.id],
-                            });
-                        }
-                    }
-                    if (result.changed || result.errors.length) {
-                        this.queueCombatSnapshot(
-                            player.id,
-                            player.combatWeaponCategory,
-                            player.combatWeaponItemId,
-                            !!player.autoRetaliate,
-                            player.combatStyleSlot,
-                            result.activePrayers,
-                            player.combatSpellId > 0 ? player.combatSpellId : undefined,
-                        );
-                        // Queue appearance update to sync headIcons for overhead prayer display
-                        this.queueAppearanceSnapshot(player);
-                    }
-                    // Play prayer sounds for activation/deactivation
-                    if (result.changed) {
-                        const currentPrayers = new Set(result.activePrayers);
-                        // Find newly activated prayers and play their sounds
-                        for (const prayer of currentPrayers) {
-                            if (!previousPrayers.has(prayer)) {
-                                const soundId = PRAYER_ACTIVATE_SOUNDS.get(prayer);
-                                if (soundId != null) {
-                                    this.sendSound(player, soundId);
-                                }
-                            }
-                        }
-                        // If any prayers were deactivated, play deactivation sound once
-                        for (const prayer of previousPrayers) {
-                            if (!currentPrayers.has(prayer)) {
-                                this.sendSound(player, PRAYER_DEACTIVATE_SOUND);
-                                break; // Only play once even if multiple deactivated
-                            }
-                        }
-                    }
-                    return result;
-                },
-                setCombatSpell: (player, spellId) => {
-                    player.setCombatSpell(spellId ?? null);
-                    this.queueCombatSnapshot(
-                        player.id,
-                        player.combatWeaponCategory,
-                        player.combatWeaponItemId,
-                        !!player.autoRetaliate,
-                        player.combatStyleSlot,
-                        Array.from(player.activePrayers ?? []),
-                        player.combatSpellId > 0 ? player.combatSpellId : undefined,
-                    );
-                },
-                queueCombatState: (player) =>
-                    this.queueCombatSnapshot(
-                        player.id,
-                        player.combatWeaponCategory,
-                        player.combatWeaponItemId,
-                        !!player.autoRetaliate,
-                        player.combatStyleSlot,
-                        Array.from(player.activePrayers ?? []),
-                        player.combatSpellId > 0 ? player.combatSpellId : undefined,
-                    ),
-                openSubInterface: (player, targetUid, groupId, type = 0, opts) => {
-                    const t = type;
-                    const varps =
-                        opts?.varps && Object.keys(opts.varps).length > 0 ? opts.varps : undefined;
-                    const varbits =
-                        opts?.varbits && Object.keys(opts.varbits).length > 0
-                            ? opts.varbits
-                            : undefined;
-                    const preScripts =
-                        Array.isArray(opts?.preScripts) && opts.preScripts.length > 0
-                            ? opts.preScripts
-                            : undefined;
-                    const postScripts =
-                        Array.isArray(opts?.postScripts) && opts.postScripts.length > 0
-                            ? opts.postScripts
-                            : undefined;
-                    const explicitHiddenUids =
-                        Array.isArray((opts as any)?.hiddenUids) &&
-                        (opts as any).hiddenUids.length > 0
-                            ? ((opts as any).hiddenUids as number[]).map((uid) => uid)
-                            : undefined;
-                    const hiddenUids = explicitHiddenUids;
-
-                    // Track sub-interfaces via PlayerWidgetManager so they can be closed
-                    // on IF_CLOSE / walk / damage / etc.
-                    // Type 0 (modal) and type 1 (overlay on floater) are both closeable.
-                    // IMPORTANT: avoid double-sending packets (PlayerWidgetManager.open will dispatch open_sub).
-                    if (t === 0 || t === 1) {
-                        player.widgets.open(groupId, {
-                            targetUid: targetUid,
-                            type: t,
-                            modal: opts?.modal !== false,
-                            varps,
-                            varbits,
-                            hiddenUids,
-                            preScripts,
-                            postScripts,
-                        });
-                        return;
-                    }
-
-                    // Other types (e.g. 3 = tab replacement) are sent directly.
-                    const action: any = {
-                        action: "open_sub",
-                        targetUid: targetUid,
-                        groupId: groupId,
-                        type: t,
-                    };
-                    if (varps) action.varps = varps;
-                    if (varbits) action.varbits = varbits;
-                    if (hiddenUids) action.hiddenUids = hiddenUids;
-                    if (preScripts) action.preScripts = preScripts;
-                    if (postScripts) action.postScripts = postScripts;
-                    this.queueWidgetEvent(player.id, action);
-                },
-                closeSubInterface: (player, targetUid, groupId) => {
-                    const closedEntries =
-                        groupId !== undefined
-                            ? player.widgets.close(groupId)
-                            : player.widgets.closeByTargetUid(targetUid);
-                    if (closedEntries.length === 0) {
-                        this.queueWidgetEvent(player.id, {
-                            action: "close_sub",
-                            targetUid: targetUid,
-                        });
-                    }
-                    if (this.interfaceService && closedEntries.length > 0) {
-                        this.interfaceService.triggerCloseHooksForEntries(player, closedEntries);
-                    }
-                },
-                closeModal: (player) => {
-                    // Close via InterfaceService to properly trigger hooks and update tracking
-                    this.interfaceService?.closeModal(player);
-                },
-                teleportPlayer: (player, x, y, level, forceRebuild = false) =>
-                    this.teleportPlayer(player, x, y, level, forceRebuild),
-                teleportToInstance: (player, x, y, level, templateChunks, extraLocs) =>
-                    this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
-                requestTeleportAction: (player, request) =>
-                    this.requestTeleportAction(player, request),
-                sendVarp: (player, varpId, value) => {
-                    // Queue during tick execution to avoid "direct-send" errors.
-                    this.queueVarp(player.id, varpId, value);
-                },
-                sendVarbit: (player, varbitId, value) => {
-                    // Queue during tick execution to avoid "direct-send" errors.
-                    this.queueVarbit(player.id, varbitId, value);
-                },
-                sendCollectionLogSnapshot: (player) => {
-                    this.sendCollectionLogSnapshot(player);
-                },
-                openCollectionLog: (player) => {
-                    this.doOpenCollectionLog(player);
-                },
-                openCollectionOverview: (player) => {
-                    this.doOpenCollectionOverview(player);
-                },
-                populateCollectionLogCategories: (player, tabIndex) => {
-                    this.doPopulateCollectionLogCategories(player, tabIndex);
-                },
-                queueVarp: (playerId, varpId, value) => {
-                    this.queueVarp(playerId, varpId, value);
-                },
-                queueVarbit: (playerId, varbitId, value) => {
-                    this.queueVarbit(playerId, varbitId, value);
-                },
-                queueWidgetEvent: (playerId, event) => {
-                    this.queueWidgetEvent(playerId, event);
-                },
-                queueNotification: (playerId, payload) => {
-                    this.queueNotification(playerId, payload);
-                },
-                queueClientScript: (playerId, scriptId, ...args) => {
-                    this.queueClientScript(playerId, scriptId, ...args);
-                },
-                getInterfaceService: () => this.interfaceService,
-                sendSound: (player, soundId, opts) => {
-                    this.sendSound(player, soundId, opts);
-                },
-                refreshAppearanceKits: (player) => {
-                    this.refreshAppearanceKits(player);
-                },
-                queueAppearanceSnapshot: (player) => {
-                    this.queueAppearanceSnapshot(player);
-                },
-                savePlayerSnapshot: (player) => {
-                    try {
-                        const key = player.__saveKey;
-                        if (key && key.length > 0) {
-                            this.playerPersistence.saveSnapshot(key, player);
-                        }
-                    } catch {}
-                },
-                logoutPlayer: (player, reason) => {
-                    try {
-                        const sock = this.players?.getSocketByPlayerId?.(player.id);
-                        if (sock) this.completeLogout(sock, player, reason);
-                    } catch {}
-                },
-                openRemainingTabs: (player) => {
-                    // Open the remaining tab interfaces when the gamemode tutorial completes
-                    // During tutorial, only Quest tab was shown. Now open all other tabs.
-                    const { getRemainingTabInterfaces } = require("../widgets/WidgetManager");
-                    const displayMode = player.displayMode ?? 1; // Default to RESIZABLE_NORMAL
-                    const remainingInterfaces = getRemainingTabInterfaces(displayMode);
-
-                    for (const intf of remainingInterfaces) {
-                        player.widgets?.open(intf.groupId, {
-                            targetUid: intf.targetUid,
-                            type: intf.type,
-                            modal: false,
-                            postScripts: intf.postScripts,
-                        });
-                    }
-                },
-                // --- Action handler services ---
-                getNpc: (id) => this.npcManager?.getById(id) ?? undefined,
-                getSkill: (player, skillId) => {
-                    const skill = player.getSkill(skillId);
-                    return { baseLevel: skill.baseLevel, boost: skill.boost, xp: skill.xp };
-                },
-                isPlayerStunned: (player) => player.timers.has(STUN_TIMER),
-                isPlayerInCombat: (player) => player.isBeingAttacked(),
-                hasInventorySlot: (player) => this.hasInventorySlot(player),
-                applyPlayerHitsplat: (player, style, damage, tick) =>
-                    combatEffectApplicator.applyPlayerHitsplat(player, style, damage, tick),
-                stunPlayer: (player, ticks) => {
-                    player.timers.set(STUN_TIMER, ticks);
-                },
-                queueNpcForcedChat: (npc, text) => {
-                    npc.pendingSay = text;
-                },
-                queueNpcSeq: (npc, seqId) => {
-                    npc.queueOneShotSeq(seqId);
-                },
-                faceNpcToPlayer: (npc, player) => {
-                    npc.faceTile(player.tileX, player.tileY);
-                },
-                clearPlayerFaceTarget: (player) => {
-                    try { player.clearInteraction(); } catch {}
-                },
-                scheduleAction: (playerId, request, tick) =>
-                    this.actionScheduler.requestAction(playerId, request, tick),
-                getEquipArray: (player) => this.ensureEquipArray(player),
-                // --- Gathering / production skill services ---
-                isAdjacentToLoc: (player, locId, tile, level) =>
-                    this.isAdjacentToLoc(player, locId, tile, level),
-                isAdjacentToNpc: (player, npc) => this.isAdjacentToNpc(player, npc),
-                faceGatheringTarget: (player, tile) => this.faceGatheringTarget(player, tile),
-                collectCarriedItemIds: (player) => this.collectCarriedItemIds(player),
-                findInventorySlotWithItem: (player, itemId) =>
-                    this.findInventorySlotWithItem(player, itemId),
-                canStoreItem: (player, itemId) => this.canStoreItem(player, itemId),
-                playerHasItem: (player, itemId) => this.playerHasItem(player, itemId),
-                enqueueSoundBroadcast: (soundId, x, y, level) =>
-                    this.enqueueSoundBroadcast(soundId, x, y, level),
-                stopPlayerAnimation: (player) => {
-                    try { player.stopAnimation(); } catch {}
-                },
-                stopGatheringInteraction: (player) => {
-                    try { player.clearInteraction(); } catch {}
-                    try { player.stopAnimation(); } catch {}
-                    try { player.clearPath(); } catch {}
-                    try { player.clearWalkDestination(); } catch {}
-                },
-                gathering: this.gatheringSystem,
-                isFiremakingTileBlocked: (tile, level) => this.isFiremakingTileBlocked(tile, level),
-                lightFire: (params) =>
-                    this.firemakingTracker.light({ ...params, burnTicks: params.burnTicks }),
-                playerHasTinderbox: (player) => this.playerHasTinderbox(player),
-                consumeFiremakingLog: (player, logId, slotIndex) =>
-                    this.consumeFiremakingLog(player, logId, slotIndex),
-                walkPlayerAwayFromFire: (player, fireTile) => {
-                    const westTile = { x: fireTile.x - 1, y: fireTile.y };
-                    const canStep = this.options.pathService?.canNpcStep(
-                        { x: player.tileX, y: player.tileY, plane: player.level },
-                        westTile,
-                    ) ?? true;
-                    if (canStep && (westTile.x !== player.tileX || westTile.y !== player.tileY)) {
-                        player.setPath([westTile], false);
-                    }
-                },
-                getCookingRecipeByRawItemId: (itemId) => {
-                    const recipe = getCookingRecipeByRawItemId(itemId);
-                    if (!recipe) return undefined;
-                    return { cookedItemId: recipe.cookedItemId, xp: recipe.xp };
-                },
-                production: {
-                    openSmeltingInterface: (player) => this.openSmeltingInterface(player),
-                    openSmithingInterface: (player) => this.openSmithingInterface(player),
-                    smeltBars: (player, params) =>
-                        this.handleSmeltingSelection(
-                            player,
-                            params.recipeId,
-                            params.count > 0 ? params.count : undefined,
-                        ),
-                    smithItems: (player, params) =>
-                        this.handleSmithingSelection(
-                            player,
-                            params.recipeId,
-                            params.count > 0 ? params.count : undefined,
-                        ),
-                    takeInventoryItems: (player, inputs) =>
-                        this.takeInventoryItems(player, inputs),
-                    restoreInventoryRemovals: (player, removed) =>
-                        this.restoreInventoryRemovals(player, removed),
-                    restoreInventoryItems: (player, itemId, removed) =>
-                        this.restoreInventoryItems(player, itemId, removed),
-                    updateSmithingInterface: (player) =>
-                        this.updateSmithingInterface(player),
-                    updateSmeltingInterface: (player) =>
-                        this.updateSmeltingInterface(player),
-                    getRingOfForgingCharges: (player) =>
-                        player.getRingOfForgingCharges(),
-                    consumeRingOfForgingCharge: (player) =>
-                        this.consumeRingOfForgingCharge(player, []),
-                },
-                followers: {
-                    summonFollowerFromItem: (player, itemId, npcTypeId) => {
-                        const result = this.followerManager?.summonFollowerFromItem(
-                            player,
-                            itemId,
-                            npcTypeId,
-                        ) ?? {
-                            ok: false as const,
-                            reason: "spawn_failed",
-                        };
-                        if (result.ok) {
-                            this.followerCombatManager?.resetPlayer(player.id);
-                        }
-                        return result;
-                    },
-                    pickupFollower: (player, npcId) => {
-                        const result = this.followerManager?.pickupFollower(player, npcId) ?? {
-                            ok: false as const,
-                            reason: "missing",
-                        };
-                        if (result.ok) {
-                            this.followerCombatManager?.resetPlayer(player.id);
-                        }
-                        return result;
-                    },
-                    metamorphFollower: (player, npcId) => {
-                        const result = this.followerManager?.metamorphFollower(player, npcId) ?? {
-                            ok: false as const,
-                            reason: "missing",
-                        };
-                        if (result.ok) {
-                            this.followerCombatManager?.resetPlayer(player.id);
-                        }
-                        return result;
-                    },
-                    callFollower: (player) => {
-                        const result = this.followerManager?.callFollower(player) ?? {
-                            ok: false as const,
-                            reason: "missing",
-                        };
-                        if (result.ok) {
-                            this.followerCombatManager?.resetPlayer(player.id);
-                            const npc = this.npcManager?.getById(result.npcId);
-                            if (npc) {
-                                this.queueExternalNpcTeleportSync(npc);
-                            }
-                        }
-                        return result;
-                    },
-                    despawnFollowerForPlayer: (playerId, clearPersistentState) => {
-                        this.followerCombatManager?.resetPlayer(playerId);
-                        return (
-                            this.followerManager?.despawnFollowerForPlayer(
-                                playerId,
-                                clearPersistentState,
-                            ) ?? false
-                        );
-                    },
-                },
-                sailing: {
-                    initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
-                    disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
-                    teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
-                        this.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
-                    sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode) =>
-                        this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode),
-                    removeWorldEntity: (playerId, entityIndex) => this.worldEntityInfoEncoder.removeEntity(playerId, entityIndex),
-                    queueWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.queuePosition(playerId, entityIndex, position),
-                    setWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.setPosition(playerId, entityIndex, position),
-                    queueWorldEntityMask: (playerId, entityIndex, mask) => this.worldEntityInfoEncoder.queueMaskUpdate(playerId, entityIndex, mask),
-                    buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
-                },
-            },
+            services: this.buildScriptServiceObject(locTypeLoader, combatEffectApplicator),
         });
         logger.info(
             "[scripts] loaded",
@@ -2368,10 +1766,34 @@ export class WSServer {
             this.gatheringSystem = this.createGatheringSystem();
             // Initialize EquipmentHandler
             this.equipmentHandler = this.createEquipmentHandler();
+            this.smithingSystem = new SmithingSystem({
+                getInventory: (player) => this.getInventory(player),
+                playerHasItem: (player, itemId) => this.playerHasItem(player, itemId),
+                countInventoryItem: (player, itemId) => this.countInventoryItem(player, itemId),
+                queueSmithingMessage: (playerId, payload) => this.queueSmithingInterfaceMessage(playerId, payload),
+                queueChatMessage: (request) => this.queueChatMessage(request),
+                openModal: (player, groupId, data, opts) => this.interfaceService?.openModal(player, groupId, data, opts),
+                closeModal: (player) => this.interfaceService?.closeModal(player),
+                isModalOpen: (player, groupId) => this.interfaceService?.isModalOpen(player, groupId) ?? false,
+                openSmithingBarModal: (player) => this.cs2ModalManager.openSmithingBarModal(player),
+                requestAction: (playerId, request, tick) => this.actionScheduler.requestAction(playerId, request, tick),
+                getCurrentTick: () => this.options.ticker.currentTick(),
+                getEnumTypeLoader: () => this.enumTypeLoader as any,
+                buildSkillFailure: (player, message, reason) => this.buildSkillFailure(player, message, reason),
+            });
             // Initialize TickPhaseOrchestrator
             this.tickOrchestrator = this.createTickOrchestrator();
             // Initialize MessageRouter
             this.messageRouter = this.createMessageRouter();
+            // Wire up broadcast domain callbacks that require players
+            this.chatBroadcaster.setForEachPlayer((fn) => this.players?.forEach(fn));
+            this.actorSyncBroadcaster.setForEachPlayer((fn) => this.players?.forEach(fn));
+            this.actorSyncBroadcaster.setApplyAppearanceSnapshots((frame) =>
+                this.applyAppearanceSnapshotsToViews(frame),
+            );
+            this.actorSyncBroadcaster.setSyncCallback((sock, player, frame, ctx) =>
+                this.buildAndSendActorSync(sock, player, frame, ctx),
+            );
         }
         if (this.npcManager) {
             this.npcManager.setLifecycleHooks({
@@ -2869,79 +2291,11 @@ export class WSServer {
     }
 
     private restorePendingFrame(frame: TickFrame): void {
+        // Restore NPC state (still on WSServer)
         if (frame.npcUpdates.length > 0) {
             for (const update of frame.npcUpdates) {
                 upsertNpcUpdateDelta(this.pendingNpcUpdates, update);
             }
-        }
-        if (frame.widgetEvents.length > 0) {
-            this.pendingWidgetEvents = frame.widgetEvents.concat(this.pendingWidgetEvents);
-        }
-        if (frame.notifications.length > 0) {
-            this.broadcastScheduler.restoreNotifications(frame.notifications);
-        }
-        if (frame.smithingMessages.length > 0) {
-            this.pendingSmithingMessages = frame.smithingMessages.concat(
-                this.pendingSmithingMessages,
-            );
-        }
-        if (frame.tradeMessages.length > 0) {
-            this.pendingTradeMessages = frame.tradeMessages.concat(this.pendingTradeMessages);
-        }
-        if (frame.locChanges.length > 0) {
-            this.pendingLocChanges = frame.locChanges.concat(this.pendingLocChanges);
-        }
-        if (frame.chatMessages.length > 0) {
-            this.broadcastScheduler.restoreChatMessages(frame.chatMessages);
-        }
-        if (frame.inventorySnapshots.length > 0) {
-            this.pendingInventorySnapshots = frame.inventorySnapshots.concat(
-                this.pendingInventorySnapshots,
-            );
-        }
-        for (const [key, snapshots] of frame.gamemodeSnapshots) {
-            if (snapshots.length > 0) {
-                const existing = this.pendingGamemodeSnapshots.get(key) ?? [];
-                this.pendingGamemodeSnapshots.set(key, snapshots.concat(existing));
-            }
-        }
-        if (frame.varps && frame.varps.length > 0) {
-            this.broadcastScheduler.restoreVarps(frame.varps);
-        }
-        if (frame.varbits && frame.varbits.length > 0) {
-            this.broadcastScheduler.restoreVarbits(frame.varbits);
-        }
-        if (frame.appearanceSnapshots.length > 0) {
-            this.pendingAppearanceSnapshots = frame.appearanceSnapshots.concat(
-                this.pendingAppearanceSnapshots,
-            );
-        }
-        if (frame.skillSnapshots.length > 0) {
-            this.broadcastScheduler.restoreSkillSnapshots(frame.skillSnapshots);
-        }
-        if (frame.combatSnapshots.length > 0) {
-            this.pendingCombatSnapshots = frame.combatSnapshots.concat(this.pendingCombatSnapshots);
-        }
-        if (frame.runEnergySnapshots.length > 0) {
-            this.broadcastScheduler.restoreRunEnergySnapshots(frame.runEnergySnapshots);
-        }
-        if (frame.animSnapshots.length > 0) {
-            this.broadcastScheduler.restoreAnimSnapshots(frame.animSnapshots);
-        }
-        if (frame.spellResults.length > 0) {
-            this.pendingSpellResults = frame.spellResults.concat(this.pendingSpellResults);
-        }
-        if (frame.hitsplats.length > 0) {
-            this.broadcastScheduler.restoreHitsplats(frame.hitsplats);
-        }
-        if (frame.forcedChats.length > 0) {
-            this.broadcastScheduler.restoreForcedChats(frame.forcedChats);
-        }
-        if (frame.forcedMovements.length > 0) {
-            this.broadcastScheduler.restoreForcedMovements(frame.forcedMovements);
-        }
-        if (frame.spotAnimations.length > 0) {
-            this.broadcastScheduler.restoreSpotAnimations(frame.spotAnimations);
         }
         if (frame.npcPackets.size > 0) {
             for (const [playerId, packet] of frame.npcPackets.entries()) {
@@ -2958,6 +2312,67 @@ export class WSServer {
         const projectilePackets = frame.projectilePackets ?? new Map();
         if (projectilePackets.size > 0 && this.projectileSystem) {
             this.projectileSystem.restorePackets(projectilePackets);
+        }
+        // Restore all BroadcastScheduler-managed queues
+        if (frame.widgetEvents.length > 0) {
+            this.broadcastScheduler.restoreWidgetEvents(frame.widgetEvents);
+        }
+        if (frame.notifications.length > 0) {
+            this.broadcastScheduler.restoreNotifications(frame.notifications);
+        }
+        if (frame.smithingMessages.length > 0) {
+            this.broadcastScheduler.restoreSmithingMessages(frame.smithingMessages);
+        }
+        if (frame.tradeMessages.length > 0) {
+            this.broadcastScheduler.restoreTradeMessages(frame.tradeMessages);
+        }
+        if (frame.locChanges.length > 0) {
+            this.broadcastScheduler.restoreLocChanges(frame.locChanges);
+        }
+        if (frame.chatMessages.length > 0) {
+            this.broadcastScheduler.restoreChatMessages(frame.chatMessages);
+        }
+        if (frame.inventorySnapshots.length > 0) {
+            this.broadcastScheduler.restoreInventorySnapshots(frame.inventorySnapshots);
+        }
+        if (frame.gamemodeSnapshots.size > 0) {
+            this.broadcastScheduler.restoreGamemodeSnapshots(frame.gamemodeSnapshots);
+        }
+        if (frame.varps && frame.varps.length > 0) {
+            this.broadcastScheduler.restoreVarps(frame.varps);
+        }
+        if (frame.varbits && frame.varbits.length > 0) {
+            this.broadcastScheduler.restoreVarbits(frame.varbits);
+        }
+        if (frame.appearanceSnapshots.length > 0) {
+            this.broadcastScheduler.restoreAppearanceSnapshots(frame.appearanceSnapshots);
+        }
+        if (frame.skillSnapshots.length > 0) {
+            this.broadcastScheduler.restoreSkillSnapshots(frame.skillSnapshots);
+        }
+        if (frame.combatSnapshots.length > 0) {
+            this.broadcastScheduler.restoreCombatSnapshots(frame.combatSnapshots);
+        }
+        if (frame.runEnergySnapshots.length > 0) {
+            this.broadcastScheduler.restoreRunEnergySnapshots(frame.runEnergySnapshots);
+        }
+        if (frame.animSnapshots.length > 0) {
+            this.broadcastScheduler.restoreAnimSnapshots(frame.animSnapshots);
+        }
+        if (frame.spellResults.length > 0) {
+            this.broadcastScheduler.restoreSpellResults(frame.spellResults);
+        }
+        if (frame.hitsplats.length > 0) {
+            this.broadcastScheduler.restoreHitsplats(frame.hitsplats);
+        }
+        if (frame.forcedChats.length > 0) {
+            this.broadcastScheduler.restoreForcedChats(frame.forcedChats);
+        }
+        if (frame.forcedMovements.length > 0) {
+            this.broadcastScheduler.restoreForcedMovements(frame.forcedMovements);
+        }
+        if (frame.spotAnimations.length > 0) {
+            this.broadcastScheduler.restoreSpotAnimations(frame.spotAnimations);
         }
     }
 
@@ -3027,7 +2442,7 @@ export class WSServer {
             return;
         }
         if (this.activeFrame) {
-            this.pendingLocChanges.push(payload);
+            this.broadcastScheduler.queueLocChange(payload);
             return;
         }
 
@@ -3200,22 +2615,25 @@ export class WSServer {
 
     private createTickFrame(data: TickEvent): TickFrame {
         const npcUpdates = this.pendingNpcUpdates;
-        const widgetEvents = this.pendingWidgetEvents;
-        const notifications = this.broadcastScheduler.drainNotifications();
-        const smithingMessages = this.pendingSmithingMessages;
-        const tradeMessages = this.pendingTradeMessages;
-        const locChanges = this.pendingLocChanges;
-        const chatMessages = this.broadcastScheduler.drainChatMessages();
-        const inventorySnapshots = this.pendingInventorySnapshots;
-        const gamemodeSnapshots = new Map(this.pendingGamemodeSnapshots);
-        const appearanceSnapshots = this.pendingAppearanceSnapshots;
-        const skillSnapshots = this.broadcastScheduler.drainSkillSnapshots();
-        const combatSnapshots = this.pendingCombatSnapshots;
-        const runEnergySnapshots = this.broadcastScheduler.drainRunEnergySnapshots();
-        const animSnapshots = this.broadcastScheduler.drainAnimSnapshots();
-        const spellResults = this.pendingSpellResults;
         const npcPackets = new Map(this.pendingNpcPackets);
         const projectilePackets = this.projectileSystem?.drainPendingPackets() ?? new Map();
+        this.pendingNpcPackets = new Map();
+        this.pendingNpcUpdates = [];
+        // Drain all queues from BroadcastScheduler
+        const widgetEvents = this.broadcastScheduler.drainWidgetEvents();
+        const notifications = this.broadcastScheduler.drainNotifications();
+        const smithingMessages = this.broadcastScheduler.drainSmithingMessages();
+        const tradeMessages = this.broadcastScheduler.drainTradeMessages();
+        const locChanges = this.broadcastScheduler.drainLocChanges();
+        const chatMessages = this.broadcastScheduler.drainChatMessages();
+        const inventorySnapshots = this.broadcastScheduler.drainInventorySnapshots();
+        const gamemodeSnapshots = this.broadcastScheduler.drainGamemodeSnapshots();
+        const appearanceSnapshots = this.broadcastScheduler.drainAppearanceSnapshots();
+        const skillSnapshots = this.broadcastScheduler.drainSkillSnapshots();
+        const combatSnapshots = this.broadcastScheduler.drainCombatSnapshots();
+        const runEnergySnapshots = this.broadcastScheduler.drainRunEnergySnapshots();
+        const animSnapshots = this.broadcastScheduler.drainAnimSnapshots();
+        const spellResults = this.broadcastScheduler.drainSpellResults();
         const hitsplats = this.broadcastScheduler.drainHitsplats();
         const forcedChats = this.broadcastScheduler.drainForcedChats();
         const forcedMovements = this.broadcastScheduler.drainForcedMovements();
@@ -3223,17 +2641,6 @@ export class WSServer {
         const varps = this.broadcastScheduler.drainVarps();
         const varbits = this.broadcastScheduler.drainVarbits();
         const clientScripts = this.broadcastScheduler.drainClientScripts();
-        this.pendingWidgetEvents = [];
-        this.pendingSmithingMessages = [];
-        this.pendingTradeMessages = [];
-        this.pendingLocChanges = [];
-        this.pendingInventorySnapshots = [];
-        this.pendingGamemodeSnapshots = new Map();
-        this.pendingAppearanceSnapshots = [];
-        this.pendingCombatSnapshots = [];
-        this.pendingSpellResults = [];
-        this.pendingNpcPackets = new Map();
-        this.pendingNpcUpdates = [];
         return {
             tick: data.tick,
             time: data.time,
@@ -4195,8 +3602,8 @@ export class WSServer {
         this.scriptScheduler.process(frame.tick);
         this.isBroadcastPhase = true;
         try {
-            const tickMs = Math.max(1, this.options.tickMs);
-            const cyclesPerTick = Math.max(1, Math.round(tickMs / 20));
+            const ctx = this.buildBroadcastContext();
+            // Flush any pending direct sends queued outside the broadcast phase
             if (this.pendingDirectSends.size > 0) {
                 const entries = Array.from(this.pendingDirectSends.entries());
                 this.pendingDirectSends.clear();
@@ -4206,454 +3613,184 @@ export class WSServer {
                     } catch {}
                 }
             }
-            if (frame.locChanges.length > 0) {
-                for (const change of frame.locChanges) {
-                    this.broadcast(
-                        encodeMessage({
-                            type: "loc_change",
-                            payload: change,
-                        }),
-                        "loc_change",
-                    );
-                }
-            }
-            // OSRS parity: skill/stat packets must arrive before combat visuals and actor sync so
-            // CS2 stat-transmit XP drops fire ahead of attack sequences and hitsplats.
-            if (frame.skillSnapshots.length > 0 && this.players) {
-                for (const snapshot of frame.skillSnapshots) {
-                    const sock = this.players.getSocketByPlayerId(snapshot.playerId);
-                    const update = snapshot.update;
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({
-                            type: "skills",
-                            payload: {
-                                kind: update.snapshot ? ("snapshot" as const) : ("delta" as const),
-                                skills: update.skills,
-                                totalLevel: update.totalLevel,
-                                combatLevel: update.combatLevel,
-                            },
-                        }),
-                        "skill_snapshot",
-                    );
-                }
-            }
-            for (const event of frame.hitsplats) {
-                // When binary player sync is enabled, player hitsplats are encoded as update blocks.
-                // Keep legacy broadcast only for NPC hitsplats (and for non-binary mode).
-                if (event.targetType === "player") continue;
-                if (this.enableBinaryNpcSync && event.targetType === "npc") {
-                    continue;
-                }
-                const payload: {
-                    targetType: "player" | "npc";
-                    targetId: number;
-                    damage: number;
-                    style: number;
-                    type2?: number;
-                    damage2?: number;
-                    delayCycles?: number;
-                    tick: number;
-                } = {
-                    targetType: event.targetType,
-                    targetId: event.targetId,
-                    damage: event.damage,
-                    style: event.style,
-                    tick: event.tick ?? frame.tick,
-                };
-                const extraDelayTicks =
-                    event.delayTicks !== undefined ? Math.max(0, event.delayTicks) : 0;
-                const delayServerTicks = Math.max(0, payload.tick - frame.tick) + extraDelayTicks;
-                payload.delayCycles = Math.max(0, Math.round(delayServerTicks * cyclesPerTick));
-                if (event.type2 !== undefined && event.damage2 !== undefined) {
-                    payload.type2 = event.type2;
-                    payload.damage2 = event.damage2;
-                }
-                this.players?.forEach((sock, player) => {
-                    const resolvedPayload = {
-                        ...payload,
-                        style: resolveHitsplatTypeForObserver(
-                            payload.style,
-                            player.id,
-                            event.targetType,
-                            event.targetId,
-                            event.sourcePlayerId,
-                            event.sourceType,
-                        ),
-                        type2:
-                            payload.type2 !== undefined
-                                ? resolveHitsplatTypeForObserver(
-                                      payload.type2,
-                                      player.id,
-                                      event.targetType,
-                                      event.targetId,
-                                      event.sourcePlayerId,
-                                      event.sourceType,
-                                  )
-                                : undefined,
-                    };
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({ type: "hitsplat", payload: resolvedPayload }),
-                        "hitsplat",
-                    );
-                });
-            }
-            for (const npcEvent of frame.npcEffectEvents) {
-                const hitsplat = npcEvent.hitsplat;
-                if (!(hitsplat.amount > 0)) continue;
-                if (this.enableBinaryNpcSync) continue;
-                this.broadcast(
-                    encodeMessage({
-                        type: "hitsplat",
-                        payload: {
-                            targetType: "npc" as const,
-                            targetId: npcEvent.npcId,
-                            damage: hitsplat.amount,
-                            style: hitsplat.style,
-                            tick: frame.tick,
-                        },
-                    }),
-                );
-            }
-            if (frame.spotAnimations.length > 0) {
-                for (const event of frame.spotAnimations) {
-                    if (!(event && event.spotId >= 0)) continue;
-                    // When binary player sync is enabled, player spot animations are encoded as update blocks.
-                    // Keep legacy broadcast for NPCs and world tiles.
-                    if (event.playerId !== undefined) continue;
-                    if (this.enableBinaryNpcSync && event.npcId !== undefined) {
-                        continue;
-                    }
-                    const payload: {
-                        spotId: number;
-                        playerId?: number;
-                        npcId?: number;
-                        height?: number;
-                        delay?: number;
-                        tile?: { x: number; y: number; level?: number };
-                    } = {
-                        spotId: event.spotId,
-                    };
-                    if (event.delay !== undefined && Number.isFinite(event.delay)) {
-                        // OSRS parity: legacy `spot` payload delay is in client cycles (20ms units),
-                        // but server events are in server ticks.
-                        const delayServerTicks = Math.max(0, event.delay);
-                        payload.delay = Math.min(
-                            0xffff,
-                            Math.max(0, Math.round(delayServerTicks * cyclesPerTick)),
-                        );
-                    }
-                    if (event.height !== undefined && Number.isFinite(event.height)) {
-                        payload.height = event.height;
-                    }
-                    if (event.playerId !== undefined && event.playerId >= 0) {
-                        payload.playerId = event.playerId;
-                    } else if (event.npcId !== undefined && event.npcId >= 0) {
-                        payload.npcId = event.npcId;
-                    } else if (event.tile) {
-                        payload.tile = {
-                            x: event.tile.x,
-                            y: event.tile.y,
-                            level: event.tile.level,
-                        };
-                    } else {
-                        continue;
-                    }
-                    this.withDirectSendBypass("combat_spot", () =>
-                        this.broadcast(encodeMessage({ type: "spot", payload }), "combat_spot"),
-                    );
-                }
-            }
-            // CRITICAL: Send combat snapshots BEFORE widget events so varbit 357 is set
-            // before combat interface (593) onLoad scripts run and read weapon category
-            if (frame.combatSnapshots.length > 0 && this.players) {
-                for (const snapshot of frame.combatSnapshots) {
-                    const sock = this.players.getSocketByPlayerId(snapshot.playerId);
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({
-                            type: "combat",
-                            payload: {
-                                weaponCategory: snapshot.weaponCategory,
-                                weaponItemId: snapshot.weaponItemId,
-                                autoRetaliate: snapshot.autoRetaliate,
-                                activeStyle: snapshot.activeStyle,
-                                activePrayers: snapshot.activePrayers,
-                                activeSpellId: snapshot.activeSpellId,
-                                specialEnergy: snapshot.specialEnergy,
-                                specialActivated: snapshot.specialActivated,
-                                quickPrayers: snapshot.quickPrayers,
-                                quickPrayersEnabled: snapshot.quickPrayersEnabled,
-                            },
-                        }),
-                        "combat_snapshot",
-                    );
-                }
-            }
-            // Apply appearance snapshots before building player sync packets.
-            if (frame.appearanceSnapshots.length > 0) {
-                for (const snapshot of frame.appearanceSnapshots) {
-                    const view = frame.playerViews.get(snapshot.playerId);
-                    if (view) {
-                        // Merge appearance and position data from the snapshot
-                        if (snapshot.payload.appearance) {
-                            view.appearance = snapshot.payload.appearance;
-                        }
-                        if (snapshot.payload.snap) {
-                            view.x = snapshot.payload.x;
-                            view.y = snapshot.payload.y;
-                            view.level = snapshot.payload.level;
-                            view.snap = true;
-                            view.moved = true;
-                        }
-                        if (snapshot.payload.anim) {
-                            view.anim = snapshot.payload.anim;
-                        }
-                        if (snapshot.payload.worldViewId !== undefined) {
-                            view.worldViewId = snapshot.payload.worldViewId;
-                        }
-                    }
-                }
-            }
-            // Send player + NPC sync before widget/dialog events so UI handlers read up-to-date actor positions.
-            if (this.players) {
-                this.players.forEach((sock, player) => {
-                    const session = this.ensurePlayerSyncSession(sock);
-                    // Use the extracted PlayerPacketEncoder
-                    const playerFrame: PlayerTickFrameData = {
-                        tick: frame.tick,
-                        tickMs: this.options.tickMs,
-                        playerViews: frame.playerViews,
-                        playerSteps: frame.playerSteps,
-                        hitsplats: frame.hitsplats,
-                        forcedChats: frame.forcedChats,
-                        forcedMovements: frame.forcedMovements,
-                        spotAnimations: frame.spotAnimations,
-                        chatMessages: frame.chatMessages,
-                        pendingSequences: frame.pendingSequences,
-                        interactionIndices: frame.interactionIndices,
-                        pendingFaceDirs: frame.pendingFaceDirs,
-                        colorOverrides: frame.colorOverrides,
-                    };
-                    const packet = this.playerPacketEncoder.buildPlayerSyncPacket(
-                        session,
-                        player,
-                        playerFrame,
-                    );
-                    session.activeIndices = packet.activeIndices;
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({
-                            type: "player_sync",
-                            payload: {
-                                baseX: packet.baseTileX,
-                                baseY: packet.baseTileY,
-                                localIndex: player.id,
-                                loopCycle: frame.tick,
-                                packet: Array.from(packet.bytes),
-                            },
-                        }),
-                        "player_sync",
-                    );
+            // OSRS parity ordering - each broadcaster handles one domain:
+            // 1. Loc changes (early, before any actor state)
+            this.miscBroadcaster.flushLocChanges(frame, ctx);
+            // 2. Skills (before combat visuals so XP drops fire first)
+            this.skillBroadcaster.flush(frame, ctx);
+            // 3. Combat: hitsplats, NPC effects, spot anims, combat snapshots
+            this.combatBroadcaster.flush(frame, ctx);
+            // 4. Actor sync: player sync + NPC sync + WorldEntity info
+            this.actorSyncBroadcaster.flush(frame, ctx);
+            // 5. Widget close events (before varps to prevent re-render flicker)
+            this.widgetBroadcaster.flushCloseEvents(frame, ctx);
+            // 6. Varps/varbits (before open widget events so scripts have correct state)
+            this.varBroadcaster.flush(frame, ctx);
+            // 7. Widget open/non-close events (after varps)
+            this.widgetBroadcaster.flushOpenEvents(frame, ctx);
+            // 8. Notifications, client scripts, smithing, trade, gamemode, run energy, spells, projectiles
+            this.miscBroadcaster.flushPostWidgetEvents(frame, ctx);
+            // 9. Chat messages
+            this.chatBroadcaster.flush(frame, ctx);
+            // 10. Inventory snapshots
+            this.inventoryBroadcaster.flush(frame, ctx);
+            // 11. Per-player dirty state flush (inventory, appearance, combat)
+            this.flushPerPlayerDirtyState(frame);
+            // 12. Animation snapshots (AFTER per-player loop so equipment change anims are included)
+            this.flushAnimSnapshots(frame, ctx);
+        } finally {
+            // Flush all batched messages before ending broadcast phase
+            this.flushAllMessageBatches();
+            this.isBroadcastPhase = false;
+            this.flushDirectSendWarnings("broadcast");
+        }
+    }
 
-                    // OSRS parity: NPCs are updated via a single bitpacked binary packet (class353.updateNpcs).
-                    // Send after player_sync so relative NPC spawns use the client-updated local-player tile.
-                    if (this.enableBinaryNpcSync && this.npcManager) {
-                        try {
-                            const npcSession = this.getOrCreateNpcSyncSession(sock);
-                            // Use the extracted NpcPacketEncoder
-                            const npcFrame = {
-                                tick: frame.tick,
-                                tickMs: this.options.tickMs,
-                                npcUpdates: frame.npcUpdates,
-                                hitsplats: frame.hitsplats,
-                                npcEffectEvents: frame.npcEffectEvents,
-                                spotAnimations: frame.spotAnimations,
-                                colorOverrides: frame.npcColorOverrides,
-                            };
-                            const built = this.npcPacketEncoder.buildNpcSyncPacket(
-                                player,
-                                npcFrame,
-                                npcSession,
-                            );
-                            if (built.packet.length > 0) {
-                                this.sendWithGuard(
-                                    sock,
-                                    encodeMessage({
-                                        type: "npc_info",
-                                        payload: {
-                                            loopCycle: frame.tick,
-                                            large: built.large,
-                                            packet: Array.from(built.packet),
-                                        },
-                                    } as any),
-                                    "npc_info",
-                                );
-                            }
-                        } catch (err) {
-                            logger.warn("[npc_info] encode failed", err);
-                        }
-                    }
-                    // OSRS parity: WORLDENTITY_INFO is sent per-tick after NPC_INFO
-                    if (this.worldEntityInfoEncoder.needsUpdate(player.id)) {
-                        const wePacket = this.worldEntityInfoEncoder.encode(player.id);
-                        if (wePacket) {
-                            this.sendWithGuard(sock, wePacket, "worldentity_info");
-                        }
-                    }
-                });
+    private buildBroadcastContext(): BroadcastContext {
+        const tickMs = Math.max(1, this.options.tickMs);
+        return {
+            sendWithGuard: (sock, msg, context) => this.sendWithGuard(sock, msg, context),
+            broadcast: (msg, context) => this.broadcast(msg, context),
+            getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
+            cyclesPerTick: Math.max(1, Math.round(tickMs / 20)),
+        };
+    }
+
+    private applyAppearanceSnapshotsToViews(frame: TickFrame): void {
+        if (!frame.appearanceSnapshots || frame.appearanceSnapshots.length === 0) return;
+        for (const snapshot of frame.appearanceSnapshots) {
+            const view = frame.playerViews.get(snapshot.playerId);
+            if (view) {
+                if (snapshot.payload.appearance) {
+                    view.appearance = snapshot.payload.appearance;
+                }
+                if (snapshot.payload.snap) {
+                    view.x = snapshot.payload.x;
+                    view.y = snapshot.payload.y;
+                    view.level = snapshot.payload.level;
+                    view.snap = true;
+                    view.moved = true;
+                }
+                if (snapshot.payload.anim) {
+                    view.anim = snapshot.payload.anim;
+                }
+                if (snapshot.payload.worldViewId !== undefined) {
+                    view.worldViewId = snapshot.payload.worldViewId;
+                }
             }
-            // Send close widget events BEFORE varps/varbits to prevent re-render flicker
-            // (e.g., closing tutorial modal before varbit triggers interface update script)
-            if (frame.widgetEvents.length > 0 && this.players) {
-                const closeEvents = frame.widgetEvents.filter(
-                    (evt) => evt.action?.action === "close_sub" || evt.action?.action === "close",
+        }
+    }
+
+    private buildAndSendActorSync(
+        sock: WebSocket,
+        player: PlayerState,
+        frame: TickFrame,
+        ctx: BroadcastContext,
+    ): void {
+        const session = this.ensurePlayerSyncSession(sock);
+        const playerFrame: PlayerTickFrameData = {
+            tick: frame.tick,
+            tickMs: this.options.tickMs,
+            playerViews: frame.playerViews,
+            playerSteps: frame.playerSteps,
+            hitsplats: frame.hitsplats,
+            forcedChats: frame.forcedChats,
+            forcedMovements: frame.forcedMovements,
+            spotAnimations: frame.spotAnimations,
+            chatMessages: frame.chatMessages,
+            pendingSequences: frame.pendingSequences,
+            interactionIndices: frame.interactionIndices,
+            pendingFaceDirs: frame.pendingFaceDirs,
+            colorOverrides: frame.colorOverrides,
+        };
+        const packet = this.playerPacketEncoder.buildPlayerSyncPacket(
+            session,
+            player,
+            playerFrame,
+        );
+        session.activeIndices = packet.activeIndices;
+        ctx.sendWithGuard(
+            sock,
+            encodeMessage({
+                type: "player_sync",
+                payload: {
+                    baseX: packet.baseTileX,
+                    baseY: packet.baseTileY,
+                    localIndex: player.id,
+                    loopCycle: frame.tick,
+                    packet: Array.from(packet.bytes),
+                },
+            }),
+            "player_sync",
+        );
+
+        if (this.enableBinaryNpcSync && this.npcManager) {
+            try {
+                const npcSession = this.getOrCreateNpcSyncSession(sock);
+                const npcFrame = {
+                    tick: frame.tick,
+                    tickMs: this.options.tickMs,
+                    npcUpdates: frame.npcUpdates,
+                    hitsplats: frame.hitsplats,
+                    npcEffectEvents: frame.npcEffectEvents,
+                    spotAnimations: frame.spotAnimations,
+                    colorOverrides: frame.npcColorOverrides,
+                };
+                const built = this.npcPacketEncoder.buildNpcSyncPacket(
+                    player,
+                    npcFrame,
+                    npcSession,
                 );
-                for (const evt of closeEvents) {
-                    const sock = this.players.getSocketByPlayerId(evt.playerId);
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({ type: "widget", payload: evt.action }),
-                        "widget_close_event",
-                    );
-                }
-            }
-            // OSRS parity: Send varps/varbits BEFORE other widget events so scripts have correct state
-            if (frame.varps && frame.varps.length > 0 && this.players) {
-                for (const varp of frame.varps) {
-                    const sock = this.players.getSocketByPlayerId(varp.playerId);
-                    if (!sock) continue;
-                    this.sendWithGuard(
+                if (built.packet.length > 0) {
+                    ctx.sendWithGuard(
                         sock,
                         encodeMessage({
-                            type: "varp",
-                            payload: { varpId: varp.varpId, value: varp.value },
-                        }),
-                        "varp",
+                            type: "npc_info",
+                            payload: {
+                                loopCycle: frame.tick,
+                                large: built.large,
+                                packet: Array.from(built.packet),
+                            },
+                        } as any),
+                        "npc_info",
                     );
                 }
+            } catch (err) {
+                logger.warn("[npc_info] encode failed", err);
             }
-            if (frame.varbits && frame.varbits.length > 0 && this.players) {
-                for (const varbit of frame.varbits) {
-                    const sock = this.players.getSocketByPlayerId(varbit.playerId);
-                    if (!sock) continue;
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({
-                            type: "varbit",
-                            payload: { varbitId: varbit.varbitId, value: varbit.value },
-                        }),
-                        "varbit",
-                    );
-                }
+        }
+        if (this.worldEntityInfoEncoder.needsUpdate(player.id)) {
+            const wePacket = this.worldEntityInfoEncoder.encode(player.id);
+            if (wePacket) {
+                ctx.sendWithGuard(sock, wePacket, "worldentity_info");
             }
-            // Send non-close widget events (open, etc.) after varps/varbits
-            if (frame.widgetEvents.length > 0 && this.players) {
-                const nonCloseEvents = frame.widgetEvents.filter(
-                    (evt) => evt.action?.action !== "close_sub" && evt.action?.action !== "close",
-                );
-                for (const evt of nonCloseEvents) {
-                    const sock = this.players.getSocketByPlayerId(evt.playerId);
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({ type: "widget", payload: evt.action }),
-                        "widget_event",
-                    );
-                    this.syncPostWidgetOpenState(evt.playerId, evt.action);
-                }
-            }
-            if (frame.notifications.length > 0 && this.players) {
-                for (const evt of frame.notifications) {
-                    const sock = this.players.getSocketByPlayerId(evt.playerId);
-                    if (!sock) continue;
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({ type: "notification", payload: evt.payload }),
-                        "notification",
-                    );
-                }
-            }
-            // OSRS parity: Send runClientScript messages (rsmod: player.runClientScript)
-            if (frame.clientScripts && frame.clientScripts.length > 0 && this.players) {
-                for (const cs of frame.clientScripts) {
-                    const sock = this.players.getSocketByPlayerId(cs.playerId);
-                    if (!sock) continue;
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({
-                            type: "runClientScript",
-                            payload: { scriptId: cs.scriptId, args: cs.args },
-                        }),
-                        "runClientScript",
-                    );
-                }
-            }
-            if (frame.smithingMessages.length > 0 && this.players) {
-                for (const evt of frame.smithingMessages) {
-                    const sock = this.players.getSocketByPlayerId(evt.playerId);
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({ type: "smithing", payload: evt.payload }),
-                        "smithing_event",
-                    );
-                }
-            }
-            if (frame.tradeMessages.length > 0 && this.players) {
-                for (const evt of frame.tradeMessages) {
-                    const sock = this.players.getSocketByPlayerId(evt.playerId);
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({ type: "trade", payload: evt.payload }),
-                        "trade_event",
-                    );
-                }
-            }
-            if (frame.chatMessages.length > 0 && this.players) {
-                for (const msg of frame.chatMessages) {
-                    // In binary player sync mode, player public chat is carried by the
-                    // PublicChat update block instead of the standalone `chat` message.
-                    if (msg.messageType === "public" && msg.playerId !== undefined) {
-                        continue;
-                    }
-                    const deliver = (sock: WebSocket | undefined, context: string) => {
-                        this.sendWithGuard(
-                            sock,
-                            encodeMessage({
-                                type: "chat",
-                                payload: {
-                                    messageType:
-                                        msg.messageType === "private"
-                                            ? "private_in"
-                                            : msg.messageType,
-                                    playerId: msg.playerId,
-                                    from: msg.from,
-                                    prefix: msg.prefix,
-                                    text: msg.text,
-                                },
-                            }),
-                            context,
-                        );
-                    };
-                    if (msg.targetPlayerIds && msg.targetPlayerIds.length > 0) {
-                        for (const targetId of msg.targetPlayerIds) {
-                            deliver(this.players.getSocketByPlayerId(targetId), "chat_direct");
-                        }
-                    } else {
-                        this.players.forEach((client) => deliver(client, "chat_broadcast"));
-                    }
-                }
-            }
-            if (frame.inventorySnapshots.length > 0 && this.players) {
-                for (const snapshot of frame.inventorySnapshots) {
-                    const player = this.players.getById(snapshot.playerId);
-                    if (!player) continue;
-                    const slots = this.getInventory(player).map((entry, idx) => ({
+        }
+    }
+
+    private flushPerPlayerDirtyState(frame: TickFrame): void {
+        if (!this.players) return;
+        this.players.forEach((_, player) => {
+            player.clearTeleportFlag();
+        });
+        this.players.forEachBot((bot) => {
+            bot.clearTeleportFlag();
+        });
+        this.players.forEach((sock, player) => {
+            this.maybeReplayDynamicLocState(sock, player);
+        });
+        this.players.forEach((sock, player) => {
+            this.maybeSendGroundItemSnapshot(sock, player);
+        });
+        this.players.forEach((sock, player) => {
+            if (player.hasInventoryUpdate()) {
+                const snapshot = player.takeInventorySnapshot();
+                if (snapshot) {
+                    const inv = this.getInventory(player);
+                    const slots = inv.map((entry, idx) => ({
                         slot: idx,
                         itemId: entry.itemId,
                         quantity: entry.quantity,
                     }));
-                    const sock = this.players.getSocketByPlayerId(snapshot.playerId);
                     this.sendWithGuard(
                         sock,
                         encodeMessage({
@@ -4664,179 +3801,66 @@ export class WSServer {
                     );
                 }
             }
-            for (const [key, snapshots] of frame.gamemodeSnapshots) {
-                if (snapshots.length === 0 || !this.players) continue;
-                const encoder = this.gamemodeSnapshotEncoders.get(key);
-                if (!encoder) continue;
-                for (const snapshot of snapshots) {
-                    const sock = this.players.getSocketByPlayerId(snapshot.playerId);
-                    if (!sock) continue;
-                    const encoded = encoder.encode(snapshot.playerId, snapshot.payload);
-                    if (encoded) {
-                        this.sendWithGuard(sock, encoded.message, encoded.context);
-                    }
-                    if (encoder.onSent) {
-                        encoder.onSent(snapshot.playerId, snapshot.payload);
-                    }
-                }
+            const appearanceDirty = player.hasAppearanceUpdate();
+            if (appearanceDirty) {
+                player.takeAppearanceSnapshot();
+                this.queueAppearanceSnapshot(player);
+                this.queueAnimSnapshot(player.id, this.buildAnimPayload(player));
             }
-            // Note: varps and varbits are sent earlier (before widget events) for OSRS parity
-            // Combat snapshots are now sent earlier (before widget events) - see above
-            if (frame.runEnergySnapshots.length > 0 && this.players) {
-                for (const snapshot of frame.runEnergySnapshots) {
-                    const sock = this.players.getSocketByPlayerId(snapshot.playerId);
-                    if (!sock) continue;
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({
-                            type: "run_energy",
-                            payload: {
-                                percent: snapshot.percent,
-                                units: snapshot.units,
-                                running: !!snapshot.running,
-                            },
-                        }),
-                        "run_energy",
-                    );
-                }
+            const hasCombatUpdate = player.hasCombatStateUpdate();
+            if (hasCombatUpdate) {
+                player.takeCombatStateSnapshot();
+                let specialEnergy: number | undefined;
+                let specialActivated: boolean | undefined;
+                let quickPrayers: string[] | undefined;
+                let quickPrayersEnabled: boolean | undefined;
+                try {
+                    specialEnergy = player.getSpecialEnergyPercent();
+                    specialActivated = player.isSpecialActivated();
+                    player.markSpecialEnergySynced();
+                    const quickSet = player.getQuickPrayers();
+                    quickPrayers = Array.from(quickSet);
+                    quickPrayersEnabled = player.areQuickPrayersEnabled();
+                } catch {}
+                this.sendWithGuard(
+                    sock,
+                    encodeMessage({
+                        type: "combat",
+                        payload: {
+                            weaponCategory: player.combatWeaponCategory,
+                            weaponItemId: player.combatWeaponItemId,
+                            autoRetaliate: !!player.autoRetaliate,
+                            activeStyle: player.combatStyleSlot,
+                            activePrayers: Array.from(player.activePrayers ?? []),
+                            activeSpellId:
+                                player.combatSpellId > 0 ? player.combatSpellId : undefined,
+                            specialEnergy,
+                            specialActivated,
+                            quickPrayers,
+                            quickPrayersEnabled,
+                        },
+                    }),
+                    "combat_state_dirty",
+                );
             }
-            // NOTE: Animation snapshots are sent AFTER the player loop below,
-            // so animations queued during appearance updates are included in the same tick.
-            if (frame.spellResults.length > 0 && this.players) {
-                for (const entry of frame.spellResults) {
-                    const msg = encodeMessage({ type: "spell_result", payload: entry.payload });
-                    // Broadcast to all players so everyone sees the projectile (like Elvarg client behavior)
-                    this.players.forEach((sock) => {
-                        this.sendWithGuard(sock, msg, "spell_result");
-                    });
-                }
+            if (
+                (appearanceDirty || hasCombatUpdate) &&
+                this.isWidgetGroupOpenInLedger(player.id, EQUIPMENT_STATS_GROUP_ID)
+            ) {
+                this.queueEquipmentStatsWidgetTexts(player);
             }
-            // Player/NPC sync packets are sent earlier in this phase (before widget events).
-            // Send projectile launches to each viewer (batched per player)
-            if (this.players && (frame as any).projectilePackets) {
-                const packets = (frame as any).projectilePackets as Map<number, ProjectileLaunch[]>;
-                const elapsedClientCycles = Math.max(0, Math.floor((Date.now() - frame.time) / 20));
-                for (const [playerId, list] of packets.entries()) {
-                    if (!list || list.length === 0) continue;
-                    const sock = this.players.getSocketByPlayerId(playerId);
-                    if (!sock) continue;
-                    const launchesForSend = adjustProjectileLaunchesForElapsedCycles(
-                        list,
-                        elapsedClientCycles,
-                    );
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({
-                            type: "projectiles",
-                            payload: { list: launchesForSend },
-                        } as any),
-                        "projectiles",
-                    );
-                }
-            }
-            if (this.players) {
-                this.players.forEach((_, player) => {
-                    player.clearTeleportFlag();
-                });
-                this.players.forEachBot((bot) => {
-                    bot.clearTeleportFlag();
-                });
-                this.players.forEach((sock, player) => {
-                    this.maybeReplayDynamicLocState(sock, player);
-                });
-                this.players.forEach((sock, player) => {
-                    this.maybeSendGroundItemSnapshot(sock, player);
-                });
-                this.players.forEach((sock, player) => {
-                    if (player.hasInventoryUpdate()) {
-                        const snapshot = player.takeInventorySnapshot();
-                        if (snapshot) {
-                            // Send directly instead of deferring to next tick
-                            const inv = this.getInventory(player);
-                            const slots = inv.map((entry, idx) => ({
-                                slot: idx,
-                                itemId: entry.itemId,
-                                quantity: entry.quantity,
-                            }));
-                            this.sendWithGuard(
-                                sock,
-                                encodeMessage({
-                                    type: "inventory",
-                                    payload: { kind: "snapshot", slots },
-                                } as any),
-                                "inventory_snapshot",
-                            );
-                        }
-                    }
-                    const appearanceDirty = player.hasAppearanceUpdate();
-                    if (appearanceDirty) {
-                        player.takeAppearanceSnapshot();
-                        this.queueAppearanceSnapshot(player);
-                        this.queueAnimSnapshot(player.id, this.buildAnimPayload(player));
-                    }
-                    const hasCombatUpdate = player.hasCombatStateUpdate();
-                    if (hasCombatUpdate) {
-                        player.takeCombatStateSnapshot();
-                        // Send combat state directly instead of queueing via sendCombatState,
-                        // because frame.combatSnapshots has already been processed earlier in this function.
-                        let specialEnergy: number | undefined;
-                        let specialActivated: boolean | undefined;
-                        let quickPrayers: string[] | undefined;
-                        let quickPrayersEnabled: boolean | undefined;
-                        try {
-                            specialEnergy = player.getSpecialEnergyPercent();
-                            specialActivated = player.isSpecialActivated();
-                            player.markSpecialEnergySynced();
-                            const quickSet = player.getQuickPrayers();
-                            quickPrayers = Array.from(quickSet);
-                            quickPrayersEnabled = player.areQuickPrayersEnabled();
-                        } catch {}
-                        this.sendWithGuard(
-                            sock,
-                            encodeMessage({
-                                type: "combat",
-                                payload: {
-                                    weaponCategory: player.combatWeaponCategory,
-                                    weaponItemId: player.combatWeaponItemId,
-                                    autoRetaliate: !!player.autoRetaliate,
-                                    activeStyle: player.combatStyleSlot,
-                                    activePrayers: Array.from(player.activePrayers ?? []),
-                                    activeSpellId:
-                                        player.combatSpellId > 0 ? player.combatSpellId : undefined,
-                                    specialEnergy,
-                                    specialActivated,
-                                    quickPrayers,
-                                    quickPrayersEnabled,
-                                },
-                            }),
-                            "combat_state_dirty",
-                        );
-                    }
-                    if (
-                        (appearanceDirty || hasCombatUpdate) &&
-                        this.isWidgetGroupOpenInLedger(player.id, EQUIPMENT_STATS_GROUP_ID)
-                    ) {
-                        this.queueEquipmentStatsWidgetTexts(player);
-                    }
-                });
-            }
-            // Send animation snapshots AFTER the player loop so animations queued
-            // during appearance updates (equipment changes) are sent in the same tick.
-            if (frame.animSnapshots.length > 0 && this.players) {
-                for (const snapshot of frame.animSnapshots) {
-                    const sock = this.players.getSocketByPlayerId(snapshot.playerId);
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({ type: "anim", payload: snapshot.anim }),
-                        "anim_snapshot",
-                    );
-                }
-            }
-        } finally {
-            // Flush all batched messages before ending broadcast phase
-            this.flushAllMessageBatches();
-            this.isBroadcastPhase = false;
-            this.flushDirectSendWarnings("broadcast");
+        });
+    }
+
+    private flushAnimSnapshots(frame: TickFrame, ctx: BroadcastContext): void {
+        if (!frame.animSnapshots || frame.animSnapshots.length === 0) return;
+        for (const snapshot of frame.animSnapshots) {
+            const sock = ctx.getSocketByPlayerId(snapshot.playerId);
+            ctx.sendWithGuard(
+                sock,
+                encodeMessage({ type: "anim", payload: snapshot.anim }),
+                "anim_snapshot",
+            );
         }
     }
 
@@ -5015,7 +4039,7 @@ export class WSServer {
             queuedInCurrentFrame = true;
         }
         if (!queuedInCurrentFrame) {
-            this.pendingWidgetEvents.push(event);
+            this.broadcastScheduler.queueWidgetEvent(event);
         }
 
         // Equipment stats (84) value fields are cache-empty text widgets.
@@ -5048,11 +4072,11 @@ export class WSServer {
 
 
     private queueSmithingInterfaceMessage(playerId: number, payload: SmithingServerPayload): void {
-        this.pendingSmithingMessages.push({ playerId: playerId, payload });
+        this.broadcastScheduler.queueSmithingMessage(playerId, payload);
     }
 
     private queueTradeMessage(playerId: number, payload: TradeServerPayload): void {
-        this.pendingTradeMessages.push({ playerId: playerId, payload });
+        this.broadcastScheduler.queueTradeMessage(playerId, payload);
     }
 
     /**
@@ -5078,9 +4102,7 @@ export class WSServer {
             return;
         }
 
-        const pendingQueue = this.pendingGamemodeSnapshots.get(key) ?? [];
-        upsert(pendingQueue);
-        this.pendingGamemodeSnapshots.set(key, pendingQueue);
+        this.broadcastScheduler.queueGamemodeSnapshot(key, playerId, payload);
     }
 
     private registerSnapshotEncoder(
@@ -5195,136 +4217,7 @@ export class WSServer {
     }
 
 
-    private buildSmeltingOptions(player: PlayerState): SmithingOptionMessage[] {
-        const inventory = this.getInventory(player);
-        const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
-        return SMELTING_RECIPES.map((recipe) => {
-            const available = Math.max(
-                0,
-                Math.min(28, computeSmeltingBatchCount(inventory, recipe)),
-            );
-            return {
-                recipeId: recipe.id,
-                name: recipe.name,
-                level: recipe.level,
-                itemId: recipe.outputItemId,
-                outputQuantity: Math.max(1, recipe.outputQuantity),
-                available,
-                canMake: available > 0 && smithLevel >= recipe.level,
-                xp: recipe.xp,
-                ingredientsLabel: recipe.ingredientsLabel,
-                mode: "smelt",
-            };
-        });
-    }
 
-    private buildForgingOptions(player: PlayerState): SmithingOptionMessage[] {
-        const inventory = this.getInventory(player);
-        const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
-        const hammerAvailable = this.playerHasItem(player, HAMMER_ITEM_ID);
-        return SMITHING_RECIPES.map((recipe) => {
-            const available = Math.max(
-                0,
-                Math.min(28, this.computeSmithingBatchCountFromInventory(inventory, recipe)),
-            );
-            const canLevel = smithLevel >= recipe.level;
-            const requiresHammer = recipe.requireHammer !== false;
-            return {
-                recipeId: recipe.id,
-                name: recipe.name,
-                level: recipe.level,
-                itemId: recipe.outputItemId,
-                outputQuantity: Math.max(1, recipe.outputQuantity),
-                available,
-                canMake: (!requiresHammer || hammerAvailable) && canLevel && available > 0,
-                xp: recipe.xp,
-                ingredientsLabel: `${recipe.barCount} x ${this.describeBar(recipe.barItemId)}`,
-                mode: "forge",
-                barItemId: recipe.barItemId,
-                barCount: recipe.barCount,
-                requiresHammer,
-                hasHammer: requiresHammer ? hammerAvailable : true,
-            };
-        });
-    }
-
-    private sendSmithingInterfaceState(
-        player: PlayerState,
-        action: "open" | "update",
-        mode: "smelt" | "forge",
-    ): void {
-        if (action === "open") {
-            try {
-                let openVarbits: Record<number, number> | undefined;
-                if (mode === "forge") {
-                    const openState = this.resolveSmithingOpenVarbits(player);
-                    if (!openState.ok) {
-                        return;
-                    }
-                    openVarbits = openState.varbits;
-                }
-                if (this.interfaceService) {
-                    // Use the same IF_OPENSUB mainmodal path as bank/shop/etc.
-                    // A plain "open" event does not mount the interface in the client widget tree.
-                    this.interfaceService.openModal(
-                        player,
-                        SMITHING_GROUP_ID,
-                        undefined,
-                        openVarbits ? { varbits: openVarbits } : undefined,
-                    );
-                } else {
-                    const { getMainmodalUid } = require("../widgets/viewport");
-                    player.widgets.open(SMITHING_GROUP_ID, {
-                        modal: true,
-                        targetUid: getMainmodalUid(player.displayMode),
-                        type: 0,
-                        varbits: openVarbits,
-                    });
-                }
-            } catch {}
-        }
-        const options =
-            mode === "smelt" ? this.buildSmeltingOptions(player) : this.buildForgingOptions(player);
-        this.queueSmithingInterfaceMessage(player.id, {
-            kind: action,
-            mode,
-            title: mode === "smelt" ? "Smelting" : "Smithing",
-            options,
-            quantityMode: player.getSmithingQuantityMode(),
-            customQuantity: player.getSmithingCustomQuantity(),
-        });
-    }
-
-    private openSmeltingInterface(player: PlayerState): void {
-        this.sendSmithingInterfaceState(player, "open", "smelt");
-    }
-
-    private updateSmeltingInterface(player: PlayerState): void {
-        this.sendSmithingInterfaceState(player, "update", "smelt");
-    }
-
-    private openSmithingForgeInterface(player: PlayerState): void {
-        this.sendSmithingInterfaceState(player, "open", "forge");
-    }
-
-    private openSmithingInterface(player: PlayerState): void {
-        this.cs2ModalManager.openSmithingBarModal(player);
-    }
-
-    private updateSmithingInterface(player: PlayerState): void {
-        this.sendSmithingInterfaceState(player, "update", "forge");
-    }
-
-    private closeSmithingInterfaceWindow(player: PlayerState): void {
-        try {
-            if (this.interfaceService?.isModalOpen(player, SMITHING_GROUP_ID)) {
-                this.interfaceService.closeModal(player);
-            } else {
-                player.widgets.close(SMITHING_GROUP_ID);
-            }
-        } catch {}
-        this.queueSmithingInterfaceMessage(player.id, { kind: "close" });
-    }
 
 
     private sendSound(
@@ -6220,8 +5113,7 @@ export class WSServer {
             this.activeFrame.inventorySnapshots.push({ playerId: playerId });
             return;
         }
-        if (this.pendingInventorySnapshots.some((s) => s.playerId === playerId)) return;
-        this.pendingInventorySnapshots.push({ playerId: playerId });
+        this.broadcastScheduler.queueInventorySnapshot({ playerId });
     }
 
     private queueSkillSnapshot(playerId: number, update: SkillSyncUpdate): void {
@@ -6277,7 +5169,7 @@ export class WSServer {
             this.activeFrame.combatSnapshots.push(snapshot);
             return;
         }
-        this.pendingCombatSnapshots.push(snapshot);
+        this.broadcastScheduler.queueCombatSnapshot(snapshot);
     }
 
     private queueCombatState(player: PlayerState): void {
@@ -6799,7 +5691,7 @@ export class WSServer {
             this.activeFrame.spellResults.push({ playerId: playerId, payload });
             return;
         }
-        this.pendingSpellResults.push({ playerId: playerId, payload });
+        this.broadcastScheduler.queueSpellResult(playerId, payload);
     }
     private estimateProjectileTiming(opts: {
         player: PlayerState;
@@ -7787,8 +6679,7 @@ export class WSServer {
                 return false;
             },
             getSmithingBarTypeByItem: (itemId) => {
-                this.initializeSmithingBarEnumCache();
-                return this.smithingBarItemIdToType.get(itemId);
+                return this.smithingSystem.getBarTypeByItemId(itemId);
             },
             setSmithingBarType: (player, barType) => {
                 player.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType);
@@ -7939,7 +6830,7 @@ export class WSServer {
                 }),
             setSmithingBarType: (player, barType) =>
                 player.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType),
-            openSmithingForgeInterface: (player) => this.openSmithingForgeInterface(player),
+            openSmithingForgeInterface: (player) => this.smithingSystem.openForgeInterface(player),
         };
         return new Cs2ModalManager(services);
     }
@@ -7971,7 +6862,7 @@ export class WSServer {
 
     private createPlayerAppearanceManager(): PlayerAppearanceManager {
         const services: PlayerAppearanceServices = {
-            getPendingAppearanceSnapshots: () => this.pendingAppearanceSnapshots,
+            getPendingAppearanceSnapshots: () => this.broadcastScheduler.getPendingAppearanceSnapshots(),
             getObjTypeLoader: () => this.objTypeLoader,
             getBasTypeLoader: () => this.basTypeLoader,
             getIdkTypeLoader: () => this.idkTypeLoader,
@@ -8194,6 +7085,603 @@ export class WSServer {
         return new EquipmentHandler(services);
     }
 
+    /**
+     * Build the ScriptServices object for the ScriptRuntime.
+     * Extracted from the constructor to reduce constructor size and make
+     * the services wiring independently modifiable.
+     */
+    private buildScriptServiceObject(
+        locTypeLoader: any,
+        combatEffectApplicator: any,
+    ): import("../game/scripts/types").ScriptServices {
+        const sendGameMessageFn = (player: PlayerState, text: string): void => {
+            this.queueChatMessage({
+                messageType: "game",
+                text,
+                targetPlayerIds: [player.id],
+            });
+        };
+        const snapshotInventoryFn = (player: PlayerState): void => {
+            try {
+                const sock = this.players?.getSocketByPlayerId(player.id);
+                if (sock) this.sendInventorySnapshot(sock, player);
+            } catch {}
+        };
+        return {
+                getDbRepository: () => this.dbRepository,
+                // Use functions to defer loading - cache loaders are initialized later
+                getEnumTypeLoader: () => this.enumTypeLoader,
+                getStructTypeLoader: () => this.structTypeLoader,
+                getIdkTypeLoader: () => this.idkTypeLoader,
+                doorManager: this.doorManager,
+                emitLocChange: (oldId, newId, tile, level, opts) =>
+                    this.emitLocChange(oldId, newId, tile, level, opts),
+                sendLocChangeToPlayer: (player, oldId, newId, tile, level) =>
+                    this.sendLocChangeToPlayer(player, oldId, newId, tile, level),
+                spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
+                    this.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
+                getObjType: (id) => this.getObjType(id),
+                getLocDefinition: (id) => {
+                    try {
+                        return locTypeLoader?.load?.(id);
+                    } catch {
+                        return undefined;
+                    }
+                },
+                consumeItem: (player, slotIndex) => this.consumeItem(player, slotIndex),
+                getInventoryItems: (player) =>
+                    this.getInventory(player).map((entry, idx) => ({
+                        slot: idx,
+                        itemId: entry ? entry.itemId : -1,
+                        quantity: entry ? entry.quantity : 0,
+                    })),
+                addSkillXp: (player, skillId, xp) => {
+                    try {
+                        this.awardSkillXp(player, skillId as SkillId, Number.isFinite(xp) ? xp : 0);
+                    } catch {}
+                },
+                playPlayerSeq: (player, seqId, delay = 0) => {
+                    try {
+                        player.queueOneShotSeq(seqId, delay);
+                    } catch {}
+                },
+                playPlayerSeqImmediate: (player, seqId) => {
+                    try {
+                        // OSRS parity: sequences are delivered via player update blocks.
+                        player.queueOneShotSeq(seqId, 0);
+                    } catch {}
+                },
+                getEquippedItem: (player, slot) => {
+                    try {
+                        const equip = this.ensureEquipArray(player);
+                        return equip[slot] ?? -1;
+                    } catch {
+                        return -1;
+                    }
+                },
+                unequipItem: (player, slot) => {
+                    try {
+                        const slotIndex = Math.max(0, Math.min(EQUIP_SLOT_COUNT - 1, slot));
+                        const equip = this.ensureEquipArray(player);
+                        const itemId = equip[slotIndex];
+                        if (!(itemId > 0)) return false;
+
+                        const result = this.inventoryActionHandler.executeInventoryUnequipAction(
+                            player,
+                            {
+                                slot: slotIndex,
+                                playSound: true,
+                            },
+                        );
+                        if (result.ok && result.effects) {
+                            this.effectDispatcher.dispatchActionEffects(result.effects);
+                        }
+                        return result.ok;
+                    } catch {
+                        return false;
+                    }
+                },
+                broadcastPlayerSpot: (player, spotId, height = 0, delay = 0, slotArg?: number) => {
+                    try {
+                        // OSRS parity: encode actor spot anim via the player update block.
+                        // Stage into the tick-frame so it is emitted alongside other state.
+                        const tick = this.options.ticker.currentTick();
+                        const slot =
+                            slotArg !== undefined && Number.isFinite(slotArg)
+                                ? slotArg & 0xff
+                                : undefined;
+                        this.enqueueSpotAnimation({
+                            tick,
+                            playerId: player.id,
+                            spotId: spotId,
+                            height: height,
+                            delay: delay,
+                            slot,
+                        });
+                    } catch {}
+                },
+                playLocGraphic: (opts) => this.playLocGraphic(opts),
+                playLocSound: (opts) => this.playLocSound(opts),
+                playAreaSound: (opts) => this.playAreaSound(opts),
+                playSong: (player, trackId, trackName) =>
+                    this.soundManager.playSongForPlayer(player, trackId, trackName),
+                skipMusicTrack: (player) => this.soundManager.skipTrackForPlayer(player),
+                getMusicTrackId: (trackName) => this.getMusicTrackIdByName(trackName),
+                getMusicTrackBySlot: (slot) =>
+                    this.musicCatalogService?.getBaseListTrackBySlot(slot),
+                sendGameMessage: sendGameMessageFn,
+                getCurrentTick: () => this.options.ticker.currentTick(),
+                getPathService: () => this.options.pathService,
+                snapshotInventory: snapshotInventoryFn,
+                snapshotInventoryImmediate: snapshotInventoryFn,
+                setInventorySlot: (player, slotIndex, itemId, qty) =>
+                    this.setInventorySlot(player, slotIndex, itemId, qty),
+                addItemToInventory: (player, itemId, qty) =>
+                    this.addItemToInventory(player, itemId, qty),
+                spawnNpc: (config) => this.npcManager?.spawnTransientNpc(config),
+                removeNpc: (npcId) => this.npcManager?.removeNpc(npcId) ?? false,
+                openDialog: (player, request) =>
+                    this.widgetDialogHandler.openDialog(player, request as any),
+                openDialogOptions: (player, options) =>
+                    this.widgetDialogHandler.openDialogOptions(player, options as any),
+                closeDialog: (player, dialogId) =>
+                    this.widgetDialogHandler.closeDialog(player, dialogId),
+                closeInterruptibleInterfaces: (player) => this.closeInterruptibleInterfaces(player),
+                queueForcedMovement: (player, params) => {
+                    const currentTick = this.options.ticker.currentTick();
+                    const deliveryTick = this.activeFrame ? this.activeFrame.tick : currentTick + 1;
+                    const requestedStartTick = params.startTick ?? deliveryTick;
+                    const requestedEndTick = params.endTick;
+                    const durationTicks = Math.max(0, requestedEndTick - requestedStartTick);
+                    // Dialog/widget callbacks can fire several ticks after the original interaction.
+                    // Exact-move timing must be rebased to the frame that will actually deliver it,
+                    // while preserving the requested duration.
+                    const normalizedStartTick = Math.max(deliveryTick, requestedStartTick);
+                    const normalizedEndTick = normalizedStartTick + durationTicks;
+                    const startTile = params.startTile;
+                    const endTile = params.endTile;
+                    const startX = (startTile.x << 7) + 64;
+                    const startY = (startTile.y << 7) + 64;
+                    const endX = (endTile.x << 7) + 64;
+                    const endY = (endTile.y << 7) + 64;
+                    this.enqueueForcedMovement({
+                        targetId: player.id,
+                        startDeltaX: startTile.x - player.tileX,
+                        startDeltaY: startTile.y - player.tileY,
+                        endDeltaX: endTile.x - player.tileX,
+                        endDeltaY: endTile.y - player.tileY,
+                        startCycle: normalizedStartTick,
+                        endCycle: normalizedEndTick,
+                        direction: params.direction ?? faceAngleRs(startX, startY, endX, endY),
+                    });
+                },
+                requestAction: (player, request, currentTick) =>
+                    (() => {
+                        try {
+                            const groups = Array.isArray(request?.groups) ? request.groups : [];
+                            // Starting a new woodcutting action should replace any in-progress chop loop.
+                            if (groups.includes("skill.woodcut")) {
+                                this.actionScheduler.clearActionsInGroup(
+                                    player.id,
+                                    "skill.woodcut",
+                                );
+                            }
+                        } catch {}
+                        return this.actionScheduler.requestAction(
+                            player.id,
+                            request,
+                            Number.isFinite(currentTick)
+                                ? (currentTick as number)
+                                : this.options.ticker.currentTick(),
+                        );
+                    })(),
+                findOwnedItemLocation: (player, itemId) =>
+                    this.findOwnedItemLocation(player, itemId),
+                getWoodcuttingTree: (locId) => this.getWoodcuttingTreeDefinition(locId),
+                getMiningRock: (locId) => this.getMiningRockDefinition(locId),
+                getFishingSpot: (npcTypeId) => this.getFishingSpotDefinition(npcTypeId),
+                applyPrayers: (player, prayers) => {
+                    // Capture previous prayers before applying changes
+                    const previousPrayers = new Set(player.getActivePrayers());
+                    const result = this.prayerSystem.applySelection(player, prayers);
+                    if (result.errors.length) {
+                        for (const err of result.errors) {
+                            this.queueChatMessage({
+                                messageType: "game",
+                                text: err.message,
+                                targetPlayerIds: [player.id],
+                            });
+                        }
+                    }
+                    if (result.changed || result.errors.length) {
+                        this.queueCombatSnapshot(
+                            player.id,
+                            player.combatWeaponCategory,
+                            player.combatWeaponItemId,
+                            !!player.autoRetaliate,
+                            player.combatStyleSlot,
+                            result.activePrayers,
+                            player.combatSpellId > 0 ? player.combatSpellId : undefined,
+                        );
+                        // Queue appearance update to sync headIcons for overhead prayer display
+                        this.queueAppearanceSnapshot(player);
+                    }
+                    // Play prayer sounds for activation/deactivation
+                    if (result.changed) {
+                        const currentPrayers = new Set(result.activePrayers);
+                        // Find newly activated prayers and play their sounds
+                        for (const prayer of currentPrayers) {
+                            if (!previousPrayers.has(prayer)) {
+                                const soundId = PRAYER_ACTIVATE_SOUNDS.get(prayer);
+                                if (soundId != null) {
+                                    this.sendSound(player, soundId);
+                                }
+                            }
+                        }
+                        // If any prayers were deactivated, play deactivation sound once
+                        for (const prayer of previousPrayers) {
+                            if (!currentPrayers.has(prayer)) {
+                                this.sendSound(player, PRAYER_DEACTIVATE_SOUND);
+                                break; // Only play once even if multiple deactivated
+                            }
+                        }
+                    }
+                    return result;
+                },
+                setCombatSpell: (player, spellId) => {
+                    player.setCombatSpell(spellId ?? null);
+                    this.queueCombatSnapshot(
+                        player.id,
+                        player.combatWeaponCategory,
+                        player.combatWeaponItemId,
+                        !!player.autoRetaliate,
+                        player.combatStyleSlot,
+                        Array.from(player.activePrayers ?? []),
+                        player.combatSpellId > 0 ? player.combatSpellId : undefined,
+                    );
+                },
+                queueCombatState: (player) =>
+                    this.queueCombatSnapshot(
+                        player.id,
+                        player.combatWeaponCategory,
+                        player.combatWeaponItemId,
+                        !!player.autoRetaliate,
+                        player.combatStyleSlot,
+                        Array.from(player.activePrayers ?? []),
+                        player.combatSpellId > 0 ? player.combatSpellId : undefined,
+                    ),
+                openSubInterface: (player, targetUid, groupId, type = 0, opts) => {
+                    const t = type;
+                    const varps =
+                        opts?.varps && Object.keys(opts.varps).length > 0 ? opts.varps : undefined;
+                    const varbits =
+                        opts?.varbits && Object.keys(opts.varbits).length > 0
+                            ? opts.varbits
+                            : undefined;
+                    const preScripts =
+                        Array.isArray(opts?.preScripts) && opts.preScripts.length > 0
+                            ? opts.preScripts
+                            : undefined;
+                    const postScripts =
+                        Array.isArray(opts?.postScripts) && opts.postScripts.length > 0
+                            ? opts.postScripts
+                            : undefined;
+                    const explicitHiddenUids =
+                        Array.isArray((opts as any)?.hiddenUids) &&
+                        (opts as any).hiddenUids.length > 0
+                            ? ((opts as any).hiddenUids as number[]).map((uid) => uid)
+                            : undefined;
+                    const hiddenUids = explicitHiddenUids;
+
+                    // Track sub-interfaces via PlayerWidgetManager so they can be closed
+                    // on IF_CLOSE / walk / damage / etc.
+                    // Type 0 (modal) and type 1 (overlay on floater) are both closeable.
+                    // IMPORTANT: avoid double-sending packets (PlayerWidgetManager.open will dispatch open_sub).
+                    if (t === 0 || t === 1) {
+                        player.widgets.open(groupId, {
+                            targetUid: targetUid,
+                            type: t,
+                            modal: opts?.modal !== false,
+                            varps,
+                            varbits,
+                            hiddenUids,
+                            preScripts,
+                            postScripts,
+                        });
+                        return;
+                    }
+
+                    // Other types (e.g. 3 = tab replacement) are sent directly.
+                    const action: any = {
+                        action: "open_sub",
+                        targetUid: targetUid,
+                        groupId: groupId,
+                        type: t,
+                    };
+                    if (varps) action.varps = varps;
+                    if (varbits) action.varbits = varbits;
+                    if (hiddenUids) action.hiddenUids = hiddenUids;
+                    if (preScripts) action.preScripts = preScripts;
+                    if (postScripts) action.postScripts = postScripts;
+                    this.queueWidgetEvent(player.id, action);
+                },
+                closeSubInterface: (player, targetUid, groupId) => {
+                    const closedEntries =
+                        groupId !== undefined
+                            ? player.widgets.close(groupId)
+                            : player.widgets.closeByTargetUid(targetUid);
+                    if (closedEntries.length === 0) {
+                        this.queueWidgetEvent(player.id, {
+                            action: "close_sub",
+                            targetUid: targetUid,
+                        });
+                    }
+                    if (this.interfaceService && closedEntries.length > 0) {
+                        this.interfaceService.triggerCloseHooksForEntries(player, closedEntries);
+                    }
+                },
+                closeModal: (player) => {
+                    // Close via InterfaceService to properly trigger hooks and update tracking
+                    this.interfaceService?.closeModal(player);
+                },
+                teleportPlayer: (player, x, y, level, forceRebuild = false) =>
+                    this.teleportPlayer(player, x, y, level, forceRebuild),
+                teleportToInstance: (player, x, y, level, templateChunks, extraLocs) =>
+                    this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
+                requestTeleportAction: (player, request) =>
+                    this.requestTeleportAction(player, request),
+                sendVarp: (player, varpId, value) => {
+                    // Queue during tick execution to avoid "direct-send" errors.
+                    this.queueVarp(player.id, varpId, value);
+                },
+                sendVarbit: (player, varbitId, value) => {
+                    // Queue during tick execution to avoid "direct-send" errors.
+                    this.queueVarbit(player.id, varbitId, value);
+                },
+                sendCollectionLogSnapshot: (player) => {
+                    this.sendCollectionLogSnapshot(player);
+                },
+                openCollectionLog: (player) => {
+                    this.doOpenCollectionLog(player);
+                },
+                openCollectionOverview: (player) => {
+                    this.doOpenCollectionOverview(player);
+                },
+                populateCollectionLogCategories: (player, tabIndex) => {
+                    this.doPopulateCollectionLogCategories(player, tabIndex);
+                },
+                queueVarp: (playerId, varpId, value) => {
+                    this.queueVarp(playerId, varpId, value);
+                },
+                queueVarbit: (playerId, varbitId, value) => {
+                    this.queueVarbit(playerId, varbitId, value);
+                },
+                queueWidgetEvent: (playerId, event) => {
+                    this.queueWidgetEvent(playerId, event);
+                },
+                queueNotification: (playerId, payload) => {
+                    this.queueNotification(playerId, payload);
+                },
+                queueClientScript: (playerId, scriptId, ...args) => {
+                    this.queueClientScript(playerId, scriptId, ...args);
+                },
+                getInterfaceService: () => this.interfaceService,
+                sendSound: (player, soundId, opts) => {
+                    this.sendSound(player, soundId, opts);
+                },
+                refreshAppearanceKits: (player) => {
+                    this.refreshAppearanceKits(player);
+                },
+                queueAppearanceSnapshot: (player) => {
+                    this.queueAppearanceSnapshot(player);
+                },
+                savePlayerSnapshot: (player) => {
+                    try {
+                        const key = player.__saveKey;
+                        if (key && key.length > 0) {
+                            this.playerPersistence.saveSnapshot(key, player);
+                        }
+                    } catch {}
+                },
+                logoutPlayer: (player, reason) => {
+                    try {
+                        const sock = this.players?.getSocketByPlayerId?.(player.id);
+                        if (sock) this.completeLogout(sock, player, reason);
+                    } catch {}
+                },
+                openRemainingTabs: (player) => {
+                    // Open the remaining tab interfaces when the gamemode tutorial completes
+                    // During tutorial, only Quest tab was shown. Now open all other tabs.
+                    const { getRemainingTabInterfaces } = require("../widgets/WidgetManager");
+                    const displayMode = player.displayMode ?? 1; // Default to RESIZABLE_NORMAL
+                    const remainingInterfaces = getRemainingTabInterfaces(displayMode);
+
+                    for (const intf of remainingInterfaces) {
+                        player.widgets?.open(intf.groupId, {
+                            targetUid: intf.targetUid,
+                            type: intf.type,
+                            modal: false,
+                            postScripts: intf.postScripts,
+                        });
+                    }
+                },
+                // --- Action handler services ---
+                getNpc: (id) => this.npcManager?.getById(id) ?? undefined,
+                getSkill: (player, skillId) => {
+                    const skill = player.getSkill(skillId);
+                    return { baseLevel: skill.baseLevel, boost: skill.boost, xp: skill.xp };
+                },
+                isPlayerStunned: (player) => player.timers.has(STUN_TIMER),
+                isPlayerInCombat: (player) => player.isBeingAttacked(),
+                hasInventorySlot: (player) => this.hasInventorySlot(player),
+                applyPlayerHitsplat: (player, style, damage, tick) =>
+                    combatEffectApplicator.applyPlayerHitsplat(player, style, damage, tick),
+                stunPlayer: (player, ticks) => {
+                    player.timers.set(STUN_TIMER, ticks);
+                },
+                queueNpcForcedChat: (npc, text) => {
+                    npc.pendingSay = text;
+                },
+                queueNpcSeq: (npc, seqId) => {
+                    npc.queueOneShotSeq(seqId);
+                },
+                faceNpcToPlayer: (npc, player) => {
+                    npc.faceTile(player.tileX, player.tileY);
+                },
+                clearPlayerFaceTarget: (player) => {
+                    try { player.clearInteraction(); } catch {}
+                },
+                scheduleAction: (playerId, request, tick) =>
+                    this.actionScheduler.requestAction(playerId, request, tick),
+                getEquipArray: (player) => this.ensureEquipArray(player),
+                // --- Gathering / production skill services ---
+                isAdjacentToLoc: (player, locId, tile, level) =>
+                    this.isAdjacentToLoc(player, locId, tile, level),
+                isAdjacentToNpc: (player, npc) => this.isAdjacentToNpc(player, npc),
+                faceGatheringTarget: (player, tile) => this.faceGatheringTarget(player, tile),
+                collectCarriedItemIds: (player) => this.collectCarriedItemIds(player),
+                findInventorySlotWithItem: (player, itemId) =>
+                    this.findInventorySlotWithItem(player, itemId),
+                canStoreItem: (player, itemId) => this.canStoreItem(player, itemId),
+                playerHasItem: (player, itemId) => this.playerHasItem(player, itemId),
+                enqueueSoundBroadcast: (soundId, x, y, level) =>
+                    this.enqueueSoundBroadcast(soundId, x, y, level),
+                stopPlayerAnimation: (player) => {
+                    try { player.stopAnimation(); } catch {}
+                },
+                stopGatheringInteraction: (player) => {
+                    try { player.clearInteraction(); } catch {}
+                    try { player.stopAnimation(); } catch {}
+                    try { player.clearPath(); } catch {}
+                    try { player.clearWalkDestination(); } catch {}
+                },
+                gathering: this.gatheringSystem,
+                isFiremakingTileBlocked: (tile, level) => this.isFiremakingTileBlocked(tile, level),
+                lightFire: (params) =>
+                    this.firemakingTracker.light({ ...params, burnTicks: params.burnTicks }),
+                playerHasTinderbox: (player) => this.playerHasTinderbox(player),
+                consumeFiremakingLog: (player, logId, slotIndex) =>
+                    this.consumeFiremakingLog(player, logId, slotIndex),
+                walkPlayerAwayFromFire: (player, fireTile) => {
+                    const westTile = { x: fireTile.x - 1, y: fireTile.y };
+                    const canStep = this.options.pathService?.canNpcStep(
+                        { x: player.tileX, y: player.tileY, plane: player.level },
+                        westTile,
+                    ) ?? true;
+                    if (canStep && (westTile.x !== player.tileX || westTile.y !== player.tileY)) {
+                        player.setPath([westTile], false);
+                    }
+                },
+                getCookingRecipeByRawItemId: (itemId) => {
+                    const recipe = getCookingRecipeByRawItemId(itemId);
+                    if (!recipe) return undefined;
+                    return { cookedItemId: recipe.cookedItemId, xp: recipe.xp };
+                },
+                production: {
+                    openSmeltingInterface: (player) => this.smithingSystem.openSmeltingInterface(player),
+                    openSmithingInterface: (player) => this.smithingSystem.openSmithingInterface(player),
+                    smeltBars: (player, params) =>
+                        this.smithingSystem.handleSmeltingSelection(
+                            player,
+                            params.recipeId,
+                            params.count > 0 ? params.count : undefined,
+                        ),
+                    smithItems: (player, params) =>
+                        this.smithingSystem.handleSmithingSelection(
+                            player,
+                            params.recipeId,
+                            params.count > 0 ? params.count : undefined,
+                        ),
+                    takeInventoryItems: (player, inputs) =>
+                        this.takeInventoryItems(player, inputs),
+                    restoreInventoryRemovals: (player, removed) =>
+                        this.restoreInventoryRemovals(player, removed),
+                    restoreInventoryItems: (player, itemId, removed) =>
+                        this.restoreInventoryItems(player, itemId, removed),
+                    updateSmithingInterface: (player) =>
+                        this.smithingSystem.updateSmithingInterface(player),
+                    updateSmeltingInterface: (player) =>
+                        this.smithingSystem.updateSmeltingInterface(player),
+                    getRingOfForgingCharges: (player) =>
+                        player.getRingOfForgingCharges(),
+                    consumeRingOfForgingCharge: (player) =>
+                        this.consumeRingOfForgingCharge(player, []),
+                },
+                followers: {
+                    summonFollowerFromItem: (player, itemId, npcTypeId) => {
+                        const result = this.followerManager?.summonFollowerFromItem(
+                            player,
+                            itemId,
+                            npcTypeId,
+                        ) ?? {
+                            ok: false as const,
+                            reason: "spawn_failed",
+                        };
+                        if (result.ok) {
+                            this.followerCombatManager?.resetPlayer(player.id);
+                        }
+                        return result;
+                    },
+                    pickupFollower: (player, npcId) => {
+                        const result = this.followerManager?.pickupFollower(player, npcId) ?? {
+                            ok: false as const,
+                            reason: "missing",
+                        };
+                        if (result.ok) {
+                            this.followerCombatManager?.resetPlayer(player.id);
+                        }
+                        return result;
+                    },
+                    metamorphFollower: (player, npcId) => {
+                        const result = this.followerManager?.metamorphFollower(player, npcId) ?? {
+                            ok: false as const,
+                            reason: "missing",
+                        };
+                        if (result.ok) {
+                            this.followerCombatManager?.resetPlayer(player.id);
+                        }
+                        return result;
+                    },
+                    callFollower: (player) => {
+                        const result = this.followerManager?.callFollower(player) ?? {
+                            ok: false as const,
+                            reason: "missing",
+                        };
+                        if (result.ok) {
+                            this.followerCombatManager?.resetPlayer(player.id);
+                            const npc = this.npcManager?.getById(result.npcId);
+                            if (npc) {
+                                this.queueExternalNpcTeleportSync(npc);
+                            }
+                        }
+                        return result;
+                    },
+                    despawnFollowerForPlayer: (playerId, clearPersistentState) => {
+                        this.followerCombatManager?.resetPlayer(playerId);
+                        return (
+                            this.followerManager?.despawnFollowerForPlayer(
+                                playerId,
+                                clearPersistentState,
+                            ) ?? false
+                        );
+                    },
+                },
+                sailing: {
+                    initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
+                    disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
+                    teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
+                        this.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
+                    sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode) =>
+                        this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode),
+                    removeWorldEntity: (playerId, entityIndex) => this.worldEntityInfoEncoder.removeEntity(playerId, entityIndex),
+                    queueWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.queuePosition(playerId, entityIndex, position),
+                    setWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.setPosition(playerId, entityIndex, position),
+                    queueWorldEntityMask: (playerId, entityIndex, mask) => this.worldEntityInfoEncoder.queueMaskUpdate(playerId, entityIndex, mask),
+                    buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
+                },
+            },
+        };
+    }
     /**
      * Create the TickPhaseOrchestrator with all required services.
      */
@@ -8464,13 +7952,13 @@ export class WSServer {
             if (!ctx.player) return;
             const recipeId = ctx.payload.recipeId ?? "";
             const mode = ctx.payload.mode === "forge" ? "forge" : "smelt";
-            if (mode === "forge") this.handleSmithingSelection(ctx.player, recipeId);
-            else this.handleSmeltingSelection(ctx.player, recipeId);
+            if (mode === "forge") this.smithingSystem.handleSmithingSelection(ctx.player, recipeId);
+            else this.smithingSystem.handleSmeltingSelection(ctx.player, recipeId);
         });
 
         router.register("smithing_mode", (ctx) => {
             if (!ctx.player) return;
-            this.handleSmithingModeChange(
+            this.smithingSystem.handleModeChange(
                 ctx.player,
                 ctx.payload.mode ?? ctx.player.getSmithingQuantityMode(),
                 ctx.payload.custom,
@@ -9822,573 +9310,6 @@ export class WSServer {
         return ids;
     }
 
-    private computeSmithingBatchCountFromInventory(
-        inventory: InventoryEntry[],
-        recipe: NonNullable<ReturnType<typeof getSmithingRecipeById>>,
-    ): number {
-        const required = Math.max(1, recipe.barCount);
-        if (required <= 0) return 0;
-        let total = 0;
-        for (const entry of inventory) {
-            if (!entry || entry.itemId <= 0 || entry.quantity <= 0) continue;
-            if (entry.itemId === recipe.barItemId) {
-                total += entry.quantity;
-            }
-        }
-        if (total <= 0) return 0;
-        return Math.max(0, Math.floor(total / required));
-    }
-
-    private takeInventoryItems(
-        player: PlayerState,
-        requirements: SmeltingRecipe["inputs"],
-    ): { ok: boolean; removed: Map<number, { itemId: number; quantity: number }> } {
-        const removed = new Map<number, { itemId: number; quantity: number }>();
-        for (const req of requirements) {
-            const needed = Math.max(1, req.quantity);
-            for (let i = 0; i < needed; i++) {
-                const slot = this.findInventorySlotWithItem(player, req.itemId);
-                if (slot === undefined || !this.consumeItem(player, slot)) {
-                    this.restoreInventoryRemovals(player, removed);
-                    return { ok: false, removed: new Map() };
-                }
-                const existing = removed.get(slot);
-                if (existing) existing.quantity += 1;
-                else removed.set(slot, { itemId: req.itemId, quantity: 1 });
-            }
-        }
-        return { ok: true, removed };
-    }
-
-    private restoreInventoryRemovals(
-        player: PlayerState,
-        removed: Map<number, { itemId: number; quantity: number }>,
-    ): void {
-        if (!removed.size) return;
-        const inv = this.getInventory(player);
-        for (const [slot, info] of removed.entries()) {
-            if (!(slot >= 0 && slot < inv.length)) {
-                this.addItemToInventory(player, info.itemId, info.quantity);
-                continue;
-            }
-            const entry = inv[slot];
-            if (!entry || entry.itemId <= 0 || entry.quantity <= 0) {
-                this.setInventorySlot(player, slot, info.itemId, info.quantity);
-            } else if (entry.itemId === info.itemId) {
-                this.setInventorySlot(player, slot, info.itemId, entry.quantity + info.quantity);
-            } else {
-                this.addItemToInventory(player, info.itemId, info.quantity);
-            }
-        }
-    }
-
-    private firstRemovedSlot(
-        removed: Map<number, { itemId: number; quantity: number }>,
-    ): number | undefined {
-        for (const slot of removed.keys()) {
-            return slot;
-        }
-        return undefined;
-    }
-
-    private hasInventorySlot(player: PlayerState): boolean {
-        const inv = this.getInventory(player);
-        return inv.some((entry) => entry.itemId <= 0 || entry.quantity <= 0);
-    }
-
-    private canStoreItem(player: PlayerState, itemId: number): boolean {
-        const def = getItemDefinition(itemId);
-        const stackable = !!def?.stackable;
-        if (!stackable) {
-            return this.hasInventorySlot(player);
-        }
-        const slot = this.findInventorySlotWithItem(player, itemId);
-        if (slot !== undefined) {
-            return true;
-        }
-        return this.hasInventorySlot(player);
-    }
-
-    private isAdjacentToTile(player: PlayerState, tile: Vec2, radius = 1): boolean {
-        const dx = Math.abs(player.tileX - tile.x);
-        const dy = Math.abs(player.tileY - tile.y);
-        return dx <= radius && dy <= radius;
-    }
-
-    private isAdjacentToLoc(
-        player: PlayerState,
-        locId: number,
-        tile: Vec2,
-        level: number,
-    ): boolean {
-        if (!(locId > 0)) {
-            return this.isAdjacentToTile(player, tile);
-        }
-        const rect = this.getLocAdjacencyRect(locId, tile, level);
-        if (!rect) {
-            return this.isAdjacentToTile(player, tile);
-        }
-        const minX = rect.tile.x;
-        const minY = rect.tile.y;
-        const maxX = minX + Math.max(1, rect.sizeX) - 1;
-        const maxY = minY + Math.max(1, rect.sizeY) - 1;
-        const px = player.tileX;
-        const py = player.tileY;
-        const clampedX = Math.max(minX, Math.min(px, maxX));
-        const clampedY = Math.max(minY, Math.min(py, maxY));
-        return Math.abs(px - clampedX) <= 1 && Math.abs(py - clampedY) <= 1;
-    }
-
-    private getLocAdjacencyRect(
-        locId: number,
-        tile: Vec2,
-        level: number,
-    ): { tile: { x: number; y: number }; sizeX: number; sizeY: number } | undefined {
-        const size = this.getLocSize(locId);
-        if (!size) return undefined;
-        const rect = this.deriveLocCollisionRectForTile(tile, size.sizeX, size.sizeY, level);
-        if (rect) return rect;
-        return {
-            tile: { x: tile.x, y: tile.y },
-            sizeX: Math.max(1, size.sizeX),
-            sizeY: Math.max(1, size.sizeY),
-        };
-    }
-
-    private getLocSize(locId: number): { sizeX: number; sizeY: number } | undefined {
-        const loader = this.locTypeLoader;
-        if (!loader?.load) return undefined;
-        try {
-            const loc = loader.load(locId);
-            if (!loc) return undefined;
-            const sizeX = Math.max(1, loc.sizeX);
-            const sizeY = Math.max(1, loc.sizeY);
-            return { sizeX, sizeY };
-        } catch {
-            return undefined;
-        }
-    }
-
-    private deriveLocCollisionRectForTile(
-        tile: Vec2,
-        sizeX: number,
-        sizeY: number,
-        level: number,
-    ): { tile: { x: number; y: number }; sizeX: number; sizeY: number } | undefined {
-        const pathService = this.options.pathService;
-        if (!pathService?.getCollisionFlagAt) {
-            return undefined;
-        }
-        const mask = CollisionFlag.OBJECT | CollisionFlag.OBJECT_ROUTE_BLOCKER;
-        let minX = Number.POSITIVE_INFINITY;
-        let minY = Number.POSITIVE_INFINITY;
-        let maxX = Number.NEGATIVE_INFINITY;
-        let maxY = Number.NEGATIVE_INFINITY;
-        let found = false;
-        for (let dx = 0; dx < Math.max(1, sizeX); dx++) {
-            for (let dy = 0; dy < Math.max(1, sizeY); dy++) {
-                const wx = tile.x + dx;
-                const wy = tile.y + dy;
-                const flag = pathService.getCollisionFlagAt(wx, wy, level);
-                if (flag === undefined) continue;
-                if ((flag & mask) === 0) continue;
-                found = true;
-                if (wx < minX) minX = wx;
-                if (wy < minY) minY = wy;
-                if (wx > maxX) maxX = wx;
-                if (wy > maxY) maxY = wy;
-            }
-        }
-        if (!found) {
-            return undefined;
-        }
-        return {
-            tile: { x: minX, y: minY },
-            sizeX: Math.max(1, maxX - minX + 1),
-            sizeY: Math.max(1, maxY - minY + 1),
-        };
-    }
-
-    private faceGatheringTarget(player: PlayerState, tile: Vec2): void {
-        const targetX = tile.x * TILE_UNIT + TILE_UNIT / 2;
-        const targetY = tile.y * TILE_UNIT + TILE_UNIT / 2;
-        try {
-            player.setForcedOrientation(faceAngleRs(player.x, player.y, targetX, targetY));
-        } catch {}
-    }
-
-    private isFiremakingTileBlocked(tile: Vec2, level: number): boolean {
-        const pathService = this.options.pathService;
-        if (!pathService) return false;
-        const flag = pathService.getCollisionFlagAt(tile.x, tile.y, level);
-        if (flag === undefined || flag < 0) return false;
-        const blockingMask =
-            CollisionFlag.OBJECT | CollisionFlag.FLOOR_BLOCKED | CollisionFlag.OBJECT_ROUTE_BLOCKER;
-        return (flag & blockingMask) !== 0;
-    }
-
-    private rollWoodcuttingSuccess(
-        level: number,
-        treeLevel: number,
-        hatchet: HatchetDefinition,
-    ): boolean {
-        const effective = level + hatchet.accuracy;
-        const difficulty = Math.max(1, treeLevel + 20);
-        const ratio = effective / (difficulty * 1.5);
-        const chance = Math.min(0.95, Math.max(0.2, ratio));
-        return Math.random() < chance;
-    }
-
-    private rollMiningSuccess(
-        level: number,
-        rockLevel: number,
-        pickaxe: PickaxeDefinition,
-    ): boolean {
-        const effective = level + pickaxe.accuracy;
-        const difficulty = Math.max(1, rockLevel + 15);
-        const ratio = effective / (difficulty * 1.3);
-        const chance = Math.min(0.95, Math.max(0.15, ratio));
-        return Math.random() < chance;
-    }
-
-    private rollFishingSuccess(
-        level: number,
-        fishLevel: number,
-        tool: FishingToolDefinition,
-    ): boolean {
-        const effective = Math.max(1, level) + tool.accuracy;
-        const difficulty = Math.max(1, fishLevel + 5);
-        const ratio = effective / (difficulty * 1.15);
-        const chance = Math.min(0.95, Math.max(0.25, ratio));
-        return Math.random() < chance;
-    }
-
-    private rollFiremakingSuccess(level: number, logLevel: number): boolean {
-        const effective = Math.max(1, level);
-        const difficulty = Math.max(1, logLevel) + 20;
-        const ratio = effective / difficulty;
-        const chance = Math.min(0.95, Math.max(0.25, ratio));
-        return Math.random() < chance;
-    }
-
-    private shouldDepleteTree(tree: WoodcuttingTreeDefinition): boolean {
-        if (tree.depleteRoll <= 1) return true;
-        return Math.floor(Math.random() * tree.depleteRoll) === 0;
-    }
-
-    private describeLog(itemId: number): string {
-        const def = getItemDefinition(itemId);
-        if (def?.name) {
-            return def.name.toLowerCase();
-        }
-        return "logs";
-    }
-
-    private describeFish(itemId: number): string {
-        const def = getItemDefinition(itemId);
-        if (def?.name) {
-            return def.name.toLowerCase();
-        }
-        return "a fish";
-    }
-
-    private describeBar(itemId: number): string {
-        const def = getItemDefinition(itemId);
-        if (def?.name) {
-            return def.name;
-        }
-        return "bar";
-    }
-
-    private initializeSmithingBarEnumCache(): void {
-        if (this.smithingBarEnumInitialized) return;
-        this.smithingBarEnumInitialized = true;
-        this.smithingBarTypeToItemId.clear();
-        this.smithingBarItemIdToType.clear();
-
-        try {
-            const enumType = this.enumTypeLoader?.load(SMITHING_BAR_ENUM_ID);
-            const keys = enumType?.keys ?? [];
-            const values = enumType?.intValues ?? [];
-            const count = Math.min(keys.length, values.length);
-            for (let i = 0; i < count; i++) {
-                const barType = keys[i];
-                const itemId = values[i];
-                if (!(barType > 0) || !(itemId > 0)) continue;
-                this.smithingBarTypeToItemId.set(barType, itemId);
-                this.smithingBarItemIdToType.set(itemId, barType);
-            }
-        } catch {}
-
-        if (this.smithingBarTypeToItemId.size === 0) {
-            for (const [barType, itemId] of SMITHING_BAR_TYPE_FALLBACK) {
-                this.smithingBarTypeToItemId.set(barType, itemId);
-                this.smithingBarItemIdToType.set(itemId, barType);
-            }
-        }
-    }
-
-    private findSmithingBarTypeForOpen(player: PlayerState): number | undefined {
-        this.initializeSmithingBarEnumCache();
-        const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
-        const unlockedTypes: number[] = [];
-        const inventoryTypes: number[] = [];
-
-        for (const [barType, itemId] of this.smithingBarTypeToItemId.entries()) {
-            if (!(itemId > 0)) continue;
-            const normalizedBarType = barType;
-            const requiredLevel = SMITHING_BAR_MIN_LEVEL_BY_TYPE[normalizedBarType] ?? 1;
-            if (smithLevel < requiredLevel) continue;
-            unlockedTypes.push(normalizedBarType);
-            if (this.countInventoryItem(player, itemId) > 0) {
-                inventoryTypes.push(normalizedBarType);
-            }
-        }
-
-        if (unlockedTypes.length === 0) return undefined;
-        unlockedTypes.sort((a, b) => a - b);
-        inventoryTypes.sort((a, b) => a - b);
-
-        const lastBarType = player.getVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID);
-        if (unlockedTypes.includes(lastBarType)) {
-            return lastBarType;
-        }
-        if (inventoryTypes.length > 0) {
-            return inventoryTypes[0];
-        }
-        return unlockedTypes[0];
-    }
-
-    private resolveSmithingOpenVarbits(
-        player: PlayerState,
-    ): { ok: true; varbits: Record<number, number> } | { ok: false } {
-        const barType = this.findSmithingBarTypeForOpen(player);
-        if (barType === undefined || !(barType > 0)) {
-            return { ok: false };
-        }
-
-        const barTypeId = barType;
-        player.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barTypeId);
-        return {
-            ok: true,
-            varbits: {
-                [SMITHING_BAR_TYPE_VARBIT_ID]: barTypeId,
-            },
-        };
-    }
-
-    private smithingInterfaceFailure(
-        player: PlayerState,
-        message: string,
-        reason: string,
-        mode: "smelt" | "forge" = "smelt",
-    ): ActionExecutionResult {
-        const result = this.buildSkillFailure(player, message, reason);
-        if (mode === "forge") this.updateSmithingInterface(player);
-        else this.updateSmeltingInterface(player);
-        return result;
-    }
-
-    private resolveSmithingQuantity(mode: number, available: number, custom: number): number {
-        const total = Math.max(0, available);
-        switch (mode) {
-            case 1:
-                return Math.min(5, Math.max(1, total));
-            case 2:
-                return Math.min(10, Math.max(1, total));
-            case 3: {
-                const desired = custom > 0 ? custom : total;
-                return Math.min(total, Math.max(1, desired));
-            }
-            case 4:
-                return total;
-            default:
-                return total > 0 ? 1 : 0;
-        }
-    }
-
-    private handleSmithingModeChange(
-        player: PlayerState,
-        modeRaw: number,
-        customRaw?: number,
-    ): void {
-        const mode = Math.max(0, Math.min(4, modeRaw));
-        player.setSmithingQuantityMode(mode);
-        if (mode === 3 && customRaw !== undefined && customRaw > 0) {
-            player.setSmithingCustomQuantity(customRaw);
-        } else if (mode !== 3 && customRaw !== undefined) {
-            player.setSmithingCustomQuantity(customRaw);
-        }
-        this.queueSmithingInterfaceMessage(player.id, {
-            kind: "mode",
-            quantityMode: player.getSmithingQuantityMode(),
-            customQuantity: player.getSmithingCustomQuantity(),
-        });
-    }
-
-    private handleSmeltingSelection(
-        player: PlayerState,
-        recipeId: string,
-        requestedCount?: number,
-    ): void {
-        const recipe = getSmeltingRecipeById(recipeId);
-        if (!recipe) {
-            this.queueChatMessage({
-                messageType: "game",
-                text: "You can't smelt that.",
-                targetPlayerIds: [player.id],
-            });
-            return;
-        }
-        const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
-        if (smithLevel < recipe.level) {
-            this.queueChatMessage({
-                messageType: "game",
-                text: `You need Smithing level ${recipe.level} to smelt that.`,
-                targetPlayerIds: [player.id],
-            });
-            return;
-        }
-        const inventory = this.getInventory(player);
-        const available = computeSmeltingBatchCount(inventory, recipe);
-        if (available <= 0) {
-            this.queueChatMessage({
-                messageType: "game",
-                text: "You need the proper ores to smelt that bar.",
-                targetPlayerIds: [player.id],
-            });
-            this.updateSmeltingInterface(player);
-            return;
-        }
-        const currentMode = player.getSmithingQuantityMode();
-        const customAmount = player.getSmithingCustomQuantity();
-        const desiredRaw =
-            requestedCount && requestedCount > 0
-                ? requestedCount
-                : this.resolveSmithingQuantity(currentMode, available, customAmount);
-        const desired = Math.max(1, Math.min(available, desiredRaw));
-        const delay = recipe.delayTicks !== undefined ? Math.max(1, recipe.delayTicks) : 4;
-        const tickNow = this.options.ticker.currentTick();
-        const result = this.actionScheduler.requestAction(
-            player.id,
-            {
-                kind: "skill.smelt",
-                data: { recipeId: recipe.id, count: desired },
-                delayTicks: delay,
-                cooldownTicks: delay,
-                groups: ["skill.smelt"],
-            },
-            tickNow,
-        );
-        if (!result.ok) {
-            this.queueChatMessage({
-                messageType: "game",
-                text: "You're too busy to do that right now.",
-                targetPlayerIds: [player.id],
-            });
-        }
-    }
-
-    private handleSmithingSelection(
-        player: PlayerState,
-        recipeId: string,
-        requestedCount?: number,
-    ): void {
-        const recipe = getSmithingRecipeById(recipeId);
-        if (!recipe) {
-            this.queueChatMessage({
-                messageType: "game",
-                text: "You can't smith that.",
-                targetPlayerIds: [player.id],
-            });
-            return;
-        }
-        if (recipe.requireHammer !== false && !this.playerHasItem(player, HAMMER_ITEM_ID)) {
-            this.queueChatMessage({
-                messageType: "game",
-                text: "You need a hammer to smith.",
-                targetPlayerIds: [player.id],
-            });
-            return;
-        }
-        const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
-        if (smithLevel < recipe.level) {
-            this.queueChatMessage({
-                messageType: "game",
-                text: `You need Smithing level ${recipe.level} to smith that.`,
-                targetPlayerIds: [player.id],
-            });
-            return;
-        }
-        const available = Math.max(
-            0,
-            Math.min(
-                28,
-                this.computeSmithingBatchCountFromInventory(this.getInventory(player), recipe),
-            ),
-        );
-        if (available <= 0) {
-            this.queueChatMessage({
-                messageType: "game",
-                text: "You need more bars to smith that.",
-                targetPlayerIds: [player.id],
-            });
-            this.updateSmithingInterface(player);
-            return;
-        }
-        const currentMode = player.getSmithingQuantityMode();
-        const customAmount = player.getSmithingCustomQuantity();
-        const desiredRaw =
-            requestedCount && requestedCount > 0
-                ? requestedCount
-                : this.resolveSmithingQuantity(currentMode, available, customAmount);
-        const desired = Math.max(1, Math.min(available, desiredRaw));
-        const delay = recipe.delayTicks !== undefined ? Math.max(1, recipe.delayTicks) : 4;
-        const result = this.actionScheduler.requestAction(
-            player.id,
-            {
-                kind: "skill.smith",
-                data: { recipeId: recipe.id, count: desired },
-                delayTicks: delay,
-                cooldownTicks: delay,
-                groups: ["skill.smith"],
-            },
-            this.options.ticker.currentTick(),
-        );
-        if (!result.ok) {
-            this.queueChatMessage({
-                messageType: "game",
-                text: "You're too busy to do that right now.",
-                targetPlayerIds: [player.id],
-            });
-        }
-        this.updateSmithingInterface(player);
-    }
-
-    private rollSmeltingSuccess(
-        level: number,
-        recipe: SmeltingRecipe,
-        equip?: ReadonlyArray<number>,
-        ringCharges?: number,
-    ): boolean {
-        if (shouldGuaranteeIronSmelt(recipe, equip, ringCharges)) {
-            return true;
-        }
-        if (recipe.successType === "iron") {
-            const chance = calculateIronSmeltChance(level);
-            return Math.random() < chance;
-        }
-        return true;
-    }
-
-    private describeOre(itemId: number): string {
-        const def = getItemDefinition(itemId);
-        if (def?.name) {
-            return def.name.toLowerCase();
-        }
-        return "ore";
-    }
-
     private sendInventorySnapshot(ws: WebSocket, p: PlayerState): void {
         const inv = this.getInventory(p);
         const slots = inv.map((entry, idx) => ({
@@ -10396,7 +9317,7 @@ export class WSServer {
             itemId: entry.itemId,
             quantity: entry.quantity,
         }));
-        this.pendingInventorySnapshots.push({ playerId: p.id, slots });
+        this.broadcastScheduler.queueInventorySnapshot({ playerId: p.id, slots });
     }
 
     /**

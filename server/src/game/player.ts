@@ -31,7 +31,7 @@ import { DoorStateManager } from "../world/DoorStateManager";
 import { Actor, DEBUG_PLAYER_IDS, RUN_ENERGY_MAX, Tile } from "./actor";
 import type { AttackType } from "./combat/AttackType";
 import { restoreAutocastState } from "./combat/AutocastState";
-import { type ChargeTracker, createChargeTracker } from "./combat/DegradationSystem";
+import type { ChargeTracker } from "./combat/DegradationSystem";
 import {
     DEFAULT_DISEASE_INTERVAL_TICKS,
     DEFAULT_POISON_INTERVAL_TICKS,
@@ -74,6 +74,16 @@ import {
 import { NpcState } from "./npc";
 import type { ScriptRuntime } from "./scripts/ScriptRuntime";
 import { RING_OF_FORGING_ITEM_ID, RING_OF_FORGING_MAX_CHARGES } from "./skills/smithingBonuses";
+import { PlayerCombatState } from "./state/PlayerCombatState";
+import { PlayerInventoryState } from "./state/PlayerInventoryState";
+import { PlayerPrayerState } from "./state/PlayerPrayerState";
+import {
+    PlayerStatusState,
+    type PoisonEffectState,
+    type VenomEffectState,
+    type DiseaseEffectState,
+    type RegenerationEffectState,
+} from "./state/PlayerStatusState";
 import { normalizePlayerAccountName } from "./state/PlayerSessionKeys";
 
 export { Actor } from "./actor";
@@ -262,33 +272,6 @@ const DEFAULT_STAMINA_DRAIN_MULTIPLIER = 0.3;
 // Reference: docs/run-energy.md
 const MAX_STAMINA_DURATION_TICKS = 8000;
 
-type PoisonEffectState = {
-    potency: number;
-    nextTick: number;
-    interval: number;
-};
-
-type VenomEffectState = {
-    stage: number;
-    nextTick: number;
-    interval: number;
-    ramp: number;
-    cap: number;
-};
-
-type DiseaseEffectState = {
-    potency: number;
-    nextTick: number;
-    interval: number;
-};
-
-type RegenerationEffectState = {
-    heal: number;
-    remainingTicks: number;
-    nextTick: number;
-    interval: number;
-};
-
 const COMBAT_SKILL_IDS = new Set<SkillId>([
     SkillId.Attack,
     SkillId.Defence,
@@ -443,102 +426,77 @@ export class PlayerState extends Actor {
      * for same-tick player actions. Randomized per session.
      */
     private readonly pidPriority: number;
-    autoRetaliate: boolean = true;
-    combatWeaponCategory: number = 0;
-    combatWeaponItemId: number = -1;
-    /**
-     * Attack reach in tiles derived from equipped weapon (ObjType param 13 when present).
-     * OSRS parity: some melee weapons (e.g. halberds) have reach > 1.
-     */
-    combatWeaponRange: number = 0;
-    combatStyleSlot: number = 0;
-    combatStyleCategory?: number;
-    combatSpellId: number = -1;
-    autocastEnabled: boolean = false;
-    autocastMode: "autocast" | "defensive_autocast" | null = null;
-    pendingAutocastDefensive?: boolean; // Tracks if defensive autocast was selected when popup opened
-    pendingAutocastWeaponId?: number; // Weapon ID when autocast popup was opened (for slot→spell mapping)
-    lastSpellCastTick: number = Number.MIN_SAFE_INTEGER;
-    /** Pending player spell damage for scheduled combat actions */
-    pendingPlayerSpellDamage?: { targetId: number };
-    /** Slayer task state. */
-    slayerTask?: {
-        onTask?: boolean;
-        active?: boolean;
-        remaining?: number;
-        amount?: number;
-        monsterName?: string;
-        monsterSpecies?: string[];
-    };
-    /** Current attack speed in ticks (e.g., 4 for most melee weapons) */
-    attackDelay: number = 4;
-    /** Last known wilderness level for change detection. */
-    _lastWildernessLevel: number = 0;
-    /** Last known multi-combat state for change detection. */
-    _lastInMultiCombat: boolean = false;
-    /** Last known PvP area state for change detection. */
-    _lastInPvPArea: boolean = false;
-    /** Last known raid state for change detection. */
-    _lastInRaid: boolean = false;
-    /** Last known LMS state for change detection. */
-    _lastInLMS: boolean = false;
+    /** Composed combat state (weapon, style, targets, freeze, special energy, etc.) */
+    readonly combat = new PlayerCombatState();
+
+    // Delegation accessors for combat fields (preserves public API)
+    get autoRetaliate(): boolean { return this.combat.autoRetaliate; }
+    set autoRetaliate(v: boolean) { this.combat.autoRetaliate = v; }
+    get combatWeaponCategory(): number { return this.combat.weaponCategory; }
+    set combatWeaponCategory(v: number) { this.combat.weaponCategory = v; }
+    get combatWeaponItemId(): number { return this.combat.weaponItemId; }
+    set combatWeaponItemId(v: number) { this.combat.weaponItemId = v; }
+    get combatWeaponRange(): number { return this.combat.weaponRange; }
+    set combatWeaponRange(v: number) { this.combat.weaponRange = v; }
+    get combatStyleSlot(): number { return this.combat.styleSlot; }
+    set combatStyleSlot(v: number) { this.combat.styleSlot = v; }
+    get combatStyleCategory(): number | undefined { return this.combat.styleCategory; }
+    set combatStyleCategory(v: number | undefined) { this.combat.styleCategory = v; }
+    get combatSpellId(): number { return this.combat.spellId; }
+    set combatSpellId(v: number) { this.combat.spellId = v; }
+    get autocastEnabled(): boolean { return this.combat.autocastEnabled; }
+    set autocastEnabled(v: boolean) { this.combat.autocastEnabled = v; }
+    get autocastMode(): "autocast" | "defensive_autocast" | null { return this.combat.autocastMode; }
+    set autocastMode(v: "autocast" | "defensive_autocast" | null) { this.combat.autocastMode = v; }
+    get pendingAutocastDefensive(): boolean | undefined { return this.combat.pendingAutocastDefensive; }
+    set pendingAutocastDefensive(v: boolean | undefined) { this.combat.pendingAutocastDefensive = v; }
+    get pendingAutocastWeaponId(): number | undefined { return this.combat.pendingAutocastWeaponId; }
+    set pendingAutocastWeaponId(v: number | undefined) { this.combat.pendingAutocastWeaponId = v; }
+    get lastSpellCastTick(): number { return this.combat.lastSpellCastTick; }
+    set lastSpellCastTick(v: number) { this.combat.lastSpellCastTick = v; }
+    get pendingPlayerSpellDamage(): { targetId: number } | undefined { return this.combat.pendingPlayerSpellDamage; }
+    set pendingPlayerSpellDamage(v: { targetId: number } | undefined) { this.combat.pendingPlayerSpellDamage = v; }
+    get slayerTask() { return this.combat.slayerTask; }
+    set slayerTask(v: typeof this.combat.slayerTask) { this.combat.slayerTask = v; }
+    get attackDelay(): number { return this.combat.attackDelay; }
+    set attackDelay(v: number) { this.combat.attackDelay = v; }
+    get _lastWildernessLevel(): number { return this.combat.lastWildernessLevel; }
+    set _lastWildernessLevel(v: number) { this.combat.lastWildernessLevel = v; }
+    get _lastInMultiCombat(): boolean { return this.combat.lastInMultiCombat; }
+    set _lastInMultiCombat(v: boolean) { this.combat.lastInMultiCombat = v; }
+    get _lastInPvPArea(): boolean { return this.combat.lastInPvPArea; }
+    set _lastInPvPArea(v: boolean) { this.combat.lastInPvPArea = v; }
+    get _lastInRaid(): boolean { return this.combat.lastInRaid; }
+    set _lastInRaid(v: boolean) { this.combat.lastInRaid = v; }
+    get _lastInLMS(): boolean { return this.combat.lastInLMS; }
+    set _lastInLMS(v: boolean) { this.combat.lastInLMS = v; }
     /** Save key for persistence. */
     __saveKey?: string;
-    private bank: BankEntry[] = [];
-    private bankCapacity: number = DEFAULT_BANK_CAPACITY;
-    private bankWithdrawNoteMode: boolean = false;
-    private bankInsertMode: boolean = false;
-    private bankQuantityMode: number = 0;
-    private bankPlaceholderMode: boolean = false;
-    private bankCustomQuantity: number = 0;
+    /** Composed inventory/bank/shop state */
+    readonly items = new PlayerInventoryState();
     private accountCreationTimeMs: number = Date.now();
     private lifetimePlayTimeSecondsBase: number = 0;
     private sessionPlayTimeStartedAtMs: number = Date.now();
-    private activeShopId?: string;
-    private shopBuyMode: number = 0;
-    private shopSellMode: number = 0;
-    private smithingQuantityMode: number = 0;
-    private smithingCustomQuantity: number = 0;
-    private inventory: InventoryEntry[] = createEmptyInventory();
-    activePrayers: Set<PrayerName> = new Set();
-    private quickPrayers: Set<PrayerName> = new Set();
-    private quickPrayersEnabled = false;
-    private prayerDrainAccumulator: number = 0;
-    private hitpointsCurrent: number = 0;
-    private _wasAlive: boolean = true;
-    /** Called when player HP reaches 0 (death) */
-    onDeath?: () => void;
-    private nextHitpointRegenTick: number = 0;
-    private nextHitpointOverhealDecayTick: number = 0;
-    private poisonEffect?: PoisonEffectState;
-    private venomEffect?: VenomEffectState;
-    private diseaseEffect?: DiseaseEffectState;
-    private regenEffect?: RegenerationEffectState;
-    private combatStyleMemory: Map<number, number> = new Map();
-    private prayerHeadIcon: PrayerHeadIcon | null = null;
-    private combatAttackTypes?: AttackType[];
-    private combatMeleeBonusIndices?: Array<number | undefined>;
-    private freezeExpiryTick: number = 0;
-    /** OSRS: 5 tick immunity after freeze ends */
-    private freezeImmunityUntilTick: number = 0;
-    private specialEnergy: number = SPECIAL_ENERGY_MAX;
-    private nextSpecialRegenTick: number = 0;
-    private specialActivatedFlag: boolean = false;
-    private specialEnergyDirty: boolean = true;
+    /** Composed prayer state (active prayers, quick prayers, head icon, drain) */
+    readonly prayer = new PlayerPrayerState();
+    /** Composed status state (hitpoints, poison, venom, disease, regen) */
+    readonly status = new PlayerStatusState();
+
+    // Prayer delegation accessors
+    get activePrayers(): Set<PrayerName> { return this.prayer.activePrayers; }
+    set activePrayers(v: Set<PrayerName>) { this.prayer.activePrayers = v; }
+
+    // Status delegation accessors
+    get onDeath(): (() => void) | undefined { return this.status.onDeath; }
+    set onDeath(v: (() => void) | undefined) { this.status.onDeath = v; }
     private runEnergyDirty: boolean = true;
     private staminaEffectExpiryTick: number = 0;
     private staminaDrainMultiplier: number = 1;
     private ringOfForgingCharges: number = 0;
-    /**
-     * Degradation charge tracker for items like crystal bow.
-     * Tracks charges used within current degradation level per equipment slot.
-     */
-    degradationCharges: ChargeTracker = createChargeTracker();
-    /**
-     * Tracks the last degradable item ID per slot.
-     * Used to detect when weapon is swapped (reset charges for that slot).
-     */
-    degradationLastItemId: Map<number, number> = new Map();
+    get degradationCharges(): ChargeTracker { return this.combat.degradationCharges; }
+    set degradationCharges(v: ChargeTracker) { this.combat.degradationCharges = v; }
+    get degradationLastItemId(): Map<number, number> { return this.combat.degradationLastItemId; }
+    set degradationLastItemId(v: Map<number, number>) { this.combat.degradationLastItemId = v; }
     private walkDestination?: { x: number; y: number };
     private walkDestinationRun: boolean = false;
     private walkRepathAfterTick: number = Number.MIN_SAFE_INTEGER;
@@ -567,55 +525,21 @@ export class PlayerState extends Actor {
     // These mirror RSMod's COMBAT_TARGET_FOCUS_ATTR, INTERACTING_NPC_ATTR, etc.
     // ========================================================================
 
-    /**
-     * The Pawn (NPC or Player) that this player wants to attack.
-     * RSMod: COMBAT_TARGET_FOCUS_ATTR
-     * Cleared by resetInteractions() when player walks or changes target.
-     */
-    private _combatTargetFocus: WeakRef<NpcState | PlayerState> | null = null;
-
-    /**
-     * The NPC being interacted with (non-combat: Talk-to, Pickpocket, etc.)
-     * RSMod: INTERACTING_NPC_ATTR
-     */
-    private _interactingNpc: WeakRef<NpcState> | null = null;
-
-    /**
-     * The Player being interacted with (Trade, Follow, etc.)
-     * RSMod: INTERACTING_PLAYER_ATTR
-     */
-    private _interactingPlayer: WeakRef<PlayerState> | null = null;
-
-    /**
-     * Ticks remaining until player can attack again.
-     * RSMod: ATTACK_DELAY timer
-     * Set after each attack based on weapon speed.
-     */
-    attackDelayTicks: number = 0;
-
-    /**
-     * Last pawn this player was hit by (for retaliation).
-     * RSMod: LAST_HIT_BY_ATTR
-     */
-    private _lastHitBy: WeakRef<NpcState | PlayerState> | null = null;
-
-    /**
-     * Last pawn this player hit (for combat tracking).
-     * RSMod: LAST_HIT_ATTR
-     */
-    private _lastHit: WeakRef<NpcState | PlayerState> | null = null;
+    // Combat target/interaction WeakRefs delegated to combat state
+    get attackDelayTicks(): number { return this.combat.attackDelayTicks; }
+    set attackDelayTicks(v: number) { this.combat.attackDelayTicks = v; }
 
     // Combat target accessors
     getCombatTarget(): NpcState | PlayerState | null {
-        return this._combatTargetFocus?.deref() ?? null;
+        return this.combat.combatTargetFocus?.deref() as (NpcState | PlayerState | null) ?? null;
     }
 
     setCombatTarget(target: NpcState | PlayerState | null): void {
-        this._combatTargetFocus = target ? new WeakRef(target) : null;
+        this.combat.combatTargetFocus = target ? new WeakRef(target) : null;
     }
 
     isAttacking(): boolean {
-        return this._combatTargetFocus?.deref() != null;
+        return this.combat.combatTargetFocus?.deref() != null;
     }
 
     isBeingAttacked(): boolean {
@@ -631,63 +555,51 @@ export class PlayerState extends Actor {
 
     // Interaction accessors
     getInteractingNpc(): NpcState | null {
-        return this._interactingNpc?.deref() ?? null;
+        return this.combat.interactingNpc?.deref() ?? null;
     }
 
     setInteractingNpc(npc: NpcState | null): void {
-        this._interactingNpc = npc ? new WeakRef(npc) : null;
+        this.combat.interactingNpc = npc ? new WeakRef(npc) : null;
     }
 
     getInteractingPlayer(): PlayerState | null {
-        return this._interactingPlayer?.deref() ?? null;
+        return this.combat.interactingPlayer?.deref() as (PlayerState | null) ?? null;
     }
 
     setInteractingPlayer(player: PlayerState | null): void {
-        this._interactingPlayer = player ? new WeakRef(player) : null;
+        this.combat.interactingPlayer = player ? new WeakRef(player) : null;
     }
 
     // Last hit tracking
     getLastHitBy(): NpcState | PlayerState | null {
-        return this._lastHitBy?.deref() ?? null;
+        return this.combat.lastHitBy?.deref() as (NpcState | PlayerState | null) ?? null;
     }
 
     setLastHitBy(pawn: NpcState | PlayerState | null): void {
-        this._lastHitBy = pawn ? new WeakRef(pawn) : null;
+        this.combat.lastHitBy = pawn ? new WeakRef(pawn) : null;
     }
 
     getLastHit(): NpcState | PlayerState | null {
-        return this._lastHit?.deref() ?? null;
+        return this.combat.lastHit?.deref() as (NpcState | PlayerState | null) ?? null;
     }
 
     setLastHit(pawn: NpcState | PlayerState | null): void {
-        this._lastHit = pawn ? new WeakRef(pawn) : null;
+        this.combat.lastHit = pawn ? new WeakRef(pawn) : null;
     }
 
-    /**
-     * Resets all pawn interactions. Called when player walks or teleports.
-     * RSMod: Pawn.resetInteractions()
-     */
     resetInteractions(): void {
-        this._combatTargetFocus = null;
-        this._interactingNpc = null;
-        this._interactingPlayer = null;
-        this.clearInteractionTarget(); // Clears face target from Actor base class
+        this.combat.combatTargetFocus = null;
+        this.combat.interactingNpc = null;
+        this.combat.interactingPlayer = null;
+        this.clearInteractionTarget();
     }
 
-    /**
-     * Clears only combat target, keeping other interactions.
-     * RSMod: Combat.reset(pawn)
-     */
     resetCombat(): void {
-        this._combatTargetFocus = null;
+        this.combat.combatTargetFocus = null;
     }
 
-    /**
-     * Removes the combat target (synonym for resetCombat).
-     * RSMod: Pawn.removeCombatTarget()
-     */
     removeCombatTarget(): void {
-        this._combatTargetFocus = null;
+        this.combat.combatTargetFocus = null;
     }
 
     /**
@@ -862,13 +774,10 @@ export class PlayerState extends Actor {
     private collectionItemUnlocks: Map<number, CollectionLogUnlockEntry> = new Map();
     private collectionUnlockSequence: number = 0;
 
-    private inventoryDirty: boolean = false;
-    private bankDirty: boolean = false;
     /**
      * Last bank client-slot -> server-slot mapping sent in a bank snapshot.
      * Used to decode client drag/click slots deterministically.
      */
-    private bankClientSlotMapping: number[] = [];
     private equipmentDirty: boolean = false;
     private appearanceDirty: boolean = false;
     private combatStateDirty: boolean = false;
@@ -899,7 +808,7 @@ export class PlayerState extends Actor {
         this.skills = createInitialSkills();
         this.skillTotal = computeTotalLevel(this.skills);
         this.combatLevel = computeCombatLevel(this.skills);
-        this.hitpointsCurrent = this.getSkill(SkillId.Hitpoints).baseLevel;
+        this.status.hitpointsCurrent = this.getSkill(SkillId.Hitpoints).baseLevel;
         this.requestFullSkillSync();
         this.combatStyleCategory = 0;
         this.appearance = {
@@ -965,7 +874,7 @@ export class PlayerState extends Actor {
         if (prevId === nextId && prevQty === nextQty) return;
 
         inv[slot] = { itemId: nextId, quantity: nextQty };
-        this.inventoryDirty = true;
+        this.items.inventoryDirty = true;
     }
 
     setBankSlot(slot: number, itemId: number, quantity: number): void {
@@ -978,7 +887,7 @@ export class PlayerState extends Actor {
         if (bank[slot].itemId === nextId && bank[slot].quantity === nextQty) return;
 
         bank[slot] = { itemId: nextId, quantity: nextQty };
-        this.bankDirty = true;
+        this.items.bankDirty = true;
     }
 
     setEquipmentSlot(slot: number, itemId: number): void {
@@ -996,7 +905,7 @@ export class PlayerState extends Actor {
     }
 
     markInventoryDirty(): void {
-        this.inventoryDirty = true;
+        this.items.inventoryDirty = true;
     }
 
     markEquipmentDirty(): void {
@@ -1009,22 +918,22 @@ export class PlayerState extends Actor {
     }
 
     hasInventoryUpdate(): boolean {
-        return this.inventoryDirty;
+        return this.items.inventoryDirty;
     }
 
     takeInventorySnapshot(): InventorySnapshotEntry[] | undefined {
-        if (!this.inventoryDirty) return undefined;
-        this.inventoryDirty = false;
+        if (!this.items.inventoryDirty) return undefined;
+        this.items.inventoryDirty = false;
         return this.exportInventorySnapshot();
     }
 
     hasBankUpdate(): boolean {
-        return this.bankDirty;
+        return this.items.bankDirty;
     }
 
     takeBankSnapshot(): BankSnapshotEntry[] | undefined {
-        if (!this.bankDirty) return undefined;
-        this.bankDirty = false;
+        if (!this.items.bankDirty) return undefined;
+        this.items.bankDirty = false;
         return this.exportBankSnapshot();
     }
 
@@ -1175,7 +1084,7 @@ export class PlayerState extends Actor {
         let desiredSlot: number | undefined;
         const styleIsDefined = style !== null && style !== undefined;
         if (categoryChanged && normalizedCategory !== undefined) {
-            desiredSlot = this.combatStyleMemory.get(normalizedCategory);
+            desiredSlot = this.combat.styleMemory.get(normalizedCategory);
             if (desiredSlot === undefined && styleIsDefined) {
                 desiredSlot = style;
             }
@@ -1186,22 +1095,22 @@ export class PlayerState extends Actor {
         }
 
         let normalizedSlot = Math.max(0, Math.min(maxSlot, desiredSlot ?? 0));
-        if (this.combatAttackTypes && this.combatAttackTypes.length > 0) {
-            normalizedSlot = Math.min(this.combatAttackTypes.length - 1, normalizedSlot);
+        if (this.combat.attackTypes && this.combat.attackTypes.length > 0) {
+            normalizedSlot = Math.min(this.combat.attackTypes.length - 1, normalizedSlot);
             // OSRS parity: Validate the slot is actually defined (sparse arrays have gaps).
             // Weapons like bows have slots 0,1,3 but not 2 - if slot 2 was selected, find nearest valid.
-            if (this.combatAttackTypes[normalizedSlot] === undefined) {
+            if (this.combat.attackTypes[normalizedSlot] === undefined) {
                 // Find the nearest valid slot (prefer lower slots first, then check higher)
                 let foundSlot: number | undefined;
                 for (let s = normalizedSlot - 1; s >= 0; s--) {
-                    if (this.combatAttackTypes[s] !== undefined) {
+                    if (this.combat.attackTypes[s] !== undefined) {
                         foundSlot = s;
                         break;
                     }
                 }
                 if (foundSlot === undefined) {
-                    for (let s = normalizedSlot + 1; s < this.combatAttackTypes.length; s++) {
-                        if (this.combatAttackTypes[s] !== undefined) {
+                    for (let s = normalizedSlot + 1; s < this.combat.attackTypes.length; s++) {
+                        if (this.combat.attackTypes[s] !== undefined) {
                             foundSlot = s;
                             break;
                         }
@@ -1215,30 +1124,30 @@ export class PlayerState extends Actor {
         this.combatStyleSlot = normalizedSlot;
         if (normalizedCategory !== undefined) {
             this.combatStyleCategory = normalizedCategory;
-            this.combatStyleMemory.set(normalizedCategory, normalizedSlot);
+            this.combat.styleMemory.set(normalizedCategory, normalizedSlot);
         }
     }
 
     setCombatCategoryAttackTypes(types: AttackType[] | undefined): void {
-        this.combatAttackTypes = types ? types.slice() : undefined;
-        if (this.combatAttackTypes && this.combatAttackTypes.length > 0) {
-            const maxSlot = this.combatAttackTypes.length - 1;
+        this.combat.attackTypes = types ? types.slice() : undefined;
+        if (this.combat.attackTypes && this.combat.attackTypes.length > 0) {
+            const maxSlot = this.combat.attackTypes.length - 1;
             if (this.combatStyleSlot > maxSlot) {
                 this.combatStyleSlot = maxSlot;
             }
             // OSRS parity: Ensure slot is valid (sparse arrays have gaps, e.g., bows skip slot 2)
-            if (this.combatAttackTypes[this.combatStyleSlot] === undefined) {
+            if (this.combat.attackTypes[this.combatStyleSlot] === undefined) {
                 // Find nearest valid slot
                 let foundSlot: number | undefined;
                 for (let s = this.combatStyleSlot - 1; s >= 0; s--) {
-                    if (this.combatAttackTypes[s] !== undefined) {
+                    if (this.combat.attackTypes[s] !== undefined) {
                         foundSlot = s;
                         break;
                     }
                 }
                 if (foundSlot === undefined) {
-                    for (let s = this.combatStyleSlot + 1; s < this.combatAttackTypes.length; s++) {
-                        if (this.combatAttackTypes[s] !== undefined) {
+                    for (let s = this.combatStyleSlot + 1; s < this.combat.attackTypes.length; s++) {
+                        if (this.combat.attackTypes[s] !== undefined) {
                             foundSlot = s;
                             break;
                         }
@@ -1252,9 +1161,9 @@ export class PlayerState extends Actor {
     }
 
     setCombatCategoryMeleeBonusIndices(indices: Array<number | undefined> | undefined): void {
-        this.combatMeleeBonusIndices = indices ? indices.slice() : undefined;
-        if (this.combatMeleeBonusIndices && this.combatMeleeBonusIndices.length > 0) {
-            const maxSlot = this.combatMeleeBonusIndices.length - 1;
+        this.combat.meleeBonusIndices = indices ? indices.slice() : undefined;
+        if (this.combat.meleeBonusIndices && this.combat.meleeBonusIndices.length > 0) {
+            const maxSlot = this.combat.meleeBonusIndices.length - 1;
             if (this.combatStyleSlot > maxSlot) {
                 this.combatStyleSlot = maxSlot;
             }
@@ -1262,19 +1171,19 @@ export class PlayerState extends Actor {
     }
 
     getCurrentAttackType(): AttackType | undefined {
-        if (!this.combatAttackTypes || this.combatAttackTypes.length === 0) return undefined;
-        const slot = Math.max(0, Math.min(this.combatAttackTypes.length - 1, this.combatStyleSlot));
-        return this.combatAttackTypes[slot];
+        if (!this.combat.attackTypes || this.combat.attackTypes.length === 0) return undefined;
+        const slot = Math.max(0, Math.min(this.combat.attackTypes.length - 1, this.combatStyleSlot));
+        return this.combat.attackTypes[slot];
     }
 
     getCurrentMeleeBonusIndex(): number | undefined {
-        if (!this.combatMeleeBonusIndices || this.combatMeleeBonusIndices.length === 0)
+        if (!this.combat.meleeBonusIndices || this.combat.meleeBonusIndices.length === 0)
             return undefined;
         const slot = Math.max(
             0,
-            Math.min(this.combatMeleeBonusIndices.length - 1, this.combatStyleSlot),
+            Math.min(this.combat.meleeBonusIndices.length - 1, this.combatStyleSlot),
         );
-        return this.combatMeleeBonusIndices[slot];
+        return this.combat.meleeBonusIndices[slot];
     }
 
     private getMaxCombatStyleSlot(category?: number): number {
@@ -1316,10 +1225,10 @@ export class PlayerState extends Actor {
         this.activePrayers = next;
         this.updatePrayerHeadIcon();
         if (
-            this.quickPrayersEnabled &&
-            !this.arePrayerSetsEqual(this.quickPrayers, this.activePrayers)
+            this.prayer.quickPrayersEnabled &&
+            !this.arePrayerSetsEqual(this.prayer.quickPrayers, this.activePrayers)
         ) {
-            this.quickPrayersEnabled = false;
+            this.prayer.quickPrayersEnabled = false;
         }
         return true;
     }
@@ -1474,12 +1383,12 @@ export class PlayerState extends Actor {
      */
     applyFreeze(durationTicks: number, currentTick: number): boolean {
         // Check freeze immunity (5 ticks after previous freeze)
-        if (currentTick < this.freezeImmunityUntilTick) {
+        if (currentTick < this.combat.freezeImmunityUntilTick) {
             return false; // Immune to freeze
         }
 
-        const expires = Math.max(this.freezeExpiryTick, currentTick + Math.max(1, durationTicks));
-        this.freezeExpiryTick = expires;
+        const expires = Math.max(this.combat.freezeExpiryTick, currentTick + Math.max(1, durationTicks));
+        this.combat.freezeExpiryTick = expires;
         this.lockMovementUntil(expires);
         this.clearPath();
         this.running = false;
@@ -1489,26 +1398,26 @@ export class PlayerState extends Actor {
     }
 
     isFrozen(currentTick: number): boolean {
-        if (this.freezeExpiryTick > 0 && currentTick >= this.freezeExpiryTick) {
+        if (this.combat.freezeExpiryTick > 0 && currentTick >= this.combat.freezeExpiryTick) {
             // Freeze just ended - start 5 tick immunity
-            this.freezeImmunityUntilTick = currentTick + 5;
-            this.freezeExpiryTick = 0;
+            this.combat.freezeImmunityUntilTick = currentTick + 5;
+            this.combat.freezeExpiryTick = 0;
             return false;
         }
-        return this.freezeExpiryTick > currentTick;
+        return this.combat.freezeExpiryTick > currentTick;
     }
 
     isFreezeImmune(currentTick: number): boolean {
-        return currentTick < this.freezeImmunityUntilTick;
+        return currentTick < this.combat.freezeImmunityUntilTick;
     }
 
     getFreezeRemaining(currentTick: number): number {
-        const remaining = this.freezeExpiryTick - currentTick;
+        const remaining = this.combat.freezeExpiryTick - currentTick;
         return Math.max(0, remaining);
     }
 
     getSpecialEnergyUnits(): number {
-        return Math.max(0, Math.min(SPECIAL_ENERGY_MAX, Math.floor(this.specialEnergy)));
+        return Math.max(0, Math.min(SPECIAL_ENERGY_MAX, Math.floor(this.combat.specialEnergy)));
     }
 
     getSpecialEnergyPercent(): number {
@@ -1518,10 +1427,10 @@ export class PlayerState extends Actor {
     setSpecialEnergyPercent(percent: number): void {
         const normalized = Math.max(0, Math.min(SPECIAL_ENERGY_MAX, Math.floor(percent)));
         if (normalized === this.getSpecialEnergyUnits()) return;
-        this.specialEnergy = normalized;
-        this.specialEnergyDirty = true;
+        this.combat.specialEnergy = normalized;
+        this.combat.specialEnergyDirty = true;
         if (normalized === 0) {
-            this.specialActivatedFlag = false;
+            this.combat.specialActivatedFlag = false;
         }
     }
 
@@ -1530,54 +1439,54 @@ export class PlayerState extends Actor {
         if (normalized && this.getSpecialEnergyUnits() <= 0) {
             return false;
         }
-        this.specialActivatedFlag = normalized;
+        this.combat.specialActivatedFlag = normalized;
         return true;
     }
 
     isSpecialActivated(): boolean {
-        return this.specialActivatedFlag;
+        return this.combat.specialActivatedFlag;
     }
 
     consumeSpecialEnergy(costPercent: number): boolean {
         const cost = Math.max(0, Math.min(SPECIAL_ENERGY_MAX, Math.floor(costPercent)));
         if (cost <= 0) return true;
         if (this.getSpecialEnergyUnits() < cost) {
-            this.specialActivatedFlag = false;
+            this.combat.specialActivatedFlag = false;
             return false;
         }
-        this.specialEnergy = Math.max(0, this.getSpecialEnergyUnits() - cost);
-        this.specialActivatedFlag = false;
-        this.specialEnergyDirty = true;
+        this.combat.specialEnergy = Math.max(0, this.getSpecialEnergyUnits() - cost);
+        this.combat.specialActivatedFlag = false;
+        this.combat.specialEnergyDirty = true;
         return true;
     }
 
     tickSpecialEnergy(currentTick: number): boolean {
         if (this.getSpecialEnergyUnits() >= SPECIAL_ENERGY_MAX) {
-            this.nextSpecialRegenTick = currentTick + SPECIAL_ENERGY_REGEN_INTERVAL_TICKS;
+            this.combat.nextSpecialRegenTick = currentTick + SPECIAL_ENERGY_REGEN_INTERVAL_TICKS;
             return false;
         }
-        if (this.nextSpecialRegenTick <= 0) {
-            this.nextSpecialRegenTick = currentTick + SPECIAL_ENERGY_REGEN_INTERVAL_TICKS;
+        if (this.combat.nextSpecialRegenTick <= 0) {
+            this.combat.nextSpecialRegenTick = currentTick + SPECIAL_ENERGY_REGEN_INTERVAL_TICKS;
             return false;
         }
-        if (currentTick >= this.nextSpecialRegenTick) {
-            this.specialEnergy = Math.min(
+        if (currentTick >= this.combat.nextSpecialRegenTick) {
+            this.combat.specialEnergy = Math.min(
                 SPECIAL_ENERGY_MAX,
                 this.getSpecialEnergyUnits() + SPECIAL_ENERGY_REGEN_CHUNK,
             );
-            this.nextSpecialRegenTick = currentTick + SPECIAL_ENERGY_REGEN_INTERVAL_TICKS;
-            this.specialEnergyDirty = true;
+            this.combat.nextSpecialRegenTick = currentTick + SPECIAL_ENERGY_REGEN_INTERVAL_TICKS;
+            this.combat.specialEnergyDirty = true;
             return true;
         }
         return false;
     }
 
     hasSpecialEnergyUpdate(): boolean {
-        return this.specialEnergyDirty;
+        return this.combat.specialEnergyDirty;
     }
 
     markSpecialEnergySynced(): void {
-        this.specialEnergyDirty = false;
+        this.combat.specialEnergyDirty = false;
     }
 
     getVarbitValue(id: number): number {
@@ -1622,18 +1531,18 @@ export class PlayerState extends Actor {
     }
 
     getBankCapacity(): number {
-        return Math.max(1, this.bankCapacity);
+        return Math.max(1, this.items.bankCapacity);
     }
 
     setBankCapacity(capacity: number): void {
         // OSRS parity: CS2 bank scripts use a 1410-slot addressing space (0..1409).
         // Allow up to 1410 without runaway allocations.
         const normalized = Math.max(1, Math.min(1410, Math.floor(capacity)));
-        if (normalized === this.bankCapacity && this.bank.length === normalized) {
+        if (normalized === this.items.bankCapacity && this.items.bank.length === normalized) {
             return;
         }
         const next = createEmptyBank(normalized);
-        const current = Array.isArray(this.bank) ? this.bank : [];
+        const current = Array.isArray(this.items.bank) ? this.items.bank : [];
         for (let i = 0; i < Math.min(current.length, normalized); i++) {
             const entry = current[i];
             next[i] = {
@@ -1641,17 +1550,17 @@ export class PlayerState extends Actor {
                 quantity: entry?.quantity ?? 0,
             };
         }
-        this.bankCapacity = normalized;
-        this.bank = next;
-        this.bankClientSlotMapping = [];
+        this.items.bankCapacity = normalized;
+        this.items.bank = next;
+        this.items.bankClientSlotMapping = [];
     }
 
     private ensureBankInitialized(): BankEntry[] {
         const capacity = this.getBankCapacity();
-        if (!Array.isArray(this.bank) || this.bank.length !== capacity) {
-            this.bank = createEmptyBank(capacity);
+        if (!Array.isArray(this.items.bank) || this.items.bank.length !== capacity) {
+            this.items.bank = createEmptyBank(capacity);
         }
-        return this.bank;
+        return this.items.bank;
     }
 
     getBankEntries(): BankEntry[] {
@@ -1660,10 +1569,10 @@ export class PlayerState extends Actor {
 
     setBankClientSlotMapping(mapping: number[]): void {
         if (!Array.isArray(mapping)) {
-            this.bankClientSlotMapping = [];
+            this.items.bankClientSlotMapping = [];
             return;
         }
-        this.bankClientSlotMapping = mapping.map((slot) =>
+        this.items.bankClientSlotMapping = mapping.map((slot) =>
             Number.isFinite(slot) ? (slot as number) : -1,
         );
     }
@@ -1671,8 +1580,8 @@ export class PlayerState extends Actor {
     getBankServerSlotForClientSlot(clientSlot: number): number {
         if (!Number.isFinite(clientSlot)) return -1;
         const slot = clientSlot;
-        if (slot < 0 || slot >= this.bankClientSlotMapping.length) return -1;
-        const mapped = this.bankClientSlotMapping[slot] ?? -1;
+        if (slot < 0 || slot >= this.items.bankClientSlotMapping.length) return -1;
+        const mapped = this.items.bankClientSlotMapping[slot] ?? -1;
         return Number.isFinite(mapped) ? mapped : -1;
     }
 
@@ -1702,7 +1611,7 @@ export class PlayerState extends Actor {
             bank[slot].filler = filler && itemId > 0;
             bank[slot].tab = tab;
         }
-        this.bankClientSlotMapping = [];
+        this.items.bankClientSlotMapping = [];
     }
 
     exportBankSnapshot(): BankSnapshotEntry[] {
@@ -1757,8 +1666,8 @@ export class PlayerState extends Actor {
     }
 
     clearBank(): void {
-        this.bank = createEmptyBank(this.getBankCapacity());
-        this.bankClientSlotMapping = [];
+        this.items.bank = createEmptyBank(this.getBankCapacity());
+        this.items.bankClientSlotMapping = [];
     }
 
     clearInventory(): void {
@@ -1773,27 +1682,27 @@ export class PlayerState extends Actor {
     }
 
     getBankWithdrawNotes(): boolean {
-        return !!this.bankWithdrawNoteMode;
+        return !!this.items.bankWithdrawNoteMode;
     }
 
     setBankWithdrawNotes(enabled: boolean): void {
-        this.bankWithdrawNoteMode = !!enabled;
+        this.items.bankWithdrawNoteMode = !!enabled;
     }
 
     getBankInsertMode(): boolean {
-        return !!this.bankInsertMode;
+        return !!this.items.bankInsertMode;
     }
 
     setBankInsertMode(insert: boolean): void {
-        this.bankInsertMode = !!insert;
+        this.items.bankInsertMode = !!insert;
     }
 
     getBankPlaceholderMode(): boolean {
-        return !!this.bankPlaceholderMode;
+        return !!this.items.bankPlaceholderMode;
     }
 
     setBankPlaceholderMode(enabled: boolean): void {
-        this.bankPlaceholderMode = !!enabled;
+        this.items.bankPlaceholderMode = !!enabled;
     }
 
     releaseBankPlaceholders(): number {
@@ -1807,29 +1716,29 @@ export class PlayerState extends Actor {
                 cleared++;
             }
         }
-        if (cleared > 0) this.bankDirty = true;
+        if (cleared > 0) this.items.bankDirty = true;
         return cleared;
     }
 
     getBankQuantityMode(): number {
-        return this.bankQuantityMode;
+        return this.items.bankQuantityMode;
     }
 
     setBankQuantityMode(mode: number): void {
         if (!Number.isFinite(mode)) return;
-        this.bankQuantityMode = Math.max(0, Math.min(5, mode));
+        this.items.bankQuantityMode = Math.max(0, Math.min(5, mode));
     }
 
     getBankCustomQuantity(): number {
-        return Math.max(0, this.bankCustomQuantity);
+        return Math.max(0, this.items.bankCustomQuantity);
     }
 
     setBankCustomQuantity(amount: number): void {
         if (!Number.isFinite(amount)) {
-            this.bankCustomQuantity = 0;
+            this.items.bankCustomQuantity = 0;
             return;
         }
-        this.bankCustomQuantity = Math.max(0, Math.min(2147483647, amount));
+        this.items.bankCustomQuantity = Math.max(0, Math.min(2147483647, amount));
     }
 
     /**
@@ -1967,50 +1876,50 @@ export class PlayerState extends Actor {
     }
 
     getActiveShopId(): string | undefined {
-        return this.activeShopId;
+        return this.items.activeShopId;
     }
 
     setActiveShopId(id: string | undefined): void {
-        this.activeShopId = id ? String(id) : undefined;
+        this.items.activeShopId = id ? String(id) : undefined;
     }
 
     getShopBuyMode(): number {
-        return this.shopBuyMode;
+        return this.items.shopBuyMode;
     }
 
     setShopBuyMode(mode: number): void {
         if (!Number.isFinite(mode)) return;
-        this.shopBuyMode = Math.max(0, Math.min(4, mode));
+        this.items.shopBuyMode = Math.max(0, Math.min(4, mode));
     }
 
     getShopSellMode(): number {
-        return this.shopSellMode;
+        return this.items.shopSellMode;
     }
 
     setShopSellMode(mode: number): void {
         if (!Number.isFinite(mode)) return;
-        this.shopSellMode = Math.max(0, Math.min(4, mode));
+        this.items.shopSellMode = Math.max(0, Math.min(4, mode));
     }
 
     getSmithingQuantityMode(): number {
-        return this.smithingQuantityMode;
+        return this.items.smithingQuantityMode;
     }
 
     setSmithingQuantityMode(mode: number): void {
         if (!Number.isFinite(mode)) return;
-        this.smithingQuantityMode = Math.max(0, Math.min(4, mode));
+        this.items.smithingQuantityMode = Math.max(0, Math.min(4, mode));
     }
 
     getSmithingCustomQuantity(): number {
-        return Math.max(0, this.smithingCustomQuantity);
+        return Math.max(0, this.items.smithingCustomQuantity);
     }
 
     setSmithingCustomQuantity(amount: number): void {
         if (!Number.isFinite(amount)) {
-            this.smithingCustomQuantity = 0;
+            this.items.smithingCustomQuantity = 0;
             return;
         }
-        this.smithingCustomQuantity = Math.max(0, Math.min(2147483647, amount));
+        this.items.smithingCustomQuantity = Math.max(0, Math.min(2147483647, amount));
     }
 
     getRingOfForgingCharges(): number {
@@ -2221,10 +2130,10 @@ export class PlayerState extends Actor {
     }
 
     getInventoryEntries(): InventoryEntry[] {
-        if (!Array.isArray(this.inventory) || this.inventory.length !== INVENTORY_SLOT_COUNT) {
-            this.inventory = createEmptyInventory();
+        if (!Array.isArray(this.items.inventory) || this.items.inventory.length !== INVENTORY_SLOT_COUNT) {
+            this.items.inventory = createEmptyInventory();
         }
-        return this.inventory;
+        return this.items.inventory;
     }
 
     // =============== RSMod-style inventory methods ===============
@@ -2636,8 +2545,8 @@ export class PlayerState extends Actor {
         snapshot.autocastMode = this.autocastMode ?? null;
         snapshot.specialEnergy = this.getSpecialEnergyUnits();
         snapshot.specialActivated = this.isSpecialActivated();
-        if (this.quickPrayers.size > 0) {
-            snapshot.quickPrayers = Array.from(this.quickPrayers);
+        if (this.prayer.quickPrayers.size > 0) {
+            snapshot.quickPrayers = Array.from(this.prayer.quickPrayers);
         }
         if (this.ringOfForgingCharges > 0) {
             snapshot.ringOfForgingCharges = this.getRingOfForgingCharges();
@@ -2905,7 +2814,7 @@ export class PlayerState extends Actor {
     }
 
     getQuickPrayers(): ReadonlySet<PrayerName> {
-        return this.quickPrayers;
+        return this.prayer.quickPrayers;
     }
 
     setQuickPrayers(prayers: Iterable<PrayerName | string>): boolean {
@@ -2915,21 +2824,21 @@ export class PlayerState extends Actor {
             if (!PRAYER_NAME_SET.has(name)) continue;
             next.add(name);
         }
-        const changed = !this.arePrayerSetsEqual(next, this.quickPrayers);
+        const changed = !this.arePrayerSetsEqual(next, this.prayer.quickPrayers);
         if (!changed) return false;
-        this.quickPrayers = next;
-        if (!this.arePrayerSetsEqual(this.quickPrayers, this.activePrayers)) {
-            this.quickPrayersEnabled = false;
+        this.prayer.quickPrayers = next;
+        if (!this.arePrayerSetsEqual(this.prayer.quickPrayers, this.activePrayers)) {
+            this.prayer.quickPrayersEnabled = false;
         }
         return true;
     }
 
     areQuickPrayersEnabled(): boolean {
-        return this.quickPrayersEnabled;
+        return this.prayer.quickPrayersEnabled;
     }
 
     setQuickPrayersEnabled(enabled: boolean): void {
-        this.quickPrayersEnabled = !!enabled;
+        this.prayer.quickPrayersEnabled = !!enabled;
     }
 
     private arePrayerSetsEqual(a: ReadonlySet<PrayerName>, b: ReadonlySet<PrayerName>): boolean {
@@ -2956,8 +2865,8 @@ export class PlayerState extends Actor {
     }
 
     private setPrayerHeadIcon(icon: PrayerHeadIcon | null): void {
-        if (this.prayerHeadIcon === icon) return;
-        this.prayerHeadIcon = icon;
+        if (this.prayer.headIcon === icon) return;
+        this.prayer.headIcon = icon;
         const index = icon != null ? PRAYER_HEAD_ICON_IDS[icon] ?? -1 : -1;
         this.appearance.headIcons.prayer = index;
     }
@@ -2968,15 +2877,15 @@ export class PlayerState extends Actor {
     }
 
     getPrayerDrainAccumulator(): number {
-        return this.prayerDrainAccumulator;
+        return this.prayer.drainAccumulator;
     }
 
     setPrayerDrainAccumulator(value: number): void {
-        this.prayerDrainAccumulator = Math.max(0, value);
+        this.prayer.drainAccumulator = Math.max(0, value);
     }
 
     resetPrayerDrainAccumulator(): void {
-        this.prayerDrainAccumulator = 0;
+        this.prayer.drainAccumulator = 0;
     }
 
     getSkill(id: SkillId): PlayerSkillState {
@@ -3018,7 +2927,7 @@ export class PlayerState extends Actor {
 
         if (id === SkillId.Hitpoints) {
             const maxHp = skill.baseLevel;
-            this.hitpointsCurrent = Math.min(maxHp, Math.max(0, this.hitpointsCurrent));
+            this.status.hitpointsCurrent = Math.min(maxHp, Math.max(0, this.status.hitpointsCurrent));
             this.markSkillDirty(SkillId.Hitpoints);
         }
     }
@@ -3032,10 +2941,10 @@ export class PlayerState extends Actor {
         if (nextBoost === skill.boost) return;
         skill.boost = nextBoost;
         if (id === SkillId.Hitpoints) {
-            this.nextHitpointOverhealDecayTick = 0;
+            this.status.nextHitpointOverhealDecayTick = 0;
             const max = this.getHitpointsMax();
-            if (this.hitpointsCurrent > max) {
-                this.hitpointsCurrent = max;
+            if (this.status.hitpointsCurrent > max) {
+                this.status.hitpointsCurrent = max;
             }
             this.markSkillDirty(SkillId.Hitpoints);
         } else {
@@ -3082,7 +2991,7 @@ export class PlayerState extends Actor {
         const skill = this.skills[id];
         const currentLevel =
             id === SkillId.Hitpoints
-                ? Math.max(0, Math.min(this.getHitpointsMax(), this.hitpointsCurrent))
+                ? Math.max(0, Math.min(this.getHitpointsMax(), this.status.hitpointsCurrent))
                 : Math.max(this.getSkillMinLevel(id), skill.baseLevel + skill.boost);
         return {
             id,
@@ -3115,7 +3024,7 @@ export class PlayerState extends Actor {
     }
 
     getHitpointsCurrent(): number {
-        return this.hitpointsCurrent;
+        return this.status.hitpointsCurrent;
     }
 
     /** Get slayer task info for combat calculations. */
@@ -3142,10 +3051,10 @@ export class PlayerState extends Actor {
     setHitpointsCurrent(value: number): void {
         const max = this.getHitpointsMax();
         const next = Math.max(0, Math.min(max, Math.floor(value)));
-        if (next === this.hitpointsCurrent) return;
-        const wasAlive = this._wasAlive;
-        this.hitpointsCurrent = next;
-        this._wasAlive = next > 0;
+        if (next === this.status.hitpointsCurrent) return;
+        const wasAlive = this.status.wasAlive;
+        this.status.hitpointsCurrent = next;
+        this.status.wasAlive = next > 0;
         this.markSkillDirty(SkillId.Hitpoints);
         // Trigger death callback when HP reaches 0 from being alive
         if (wasAlive && next <= 0) {
@@ -3156,19 +3065,19 @@ export class PlayerState extends Actor {
     }
 
     applyHitpointsDamage(amount: number): { current: number; max: number } {
-        if (!(amount > 0)) return { current: this.hitpointsCurrent, max: this.getHitpointsMax() };
-        this.setHitpointsCurrent(this.hitpointsCurrent - amount);
-        return { current: this.hitpointsCurrent, max: this.getHitpointsMax() };
+        if (!(amount > 0)) return { current: this.status.hitpointsCurrent, max: this.getHitpointsMax() };
+        this.setHitpointsCurrent(this.status.hitpointsCurrent - amount);
+        return { current: this.status.hitpointsCurrent, max: this.getHitpointsMax() };
     }
 
     applyHitpointsHeal(amount: number): { current: number; max: number } {
-        if (!(amount > 0)) return { current: this.hitpointsCurrent, max: this.getHitpointsMax() };
-        const target = Math.max(0, Math.floor(this.hitpointsCurrent + amount));
+        if (!(amount > 0)) return { current: this.status.hitpointsCurrent, max: this.getHitpointsMax() };
+        const target = Math.max(0, Math.floor(this.status.hitpointsCurrent + amount));
         if (target > this.getHitpointsMax()) {
             this.ensureHitpointsTempMax(target);
         }
         this.setHitpointsCurrent(target);
-        return { current: this.hitpointsCurrent, max: this.getHitpointsMax() };
+        return { current: this.status.hitpointsCurrent, max: this.getHitpointsMax() };
     }
 
     /**
@@ -3188,22 +3097,22 @@ export class PlayerState extends Actor {
         interval: number = DEFAULT_POISON_INTERVAL_TICKS,
     ): void {
         const nextPotency = Math.max(1, Math.floor(potency));
-        if (!this.poisonEffect || nextPotency > this.poisonEffect.potency) {
-            this.poisonEffect = {
+        if (!this.status.poisonEffect || nextPotency > this.status.poisonEffect.potency) {
+            this.status.poisonEffect = {
                 potency: nextPotency,
                 interval: Math.max(1, interval),
                 nextTick: currentTick + Math.max(1, interval),
             };
         } else {
-            this.poisonEffect.nextTick = Math.min(
-                this.poisonEffect.nextTick,
+            this.status.poisonEffect.nextTick = Math.min(
+                this.status.poisonEffect.nextTick,
                 currentTick + Math.max(1, interval),
             );
         }
     }
 
     curePoison(): void {
-        this.poisonEffect = undefined;
+        this.status.poisonEffect = undefined;
     }
 
     inflictVenom(
@@ -3216,9 +3125,9 @@ export class PlayerState extends Actor {
         const nextStage = Math.max(1, Math.floor(stage));
         const effectiveRamp = Math.max(1, Math.floor(ramp));
         const effectiveCap = Math.max(nextStage, Math.floor(cap));
-        const effect = this.venomEffect;
+        const effect = this.status.venomEffect;
         if (!effect || nextStage > effect.stage) {
-            this.venomEffect = {
+            this.status.venomEffect = {
                 stage: nextStage,
                 interval: Math.max(1, interval),
                 nextTick: currentTick + Math.max(1, interval),
@@ -3233,7 +3142,7 @@ export class PlayerState extends Actor {
     }
 
     cureVenom(): void {
-        this.venomEffect = undefined;
+        this.status.venomEffect = undefined;
     }
 
     inflictDisease(
@@ -3242,9 +3151,9 @@ export class PlayerState extends Actor {
         interval: number = DEFAULT_DISEASE_INTERVAL_TICKS,
     ): void {
         const nextPotency = Math.max(1, Math.floor(potency));
-        const effect = this.diseaseEffect;
+        const effect = this.status.diseaseEffect;
         if (!effect || nextPotency > effect.potency) {
-            this.diseaseEffect = {
+            this.status.diseaseEffect = {
                 potency: nextPotency,
                 interval: Math.max(1, interval),
                 nextTick: currentTick + Math.max(1, interval),
@@ -3255,7 +3164,7 @@ export class PlayerState extends Actor {
     }
 
     cureDisease(): void {
-        this.diseaseEffect = undefined;
+        this.status.diseaseEffect = undefined;
     }
 
     startRegeneration(
@@ -3266,7 +3175,7 @@ export class PlayerState extends Actor {
     ): void {
         const healAmount = Math.max(1, Math.floor(heal));
         const duration = Math.max(1, Math.floor(durationTicks));
-        this.regenEffect = {
+        this.status.regenEffect = {
             heal: healAmount,
             remainingTicks: duration,
             interval: Math.max(1, interval),
@@ -3275,14 +3184,14 @@ export class PlayerState extends Actor {
     }
 
     stopRegeneration(): void {
-        this.regenEffect = undefined;
+        this.status.regenEffect = undefined;
     }
 
     private processPoison(currentTick: number): StatusHitsplat | undefined {
-        const effect = this.poisonEffect;
+        const effect = this.status.poisonEffect;
         if (!effect) return undefined;
-        if (this.hitpointsCurrent <= 0) {
-            this.poisonEffect = undefined;
+        if (this.status.hitpointsCurrent <= 0) {
+            this.status.poisonEffect = undefined;
             return undefined;
         }
         if (currentTick < effect.nextTick) return undefined;
@@ -3292,7 +3201,7 @@ export class PlayerState extends Actor {
         this.setColorOverride(21, 7, 50, 40, 1);
         effect.potency = Math.max(0, effect.potency - 1);
         if (effect.potency <= 0 || result.current <= 0) {
-            this.poisonEffect = undefined;
+            this.status.poisonEffect = undefined;
         } else {
             effect.nextTick = currentTick + effect.interval;
         }
@@ -3305,10 +3214,10 @@ export class PlayerState extends Actor {
     }
 
     private processVenom(currentTick: number): StatusHitsplat | undefined {
-        const effect = this.venomEffect;
+        const effect = this.status.venomEffect;
         if (!effect) return undefined;
-        if (this.hitpointsCurrent <= 0) {
-            this.venomEffect = undefined;
+        if (this.status.hitpointsCurrent <= 0) {
+            this.status.venomEffect = undefined;
             return undefined;
         }
         if (currentTick < effect.nextTick) return undefined;
@@ -3317,7 +3226,7 @@ export class PlayerState extends Actor {
         // OSRS: Dark green tint flash on venom damage
         this.setColorOverride(21, 7, 30, 50, 1);
         if (result.current <= 0) {
-            this.venomEffect = undefined;
+            this.status.venomEffect = undefined;
         } else {
             const nextStage = Math.min(effect.cap, effect.stage + effect.ramp);
             effect.stage = nextStage;
@@ -3332,24 +3241,24 @@ export class PlayerState extends Actor {
     }
 
     private processDisease(currentTick: number): StatusHitsplat | undefined {
-        const effect = this.diseaseEffect;
+        const effect = this.status.diseaseEffect;
         if (!effect) return undefined;
-        if (this.hitpointsCurrent <= 1) {
+        if (this.status.hitpointsCurrent <= 1) {
             // Disease cannot reduce below 1 HP
-            this.diseaseEffect = undefined;
+            this.status.diseaseEffect = undefined;
             return undefined;
         }
         if (currentTick < effect.nextTick) return undefined;
-        const safeDamage = Math.max(0, this.hitpointsCurrent - 1);
+        const safeDamage = Math.max(0, this.status.hitpointsCurrent - 1);
         const amount = Math.min(safeDamage, Math.max(1, Math.floor(effect.potency)));
         if (amount <= 0) {
-            this.diseaseEffect = undefined;
+            this.status.diseaseEffect = undefined;
             return undefined;
         }
         const result = this.applyHitpointsDamage(amount);
         effect.potency = Math.max(0, effect.potency - 1);
         if (effect.potency <= 0 || result.current <= 1) {
-            this.diseaseEffect = undefined;
+            this.status.diseaseEffect = undefined;
         } else {
             effect.nextTick = currentTick + effect.interval;
         }
@@ -3362,15 +3271,15 @@ export class PlayerState extends Actor {
     }
 
     private processRegeneration(currentTick: number): StatusHitsplat | undefined {
-        const effect = this.regenEffect;
+        const effect = this.status.regenEffect;
         if (!effect) return undefined;
         if (currentTick < effect.nextTick) return undefined;
-        const before = this.hitpointsCurrent;
+        const before = this.status.hitpointsCurrent;
         const result = this.applyHitpointsHeal(effect.heal);
         const healed = result.current - before;
         effect.remainingTicks = Math.max(0, effect.remainingTicks - 1);
         if (effect.remainingTicks <= 0) {
-            this.regenEffect = undefined;
+            this.status.regenEffect = undefined;
         } else {
             effect.nextTick = currentTick + effect.interval;
         }
@@ -3448,27 +3357,27 @@ export class PlayerState extends Actor {
         const regenInterval = this.hasPrayerActive("rapid_heal")
             ? Math.max(1, Math.floor(HITPOINT_REGEN_INTERVAL_TICKS / 2))
             : HITPOINT_REGEN_INTERVAL_TICKS;
-        if (this.nextHitpointRegenTick <= 0) {
-            this.nextHitpointRegenTick = currentTick + regenInterval;
-        } else if (currentTick >= this.nextHitpointRegenTick) {
-            this.nextHitpointRegenTick = currentTick + regenInterval;
-            if (this.hitpointsCurrent < baseLevel) {
-                this.setHitpointsCurrent(this.hitpointsCurrent + 1);
+        if (this.status.nextHitpointRegenTick <= 0) {
+            this.status.nextHitpointRegenTick = currentTick + regenInterval;
+        } else if (currentTick >= this.status.nextHitpointRegenTick) {
+            this.status.nextHitpointRegenTick = currentTick + regenInterval;
+            if (this.status.hitpointsCurrent < baseLevel) {
+                this.setHitpointsCurrent(this.status.hitpointsCurrent + 1);
             }
         }
 
         if (skill.boost > 0) {
-            if (this.nextHitpointOverhealDecayTick <= 0) {
-                this.nextHitpointOverhealDecayTick =
+            if (this.status.nextHitpointOverhealDecayTick <= 0) {
+                this.status.nextHitpointOverhealDecayTick =
                     currentTick + HITPOINT_OVERHEAL_DECAY_INTERVAL_TICKS;
-            } else if (currentTick >= this.nextHitpointOverhealDecayTick) {
+            } else if (currentTick >= this.status.nextHitpointOverhealDecayTick) {
                 const nextBoost = Math.max(0, skill.boost - 1);
-                this.nextHitpointOverhealDecayTick =
+                this.status.nextHitpointOverhealDecayTick =
                     currentTick + HITPOINT_OVERHEAL_DECAY_INTERVAL_TICKS;
                 this.setSkillBoost(SkillId.Hitpoints, baseLevel + nextBoost);
             }
         } else {
-            this.nextHitpointOverhealDecayTick = 0;
+            this.status.nextHitpointOverhealDecayTick = 0;
         }
 
         const events: StatusHitsplat[] = [];
@@ -3499,12 +3408,12 @@ export class PlayerState extends Actor {
         if (cappedBoost === skill.boost) return;
         skill.boost = cappedBoost;
         if (cappedBoost > 0) {
-            this.nextHitpointOverhealDecayTick = 0;
+            this.status.nextHitpointOverhealDecayTick = 0;
         }
         this.markSkillDirty(SkillId.Hitpoints);
         const max = this.getHitpointsMax();
-        if (this.hitpointsCurrent > max) {
-            this.hitpointsCurrent = max;
+        if (this.status.hitpointsCurrent > max) {
+            this.status.hitpointsCurrent = max;
             this.markSkillDirty(SkillId.Hitpoints);
         }
     }

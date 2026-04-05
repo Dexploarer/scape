@@ -34,7 +34,7 @@ interface SkillSmeltActionData {
 
 function buildSmeltInterfaceFailure(player: PlayerState, message: string, reason: string, services: ScriptServices): ActionExecutionResult {
     const result = buildSkillFailure(player, message, reason);
-    services.updateSmeltingInterface?.(player);
+    services.production?.updateSmeltingInterface(player);
     return result;
 }
 
@@ -69,7 +69,7 @@ export function executeSmeltAction(ctx: ScriptActionHandlerContext): ActionExecu
         return buildSmeltInterfaceFailure(player, `You need Smithing level ${recipe.level} to smelt that.`, "smelt_level", services);
     }
 
-    const removal = services.takeInventoryItems?.(player, recipe.inputs as Array<{ itemId: number; quantity: number }>);
+    const removal = services.production?.takeInventoryItems(player, recipe.inputs as Array<{ itemId: number; quantity: number }>);
     if (!removal?.ok) {
         return buildSmeltInterfaceFailure(player, "You need the right ores to smelt that.", "missing_ore", services);
     }
@@ -79,7 +79,7 @@ export function executeSmeltAction(ctx: ScriptActionHandlerContext): ActionExecu
     const effects: ActionEffect[] = [];
 
     const equip = services.getEquipArray?.(player) ?? [];
-    const ringCharges = recipe.successType === "iron" ? services.getRingOfForgingCharges?.(player) : undefined;
+    const ringCharges = recipe.successType === "iron" ? services.production?.getRingOfForgingCharges(player) : undefined;
     const success = rollSmeltingSuccess(skill?.baseLevel ?? 1, recipe, equip, ringCharges);
 
     if (success) {
@@ -89,7 +89,7 @@ export function executeSmeltAction(ctx: ScriptActionHandlerContext): ActionExecu
         } else {
             const dest = services.addItemToInventory(player, recipe.outputItemId, Math.max(1, recipe.outputQuantity));
             if (dest.added <= 0) {
-                services.restoreInventoryRemovals?.(player, removal.removed);
+                services.production?.restoreInventoryRemovals(player, removal.removed);
                 return buildSmeltInterfaceFailure(player, "You need more inventory space for the bar.", "inventory_full", services);
             }
         }
@@ -103,7 +103,7 @@ export function executeSmeltAction(ctx: ScriptActionHandlerContext): ActionExecu
             buildMessageEffect(player, `You retrieve a ${barName.toLowerCase()}.`),
         );
         if (recipe.successType === "iron") {
-            services.consumeRingOfForgingCharge?.(player);
+            services.production?.consumeRingOfForgingCharge(player);
         }
     } else {
         effects.push(buildMessageEffect(player, "The iron ore is too impure and you fail to produce a bar."));
@@ -120,7 +120,7 @@ export function executeSmeltAction(ctx: ScriptActionHandlerContext): ActionExecu
         }
     }
 
-    services.updateSmeltingInterface?.(player);
+    services.production?.updateSmeltingInterface(player);
     return { ok: true, cooldownTicks: delay, groups: ["skill.smelt"], effects };
 }
 
@@ -136,12 +136,12 @@ export function registerSmeltingInteractions(registry: IScriptRegistry, services
         const batch = clampBatchCount(computeSmeltingBatchCount(inventoryNow, recipe));
         if (batch <= 0) { services.sendGameMessage(player, "You need the proper ores to smelt that bar."); return; }
         const desired = Math.max(1, Math.min(batch, opts?.desiredCount ?? batch));
-        if (services.smeltBars) { services.smeltBars(player, { recipeId: recipe.id, count: desired }); return; }
+        if (services.production?.smeltBars) { services.production.smeltBars(player, { recipeId: recipe.id, count: desired }); return; }
         enqueueSkillAction(requestAction, "smelt", player, recipe.id, desired, recipe.delayTicks ?? 4, tick, services.sendGameMessage);
     };
 
     registry.registerLocAction("smelt", (event) => {
-        if (services.openSmeltingInterface) { services.openSmeltingInterface(event.player); return; }
+        if (services.production?.openSmeltingInterface) { services.production.openSmeltingInterface(event.player); return; }
         const smithLevel = services.getSkill?.(event.player, SkillId.Smithing)?.baseLevel ?? 1;
         const inventory = getInventory(services, event.player);
         const smeltChoices: SkillDialogChoice<SmeltingRecipe>[] = SMELTING_RECIPES.map((recipe) => {

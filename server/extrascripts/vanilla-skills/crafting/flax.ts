@@ -31,7 +31,7 @@ function executeFlaxAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     const plane = data.level;
     const locId = data.locId;
 
-    if (services.isFlaxDepleted?.(tile, plane)) {
+    if (services.gathering?.flaxTracker.isDepleted(tile, plane)) {
         services.stopGatheringInteraction?.(player);
         return { ok: true, effects: [] };
     }
@@ -48,7 +48,7 @@ function executeFlaxAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
 
     services.enqueueSoundBroadcast?.(FLAX_PICK_SOUND, tile.x, tile.y, plane);
 
-    services.markFlaxDepleted?.({
+    services.gathering?.markFlaxDepleted({
         tile,
         level: plane,
         locId,

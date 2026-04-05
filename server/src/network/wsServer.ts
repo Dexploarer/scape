@@ -1722,72 +1722,8 @@ export class WSServer {
                     this.setInventorySlot(player, slotIndex, itemId, qty),
                 addItemToInventory: (player, itemId, qty) =>
                     this.addItemToInventory(player, itemId, qty),
-                summonFollowerFromItem: (player, itemId, npcTypeId) => {
-                    const result = this.followerManager?.summonFollowerFromItem(
-                        player,
-                        itemId,
-                        npcTypeId,
-                    ) ?? {
-                        ok: false as const,
-                        reason: "spawn_failed",
-                    };
-                    if (result.ok) {
-                        this.followerCombatManager?.resetPlayer(player.id);
-                    }
-                    return result;
-                },
-                pickupFollower: (player, npcId) => {
-                    const result = this.followerManager?.pickupFollower(player, npcId) ?? {
-                        ok: false as const,
-                        reason: "missing",
-                    };
-                    if (result.ok) {
-                        this.followerCombatManager?.resetPlayer(player.id);
-                    }
-                    return result;
-                },
-                metamorphFollower: (player, npcId) => {
-                    const result = this.followerManager?.metamorphFollower(player, npcId) ?? {
-                        ok: false as const,
-                        reason: "missing",
-                    };
-                    if (result.ok) {
-                        this.followerCombatManager?.resetPlayer(player.id);
-                    }
-                    return result;
-                },
-                callFollower: (player) => {
-                    const result = this.followerManager?.callFollower(player) ?? {
-                        ok: false as const,
-                        reason: "missing",
-                    };
-                    if (result.ok) {
-                        this.followerCombatManager?.resetPlayer(player.id);
-                        const npc = this.npcManager?.getById(result.npcId);
-                        if (npc) {
-                            this.queueExternalNpcTeleportSync(npc);
-                        }
-                    }
-                    return result;
-                },
-                despawnFollowerForPlayer: (playerId, clearPersistentState) => {
-                    this.followerCombatManager?.resetPlayer(playerId);
-                    return (
-                        this.followerManager?.despawnFollowerForPlayer(
-                            playerId,
-                            clearPersistentState,
-                        ) ?? false
-                    );
-                },
                 spawnNpc: (config) => this.npcManager?.spawnTransientNpc(config),
                 removeNpc: (npcId) => this.npcManager?.removeNpc(npcId) ?? false,
-                initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
-                disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
-                removeWorldEntity: (playerId, entityIndex) => this.worldEntityInfoEncoder.removeEntity(playerId, entityIndex),
-                queueWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.queuePosition(playerId, entityIndex, position),
-                setWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.setPosition(playerId, entityIndex, position),
-                queueWorldEntityMask: (playerId, entityIndex, mask) => this.worldEntityInfoEncoder.queueMaskUpdate(playerId, entityIndex, mask),
-                buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
                 openDialog: (player, request) =>
                     this.widgetDialogHandler.openDialog(player, request as any),
                 openDialogOptions: (player, options) =>
@@ -1848,20 +1784,6 @@ export class WSServer {
                 getWoodcuttingTree: (locId) => this.getWoodcuttingTreeDefinition(locId),
                 getMiningRock: (locId) => this.getMiningRockDefinition(locId),
                 getFishingSpot: (npcTypeId) => this.getFishingSpotDefinition(npcTypeId),
-                openSmeltingInterface: (player) => this.openSmeltingInterface(player),
-                openSmithingInterface: (player) => this.openSmithingInterface(player),
-                smeltBars: (player, params) =>
-                    this.handleSmeltingSelection(
-                        player,
-                        params.recipeId,
-                        params.count > 0 ? params.count : undefined,
-                    ),
-                smithItems: (player, params) =>
-                    this.handleSmithingSelection(
-                        player,
-                        params.recipeId,
-                        params.count > 0 ? params.count : undefined,
-                    ),
                 applyPrayers: (player, prayers) => {
                     // Capture previous prayers before applying changes
                     const previousPrayers = new Set(player.getActivePrayers());
@@ -2010,10 +1932,6 @@ export class WSServer {
                     this.teleportPlayer(player, x, y, level, forceRebuild),
                 teleportToInstance: (player, x, y, level, templateChunks, extraLocs) =>
                     this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
-                teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
-                    this.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
-                sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode) =>
-                    this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode),
                 requestTeleportAction: (player, request) =>
                     this.requestTeleportAction(player, request),
                 sendVarp: (player, varpId, value) => {
@@ -2141,17 +2059,7 @@ export class WSServer {
                     try { player.clearPath(); } catch {}
                     try { player.clearWalkDestination(); } catch {}
                 },
-                isWoodcuttingDepleted: (key) => this.gatheringSystem.isWoodcuttingDepleted(key),
-                markWoodcuttingDepleted: (info, tick) =>
-                    this.gatheringSystem.markWoodcuttingDepleted(info as any, tick),
-                isMiningDepleted: (key) => this.gatheringSystem.isMiningDepleted(key),
-                markMiningDepleted: (info, tick) =>
-                    this.gatheringSystem.markMiningDepleted(info as any, tick),
-                isFlaxDepleted: (tile, level) =>
-                    this.gatheringSystem.flaxTracker.isDepleted(tile, level),
-                markFlaxDepleted: (info, tick) =>
-                    this.gatheringSystem.markFlaxDepleted(info, tick),
-                isTileLit: (tile, level) => this.gatheringSystem.isTileLit(tile, level),
+                gathering: this.gatheringSystem,
                 isFiremakingTileBlocked: (tile, level) => this.isFiremakingTileBlocked(tile, level),
                 lightFire: (params) =>
                     this.firemakingTracker.light({ ...params, burnTicks: params.burnTicks }),
@@ -2173,20 +2081,108 @@ export class WSServer {
                     if (!recipe) return undefined;
                     return { cookedItemId: recipe.cookedItemId, xp: recipe.xp };
                 },
-                restoreInventoryItems: (player, itemId, removed) =>
-                    this.restoreInventoryItems(player, itemId, removed),
-                takeInventoryItems: (player, inputs) =>
-                    this.takeInventoryItems(player, inputs),
-                restoreInventoryRemovals: (player, removed) =>
-                    this.restoreInventoryRemovals(player, removed),
-                updateSmithingInterface: (player) =>
-                    this.updateSmithingInterface(player),
-                updateSmeltingInterface: (player) =>
-                    this.updateSmeltingInterface(player),
-                getRingOfForgingCharges: (player) =>
-                    player.getRingOfForgingCharges(),
-                consumeRingOfForgingCharge: (player) =>
-                    this.consumeRingOfForgingCharge(player, []),
+                production: {
+                    openSmeltingInterface: (player) => this.openSmeltingInterface(player),
+                    openSmithingInterface: (player) => this.openSmithingInterface(player),
+                    smeltBars: (player, params) =>
+                        this.handleSmeltingSelection(
+                            player,
+                            params.recipeId,
+                            params.count > 0 ? params.count : undefined,
+                        ),
+                    smithItems: (player, params) =>
+                        this.handleSmithingSelection(
+                            player,
+                            params.recipeId,
+                            params.count > 0 ? params.count : undefined,
+                        ),
+                    takeInventoryItems: (player, inputs) =>
+                        this.takeInventoryItems(player, inputs),
+                    restoreInventoryRemovals: (player, removed) =>
+                        this.restoreInventoryRemovals(player, removed),
+                    restoreInventoryItems: (player, itemId, removed) =>
+                        this.restoreInventoryItems(player, itemId, removed),
+                    updateSmithingInterface: (player) =>
+                        this.updateSmithingInterface(player),
+                    updateSmeltingInterface: (player) =>
+                        this.updateSmeltingInterface(player),
+                    getRingOfForgingCharges: (player) =>
+                        player.getRingOfForgingCharges(),
+                    consumeRingOfForgingCharge: (player) =>
+                        this.consumeRingOfForgingCharge(player, []),
+                },
+                followers: {
+                    summonFollowerFromItem: (player, itemId, npcTypeId) => {
+                        const result = this.followerManager?.summonFollowerFromItem(
+                            player,
+                            itemId,
+                            npcTypeId,
+                        ) ?? {
+                            ok: false as const,
+                            reason: "spawn_failed",
+                        };
+                        if (result.ok) {
+                            this.followerCombatManager?.resetPlayer(player.id);
+                        }
+                        return result;
+                    },
+                    pickupFollower: (player, npcId) => {
+                        const result = this.followerManager?.pickupFollower(player, npcId) ?? {
+                            ok: false as const,
+                            reason: "missing",
+                        };
+                        if (result.ok) {
+                            this.followerCombatManager?.resetPlayer(player.id);
+                        }
+                        return result;
+                    },
+                    metamorphFollower: (player, npcId) => {
+                        const result = this.followerManager?.metamorphFollower(player, npcId) ?? {
+                            ok: false as const,
+                            reason: "missing",
+                        };
+                        if (result.ok) {
+                            this.followerCombatManager?.resetPlayer(player.id);
+                        }
+                        return result;
+                    },
+                    callFollower: (player) => {
+                        const result = this.followerManager?.callFollower(player) ?? {
+                            ok: false as const,
+                            reason: "missing",
+                        };
+                        if (result.ok) {
+                            this.followerCombatManager?.resetPlayer(player.id);
+                            const npc = this.npcManager?.getById(result.npcId);
+                            if (npc) {
+                                this.queueExternalNpcTeleportSync(npc);
+                            }
+                        }
+                        return result;
+                    },
+                    despawnFollowerForPlayer: (playerId, clearPersistentState) => {
+                        this.followerCombatManager?.resetPlayer(playerId);
+                        return (
+                            this.followerManager?.despawnFollowerForPlayer(
+                                playerId,
+                                clearPersistentState,
+                            ) ?? false
+                        );
+                    },
+                },
+                sailing: {
+                    initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
+                    disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
+                    teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
+                        this.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
+                    sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode) =>
+                        this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode),
+                    removeWorldEntity: (playerId, entityIndex) => this.worldEntityInfoEncoder.removeEntity(playerId, entityIndex),
+                    queueWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.queuePosition(playerId, entityIndex, position),
+                    setWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.setPosition(playerId, entityIndex, position),
+                    queueWorldEntityMask: (playerId, entityIndex, mask) => this.worldEntityInfoEncoder.queueMaskUpdate(playerId, entityIndex, mask),
+                    buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
+                },
             },
         });
         logger.info(

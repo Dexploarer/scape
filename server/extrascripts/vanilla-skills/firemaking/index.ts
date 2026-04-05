@@ -86,7 +86,7 @@ function executeFiremakingAction(ctx: ScriptActionHandlerContext): ActionExecuti
         return failFiremakingPrecheck(player, services, `You need Firemaking level ${logDef.level} to light these logs.`);
     }
 
-    if (services.isTileLit?.(tile, plane)) {
+    if (services.gathering?.isTileLit(tile, plane)) {
         return failFiremakingPrecheck(player, services, "There's already a fire here.");
     }
 

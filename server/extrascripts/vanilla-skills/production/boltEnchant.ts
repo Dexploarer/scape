@@ -62,24 +62,24 @@ export function executeBoltEnchantAction(ctx: ScriptActionHandlerContext): Actio
 
     const consumedRunes = Array.isArray(runeValidation.runesConsumed) ? runeValidation.runesConsumed : [];
 
-    const boltRemoval = services.takeInventoryItems?.(player, [{ itemId: sourceItemId, quantity: BOLT_ENCHANT_BOLTS_PER_SET }]);
+    const boltRemoval = services.production?.takeInventoryItems(player, [{ itemId: sourceItemId, quantity: BOLT_ENCHANT_BOLTS_PER_SET }]);
     if (!boltRemoval?.ok) {
         return buildSkillFailure(player, "You don't have enough bolts to enchant.", "bolt_enchant_missing_bolts");
     }
 
     let runeRemoval: { ok: boolean; removed: Map<number, { itemId: number; quantity: number }> } | undefined;
     if (consumedRunes.length > 0) {
-        runeRemoval = services.takeInventoryItems?.(player, consumedRunes.map((e) => ({ itemId: e.runeId, quantity: Math.max(1, e.quantity) })));
+        runeRemoval = services.production?.takeInventoryItems(player, consumedRunes.map((e) => ({ itemId: e.runeId, quantity: Math.max(1, e.quantity) })));
         if (!runeRemoval?.ok) {
-            services.restoreInventoryRemovals?.(player, boltRemoval.removed);
+            services.production?.restoreInventoryRemovals(player, boltRemoval.removed);
             return buildSkillFailure(player, "You do not have the runes to cast this spell.", "bolt_enchant_missing_runes");
         }
     }
 
     const addResult = services.addItemToInventory(player, enchantedItemId, BOLT_ENCHANT_BOLTS_PER_SET);
     if (addResult.added <= 0) {
-        services.restoreInventoryRemovals?.(player, boltRemoval.removed);
-        if (runeRemoval?.ok) services.restoreInventoryRemovals?.(player, runeRemoval.removed);
+        services.production?.restoreInventoryRemovals(player, boltRemoval.removed);
+        if (runeRemoval?.ok) services.production?.restoreInventoryRemovals(player, runeRemoval.removed);
         return buildSkillFailure(player, "You don't have enough inventory space.", "bolt_enchant_inventory_full");
     }
 

@@ -73,7 +73,7 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
     const plane = data.level;
     const nodeKey = buildWoodcuttingTileKey(tile, plane);
 
-    if (services.isWoodcuttingDepleted?.(nodeKey)) {
+    if (services.gathering?.isWoodcuttingDepleted(nodeKey)) {
         return failGatheringPrecheck(player, services, "The tree has no logs left.");
     }
 
@@ -181,7 +181,7 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
         if (shouldDeplete) {
             treeDepleted = true;
             if (locId > 0) {
-                services.markWoodcuttingDepleted?.({
+                services.gathering?.markWoodcuttingDepleted({
                     key: nodeKey,
                     locId,
                     stumpId,
@@ -205,7 +205,7 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
         services.queueBankSnapshot(player);
     }
 
-    let continueChopping = !treeDepleted && !services.isWoodcuttingDepleted?.(nodeKey);
+    let continueChopping = !treeDepleted && !services.gathering?.isWoodcuttingDepleted(nodeKey);
     if (continueChopping) {
         if (!hasEchoAxePerk && !services.hasInventorySlot?.(player)) {
             continueChopping = false;

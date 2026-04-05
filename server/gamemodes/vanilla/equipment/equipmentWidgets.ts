@@ -173,7 +173,7 @@ export function registerEquipmentWidgetHandlers(registry: IScriptRegistry, servi
             return;
         }
 
-        const result = services.callFollower?.(player);
+        const result = services.followers?.callFollower(player);
         if (!result?.ok) {
             services.sendGameMessage(
                 player,

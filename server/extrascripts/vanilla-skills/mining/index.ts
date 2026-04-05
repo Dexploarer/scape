@@ -72,7 +72,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     const actionDepletedLocId = data.depletedLocId;
     const nodeKey = buildMiningTileKey(tile, plane);
 
-    if (services.isMiningDepleted?.(nodeKey)) {
+    if (services.gathering?.isMiningDepleted(nodeKey)) {
         return failMiningPrecheck(player, services, "The rock is depleted of ore.");
     }
 
@@ -175,7 +175,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
                         ? actionDepletedLocId
                         : undefined;
 
-                services.markMiningDepleted?.({
+                services.gathering?.markMiningDepleted({
                     key: nodeKey,
                     locId,
                     depletedLocId,
@@ -201,7 +201,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         services.queueBankSnapshot(player);
     }
 
-    let continueMining = !services.isMiningDepleted?.(nodeKey);
+    let continueMining = !services.gathering?.isMiningDepleted(nodeKey);
     if (continueMining) {
         if (!hasEchoPickaxePerk && !services.hasInventorySlot?.(player)) {
             continueMining = false;

@@ -137,7 +137,7 @@ function executeSpinAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     for (let i = 0; i < requiredPerSpin; i++) {
         const slot = services.findInventorySlotWithItem?.(player, recipe.inputItemId);
         if (slot === undefined || !services.consumeItem(player, slot)) {
-            services.restoreInventoryItems?.(player, recipe.inputItemId, removed);
+            services.production?.restoreInventoryItems(player, recipe.inputItemId, removed);
             return { ok: true, effects: [buildMessageEffect(player, `You need more ${recipe.inputName} to keep spinning.`)] };
         }
         removed.set(slot, (removed.get(slot) ?? 0) + 1);
@@ -150,7 +150,7 @@ function executeSpinAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     } else {
         const dest = services.addItemToInventory(player, recipe.productItemId, productQuantity);
         if (dest.added <= 0) {
-            services.restoreInventoryItems?.(player, recipe.inputItemId, removed);
+            services.production?.restoreInventoryItems(player, recipe.inputItemId, removed);
             return { ok: true, effects: [buildMessageEffect(player, "You need more inventory space to keep spinning.")] };
         }
     }

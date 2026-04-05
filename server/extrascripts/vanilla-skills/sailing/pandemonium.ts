@@ -345,6 +345,7 @@ function createPlayerDialogFn(
 type DialogFn = (id: string, lines: string[], animId: number, onContinue?: () => void) => void;
 type PandemoniumDockedSailingServices = Pick<
     ScriptServices,
+    | "sailing"
     | "disposeSailingInstance"
     | "buildSailingDockedCollision"
     | "teleportPlayer"
@@ -777,7 +778,7 @@ function sendDockedBoatArrival(
     player: PlayerState,
     services: PandemoniumDockedSailingServices,
 ): void {
-    services.disposeSailingInstance?.(player);
+    services.sailing?.disposeSailingInstance(player);
     player.worldViewId = SAILING_WORLD_ENTITY_INDEX;
     services.teleportPlayer?.(
         player,
@@ -785,10 +786,10 @@ function sendDockedBoatArrival(
         SAILING_DOCKED_PLAYER_Y,
         SAILING_DOCKED_PLAYER_LEVEL,
     );
-    services.buildSailingDockedCollision?.();
+    services.sailing?.buildSailingDockedCollision();
 
     const templateChunks = buildSailingOverlayTemplates();
-    services.sendWorldEntity?.(
+    services.sailing?.sendWorldEntity(
         player,
         SAILING_WORLD_ENTITY_INDEX,
         SAILING_WORLD_ENTITY_CONFIG_ID,
@@ -837,9 +838,9 @@ function setPlayerVarpAndSend(
  */
 export function resetSailingState(
     player: PlayerState,
-    services: Pick<ScriptServices, "sendVarbit" | "closeSubInterface" | "queueWidgetEvent" | "disposeSailingInstance">,
+    services: Pick<ScriptServices, "sailing" | "sendVarbit" | "closeSubInterface" | "queueWidgetEvent" | "disposeSailingInstance">,
 ): void {
-    services.disposeSailingInstance?.(player);
+    services.sailing?.disposeSailingInstance(player);
 
     setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT, 0);
     setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT_TYPE, 0);

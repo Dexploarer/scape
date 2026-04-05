@@ -40,7 +40,7 @@ function buildSmithingInterfaceFailure(
     services: ScriptServices,
 ): ActionExecutionResult {
     const result = buildSkillFailure(player, message, reason);
-    services.updateSmithingInterface?.(player);
+    services.production?.updateSmithingInterface(player);
     return result;
 }
 
@@ -68,7 +68,7 @@ export function executeSmithAction(ctx: ScriptActionHandlerContext): ActionExecu
     for (let i = 0; i < requiredBars; i++) {
         const slot = services.findInventorySlotWithItem?.(player, recipe.barItemId);
         if (slot === undefined || !services.consumeItem(player, slot)) {
-            services.restoreInventoryItems?.(player, recipe.barItemId, removed);
+            services.production?.restoreInventoryItems(player, recipe.barItemId, removed);
             return buildSmithingInterfaceFailure(player, "You need more bars.", "missing_bars", services);
         }
         removed.set(slot, (removed.get(slot) ?? 0) + 1);
@@ -80,7 +80,7 @@ export function executeSmithAction(ctx: ScriptActionHandlerContext): ActionExecu
     } else {
         const dest = services.addItemToInventory(player, recipe.outputItemId, Math.max(1, recipe.outputQuantity));
         if (dest.added <= 0) {
-            services.restoreInventoryItems?.(player, recipe.barItemId, removed);
+            services.production?.restoreInventoryItems(player, recipe.barItemId, removed);
             return buildSmithingInterfaceFailure(player, "You need more inventory space to smith that.", "inventory_full", services);
         }
     }
@@ -105,7 +105,7 @@ export function executeSmithAction(ctx: ScriptActionHandlerContext): ActionExecu
         }
     }
 
-    services.updateSmithingInterface?.(player);
+    services.production?.updateSmithingInterface(player);
     return { ok: true, cooldownTicks: recipe.delayTicks !== undefined ? Math.max(1, recipe.delayTicks) : 4, groups: ["skill.smith"], effects };
 }
 
@@ -122,12 +122,12 @@ export function registerSmithingInteractions(registry: IScriptRegistry, services
         const batch = computeSmithBatchCount(inventoryNow, recipe);
         if (batch <= 0) { services.sendGameMessage(player, "You need a suitable bar to smith."); return; }
         const desired = Math.max(1, Math.min(batch, opts?.desiredCount ?? batch));
-        if (services.smithItems) { services.smithItems(player, { recipeId: recipe.id, count: desired }); return; }
+        if (services.production?.smithItems) { services.production.smithItems(player, { recipeId: recipe.id, count: desired }); return; }
         enqueueSkillAction(requestAction, "smith", player, recipe.id, desired, recipe.delayTicks ?? 4, tick, services.sendGameMessage);
     };
 
     registry.registerLocAction("smith", (event) => {
-        if (services.openSmithingInterface) { services.openSmithingInterface(event.player); return; }
+        if (services.production?.openSmithingInterface) { services.production.openSmithingInterface(event.player); return; }
         const smithLevel = services.getSkill?.(event.player, SkillId.Smithing)?.baseLevel ?? 1;
         const inventory = getInventory(services, event.player);
         if (!hasItem(inventory, HAMMER_ITEM_ID)) { services.sendGameMessage(event.player, "You need a hammer to smith."); return; }

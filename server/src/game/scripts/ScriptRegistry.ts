@@ -56,6 +56,12 @@ const makeRegistrationResult = (
     },
 });
 
+function warnOverwrite(map: Map<any, any>, key: any, label: string): void {
+    if (map.has(key)) {
+        console.log(`[script] warning: overwriting ${label} handler for key "${key}"`);
+    }
+}
+
 export class ScriptRegistry implements IScriptRegistry {
     private readonly npcHandlers = new Map<RegistryKey, NpcInteractionHandler>();
     private readonly locHandlers = new Map<RegistryKey, LocInteractionHandler>();
@@ -81,6 +87,7 @@ export class ScriptRegistry implements IScriptRegistry {
         option?: string,
     ): ScriptRegistrationResult {
         const key = makeNpcKey(npcId, option);
+        warnOverwrite(this.npcHandlers, key, "npc");
         this.npcHandlers.set(key, handler);
         return makeRegistrationResult(this.npcHandlers, key);
     }
@@ -99,6 +106,7 @@ export class ScriptRegistry implements IScriptRegistry {
         action?: string,
     ): ScriptRegistrationResult {
         const key = makeLocKey(locId, action);
+        warnOverwrite(this.locHandlers, key, "loc");
         this.locHandlers.set(key, handler);
         return makeRegistrationResult(this.locHandlers, key);
     }
@@ -113,6 +121,7 @@ export class ScriptRegistry implements IScriptRegistry {
 
     registerLocAction(action: string, handler: LocInteractionHandler): ScriptRegistrationResult {
         const key = normalizeOption(action);
+        warnOverwrite(this.locActionHandlers, key, "loc-action");
         this.locActionHandlers.set(key, handler);
         return {
             unregister: () => {
@@ -129,6 +138,7 @@ export class ScriptRegistry implements IScriptRegistry {
     ): ScriptRegistrationResult {
         const forwardKey = makeItemKey(sourceItemId, targetItemId, option);
         const reverseKey = makeItemKey(targetItemId, sourceItemId, option);
+        warnOverwrite(this.itemHandlers, forwardKey, "item-on-item");
         this.itemHandlers.set(forwardKey, handler);
         this.itemHandlers.set(reverseKey, handler);
         return {
@@ -146,6 +156,7 @@ export class ScriptRegistry implements IScriptRegistry {
         option?: string,
     ): ScriptRegistrationResult {
         const key = makeItemKey(sourceItemId, locId, option);
+        warnOverwrite(this.itemOnLocHandlers, key, "item-on-loc");
         this.itemOnLocHandlers.set(key, handler);
         return {
             unregister: () => {
@@ -160,6 +171,7 @@ export class ScriptRegistry implements IScriptRegistry {
         option?: string,
     ): ScriptRegistrationResult {
         const key = makeItemKey(itemId, undefined, option);
+        warnOverwrite(this.itemActionHandlers, key, "item-action");
         this.itemActionHandlers.set(key, handler);
         return {
             unregister: () => {
@@ -174,6 +186,7 @@ export class ScriptRegistry implements IScriptRegistry {
         option?: string,
     ): ScriptRegistrationResult {
         const key = makeEquipmentKey(itemId, option);
+        warnOverwrite(this.equipmentHandlers, key, "equipment");
         this.equipmentHandlers.set(key, handler);
         return {
             unregister: () => {
@@ -187,6 +200,7 @@ export class ScriptRegistry implements IScriptRegistry {
         handler: EquipmentActionHandler,
     ): ScriptRegistrationResult {
         const key = normalizeOption(option);
+        warnOverwrite(this.equipmentOptionHandlers, key, "equipment-option");
         this.equipmentOptionHandlers.set(key, handler);
         return {
             unregister: () => {
@@ -227,6 +241,7 @@ export class ScriptRegistry implements IScriptRegistry {
         handler: WidgetActionHandler,
     ): ScriptRegistrationResult {
         const hash = (interfaceId << 16) | (component & 0xffff);
+        warnOverwrite(this.buttonHandlers, hash, `button(${interfaceId}:${component})`);
         this.buttonHandlers.set(hash, handler);
         return {
             unregister: () => {
@@ -245,6 +260,7 @@ export class ScriptRegistry implements IScriptRegistry {
 
     registerNpcAction(option: string, handler: NpcInteractionHandler): ScriptRegistrationResult {
         const key = normalizeOption(option);
+        warnOverwrite(this.npcActionHandlers, key, "npc-action");
         this.npcActionHandlers.set(key, handler);
         return {
             unregister: () => {
@@ -281,6 +297,7 @@ export class ScriptRegistry implements IScriptRegistry {
 
     registerCommand(name: string, handler: CommandHandler): ScriptRegistrationResult {
         const normalized = name.trim().toLowerCase();
+        warnOverwrite(this.commandHandlers, normalized, "command");
         this.commandHandlers.set(normalized, handler);
         return {
             unregister: () => {
@@ -298,6 +315,7 @@ export class ScriptRegistry implements IScriptRegistry {
         handler: ClientMessageHandler,
     ): ScriptRegistrationResult {
         const key = messageType.trim().toLowerCase();
+        warnOverwrite(this.clientMessageHandlers, key, "client-message");
         this.clientMessageHandlers.set(key, handler);
         return {
             unregister: () => {
@@ -314,6 +332,7 @@ export class ScriptRegistry implements IScriptRegistry {
         kind: string,
         handler: ScriptActionHandler,
     ): ScriptRegistrationResult {
+        warnOverwrite(this.actionHandlers, kind, "action");
         this.actionHandlers.set(kind, handler);
         return {
             unregister: () => {

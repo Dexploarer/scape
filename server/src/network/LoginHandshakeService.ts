@@ -8,6 +8,7 @@ import type { AppearanceSetPacket, DecodedPacket } from "./packet";
 import { isBinaryData, isNewProtocolPacket, parsePacketsAsMessages, toUint8Array } from "./packet";
 import { decodeClientPacket } from "./packet/ClientBinaryDecoder";
 import { encodeMessage } from "./messages";
+import { handleExaminePacket as handleExaminePacketFn } from "./handlers/examineHandler";
 import type { WidgetAction } from "../widgets/WidgetManager";
 import { PlayerSyncSession } from "./PlayerSyncSession";
 import { ADMIN_CROWN_ICON } from "./AuthenticationService";
@@ -169,7 +170,6 @@ export interface LoginHandshakeServer {
     queueWidgetEvent(playerId: number, action: WidgetAction): void;
     queueSideJournalGamemodeUi(player: PlayerState): void;
     queueActivateQuestSideTab(playerId: number): void;
-    handleExaminePacket(ws: WebSocket, packet: DecodedPacket): boolean;
     readonly locationService: {
         maybeReplayDynamicLocState(ws: WebSocket, player: PlayerState, force: boolean): void;
     };
@@ -184,7 +184,13 @@ export interface LoginHandshakeServer {
     };
 
     // --- Ground items ---
+    readonly groundItems: { queryArea(x: number, y: number, level: number, radius: number, tick: number, playerId: number, worldViewId?: number): any[] };
     readonly groundItemHandler: { clearPlayerState(playerId: number): void } | undefined;
+
+    // --- Cache loaders (for examine handler) ---
+    readonly locTypeLoader: any;
+    readonly npcTypeLoader: any;
+    readonly objTypeLoader: any;
 
     // --- Misc cleanup ---
     readonly playerDynamicLocSceneKeys: { delete(playerId: number): void };
@@ -1122,7 +1128,27 @@ export class LoginHandshakeService {
                             continue;
                         }
 
-                        if (!msg && this.server.handleExaminePacket(ws, packet)) {
+                        if (!msg && handleExaminePacketFn(
+                            {
+                                getPlayer: (sock) => this.server.players?.get(sock),
+                                queuePlayerGameMessage: (player, text) =>
+                                    this.server.messagingService.queueChatMessage({
+                                        messageType: "game",
+                                        text,
+                                        targetPlayerIds: [player.id],
+                                    }),
+                                queryGroundItemArea: (x, y, level, radius, tick, playerId, wvId) =>
+                                    this.server.groundItems.queryArea(x, y, level, radius, tick, playerId, wvId),
+                                getCurrentTick: () => this.server.options.ticker.currentTick(),
+                                locTypeLoader: this.server.locTypeLoader,
+                                npcTypeLoader: this.server.npcTypeLoader,
+                                objTypeLoader: this.server.objTypeLoader,
+                                getNpcType: (npc: any) => this.server.npcTypeLoader?.load(npc?.typeId ?? npc),
+                                getObjType: (itemId: number) => this.server.objTypeLoader?.load(itemId),
+                            },
+                            ws,
+                            packet,
+                        )) {
                             continue;
                         }
 

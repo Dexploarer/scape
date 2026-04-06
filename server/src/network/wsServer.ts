@@ -31,9 +31,6 @@ import { EquipmentStatsUiService } from "../game/services/EquipmentStatsUiServic
 import { ActionDispatchService } from "../game/services/ActionDispatchService";
 import { AuthenticationService } from "./AuthenticationService";
 import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
-import {
-    handleExaminePacket as handleExaminePacketImpl,
-} from "./handlers/examineHandler";
 
 import { ConfigType } from "../../../src/rs/cache/ConfigType";
 import { IndexType } from "../../../src/rs/cache/IndexType";
@@ -88,8 +85,8 @@ import {
     SkillSyncUpdate,
 } from "../game/player";
 import { PrayerSystem } from "../game/prayer/PrayerSystem";
-import { ScriptRegistry } from "../game/scripts/ScriptRegistry";
-import { ScriptRuntime } from "../game/scripts/ScriptRuntime";
+import { ScriptRegistry } from "../game/scripts";
+import { ScriptRuntime } from "../game/scripts";
 import { bootstrapScripts } from "../game/scripts/bootstrap";
 import { PlayerPersistence } from "../game/state/PlayerPersistence";
 import {
@@ -108,10 +105,10 @@ import {
 import { MovementSystem } from "../game/systems/MovementSystem";
 import { ProjectileSystem } from "../game/systems/ProjectileSystem";
 import { ScriptScheduler } from "../game/systems/ScriptScheduler";
-import { StatusEffectSystem } from "../game/systems/StatusEffectSystem";
+import { StatusEffectSystem } from "../game/systems";
 import {
     TickPhaseOrchestrator,
-} from "../game/tick/TickPhaseOrchestrator";
+} from "../game/tick";
 import { GameTicker } from "../game/ticker";
 import { TradeManager } from "../game/trade/TradeManager";
 import { PathService } from "../pathfinding/PathService";
@@ -153,7 +150,6 @@ import {
     SpellResultPayload,
     encodeMessage,
 } from "./messages";
-import type { DecodedPacket } from "./packet";
 import { REPORT_GAME_TIME_GROUP_ID, ReportGameTimeTracker } from "./reportGameTime";
 
 const DEFAULT_AUTOSAVE_SECONDS = 120; // Tuned via docs/autosave-sizing.md (Nov 2025)
@@ -1540,8 +1536,6 @@ export class WSServer {
         return this.networkLayer.withDirectSendBypass(context, fn);
     }
 
-
-
     getScriptScheduler(): ScriptScheduler {
         return this.scriptScheduler;
     }
@@ -1678,7 +1672,7 @@ export class WSServer {
             player.id,
             player.combatWeaponCategory,
             player.combatWeaponItemId,
-            !!player.autoRetaliate,
+            player.autoRetaliate,
             player.combatStyleSlot,
             Array.from(player.activePrayers ?? []),
             player.combatSpellId > 0 ? player.combatSpellId : undefined,
@@ -1719,29 +1713,6 @@ export class WSServer {
         return this.options.pathService;
     }
 
-    handleExaminePacket(ws: WebSocket, packet: DecodedPacket): boolean {
-        return handleExaminePacketImpl(
-            {
-                getPlayer: (sock) => this.players?.get(sock),
-                queuePlayerGameMessage: (player, text) =>
-                    this.messagingService.queueChatMessage({
-                        messageType: "game",
-                        text,
-                        targetPlayerIds: [player.id],
-                    }),
-                queryGroundItemArea: (x, y, level, radius, tick, playerId, wvId) =>
-                    this.groundItems.queryArea(x, y, level, radius, tick, playerId, wvId),
-                getCurrentTick: () => this.options.ticker.currentTick(),
-                locTypeLoader: this.locTypeLoader,
-                npcTypeLoader: this.npcTypeLoader,
-                objTypeLoader: this.objTypeLoader,
-                getNpcType: (npc) => this.npcTypeLoader?.load(npc?.typeId ?? npc),
-                getObjType: (itemId) => this.objTypeLoader?.load(itemId),
-            },
-            ws,
-            packet,
-        );
-    }
 
     private queueExternalNpcTeleportSync(npc: NpcState): void {
         const delta = buildTeleportNpcUpdateDelta(npc);

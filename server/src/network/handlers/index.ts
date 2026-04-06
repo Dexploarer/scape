@@ -1,11 +1,17 @@
 import type { MessageRouter } from "../MessageRouter";
 import type { MessageHandlerServices } from "../MessageHandlers";
-import { registerMessageHandlers } from "../MessageHandlers";
 import { createLogoutHandler } from "./logoutHandler";
 import { createIfCloseHandler } from "./ifCloseHandler";
 import { createWidgetHandler } from "./widgetHandler";
 import { createVarpTransmitHandler } from "./varpTransmitHandler";
 import { type BinaryHandlerExtServices, registerBinaryHandlers } from "./binaryMessageHandlers";
+import { registerInteractHandlers } from "./interactHandlers";
+import { registerDialogHandlers } from "./dialogHandlers";
+import { registerMovementHandlers } from "./movementHandlers";
+import { registerNpcHandlers } from "./npcHandlers";
+import { registerSpellHandlers } from "./spellHandlers";
+import { registerDebugHandler } from "./debugHandler";
+import { registerChatHandler } from "./chatHandler";
 
 export type { BinaryHandlerExtServices };
 
@@ -15,15 +21,21 @@ export type { BinaryHandlerExtServices };
  *
  * To add a new handler:
  * 1. Create a handler file in this directory
- * 2. Export a createXxxHandler(services) function
- * 3. Register it here with router.register("type", createXxxHandler(services))
+ * 2. Export a registerXxxHandlers(router, services) function
+ * 3. Register it here
  */
 export function registerAllHandlers(
     router: MessageRouter,
     services: BinaryHandlerExtServices,
 ): void {
-    // Existing handlers from MessageHandlers.ts (20+ gameplay handlers)
-    registerMessageHandlers(router, services);
+    // Gameplay handlers (extracted from MessageHandlers.ts)
+    registerInteractHandlers(router, services);
+    registerDialogHandlers(router, services);
+    registerMovementHandlers(router, services);
+    registerNpcHandlers(router, services);
+    registerSpellHandlers(router, services);
+    registerDebugHandler(router, services);
+    registerChatHandler(router, services);
 
     // Extracted from onConnection if-else chain
     router.register("logout", createLogoutHandler(services));

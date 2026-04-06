@@ -36,7 +36,7 @@ async function main() {
     const pathService = new PathService(mapService);
     logger.info("Boot: path service ready");
 
-    const cacheFactory = getCacheLoaderFactory(cacheEnv.info, cacheEnv.cacheSystem as any);
+    const cacheFactory = getCacheLoaderFactory(cacheEnv.info, cacheEnv.cacheSystem);
     const npcTypeLoader = cacheFactory.getNpcTypeLoader();
     const basTypeLoader = cacheFactory.getBasTypeLoader();
 

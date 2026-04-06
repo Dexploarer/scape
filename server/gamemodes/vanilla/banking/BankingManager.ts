@@ -528,7 +528,7 @@ export class BankingManager implements BankingProvider {
         let quantity = entry.quantity;
 
         if (placeholder && rawItemId > 0) {
-            const obj: any = this.services.getObjType(rawItemId);
+            const obj = this.services.getObjType(rawItemId) as { placeholderTemplate?: number; placeholder?: number } | undefined;
             if (obj && obj.placeholderTemplate === -1 && obj.placeholder >= 0) {
                 itemId = obj.placeholder;
             }

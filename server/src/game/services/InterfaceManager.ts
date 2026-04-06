@@ -1,5 +1,5 @@
 import { MAX_REAL_LEVEL, getSkillName } from "../../../../src/rs/skill/skills";
-import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
+import type { BroadcastScheduler, ChatMessageSnapshot } from "../systems/BroadcastScheduler";
 import type { ActionScheduler } from "../actions";
 import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
 import type { PlayerState } from "../player";
@@ -14,7 +14,7 @@ export interface PlayerWidgetOpenLedger {
 
 export interface LevelUpPopup {
     kind: "skill" | "combat" | "hunter";
-    skillId?: any;
+    skillId?: number;
     newLevel: number;
     levelIncrement: number;
 }
@@ -23,7 +23,7 @@ export interface WidgetAction {
     action: string;
     groupId?: number;
     targetUid?: number;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 export interface InterfaceManagerDeps {
@@ -31,12 +31,12 @@ export interface InterfaceManagerDeps {
     getIsBroadcastPhase: () => boolean;
     broadcastScheduler: BroadcastScheduler;
     actionScheduler: ActionScheduler;
-    queueChatMessage: (msg: any) => void;
+    queueChatMessage: (msg: ChatMessageSnapshot) => void;
     showLevelUpPopup: (player: PlayerState, popup: LevelUpPopup) => boolean;
     closeChatboxModalOverlay: (playerId: number) => void;
     getPlayerById: (id: number) => PlayerState | undefined;
     interfaceService?: {
-        triggerCloseHooksForEntries(player: PlayerState, entries: any[]): void;
+        triggerCloseHooksForEntries(player: PlayerState, entries: Array<{ groupId: number; targetUid?: number }>): void;
     };
     widgetDialogHandler?: {
         closeAllPlayerDialogs(player: PlayerState): void;

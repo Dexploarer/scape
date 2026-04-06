@@ -59,7 +59,7 @@ const makeRegistrationResult = (
     },
 });
 
-function warnOverwrite(map: Map<any, any>, key: any, label: string): void {
+function warnOverwrite(map: { has(key: unknown): boolean }, key: unknown, label: string): void {
     if (map.has(key)) {
         logger.info(`[script] warning: overwriting ${label} handler for key "${key}"`);
     }

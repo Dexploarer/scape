@@ -5,7 +5,7 @@ import type { WorldEntityInfoEncoder } from "../../network/encoding/WorldEntityI
 import type { LocationService } from "./LocationService";
 import type { MovementService } from "./MovementService";
 import type { PlayerState } from "../player";
-import { encodeMessage } from "../../network/messages";
+import { encodeMessage, type ServerToClient } from "../../network/messages";
 import { buildRebuildNormalPayload, buildRebuildWorldEntityPayload } from "../../world/InstanceManager";
 import type { WorldEntityBuildArea } from "../../../../src/shared/worldentity/WorldEntityTypes";
 import type { CacheEnv } from "../../world/CacheEnv";
@@ -42,7 +42,7 @@ export class WorldEntityService {
             regionY,
             this.deps.cacheEnv!,
         );
-        const packet = encodeMessage({ type: "rebuild_normal", payload } as any);
+        const packet = encodeMessage({ type: "rebuild_normal", payload } as unknown as ServerToClient);
         this.deps.networkLayer.withDirectSendBypass("rebuild_normal", () =>
             this.deps.networkLayer.sendWithGuard(ws, packet, "rebuild_normal"),
         );
@@ -71,10 +71,10 @@ export class WorldEntityService {
             regionX, regionY, regionX, regionY,
             templateChunks, buildAreas, this.deps.cacheEnv!, false,
         );
-        (payload as any).extraNpcs = extraNpcs ?? [];
-        // Pass basePlane so the client knows which plane deck content lives on
-        (payload as any).basePlane = 1;
-        const packet = encodeMessage({ type: "rebuild_worldentity", payload } as any);
+        const extendedPayload = payload as Record<string, unknown>;
+        extendedPayload.extraNpcs = extraNpcs ?? [];
+        extendedPayload.basePlane = 1;
+        const packet = encodeMessage({ type: "rebuild_worldentity", payload } as unknown as ServerToClient);
         this.deps.networkLayer.withDirectSendBypass("rebuild_worldentity", () =>
             this.deps.networkLayer.sendWithGuard(ws, packet, "rebuild_worldentity"),
         );
@@ -134,7 +134,7 @@ export class WorldEntityService {
             this.deps.cacheEnv!,
             false,
         );
-        const packet = encodeMessage({ type: "rebuild_worldentity", payload } as any);
+        const packet = encodeMessage({ type: "rebuild_worldentity", payload } as unknown as ServerToClient);
         logger.info(`[teleportToWorldEntity] Sending REBUILD_WORLDENTITY packet (${packet.length} bytes, ${payload.mapRegions.length} regions)`);
         this.deps.networkLayer.withDirectSendBypass("rebuild_worldentity", () =>
             this.deps.networkLayer.sendWithGuard(ws, packet, "rebuild_worldentity"),

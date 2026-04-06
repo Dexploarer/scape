@@ -1,12 +1,14 @@
-import type { SkillSyncUpdate } from "../player";
+import type { PlayerAppearance, SkillSyncUpdate } from "../player";
 import type { HitsplatSourceType } from "../combat/OsrsHitsplatIds";
+import type { WidgetAction } from "../../widgets/WidgetManager";
+import type { SpellResultPayload } from "../../network/messages";
 
 /**
  * Widget event queued for broadcast.
  */
 export interface WidgetEventSnapshot {
     playerId: number;
-    action: any;
+    action: WidgetAction;
 }
 
 /**
@@ -38,7 +40,7 @@ export interface AppearanceSnapshot {
         rot: number;
         orientation: number;
         running: boolean;
-        appearance: any;
+        appearance: PlayerAppearance | undefined;
         name?: string;
         anim?: PlayerAnimSet;
         moved: boolean;
@@ -194,7 +196,7 @@ export interface PlayerAnimSet {
 export class BroadcastScheduler {
     // Chat and notifications
     private pendingChatMessages: ChatMessageSnapshot[] = [];
-    private pendingNotifications: Array<{ playerId: number; payload: any }> = [];
+    private pendingNotifications: Array<{ playerId: number; payload: Record<string, unknown> }> = [];
 
     // Game state updates
     private pendingVarps: VarpUpdate[] = [];
@@ -226,7 +228,7 @@ export class BroadcastScheduler {
         this.pendingChatMessages.push(message);
     }
 
-    queueNotification(playerId: number, payload: any): void {
+    queueNotification(playerId: number, payload: Record<string, unknown>): void {
         this.pendingNotifications.push({ playerId: playerId, payload });
     }
 
@@ -236,7 +238,7 @@ export class BroadcastScheduler {
         return messages;
     }
 
-    drainNotifications(): Array<{ playerId: number; payload: any }> {
+    drainNotifications(): Array<{ playerId: number; payload: Record<string, unknown> }> {
         const notifications = this.pendingNotifications;
         this.pendingNotifications = [];
         return notifications;
@@ -385,7 +387,7 @@ export class BroadcastScheduler {
         this.pendingChatMessages = messages.concat(this.pendingChatMessages);
     }
 
-    restoreNotifications(notifications: Array<{ playerId: number; payload: any }>): void {
+    restoreNotifications(notifications: Array<{ playerId: number; payload: Record<string, unknown> }>): void {
         this.pendingNotifications = notifications.concat(this.pendingNotifications);
     }
 
@@ -459,9 +461,9 @@ export class BroadcastScheduler {
 
     // ----- Keyed Message Queues (smithing, trade, etc.) -----
 
-    private keyedMessages = new Map<string, Array<{ playerId: number; payload: any }>>();
+    private keyedMessages = new Map<string, Array<{ playerId: number; payload: Record<string, unknown> }>>();
 
-    queueKeyedMessage(key: string, playerId: number, payload: any): void {
+    queueKeyedMessage(key: string, playerId: number, payload: Record<string, unknown>): void {
         let queue = this.keyedMessages.get(key);
         if (!queue) {
             queue = [];
@@ -470,24 +472,24 @@ export class BroadcastScheduler {
         queue.push({ playerId, payload });
     }
 
-    drainKeyedMessages(key: string): Array<{ playerId: number; payload: any }> {
+    drainKeyedMessages(key: string): Array<{ playerId: number; payload: Record<string, unknown> }> {
         const messages = this.keyedMessages.get(key) ?? [];
         this.keyedMessages.delete(key);
         return messages;
     }
 
-    restoreKeyedMessages(key: string, messages: Array<{ playerId: number; payload: any }>): void {
+    restoreKeyedMessages(key: string, messages: Array<{ playerId: number; payload: Record<string, unknown> }>): void {
         const existing = this.keyedMessages.get(key) ?? [];
         this.keyedMessages.set(key, messages.concat(existing));
     }
 
-    drainAllKeyedMessages(): Map<string, Array<{ playerId: number; payload: any }>> {
+    drainAllKeyedMessages(): Map<string, Array<{ playerId: number; payload: Record<string, unknown> }>> {
         const all = this.keyedMessages;
         this.keyedMessages = new Map();
         return all;
     }
 
-    restoreAllKeyedMessages(all: Map<string, Array<{ playerId: number; payload: any }>>): void {
+    restoreAllKeyedMessages(all: Map<string, Array<{ playerId: number; payload: Record<string, unknown> }>>): void {
         for (const [key, messages] of all.entries()) {
             this.restoreKeyedMessages(key, messages);
         }
@@ -576,19 +578,19 @@ export class BroadcastScheduler {
 
     // ----- Spell Results -----
 
-    private pendingSpellResults: Array<{ playerId: number; payload: any }> = [];
+    private pendingSpellResults: Array<{ playerId: number; payload: SpellResultPayload }> = [];
 
-    queueSpellResult(playerId: number, payload: any): void {
+    queueSpellResult(playerId: number, payload: SpellResultPayload): void {
         this.pendingSpellResults.push({ playerId, payload });
     }
 
-    drainSpellResults(): Array<{ playerId: number; payload: any }> {
+    drainSpellResults(): Array<{ playerId: number; payload: SpellResultPayload }> {
         const results = this.pendingSpellResults;
         this.pendingSpellResults = [];
         return results;
     }
 
-    restoreSpellResults(results: Array<{ playerId: number; payload: any }>): void {
+    restoreSpellResults(results: Array<{ playerId: number; payload: SpellResultPayload }>): void {
         this.pendingSpellResults = results.concat(this.pendingSpellResults);
     }
 

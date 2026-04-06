@@ -83,7 +83,7 @@ export const ALL_RUNE_ITEM_IDS: number[] = new Proxy([] as number[], {
             if (typeof prop === "string" && !isNaN(Number(prop))) {
                 return ids[Number(prop)];
             }
-            return Reflect.get(ids as any, prop, receiver);
+            return Reflect.get(ids as object, prop, receiver);
         }
         return Reflect.get(target, prop, receiver);
     },
@@ -100,7 +100,7 @@ export const COMBINATION_RUNES: CombinationRune[] = new Proxy(
                 if (typeof prop === "string" && !isNaN(Number(prop))) {
                     return runes[Number(prop)];
                 }
-                return Reflect.get(runes as any, prop, receiver);
+                return Reflect.get(runes as object, prop, receiver);
             }
             return Reflect.get(target, prop, receiver);
         },
@@ -118,7 +118,7 @@ export const STAFF_SUBSTITUTIONS: StaffSubstitution[] = new Proxy(
                 if (typeof prop === "string" && !isNaN(Number(prop))) {
                     return subs[Number(prop)];
                 }
-                return Reflect.get(subs as any, prop, receiver);
+                return Reflect.get(subs as object, prop, receiver);
             }
             return Reflect.get(target, prop, receiver);
         },

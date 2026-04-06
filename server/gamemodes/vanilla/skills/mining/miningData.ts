@@ -1,8 +1,15 @@
 export type Vec2 = { x: number; y: number };
 
+interface LocTypeData {
+    name?: string;
+    actions?: (string | null)[];
+    models?: number[][];
+    recolorTo?: number[];
+}
+
 export interface LocTypeLoader {
     getCount?: () => number;
-    load?: (id: number) => any;
+    load?: (id: number) => LocTypeData | undefined;
 }
 
 export interface PickaxeDefinition {
@@ -207,13 +214,13 @@ export interface MiningLocMap {
     map: Map<number, MiningLocMapping>;
 }
 
-function hasMineAction(loc: any): boolean {
+function hasMineAction(loc: LocTypeData | undefined): boolean {
     const actions = loc?.actions;
     if (!Array.isArray(actions)) return false;
     return actions.some((action) => action && action.trim().toLowerCase() === "mine");
 }
 
-function getPrimaryModelId(loc: any): number | undefined {
+function getPrimaryModelId(loc: LocTypeData | undefined): number | undefined {
     const models = loc?.models;
     if (!Array.isArray(models) || models.length === 0) return undefined;
     const primary = models[0];
@@ -223,12 +230,12 @@ function getPrimaryModelId(loc: any): number | undefined {
     return modelId;
 }
 
-function hasRecolor(loc: any): boolean {
+function hasRecolor(loc: LocTypeData | undefined): boolean {
     const recolorTo = loc?.recolorTo;
     return Array.isArray(recolorTo) && recolorTo.length > 0;
 }
 
-function isDepletedRockCandidate(loc: any): boolean {
+function isDepletedRockCandidate(loc: LocTypeData | undefined): boolean {
     const name = loc?.name?.trim().toLowerCase() ?? "";
     if (name !== "rocks") return false;
     if (!hasMineAction(loc)) return false;
@@ -269,7 +276,7 @@ export function buildMiningLocMap(loader?: LocTypeLoader): MiningLocMap {
     const depletedCandidatesByModel = new Map<number, number[]>();
 
     for (let id = 0; id < total; id++) {
-        let loc: any;
+        let loc: LocTypeData | undefined;
         try {
             loc = loader.load(id);
         } catch {
@@ -284,7 +291,7 @@ export function buildMiningLocMap(loader?: LocTypeLoader): MiningLocMap {
     }
 
     for (let id = 0; id < total; id++) {
-        let loc: any;
+        let loc: LocTypeData | undefined;
         try {
             loc = loader.load(id);
         } catch {

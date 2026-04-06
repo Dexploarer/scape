@@ -22,17 +22,17 @@ import type {
 
 export interface DataLoaderServices {
     /** @deprecated Use getEnumTypeLoader() */
-    enumTypeLoader?: any;
+    enumTypeLoader?: { load(id: number): unknown };
     /** @deprecated Use getStructTypeLoader() */
-    structTypeLoader?: any;
-    getEnumTypeLoader?: () => any;
-    getStructTypeLoader?: () => any;
-    getIdkTypeLoader?: () => any;
-    getDbRepository?: () => any;
-    getObjType?: (id: number) => any;
-    getLocDefinition?: (locId: number) => any;
-    getLocTypeLoader?: () => any;
-    getNpcTypeLoader?: () => any;
+    structTypeLoader?: { load(id: number): unknown };
+    getEnumTypeLoader?: () => { load(id: number): unknown } | undefined;
+    getStructTypeLoader?: () => { load(id: number): unknown } | undefined;
+    getIdkTypeLoader?: () => { load(id: number): unknown } | undefined;
+    getDbRepository?: () => { getRows(tableId: number, ...args: unknown[]): unknown[] } | undefined;
+    getObjType?: (id: number) => Record<string, unknown> | undefined;
+    getLocDefinition?: (locId: number) => Record<string, unknown> | undefined;
+    getLocTypeLoader?: () => { load(id: number): unknown } | undefined;
+    getNpcTypeLoader?: () => { load(id: number): unknown } | undefined;
 }
 
 // ============================================================================
@@ -57,7 +57,7 @@ export interface SystemServices {
 
 export interface MessagingServices {
     sendGameMessage: (player: PlayerState, text: string) => void;
-    queueNotification?: (playerId: number, payload: any) => void;
+    queueNotification?: (playerId: number, payload: Record<string, unknown>) => void;
 }
 
 // ============================================================================
@@ -309,9 +309,9 @@ export interface ShoppingServices {
 
 export interface GatheringServices {
     gathering?: GatheringSystemManager;
-    getWoodcuttingTree?: (locId: number) => any;
-    getMiningRock?: (locId: number) => any;
-    getFishingSpot?: (npcTypeId: number) => any;
+    getWoodcuttingTree?: (locId: number) => Record<string, unknown> | undefined;
+    getMiningRock?: (locId: number) => Record<string, unknown> | undefined;
+    getFishingSpot?: (npcTypeId: number) => Record<string, unknown> | undefined;
     isAdjacentToLoc?: (player: PlayerState, locId: number, tile: { x: number; y: number }, level: number) => boolean;
     isAdjacentToNpc?: (player: PlayerState, npc: NpcState) => boolean;
     faceGatheringTarget?: (player: PlayerState, tile: { x: number; y: number }) => void;
@@ -339,7 +339,7 @@ export interface ProductionServiceFacade {
     takeInventoryItems: (player: PlayerState, inputs: Array<{ itemId: number; quantity: number }>) => { ok: boolean; removed: Map<number, { itemId: number; quantity: number }> };
     restoreInventoryRemovals: (player: PlayerState, removed: Map<number, { itemId: number; quantity: number }>) => void;
     restoreInventoryItems: (player: PlayerState, itemId: number, removed: Map<number, number>) => void;
-    queueSmithingMessage?: (playerId: number, payload: any) => void;
+    queueSmithingMessage?: (playerId: number, payload: Record<string, unknown>) => void;
     openSmithingModal?: (player: PlayerState, groupId: number, varbits?: Record<number, number>) => void;
     closeSmithingModal?: (player: PlayerState) => void;
     isSmithingModalOpen?: (player: PlayerState, groupId: number) => boolean;

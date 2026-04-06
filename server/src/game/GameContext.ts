@@ -8,6 +8,7 @@ import type { CacheEnv } from "../world/CacheEnv";
 import type { DataLoaderService } from "./services/DataLoaderService";
 import type { AuthenticationService } from "../network/AuthenticationService";
 import type { PlayerNetworkLayer } from "../network/PlayerNetworkLayer";
+import type { PlayerManager } from "./PlayerManager";
 
 /**
  * Central service container for the game server.
@@ -33,7 +34,7 @@ export class GameContext {
     readonly network: PlayerNetworkLayer;
 
     // Player manager is set after construction (needs services wired first)
-    private _players: any | undefined;
+    private _players: PlayerManager | undefined;
 
     constructor(opts: {
         ticker: GameTicker;
@@ -61,11 +62,11 @@ export class GameContext {
         return this.ticker.currentTick();
     }
 
-    setPlayers(players: any): void {
+    setPlayers(players: PlayerManager): void {
         this._players = players;
     }
 
-    getPlayers(): any | undefined {
+    getPlayers(): PlayerManager | undefined {
         return this._players;
     }
 

@@ -33,7 +33,10 @@ import {
 import { logger } from "../utils/logger";
 import type { MessageHandler, MessagePayload, MessageRouter } from "./MessageRouter";
 import type { IndexedMenuRequest } from "./managers/Cs2ModalManager";
-import type { ServerToClient } from "./messages";
+import type { NotificationPayload, ServerToClient } from "./messages";
+import type { LevelUpPopup } from "../game/services/InterfaceManager";
+import type { InterfaceService } from "../widgets/InterfaceService";
+import type { GamemodeDefinition, GamemodeUiController } from "../game/gamemodes/GamemodeDefinition";
 
 const DEBUG_SCROLL_TITLE = "Clue Compass";
 const DEBUG_SCROLL_OPTIONS = [
@@ -261,7 +264,7 @@ export interface MessageHandlerServices {
     queueVarp: (playerId: number, varpId: number, value: number) => void;
     queueVarbit: (playerId: number, varbitId: number, value: number) => void;
     queueClientScript?: (playerId: number, scriptId: number, ...args: (number | string)[]) => void;
-    queueNotification: (playerId: number, notification: any) => void;
+    queueNotification: (playerId: number, notification: NotificationPayload) => void;
     trackCollectionLogItem: (player: PlayerState, itemId: number) => void;
     sendRunEnergyState: (ws: WebSocket, player: PlayerState) => void;
     getWeaponSpecialCostPercent: (weaponId: number) => number | undefined;
@@ -284,8 +287,8 @@ export interface MessageHandlerServices {
         targetPlayerIds?: number[];
     }) => void;
     getPublicChatPlayerType: (player: PlayerState) => number;
-    enqueueLevelUpPopup: (player: PlayerState, data: any) => void;
-    findScriptCommand: (name: string) => ((event: { player: PlayerState; command: string; args: string[]; tick: number; services: any }) => string | void | Promise<string | void>) | undefined;
+    enqueueLevelUpPopup: (player: PlayerState, data: LevelUpPopup) => void;
+    findScriptCommand: (name: string) => ((event: { player: PlayerState; command: string; args: string[]; tick: number; services: Record<string, unknown> }) => string | void | Promise<string | void>) | undefined;
     getCurrentTick: () => number;
 
     // Debug
@@ -321,15 +324,15 @@ export interface MessageHandlerServices {
     // --- Services for extracted handlers (logout, widget, varp_transmit, if_close) ---
     completeLogout: (ws: WebSocket, player?: PlayerState, source?: string) => void;
     closeInterruptibleInterfaces: (player: PlayerState) => void;
-    noteWidgetEventForLedger: (playerId: number, event: any) => void;
+    noteWidgetEventForLedger: (playerId: number, event: { action: string; groupId?: number; modal?: boolean }) => void;
     normalizeSideJournalState: (player: PlayerState, value?: number) => { tab: number; stateVarp: number };
     queueSideJournalGamemodeUi: (player: PlayerState) => void;
     syncMusicInterface: (player: PlayerState) => void;
     handleCs2ModalCloseState: (player: PlayerState, groupId: number) => void;
     handleDialogCloseState: (player: PlayerState, groupId: number) => void;
-    getInterfaceService: () => any;
-    getGamemodeUi: () => any;
-    getGamemode: () => any;
+    getInterfaceService: () => InterfaceService | undefined;
+    getGamemodeUi: () => GamemodeUiController | undefined;
+    getGamemode: () => GamemodeDefinition;
 }
 
 const DEFAULT_CHAT_PREFIX = "";

@@ -50,7 +50,7 @@ function describeBar(services: ScriptServices, itemId: number): string {
 }
 
 function rollSmeltingSuccess(level: number, recipe: SmeltingRecipe, equip: number[], ringCharges?: number): boolean {
-    if (shouldGuaranteeIronSmelt(recipe as any, equip, ringCharges)) return true;
+    if (shouldGuaranteeIronSmelt(recipe, equip, ringCharges)) return true;
     if (recipe.successType === "iron") {
         const chance = calculateIronSmeltChance(level);
         return Math.random() < chance;
@@ -97,7 +97,7 @@ export function executeSmeltAction(ctx: ScriptActionHandlerContext): ActionExecu
         }
 
         services.playPlayerSeq?.(player, recipe.animation ?? FURNACE_ANIMATION);
-        const xpAward = getSmeltingXpWithBonuses(recipe as any, equip);
+        const xpAward = getSmeltingXpWithBonuses(recipe, equip);
         services.addSkillXp?.(player, SkillId.Smithing, xpAward);
         const barName = describeBar(services, recipe.outputItemId);
         effects.push(

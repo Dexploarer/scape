@@ -682,7 +682,7 @@ export interface CollectionLogServices {
     queueVarp(playerId: number, varpId: number, value: number): void;
     queueVarbit(playerId: number, varbitId: number, value: number): void;
     queueWidgetEvent(playerId: number, event: WidgetAction): void;
-    queueNotification(playerId: number, payload: any): void;
+    queueNotification(playerId: number, payload: Record<string, unknown>): void;
     queueChatMessage(request: {
         messageType: string;
         text: string;

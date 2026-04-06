@@ -41,9 +41,9 @@ export function createVarpTransmitHandler(services: MessageHandlerServices): Mes
         try {
             const p = services.getPlayer(ctx.ws);
             if (!p) return;
-            const payload = ctx.payload as any;
-            const varpId = payload?.varpId as number;
-            const value = payload?.value as number;
+            const payload = ctx.payload;
+            const varpId = payload.varpId;
+            const value = payload.value;
             const previousVarpValue = p.varps.getVarpValue(varpId);
 
             p.varps.setVarpValue(varpId, value);
@@ -59,7 +59,7 @@ export function createVarpTransmitHandler(services: MessageHandlerServices): Mes
                 // Music volume handled by sound manager via gamemode hook
             }
             if (varpId === VARP_OPTION_RUN) {
-                (p as any).setRunToggle?.(value !== 0);
+                p.setRunToggle(value !== 0);
                 services.sendRunEnergyState(ctx.ws, p);
             } else if (varpId === VARP_SPECIAL_ATTACK) {
                 handleSpecialAttackVarp(services, ctx.ws, p, value);
@@ -152,13 +152,13 @@ function handleInstantUtilitySpecial(
     const seqId = (rockKnockerSeqId ?? fishstabberSeqId ?? lumberUpSeqId) as number;
     const currentTick = services.getCurrentTick();
 
-    if (wasInstantUtilitySpecialHandledAtTick(p as any, currentTick) || weaponCost === undefined) {
+    if (wasInstantUtilitySpecialHandledAtTick(p as unknown as Record<string, number | undefined>, currentTick) || weaponCost === undefined) {
         revertSpecialAttack(services, ws, p);
         return;
     }
 
     if (p.specEnergy.getUnits() < (weaponCost ?? 0) || !p.specEnergy.consume(weaponCost ?? 0)) {
-        markInstantUtilitySpecialHandledAtTick(p as any, currentTick);
+        markInstantUtilitySpecialHandledAtTick(p as unknown as Record<string, number | undefined>, currentTick);
         revertSpecialAttack(services, ws, p);
         services.queueChatMessage({
             messageType: "game",
@@ -168,7 +168,7 @@ function handleInstantUtilitySpecial(
         return;
     }
 
-    markInstantUtilitySpecialHandledAtTick(p as any, currentTick);
+    markInstantUtilitySpecialHandledAtTick(p as unknown as Record<string, number | undefined>, currentTick);
     if (rockKnockerSeqId !== undefined) applyRockKnockerMiningBoost(p);
     else if (fishstabberSeqId !== undefined) applyFishstabberFishingBoost(p);
     else applyLumberUpWoodcuttingBoost(p);

@@ -9,6 +9,7 @@ import { weaponDataEntries } from "../combat/WeaponDataProvider";
 import type { BroadcastScheduler, PlayerAnimSet } from "../systems/BroadcastScheduler";
 import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
 import type { PlayerState, PlayerAppearance as PlayerAppearanceState } from "../player";
+import type { PlayerAppearanceManager } from "../../network/managers/PlayerAppearanceManager";
 import type { DataLoaderService } from "./DataLoaderService";
 import type { TickFrame } from "../tick/TickPhaseOrchestrator";
 import { logger } from "../../utils/logger";
@@ -22,11 +23,18 @@ const PLAYER_ANIM_KEYS = ["idle", "walk", "run", "turnLeft", "turnRight"] as con
 function buildAnimSetFromBas(bas: BasType | undefined): PlayerAnimSet | undefined {
     if (!bas) return undefined;
     const set: PlayerAnimSet = {};
-    if ((bas as any).idleSeq !== undefined) set.idle = (bas as any).idleSeq;
-    if ((bas as any).walkSeq !== undefined) set.walk = (bas as any).walkSeq;
-    if ((bas as any).runSeq !== undefined) set.run = (bas as any).runSeq;
-    if ((bas as any).turnLeft !== undefined) set.turnLeft = (bas as any).turnLeft;
-    if ((bas as any).turnRight !== undefined) set.turnRight = (bas as any).turnRight;
+    // BasType fields use `*SeqId` naming but some cache variants use short names
+    const b = bas as BasType & Record<string, number | undefined>;
+    if (b.idleSeq !== undefined) set.idle = b.idleSeq;
+    else if (bas.idleSeqId >= 0) set.idle = bas.idleSeqId;
+    if (b.walkSeq !== undefined) set.walk = b.walkSeq;
+    else if (bas.walkSeqId >= 0) set.walk = bas.walkSeqId;
+    if (b.runSeq !== undefined) set.run = b.runSeq;
+    else if (bas.runSeqId >= 0) set.run = bas.runSeqId;
+    if (b.turnLeft !== undefined) set.turnLeft = b.turnLeft;
+    else if (bas.idleLeftSeqId >= 0) set.turnLeft = bas.idleLeftSeqId;
+    if (b.turnRight !== undefined) set.turnRight = b.turnRight;
+    else if (bas.idleRightSeqId >= 0) set.turnRight = bas.idleRightSeqId;
     return set;
 }
 
@@ -46,7 +54,7 @@ function ensureCorePlayerAnimSet(
 export interface AppearanceServiceDeps {
     dataLoaders: DataLoaderService;
     gamemode: GamemodeDefinition;
-    playerAppearanceManager: any;
+    playerAppearanceManager: PlayerAppearanceManager;
     broadcastScheduler: BroadcastScheduler;
     getActiveFrame: () => TickFrame | undefined;
     isAdminPlayer: (player: PlayerState | undefined) => boolean;
@@ -72,7 +80,7 @@ export class AppearanceService {
 
     constructor(private readonly deps: AppearanceServiceDeps) {}
 
-    setDeferredDeps(deferred: { playerAppearanceManager?: any }): void {
+    setDeferredDeps(deferred: { playerAppearanceManager?: PlayerAppearanceManager }): void {
         Object.assign(this.deps, deferred);
     }
 
@@ -132,7 +140,7 @@ export class AppearanceService {
         this.deps.playerAppearanceManager.refreshAppearanceKits(p);
     }
 
-    queueAppearanceSnapshot(player: PlayerState, overrides?: any): void {
+    queueAppearanceSnapshot(player: PlayerState, overrides?: Record<string, unknown>): void {
         this.deps.playerAppearanceManager.queueAppearanceSnapshot(player, overrides);
     }
 
@@ -140,7 +148,7 @@ export class AppearanceService {
         return player.appearance ?? (player.appearance = this.createDefaultAppearance());
     }
 
-    sanitizeHandshakeAppearance(raw: any): PlayerAppearanceState {
+    sanitizeHandshakeAppearance(raw: { gender?: number; colors?: number[]; kits?: number[] }): PlayerAppearanceState {
         const colors = raw.colors?.slice(0, 10);
         const kits = raw.kits?.slice(0, 12);
         return {

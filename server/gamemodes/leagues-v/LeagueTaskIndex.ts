@@ -85,7 +85,7 @@ export class LeagueTaskIndex {
 
     private indexTask(task: LeagueTaskRow, loaders: TriggerParserLoaders): void {
         // Check if task has a manual trigger override
-        const manualTrigger = (task as any).trigger as TaskTrigger | undefined;
+        const manualTrigger = (task as unknown as Record<string, unknown>).trigger as TaskTrigger | undefined;
 
         // Parse trigger from task name, or use manual override
         const trigger =

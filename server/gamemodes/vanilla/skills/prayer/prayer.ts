@@ -1,5 +1,6 @@
 import { SkillId } from "../../../../../src/rs/skill/skills";
 import type { IScriptRegistry, ScriptServices } from "../../../../src/game/scripts/types";
+import type { PlayerState } from "../../../../src/game/player";
 import { BURIABLE_BONES_XP, DEMONIC_ASHES_XP } from "./prayerData";
 import { formatBuryMessage, formatScatterMessage } from "./prayerMessages";
 
@@ -15,7 +16,7 @@ const lastScatterTick: Map<number, number> = new Map();
 
 type PendingBury = {
     at: number;
-    player: any;
+    player: PlayerState;
     itemId: number;
     xp: number;
     message?: string;

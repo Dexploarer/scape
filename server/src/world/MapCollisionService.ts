@@ -55,7 +55,7 @@ export class MapCollisionService {
             ? path.resolve(opts.precomputedRoot)
             : path.resolve("server/cache/collision");
 
-        const factory = getCacheLoaderFactory(env.info, env.cacheSystem as any);
+        const factory = getCacheLoaderFactory(env.info, env.cacheSystem);
         const underlays = factory.getUnderlayTypeLoader();
         const overlays = factory.getOverlayTypeLoader();
         const locTypeLoader = factory.getLocTypeLoader();
@@ -211,7 +211,7 @@ export class MapCollisionService {
             return this.sceneBuilder;
         }
         if (this.usePrecomputed && !this.includeModels) {
-            const factory = getCacheLoaderFactory(this.env.info, this.env.cacheSystem as any);
+            const factory = getCacheLoaderFactory(this.env.info, this.env.cacheSystem);
             const underlays = factory.getUnderlayTypeLoader();
             const overlays = factory.getOverlayTypeLoader();
             const locTypeLoader = factory.getLocTypeLoader();

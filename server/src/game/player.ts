@@ -40,7 +40,7 @@ import { PlayerInventoryState } from "./state/PlayerInventoryState";
 import { PlayerPrayerState } from "./state/PlayerPrayerState";
 import { PlayerStatusState } from "./state/PlayerStatusState";
 import { PlayerAggressionTracker } from "./state/PlayerAggressionTracker";
-import { PlayerRunEnergyState } from "./state/PlayerRunEnergyState";
+import { PlayerRunEnergyState, type RunEnergyOwner } from "./state/PlayerRunEnergyState";
 import { PlayerVarpState } from "./state/PlayerVarpState";
 import { PlayerBankSystem, DEFAULT_BANK_CAPACITY } from "./state/PlayerBankSystem";
 import { PlayerSpecialEnergyState } from "./state/PlayerSpecialEnergyState";
@@ -290,7 +290,7 @@ export class PlayerState extends Actor {
 
     /** Composed run energy & stamina state */
     readonly energy = new PlayerRunEnergyState(
-        this as any,
+        this as unknown as RunEnergyOwner,
         () => PlayerState.gamemodeRef?.hasInfiniteRunEnergy(this) ?? false,
     );
     /** Composed aggression tolerance tracker */
@@ -706,7 +706,7 @@ export class PlayerState extends Actor {
         return this.appearanceDirty;
     }
 
-    takeAppearanceSnapshot(): any | undefined {
+    takeAppearanceSnapshot(): PlayerAppearance | undefined {
         if (!this.appearanceDirty) return undefined;
         this.appearanceDirty = false;
         return this.appearance;

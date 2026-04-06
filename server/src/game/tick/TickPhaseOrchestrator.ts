@@ -8,7 +8,7 @@ import { logger } from "../../utils/logger";
 export interface TickFrame {
     tick: number;
     time: number;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 /**

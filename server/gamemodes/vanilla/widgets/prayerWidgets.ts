@@ -14,6 +14,7 @@ import {
 import { GameframeTab } from "../../../src/widgets/InterfaceService";
 import { DisplayMode, getPrayerTabUid } from "../../../src/widgets/viewport";
 import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
+import type { PlayerState } from "../../../src/game/player";
 
 /**
  * Prayer widget handlers for interface 541 (prayer tab) and 160 (minimap prayer orb).
@@ -337,7 +338,7 @@ function buildQuickPrayerSetupSlotMap(
 
 function openQuickPrayerSetupTab(
     openSetup: boolean,
-    player: any,
+    player: PlayerState,
     services: ScriptServices,
 ): void {
     const displayMode = (player?.displayMode ?? DisplayMode.RESIZABLE_NORMAL) as DisplayMode;
@@ -358,7 +359,7 @@ function openQuickPrayerSetupTab(
 
 function handlePrayerOrbClick(
     option: string,
-    player: any,
+    player: PlayerState,
     services: ScriptServices,
 ): void {
     const quick = Array.from(player.prayer.getQuickPrayers() as Iterable<PrayerName>);
@@ -405,7 +406,7 @@ function normalizeQuickOption(option?: string): string {
 
 function handleQuickPrayerAction(
     option: string | undefined,
-    player: any,
+    player: PlayerState,
     services: ScriptServices,
 ): void {
     const normalized = normalizeQuickOption(option);

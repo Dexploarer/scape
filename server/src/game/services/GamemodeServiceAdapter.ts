@@ -1,3 +1,5 @@
+import type { WebSocket } from "ws";
+
 import type { GamemodeServerServices } from "../gamemodes/GamemodeDefinition";
 import type { DataLoaderService } from "./DataLoaderService";
 import type { VariableService } from "./VariableService";
@@ -5,6 +7,10 @@ import type { MessagingService } from "./MessagingService";
 import type { InventoryService } from "./InventoryService";
 import type { EquipmentService } from "./EquipmentService";
 import type { AppearanceService } from "./AppearanceService";
+import type { PlayerState } from "../player";
+import type { InterfaceService } from "../../widgets/InterfaceService";
+import type { SailingInstanceManager } from "../sailing/SailingInstanceManager";
+import type { WidgetEvent } from "../../network/wsServerTypes";
 import { logger } from "../../utils/logger";
 
 export interface GamemodeServiceAdapterDeps {
@@ -15,16 +21,28 @@ export interface GamemodeServiceAdapterDeps {
     equipmentService: EquipmentService;
     appearanceService: AppearanceService;
     getCurrentTick: () => number;
-    getPlayerById: (id: number) => any;
-    getSocketByPlayerId: (id: number) => any;
-    refreshCombatWeaponCategory: (player: any) => any;
-    queueCombatSnapshot: (...args: any[]) => void;
-    queueWidgetEvent: (playerId: number, event: any) => void;
+    getPlayerById: (id: number) => PlayerState | undefined;
+    getSocketByPlayerId: (id: number) => WebSocket | undefined;
+    refreshCombatWeaponCategory: (player: PlayerState) => { categoryChanged: boolean; weaponItemChanged: boolean };
+    queueCombatSnapshot: (
+        playerId: number,
+        category: number,
+        weaponItemId: number,
+        autoRetaliate: boolean,
+        styleSlot: number,
+        activePrayers: string[],
+        combatSpellId?: number,
+    ) => void;
+    queueWidgetEvent: (playerId: number, event: WidgetEvent) => void;
     queueGamemodeSnapshot: (key: string, playerId: number, payload: unknown) => void;
-    registerSnapshotEncoder: (key: string, encoder: any, onSent?: any) => void;
+    registerSnapshotEncoder: (
+        key: string,
+        encoder: (playerId: number, payload: unknown) => { message: string | Uint8Array; context: string } | undefined,
+        onSent?: (playerId: number, payload: unknown) => void,
+    ) => void;
     gamemodeTickCallbacks: Array<(tick: number) => void>;
-    interfaceService: any;
-    sailingInstanceManager: any;
+    interfaceService: InterfaceService | undefined;
+    sailingInstanceManager: SailingInstanceManager | undefined;
 }
 
 /**

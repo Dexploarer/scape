@@ -236,7 +236,7 @@ export class WorldEntityInfoEncoder {
         const packet = encodeMessage({
             type: "worldentity_info",
             payload: { oldCount, oldUpdates, newSpawns },
-        } as any);
+        } as unknown as import("../messages").ServerToClient);
 
         // Phase 5: Update previous list = surviving + new
         s.previousIds = [...survivingIds, ...newSpawns.map((sp) => sp.entityIndex)];

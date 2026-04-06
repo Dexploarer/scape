@@ -3,6 +3,7 @@ import { ScriptScheduler } from "../systems/ScriptScheduler";
 import { ScriptRegistry } from "./ScriptRegistry";
 import {
     type ClientMessageHandler,
+    type CommandHandler,
     type EquipmentActionEvent,
     type EquipmentActionHandler,
     type IScriptRegistry,
@@ -493,7 +494,7 @@ export class ScriptRuntime {
                 track(this.registry.registerRegionHandler(regionId, handler)),
             registerTickHandler: (handler: TickHandler) =>
                 track(this.registry.registerTickHandler(handler)),
-            registerCommand: (name: string, handler: any) =>
+            registerCommand: (name: string, handler: CommandHandler) =>
                 track(this.registry.registerCommand(name, handler)),
             findCommand: (name: string) => this.registry.findCommand(name),
             findNpcInteraction: (npcId, option) => this.registry.findNpcInteraction(npcId, option),

@@ -18,6 +18,28 @@ import type { SoundService } from "./SoundService";
 import type { PlayerState } from "../player";
 import type { NpcState } from "../npc";
 import type { ActionScheduler } from "../actions";
+import type { PathService } from "../../pathfinding/PathService";
+import type { DoorStateManager } from "../../world/DoorStateManager";
+import type { NpcManager } from "../npcManager";
+import type { InterfaceService } from "../../widgets/InterfaceService";
+import type { WidgetDialogHandler } from "../actions/handlers/WidgetDialogHandler";
+import type { PrayerSystem } from "../prayer/PrayerSystem";
+import type { GatheringSystemManager } from "../systems/GatheringSystemManager";
+import type { Cs2ModalManager } from "../../network/managers/Cs2ModalManager";
+import type { FollowerManager } from "../followers/FollowerManager";
+import type { FollowerCombatManager } from "../followers/FollowerCombatManager";
+import type { SailingInstanceManager } from "../sailing/SailingInstanceManager";
+import type { WorldEntityInfoEncoder } from "../../network/encoding/WorldEntityInfoEncoder";
+import type { PlayerPersistence } from "../state/PlayerPersistence";
+import type { MusicCatalogService } from "../../audio/MusicCatalogService";
+import type { InventoryActionHandler } from "../actions/handlers/InventoryActionHandler";
+import type { EffectDispatcher } from "../actions/handlers/EffectDispatcher";
+import type { CombatEffectApplicator } from "../combat/CombatEffectApplicator";
+import type { PlayerManager } from "../PlayerManager";
+import type { PendingSpotAnimation, ForcedMovementBroadcast } from "../systems/BroadcastScheduler";
+import type { TickFrame } from "../tick/TickPhaseOrchestrator";
+import type { WidgetAction } from "../../widgets/WidgetManager";
+import type { WebSocket } from "ws";
 
 /**
  * Dependencies injected from WSServer that are not yet in extracted services.
@@ -38,36 +60,36 @@ export interface ScriptServiceAdapterDeps {
     actionScheduler: ActionScheduler;
     // Not-yet-extracted deps (still on WSServer)
     getCurrentTick: () => number;
-    getPathService: () => any;
-    doorManager: any;
-    npcManager: any;
-    interfaceService: any;
-    widgetDialogHandler: any;
-    prayerSystem: any;
-    gatheringSystem: any;
-    cs2ModalManager: any;
-    followerManager: any;
-    followerCombatManager: any;
-    sailingInstanceManager: any;
-    worldEntityInfoEncoder: any;
-    playerPersistence: any;
-    musicCatalogService: any;
-    inventoryActionHandler: any;
-    effectDispatcher: any;
-    combatEffectApplicator: any;
-    getPlayers: () => any;
-    enqueueSpotAnimation: (anim: any) => void;
-    enqueueForcedMovement: (data: any) => void;
+    getPathService: () => PathService;
+    doorManager: DoorStateManager;
+    npcManager: NpcManager;
+    interfaceService: InterfaceService;
+    widgetDialogHandler: WidgetDialogHandler;
+    prayerSystem: PrayerSystem;
+    gatheringSystem: GatheringSystemManager;
+    cs2ModalManager: Cs2ModalManager;
+    followerManager: FollowerManager;
+    followerCombatManager: FollowerCombatManager;
+    sailingInstanceManager: SailingInstanceManager;
+    worldEntityInfoEncoder: WorldEntityInfoEncoder;
+    playerPersistence: PlayerPersistence;
+    musicCatalogService: MusicCatalogService | undefined;
+    inventoryActionHandler: InventoryActionHandler;
+    effectDispatcher: EffectDispatcher;
+    combatEffectApplicator: CombatEffectApplicator;
+    getPlayers: () => PlayerManager | undefined;
+    enqueueSpotAnimation: (anim: PendingSpotAnimation) => void;
+    enqueueForcedMovement: (data: ForcedMovementBroadcast) => void;
     enqueueSoundBroadcast: (soundId: number, x: number, y: number, level: number) => void;
-    queueCombatSnapshot: (...args: any[]) => void;
-    queueWidgetEvent: (playerId: number, event: any) => void;
-    queueSmithingInterfaceMessage: (playerId: number, payload: any) => void;
-    queueExternalNpcTeleportSync: (npc: any) => void;
-    teleportToWorldEntity: (...args: any[]) => void;
-    sendWorldEntity: (...args: any[]) => void;
-    completeLogout: (sock: any, player: any, reason?: string) => void;
+    queueCombatSnapshot: (playerId: number, weaponCategory: number, weaponItemId: number, autoRetaliate: boolean, activeStyle?: number, activePrayers?: string[], activeSpellId?: number) => void;
+    queueWidgetEvent: (playerId: number, event: WidgetAction) => void;
+    queueSmithingInterfaceMessage: (playerId: number, payload: Record<string, unknown>) => void;
+    queueExternalNpcTeleportSync: (npc: NpcState) => void;
+    teleportToWorldEntity: (player: PlayerState, x: number, y: number, level: number, entityIndex: number, configId: number, sizeX: number, sizeZ: number, templateChunks: number[][][], buildAreas: import("../../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[], extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>) => void;
+    sendWorldEntity: (player: PlayerState, entityIndex: number, configId: number, sizeX: number, sizeZ: number, templateChunks: number[][][], buildAreas: import("../../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[], extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>, extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>, drawMode?: number) => void;
+    completeLogout: (sock: WebSocket, player: PlayerState, reason?: string) => void;
     closeInterruptibleInterfaces: (player: PlayerState) => void;
-    activeFrame: () => any;
+    activeFrame: () => TickFrame | undefined;
 }
 
 /**
@@ -198,8 +220,8 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         },
 
         // --- DialogServices ---
-        openDialog: (player, request) => deps.widgetDialogHandler.openDialog(player, request as any),
-        openDialogOptions: (player, options) => deps.widgetDialogHandler.openDialogOptions(player, options as any),
+        openDialog: (player, request) => deps.widgetDialogHandler.openDialog(player, request),
+        openDialogOptions: (player, options) => deps.widgetDialogHandler.openDialogOptions(player, options),
         closeDialog: (player, dialogId) => deps.widgetDialogHandler.closeDialog(player, dialogId),
         closeInterruptibleInterfaces: (player) => deps.closeInterruptibleInterfaces(player),
         getInterfaceService: () => deps.interfaceService,

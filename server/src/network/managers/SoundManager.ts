@@ -12,8 +12,10 @@ import {
     MUSIC_NOW_PLAYING_TEXT_UID,
 } from "../../../../src/shared/ui/music";
 import { MISS_SOUND, getHitSoundForStyle, getMissSound } from "../../game/combat/WeaponDataProvider";
+import type { WebSocket } from "ws";
 import type { NpcSoundType } from "../../audio/NpcSoundLookup";
 import type { PlayerState } from "../../game/player";
+import type { ServerToClient } from "../messages";
 
 /** Default sound IDs */
 const DEFAULT_HIT_SOUND = 1979;
@@ -67,7 +69,7 @@ export interface TickFrameRef {
 
 /** NPC Sound lookup reference */
 export interface NpcSoundLookupRef {
-    getSoundForNpc(npcType: any, soundType: NpcSoundType): number | undefined;
+    getSoundForNpc(npcType: unknown, soundType: NpcSoundType): number | undefined;
 }
 
 /** Music region service reference */
@@ -101,18 +103,18 @@ export interface MusicUnlockServiceRef {
 
 /** NPC type loader reference */
 export interface NpcTypeLoaderRef {
-    load(id: number): any | undefined;
+    load(id: number): unknown;
 }
 
 /** DB repository reference */
 export interface DbRepositoryRef {
-    getRows(tableId: number): Iterable<any>;
+    getRows(tableId: number): Iterable<unknown>;
 }
 
 /** Player collection reference */
 export interface PlayerCollectionRef {
-    forEach(callback: (sock: any, player: PlayerState) => void): void;
-    getSocketByPlayerId(playerId: number): any | undefined;
+    forEach(callback: (sock: WebSocket, player: PlayerState) => void): void;
+    getSocketByPlayerId(playerId: number): WebSocket | undefined;
 }
 
 /** WebSocket reference */
@@ -150,9 +152,9 @@ export interface SoundManagerServices {
     /** VARP for current music DB row */
     getVarpMusicCurrentTrack(): number;
     /** Send message with guard */
-    sendWithGuard(sock: any, message: Uint8Array, context: string): void;
+    sendWithGuard(sock: WebSocket, message: Uint8Array, context: string): void;
     /** Encode message to binary */
-    encodeMessage(msg: { type: string; payload: any }): Uint8Array;
+    encodeMessage(msg: ServerToClient): Uint8Array;
     /** Queue chat message */
     queueChatMessage(request: {
         messageType: string;

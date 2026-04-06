@@ -231,9 +231,14 @@ export interface WoodcuttingLocMap {
     map: Map<number, string>;
 }
 
+interface WoodcuttingLocTypeData {
+    name?: string;
+    actions?: (string | null)[];
+}
+
 export interface LocTypeLoader {
     getCount?: () => number;
-    load?: (id: number) => any;
+    load?: (id: number) => WoodcuttingLocTypeData | undefined;
 }
 
 export function buildWoodcuttingLocMap(loader?: LocTypeLoader): WoodcuttingLocMap {
@@ -246,7 +251,7 @@ export function buildWoodcuttingLocMap(loader?: LocTypeLoader): WoodcuttingLocMa
         return { map };
     }
     for (let id = 0; id < total; id++) {
-        let loc: any;
+        let loc: WoodcuttingLocTypeData | undefined;
         try {
             loc = loader.load(id);
         } catch {

@@ -21,6 +21,14 @@ import {
 } from "./DoorDefinitions";
 import { DoorRuntimeTileMappingStore } from "./DoorRuntimeTileMappingStore";
 
+type LocTypeShape = {
+    id?: number;
+    name?: string;
+    actions?: (string | undefined)[];
+    ambientSoundId?: number;
+    ambientSoundIds?: number[];
+};
+
 /** DoorToggleParams with all optional fields resolved to required */
 type ResolvedDoorToggleParams = DoorToggleParams & {
     rotation: number;
@@ -84,7 +92,7 @@ export class DoorStateManager {
     private openDoors: Map<string, OpenDoorEntry> = new Map();
 
     constructor(
-        private readonly locTypeLoader?: any,
+        private readonly locTypeLoader?: { load(id: number): LocTypeShape | undefined; getCount?(): number },
         private readonly doorDefLoader?: DoorDefinitionLoader,
         private readonly doorCollisionService?: DoorCollisionService,
         private readonly collisionFlagGetter?: (
@@ -1428,7 +1436,7 @@ export class DoorStateManager {
         return undefined;
     }
 
-    private safeLoadLoc(id: number): any | undefined {
+    private safeLoadLoc(id: number): LocTypeShape | undefined {
         try {
             return this.locTypeLoader?.load?.(id);
         } catch (err) {
@@ -1437,7 +1445,7 @@ export class DoorStateManager {
         }
     }
 
-    private isDoorCandidate(loc: any): boolean {
+    private isDoorCandidate(loc: LocTypeShape): boolean {
         if (!loc) return false;
         const name = this.normalizeName(loc);
         const hasDoorName =
@@ -1451,12 +1459,12 @@ export class DoorStateManager {
         return hasDoorName || hasDoorAction;
     }
 
-    private normalizeName(loc: any): string {
+    private normalizeName(loc: LocTypeShape): string {
         const name = loc?.name as string | undefined;
         return name ? name.toLowerCase() : "";
     }
 
-    private hasAction(loc: any, keyword: string): boolean {
+    private hasAction(loc: LocTypeShape, keyword: string): boolean {
         if (!loc || !Array.isArray(loc.actions)) return false;
         const target = keyword.toLowerCase();
         for (const action of loc.actions) {
@@ -1465,7 +1473,7 @@ export class DoorStateManager {
         return false;
     }
 
-    private isDoorPair(a: any, b: any): boolean {
+    private isDoorPair(a: LocTypeShape, b: LocTypeShape): boolean {
         if (!this.isDoorCandidate(a) || !this.isDoorCandidate(b)) {
             return false;
         }

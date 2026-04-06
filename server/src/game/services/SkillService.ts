@@ -63,7 +63,7 @@ export class SkillService {
         this.deps.networkLayer.withDirectSendBypass("skills_snapshot_immediate", () =>
             this.deps.networkLayer.sendWithGuard(
                 ws,
-                encodeMessage({ type: "skills", payload } as any),
+                encodeMessage({ type: "skills", payload }),
                 "skills_snapshot_immediate",
             ),
         );
@@ -108,7 +108,7 @@ export class SkillService {
     awardCombatXp(
         player: PlayerState,
         damage: number,
-        hitData: any,
+        hitData: { attackType?: string; attackStyleMode?: string; spellId?: number; spellBaseXpAtCast?: boolean } | undefined,
         effects: ActionEffect[],
     ): void {
         if (!(damage > 0)) return;

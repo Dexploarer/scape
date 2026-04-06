@@ -73,14 +73,14 @@ function emit(level: Exclude<LogLevel, "silent">, args: unknown[]): void {
     if (!categoryAllowed(category)) return;
 
     if (JSON_MODE) {
-        const out: any = {
+        const out: Record<string, unknown> = {
             time: ts(),
             level,
             category,
         };
         try {
             // Format a unified message string; also keep raw args for agents that prefer arrays
-            out.message = util.format.apply(null as any, args as any);
+            out.message = util.format(...args);
             out.args = args;
         } catch {
             out.message = args

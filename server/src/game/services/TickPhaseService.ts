@@ -243,7 +243,7 @@ export class TickPhaseService implements TickPhaseProvider {
 
         if (npcManager) {
             try {
-                const playerLookup = (id: number) => players?.getById(id) as any;
+                const playerLookup = (id: number) => players?.getById(id) as PlayerState | undefined;
                 const activeNpcIds = new Set<number>();
                 if (players) {
                     players.forEach((_client, player) => {
@@ -383,7 +383,7 @@ export class TickPhaseService implements TickPhaseProvider {
         this.flushPendingWalkCommands(frame.tick, "movement");
         const playerLookup = (id: number) => players.getById(id);
         const npcLookup = (npcId: number) => npcManager?.getById(npcId);
-        const entries: Array<{ sock: any; player: PlayerState }> = [];
+        const entries: Array<{ sock: WebSocket; player: PlayerState }> = [];
         players.forEach((sock, player) => entries.push({ sock, player }));
 
         entries.sort((a, b) => a.player.getPidPriority() - b.player.getPidPriority());
@@ -729,7 +729,7 @@ export class TickPhaseService implements TickPhaseProvider {
         }
         this.deps.groundItems.tick(frame.tick);
         if (frame.actionEffects.length > 0) {
-            this.deps.effectDispatcher.dispatchActionEffects(frame.actionEffects, frame as any);
+            this.deps.effectDispatcher.dispatchActionEffects(frame.actionEffects, frame);
         }
         if (this.deps.players) {
             const nowMs = Date.now();
@@ -832,7 +832,7 @@ export class TickPhaseService implements TickPhaseProvider {
         }
 
         const ws = sock ?? this.deps.players?.getSocketByPlayerId(player.id);
-        if (!ws || (ws as any).readyState !== 1 /* WebSocket.OPEN */) return;
+        if (!ws || ws.readyState !== 1 /* WebSocket.OPEN */) return;
 
         if (player.hasInventoryUpdate()) {
             const snapshot = player.takeInventorySnapshot();
@@ -942,7 +942,7 @@ export class TickPhaseService implements TickPhaseProvider {
         });
 
         players.forEachBot((bot) => {
-            const interactionState = (bot as any).botInteraction;
+            const interactionState = (bot as PlayerState & { botInteraction?: unknown }).botInteraction;
             collectFaceTile(bot);
             const interactionIndex = deriveInteractionIndex({
                 player: bot,
@@ -1003,8 +1003,8 @@ export class TickPhaseService implements TickPhaseProvider {
                         sock,
                         encodeMessage({
                             type: "inventory",
-                            payload: { kind: "snapshot", slots },
-                        } as any),
+                            payload: { kind: "snapshot" as const, slots },
+                        }),
                         "inventory_snapshot",
                     );
                 }
@@ -1167,7 +1167,7 @@ export class TickPhaseService implements TickPhaseProvider {
                                 large: built.large,
                                 packet: Array.from(built.packet),
                             },
-                        } as any),
+                        }),
                         "npc_info",
                     );
                 }

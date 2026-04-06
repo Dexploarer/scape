@@ -1,6 +1,7 @@
 import type { BankingProviderServices } from "./banking/BankingProvider";
 import type { PlayerState } from "../../src/game/player";
 import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
+import type { ObjType } from "../../../src/rs/config/objtype/ObjType";
 import type { GamemodeBridge, GamemodeDefinition, GamemodeInitContext, GamemodeServerServices, HandshakeBridge } from "../../src/game/gamemodes/GamemodeDefinition";
 import { SHOP_INTERFACE_ID } from "../../src/widgets/InterfaceService";
 import { BankingManager, registerBankingHandlers } from "./banking";
@@ -308,7 +309,7 @@ export class VanillaGamemode implements GamemodeDefinition {
         };
         this.shopManager = new ShopManager({
             logger: ss.logger,
-            getObjType: (id) => ss.getObjType(id) as any,
+            getObjType: (id) => ss.getObjType(id) as ObjType | undefined,
             addItemToInventory: (player, itemId, qty) =>
                 ss.addItemToInventory(player, itemId, qty),
             snapshotInventory: snapshotInventoryFn,

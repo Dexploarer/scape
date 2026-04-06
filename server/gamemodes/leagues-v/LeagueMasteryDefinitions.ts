@@ -1,5 +1,6 @@
 import { EnumType } from "../../../src/rs/config/enumtype/EnumType";
 import { StructType } from "../../../src/rs/config/structtype/StructType";
+import type { TypeLoader } from "../../../src/rs/config/TypeLoader";
 
 export type LeagueMasteryDefinition = {
     masteryId: number;
@@ -115,7 +116,7 @@ export class LeagueMasteryDefinitions {
      * Explores the cache to find mastery data by examining structs with name/description params.
      * The mastery system stores data in structs that are referenced from the league struct.
      */
-    static fromCache(enumTypeLoader: any, structTypeLoader: any): LeagueMasteryDefinitions {
+    static fromCache(enumTypeLoader: TypeLoader<EnumType>, structTypeLoader: TypeLoader<StructType>): LeagueMasteryDefinitions {
         const defs = new LeagueMasteryDefinitions();
 
         // Try to find mastery structs by exploring from the league type enum

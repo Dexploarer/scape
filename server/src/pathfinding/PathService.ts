@@ -410,8 +410,8 @@ export class PathService {
             }
 
             return { ok: true, steps: out, end: selectedEnd };
-        } catch (e: any) {
-            return { ok: false, message: e?.message || String(e) };
+        } catch (e: unknown) {
+            return { ok: false, message: e instanceof Error ? e.message : String(e) };
         }
     }
 
@@ -533,8 +533,8 @@ export class PathService {
             }
             waypoints.reverse();
             return { ok: true, waypoints };
-        } catch (e: any) {
-            return { ok: false, message: e?.message || String(e) };
+        } catch (e: unknown) {
+            return { ok: false, message: e instanceof Error ? e.message : String(e) };
         }
     }
 

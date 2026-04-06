@@ -1,4 +1,5 @@
 import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts";
+import type { PlayerState } from "../../../src/game/player";
 
 const DFS_ITEM_IDS = [11283, 11284];
 
@@ -75,7 +76,7 @@ const GOD_BOOKS: Array<{
 
 const dfsChargeKey = Symbol("dfsCharges");
 
-const getDragonfireCharges = (player: any): number => {
+const getDragonfireCharges = (player: PlayerState & Record<symbol, unknown>): number => {
     const value = player?.[dfsChargeKey];
     if (Number.isFinite(value as number)) {
         return Math.max(0, value as number);
@@ -86,7 +87,7 @@ const getDragonfireCharges = (player: any): number => {
 
 const getDayKey = (): number => Math.floor(Date.now() / MS_PER_DAY);
 
-const getExplorerRingState = (player: any): { dayKey: number; used: number } => {
+const getExplorerRingState = (player: PlayerState & Record<symbol, unknown>): { dayKey: number; used: number } => {
     let state = player?.[explorerRingStateKey];
     const today = getDayKey();
     if (!state) {

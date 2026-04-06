@@ -1,4 +1,5 @@
 import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
+import type { PlayerState } from "../../../src/game/player";
 
 const AUBURY_NPC_TYPE_IDS = [2886, 11434];
 const COMBAT_PATH_VOUCHER_ITEM_ID = 24131;
@@ -8,8 +9,8 @@ const RUNE_MYSTERIES_COMPLETE_VALUE = 6;
 const RUNE_ESSENCE_TELEPORT = { x: 2913, y: 4832, level: 0 };
 
 function openNpcDialog(
-    player: any,
-    services: any,
+    player: PlayerState,
+    services: ScriptServices,
     dialogId: string,
     npcId: number,
     npcName: string,
@@ -30,8 +31,8 @@ function openNpcDialog(
 }
 
 function openAuburyStandardOptions(
-    player: any,
-    services: any,
+    player: PlayerState,
+    services: ScriptServices,
     npcTypeId: number,
     canTeleport: boolean,
 ): void {
@@ -117,8 +118,8 @@ function openAuburyStandardOptions(
 }
 
 function openPlayerDialog(
-    player: any,
-    services: any,
+    player: PlayerState,
+    services: ScriptServices,
     dialogId: string,
     lines: string[],
     onContinue?: () => void,
@@ -167,7 +168,7 @@ export function registerShopInteractionHandlers(registry: IScriptRegistry, servi
     });
 
     for (const auburyNpcTypeId of AUBURY_NPC_TYPE_IDS) {
-        const auburyHandler = ({ player, services }: any) => {
+        const auburyHandler = ({ player, services }: { player: PlayerState; services: ScriptServices }) => {
             const auburyDialogNpcId = 2886; // actual Aubury head model for dialog
             const hasVoucher = player.hasItem(COMBAT_PATH_VOUCHER_ITEM_ID);
             const claims = player.varps.getVarpValue(COMBAT_PATH_REWARD_VARP);

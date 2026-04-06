@@ -13,6 +13,8 @@ import { encodeMessage } from "../../network/messages";
 import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
 import type { InterfaceService } from "../../widgets/InterfaceService";
 import type { PlayerState } from "../player";
+import type { WidgetEvent } from "../../network/wsServerTypes";
+import type { ChatMessageRequest } from "../actions/handlers/CombatActionHandler";
 import { logger } from "../../utils/logger";
 
 export interface CollectionLogServiceDeps {
@@ -21,9 +23,9 @@ export interface CollectionLogServiceDeps {
     interfaceService: InterfaceService | undefined;
     queueVarp: (playerId: number, varpId: number, value: number) => void;
     queueVarbit: (playerId: number, varbitId: number, value: number) => void;
-    queueWidgetEvent: (playerId: number, event: any) => void;
-    queueNotification: (playerId: number, payload: any) => void;
-    queueChatMessage: (request: any) => void;
+    queueWidgetEvent: (playerId: number, event: WidgetEvent) => void;
+    queueNotification: (playerId: number, payload: Record<string, unknown>) => void;
+    queueChatMessage: (request: ChatMessageRequest) => void;
 }
 
 /**
@@ -42,7 +44,7 @@ export class CollectionLogService {
         if (!ws) return;
 
         const items = player.collectionLog.getObtainedItems();
-        const slots = items.map((item: any, idx: number) => ({
+        const slots = items.map((item: { itemId: number; quantity: number }, idx: number) => ({
             slot: idx,
             itemId: item.itemId,
             quantity: item.quantity,
@@ -54,7 +56,7 @@ export class CollectionLogService {
                 encodeMessage({
                     type: "collection_log",
                     payload: { kind: "snapshot", slots },
-                } as any),
+                } as Parameters<typeof encodeMessage>[0]),
                 "collection_log_snapshot",
             ),
         );
@@ -67,13 +69,13 @@ export class CollectionLogService {
                 this.deps.queueVarp(playerId, varpId, value),
             queueVarbit: (playerId: number, varbitId: number, value: number) =>
                 this.deps.queueVarbit(playerId, varbitId, value),
-            queueWidgetEvent: (playerId: number, event: any) =>
+            queueWidgetEvent: (playerId: number, event: WidgetEvent) =>
                 this.deps.queueWidgetEvent(playerId, event),
-            queueNotification: (playerId: number, payload: any) =>
+            queueNotification: (playerId: number, payload: Record<string, unknown>) =>
                 this.deps.queueNotification(playerId, payload),
-            queueChatMessage: (request: any) => this.deps.queueChatMessage(request),
-            sendCollectionLogSnapshot: (player: any) =>
-                this.sendCollectionLogSnapshot(player as PlayerState),
+            queueChatMessage: (request: ChatMessageRequest) => this.deps.queueChatMessage(request),
+            sendCollectionLogSnapshot: (player: PlayerState) =>
+                this.sendCollectionLogSnapshot(player),
             getMainmodalUid,
             logger,
         };
@@ -81,12 +83,12 @@ export class CollectionLogService {
 
     openCollectionLog(player: PlayerState): void {
         const hookData = {
-            sendCollectionLogSnapshot: (p: any) => this.sendCollectionLogSnapshot(p),
+            sendCollectionLogSnapshot: (p: PlayerState) => this.sendCollectionLogSnapshot(p),
             queueVarp: (playerId: number, varpId: number, value: number) =>
                 this.deps.queueVarp(playerId, varpId, value),
             queueVarbit: (playerId: number, varbitId: number, value: number) =>
                 this.deps.queueVarbit(playerId, varbitId, value),
-            queueWidgetEvent: (playerId: number, event: any) =>
+            queueWidgetEvent: (playerId: number, event: WidgetEvent) =>
                 this.deps.queueWidgetEvent(playerId, event),
             logger,
         };

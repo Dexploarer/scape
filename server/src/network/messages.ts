@@ -501,14 +501,14 @@ export type ServerToClient =
                     kind: "projectiles_snapshot";
                     requestId: number;
                     fromId?: number;
-                    snapshot: any;
+                    snapshot: Record<string, unknown>;
                 }
               | { kind: "anim_request"; requestId: number }
               | {
                     kind: "anim_snapshot";
                     requestId: number;
                     fromId?: number;
-                    snapshot: any;
+                    snapshot: Record<string, unknown>;
                 };
       }
     | { type: "varp"; payload: { varpId: number; value: number } }
@@ -660,9 +660,9 @@ export type ClientToServer =
           type: "debug";
           payload:
               | { kind: "projectiles_request"; requestId?: number }
-              | { kind: "projectiles_snapshot"; requestId: number; snapshot: any }
+              | { kind: "projectiles_snapshot"; requestId: number; snapshot: Record<string, unknown> }
               | { kind: "anim_request"; requestId?: number }
-              | { kind: "anim_snapshot"; requestId: number; snapshot: any }
+              | { kind: "anim_snapshot"; requestId: number; snapshot: Record<string, unknown> }
               | { kind: "set_var"; value?: number; varbit?: number; varp?: number }
               | { kind: "raw"; raw: string };
       }
@@ -681,7 +681,7 @@ export function encodeMessage(msg: ServerToClient): Uint8Array {
  * All ServerToClient message types must have a binary encoder
  */
 function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
-    const { type, payload } = msg as any;
+    const { type, payload } = msg as unknown as { type: string; payload: Record<string, unknown> };
 
     switch (type) {
         case "welcome":
@@ -999,7 +999,7 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
     }
 }
 
-function encodeWidgetToBinary(payload: any): Uint8Array {
+function encodeWidgetToBinary(payload: WidgetServerPayload): Uint8Array {
     switch (payload.action) {
         case "open":
             return serverEncoder.encodeWidgetOpen(payload.groupId, !!payload.modal);
@@ -1051,7 +1051,7 @@ function encodeWidgetToBinary(payload: any): Uint8Array {
     }
 }
 
-function encodeShopToBinary(payload: any): Uint8Array {
+function encodeShopToBinary(payload: ShopServerPayload): Uint8Array {
     switch (payload.kind) {
         case "open":
             return serverEncoder.encodeShopOpen(
@@ -1078,7 +1078,7 @@ function encodeShopToBinary(payload: any): Uint8Array {
     }
 }
 
-function encodeSmithingToBinary(payload: any): Uint8Array {
+function encodeSmithingToBinary(payload: SmithingServerPayload): Uint8Array {
     switch (payload.kind) {
         case "open":
         case "update":
@@ -1098,7 +1098,7 @@ function encodeSmithingToBinary(payload: any): Uint8Array {
     }
 }
 
-function encodeTradeToBinary(payload: any): Uint8Array {
+function encodeTradeToBinary(payload: TradeServerPayload): Uint8Array {
     switch (payload.kind) {
         case "request":
             return serverEncoder.encodeTradeRequest(payload.fromId, payload.fromName);

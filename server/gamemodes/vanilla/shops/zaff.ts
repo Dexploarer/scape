@@ -1,4 +1,5 @@
-import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, type NpcInteractionEvent, type ScriptServices } from "../../../src/game/scripts/types";
+import type { PlayerState } from "../../../src/game/player";
 
 const ZAFF_NPC_ID = 2880;
 
@@ -21,8 +22,8 @@ const WHAT_LIES_BELOW_VARP = 992;
 const WHAT_LIES_BELOW_COMPLETE = 110;
 
 function openNpcDialog(
-    player: any,
-    services: any,
+    player: PlayerState,
+    services: ScriptServices,
     dialogId: string,
     lines: string[],
     onContinue?: () => void,
@@ -41,8 +42,8 @@ function openNpcDialog(
 }
 
 function openPlayerDialog(
-    player: any,
-    services: any,
+    player: PlayerState,
+    services: ScriptServices,
     dialogId: string,
     lines: string[],
     onContinue?: () => void,
@@ -59,7 +60,7 @@ function openPlayerDialog(
     });
 }
 
-function hasCompletedAnyVarrockDiary(player: any): boolean {
+function hasCompletedAnyVarrockDiary(player: PlayerState): boolean {
     return (
         player.varps.getVarbitValue(VARBIT_VARROCK_EASY) >= 1 ||
         player.varps.getVarbitValue(VARBIT_VARROCK_MEDIUM) >= 1 ||
@@ -68,11 +69,11 @@ function hasCompletedAnyVarrockDiary(player: any): boolean {
     );
 }
 
-function hasCompletedWhatLiesBelow(player: any): boolean {
+function hasCompletedWhatLiesBelow(player: PlayerState): boolean {
     return player.varps.getVarpValue(WHAT_LIES_BELOW_VARP) >= WHAT_LIES_BELOW_COMPLETE;
 }
 
-function hasItemInBank(player: any, itemId: number): boolean {
+function hasItemInBank(player: PlayerState, itemId: number): boolean {
     const bank = player.bank.getBankEntries();
     if (!bank) return false;
     for (const entry of bank) {
@@ -84,7 +85,7 @@ function hasItemInBank(player: any, itemId: number): boolean {
 export function registerZaffHandlers(registry: IScriptRegistry, services: ScriptServices): void {
     const activeConvos = new Set<number>();
 
-    function openMainOptions(player: any): void {
+    function openMainOptions(player: PlayerState): void {
         const pid = player.id;
         const dialogBase = `zaff_${pid}`;
         const onClose = () => { activeConvos.delete(pid); };
@@ -118,7 +119,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
         });
     }
 
-    function handleMainOption(player: any, selected: string): void {
+    function handleMainOption(player: PlayerState, selected: string): void {
         const pid = player.id;
         const dialogBase = `zaff_${pid}`;
 
@@ -164,7 +165,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
         }
     }
 
-    function handleBeaconRing(player: any): void {
+    function handleBeaconRing(player: PlayerState): void {
         const pid = player.id;
         const dialogBase = `zaff_${pid}`;
         const playerName = player.name ?? "adventurer";
@@ -221,7 +222,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
         );
     }
 
-    function handleBryophytaStaff(player: any): void {
+    function handleBryophytaStaff(player: PlayerState): void {
         const pid = player.id;
         const dialogBase = `zaff_${pid}`;
 
@@ -304,7 +305,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
         );
     }
 
-    function showBryophytaConfirmation(player: any): void {
+    function showBryophytaConfirmation(player: PlayerState): void {
         const pid = player.id;
         const dialogBase = `zaff_${pid}`;
         const onClose = () => { activeConvos.delete(pid); };
@@ -345,7 +346,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
         });
     }
 
-    function handleBryophytaCraft(player: any): void {
+    function handleBryophytaCraft(player: PlayerState): void {
         const pid = player.id;
         const dialogBase = `zaff_${pid}`;
 
@@ -406,7 +407,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
         );
     }
 
-    function openMainGreeting(player: any): void {
+    function openMainGreeting(player: PlayerState): void {
         const pid = player.id;
         const dialogBase = `zaff_${pid}`;
 
@@ -421,7 +422,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
         );
     }
 
-    const zaffHandler = (event: any) => {
+    const zaffHandler = (event: NpcInteractionEvent) => {
         const pid = event.player.id;
         if (activeConvos.has(pid)) return;
         activeConvos.add(pid);

@@ -136,7 +136,7 @@ export class InventoryService {
     queueInventorySnapshot(playerId: number): void {
         const frame = this.deps.getActiveFrame();
         if (frame) {
-            if (frame.inventorySnapshots.some((s: any) => s.playerId === playerId)) return;
+            if (frame.inventorySnapshots.some((s: { playerId: number }) => s.playerId === playerId)) return;
             frame.inventorySnapshots.push({ playerId });
             return;
         }
@@ -165,8 +165,8 @@ export class InventoryService {
                 ws,
                 encodeMessage({
                     type: "inventory",
-                    payload: { kind: "snapshot", slots },
-                } as any),
+                    payload: { kind: "snapshot" as const, slots },
+                }),
                 "inventory_snapshot_immediate",
             ),
         );

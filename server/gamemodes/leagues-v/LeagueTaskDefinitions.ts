@@ -1,5 +1,6 @@
 import { EnumType } from "../../../src/rs/config/enumtype/EnumType";
 import { StructType } from "../../../src/rs/config/structtype/StructType";
+import type { TypeLoader } from "../../../src/rs/config/TypeLoader";
 
 export type LeagueTaskDefinition = {
     taskId: number;
@@ -151,7 +152,7 @@ export class LeagueTaskDefinitions {
      * - struct param 873/874/2044: id, name, tier
      * - enum_2671: tier -> points
      */
-    static fromCache(enumTypeLoader: any, structTypeLoader: any): LeagueTaskDefinitions {
+    static fromCache(enumTypeLoader: TypeLoader<EnumType>, structTypeLoader: TypeLoader<StructType>): LeagueTaskDefinitions {
         const defs = new LeagueTaskDefinitions();
 
         const tierToPoints = buildIntEnumLookup(enumTypeLoader?.load?.(ENUM_LEAGUE_TIER_TO_POINTS));

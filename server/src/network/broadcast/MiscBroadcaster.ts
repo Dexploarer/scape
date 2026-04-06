@@ -151,7 +151,7 @@ export class MiscBroadcaster implements BroadcastDomain {
     }
 
     private flushProjectiles(frame: TickFrame, ctx: BroadcastContext): void {
-        const packets = (frame as any).projectilePackets as
+        const packets = frame.projectilePackets as
             | Map<number, ProjectileLaunch[]>
             | undefined;
         if (!packets) return;
@@ -169,7 +169,7 @@ export class MiscBroadcaster implements BroadcastDomain {
                 encodeMessage({
                     type: "projectiles",
                     payload: { list: launchesForSend },
-                } as any),
+                }),
                 "projectiles",
             );
         }

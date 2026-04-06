@@ -326,7 +326,7 @@ export const weaponDataEntries: WeaponDataEntry[] = new Proxy([] as WeaponDataEn
             if (typeof prop === "string" && !isNaN(Number(prop))) {
                 return entries[Number(prop)];
             }
-            return Reflect.get(entries as any, prop, receiver);
+            return Reflect.get(entries as unknown as Record<PropertyKey, unknown>, prop, receiver);
         }
         return Reflect.get(target, prop, receiver);
     },
@@ -347,7 +347,7 @@ export const weaponDataMap: Map<number, WeaponDataEntry> = new Proxy(
                 if (prop === "values") return map.values.bind(map);
                 if (prop === "forEach") return map.forEach.bind(map);
                 if (prop === Symbol.iterator) return map[Symbol.iterator].bind(map);
-                return Reflect.get(map as any, prop, receiver);
+                return Reflect.get(map as unknown as Record<PropertyKey, unknown>, prop, receiver);
             }
             return Reflect.get(target, prop, receiver);
         },

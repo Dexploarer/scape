@@ -12,6 +12,10 @@ import type { NpcTypeLoader } from "../../../../src/rs/config/npctype/NpcTypeLoa
 import type { ObjType } from "../../../../src/rs/config/objtype/ObjType";
 import type { ObjTypeLoader } from "../../../../src/rs/config/objtype/ObjTypeLoader";
 import type { SeqTypeLoader } from "../../../../src/rs/config/seqtype/SeqTypeLoader";
+import type { LocType } from "../../../../src/rs/config/loctype/LocType";
+import type { LocTypeLoader } from "../../../../src/rs/config/loctype/LocTypeLoader";
+import type { StructTypeLoader } from "../../../../src/rs/config/structtype/StructTypeLoader";
+import type { CacheLoaderFactory } from "../../../../src/rs/cache/loader/CacheLoaderFactory";
 import { logger } from "../../utils/logger";
 import type { CacheEnv } from "../../world/CacheEnv";
 
@@ -23,24 +27,24 @@ export class DataLoaderService {
     private objTypeLoader?: ObjTypeLoader;
     private idkTypeLoader?: IdkTypeLoader;
     private basTypeLoader?: BasTypeLoader;
-    private locTypeLoader?: any;
+    private locTypeLoader?: LocTypeLoader;
     private enumTypeLoader?: EnumTypeLoader;
-    private structTypeLoader?: any;
+    private structTypeLoader?: StructTypeLoader;
     private seqTypeLoader?: SeqTypeLoader;
     private npcTypeLoader?: NpcTypeLoader;
     private dbRepository?: DbRepository;
     private huffman?: Huffman;
     private healthBarDefLoader?: ArchiveHealthBarDefinitionLoader;
 
-    private cacheFactory: any;
+    private cacheFactory: CacheLoaderFactory;
 
     constructor(private readonly cacheEnv: CacheEnv) {
         this.cacheFactory = getCacheLoaderFactory(
-            cacheEnv.info as any,
-            cacheEnv.cacheSystem as any,
+            cacheEnv.info,
+            cacheEnv.cacheSystem,
         );
 
-        this.huffman = tryLoadOsrsHuffman(cacheEnv.cacheSystem as any);
+        this.huffman = tryLoadOsrsHuffman(cacheEnv.cacheSystem);
         if (!this.huffman) {
             logger.warn(
                 "[chat] failed to load OSRS Huffman table (idx10); public chat may be garbled",
@@ -52,7 +56,7 @@ export class DataLoaderService {
             if (configIndex.archiveExists(ConfigType.OSRS.healthBar)) {
                 const archive = configIndex.getArchive(ConfigType.OSRS.healthBar);
                 this.healthBarDefLoader = new ArchiveHealthBarDefinitionLoader(
-                    cacheEnv.info as any,
+                    cacheEnv.info,
                     archive,
                 );
             }
@@ -92,7 +96,7 @@ export class DataLoaderService {
 
         if (this.cacheEnv) {
             try {
-                this.dbRepository = new DbRepository(this.cacheEnv.cacheSystem as any);
+                this.dbRepository = new DbRepository(this.cacheEnv.cacheSystem);
             } catch (err) {
                 logger.warn("[DataLoaderService] failed to load DbRepository", err);
             }
@@ -103,7 +107,7 @@ export class DataLoaderService {
         return this.cacheEnv;
     }
 
-    getCacheFactory(): any {
+    getCacheFactory(): CacheLoaderFactory {
         return this.cacheFactory;
     }
 
@@ -135,11 +139,11 @@ export class DataLoaderService {
         }
     }
 
-    getLocTypeLoader(): any {
+    getLocTypeLoader(): LocTypeLoader | undefined {
         return this.locTypeLoader;
     }
 
-    getLocDefinition(locId: number): any {
+    getLocDefinition(locId: number): LocType | undefined {
         try {
             return this.locTypeLoader?.load?.(locId);
         } catch {
@@ -151,7 +155,7 @@ export class DataLoaderService {
         return this.enumTypeLoader;
     }
 
-    getStructTypeLoader(): any {
+    getStructTypeLoader(): StructTypeLoader | undefined {
         return this.structTypeLoader;
     }
 

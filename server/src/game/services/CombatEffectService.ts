@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { combatEffectApplicator } from "../combat/CombatEffectApplicator";
 import {
     resolveNpcAttackRange as resolveNpcAttackRangeRule,
@@ -6,15 +5,27 @@ import {
 } from "../combat/CombatRules";
 import { isInWilderness } from "../combat/MultiCombatZones";
 import { HITMARK_DAMAGE } from "../combat/HitEffects";
-import { upsertNpcUpdateDelta } from "../../network/NpcExternalSync";
 import { DropRollService } from "../drops/DropRollService";
 import { NpcDropRegistry } from "../drops/NpcDropRegistry";
 import { SkillId } from "../../../../src/rs/skill/skills";
 import type { PrayerName } from "../../../../src/rs/prayer/prayers";
 import { AttackType } from "../combat/AttackType";
-import type { ActionEffect } from "../actions/types";
+import type { ActionEffect, ScheduledAction } from "../actions/types";
 import type { DamageType, DropEligibility } from "../combat/DamageTracker";
 import { logger } from "../../utils/logger";
+import type { PlayerState } from "../player";
+import type { NpcState } from "../npc";
+import type { NpcManager, PendingNpcDrop } from "../npcManager";
+import type { PlayerManager } from "../PlayerManager";
+import type { ActionScheduler } from "../actions/ActionScheduler";
+import type { ChatMessageSnapshot, PendingSpotAnimation } from "../systems/BroadcastScheduler";
+import type { TickFrame } from "../tick/TickPhaseOrchestrator";
+import type { PlayerCombatManager } from "../combat/PlayerCombatManager";
+import type { CombatDataService } from "./CombatDataService";
+import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
+import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
+import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
+import type { GroundItemManager } from "../items/GroundItemManager";
 
 export const COMBAT_SOUND_DELAY_MS = 50;
 const RESPAWN_DELAY_TICKS = 17;
@@ -28,26 +39,42 @@ export const PROTECTION_PRAYER_MAP: Record<AttackType, PrayerName> = {
 export const NPC_PROTECTION_REDUCTION = 1.0;
 export const PVP_PROTECTION_REDUCTION = 0.4;
 
+interface SeqTypeLoader {
+    load(id: number): { forcedPriority?: number; frameLengths?: number[]; isSkeletalSeq?: () => boolean; getSkeletalDuration?: () => number } | undefined;
+}
+
+interface NpcTypeLoader {
+    load(id: number): { name?: string; params?: Map<number, unknown> } | undefined;
+}
+
+interface SoundBroadcastRequest {
+    soundId: number;
+    x: number;
+    y: number;
+    level: number;
+    delay?: number;
+}
+
 export interface CombatEffectServiceDeps {
-    getActiveFrame: () => any | undefined;
+    getActiveFrame: () => TickFrame | undefined;
     getCurrentTick: () => number;
-    getPlayer: (id: number) => any | undefined;
-    getNpcManager: () => any | undefined;
-    getPlayerCombatManager: () => any | undefined;
-    getCombatDataService: () => any;
-    getActionScheduler: () => any;
-    getSeqTypeLoader: () => any | undefined;
-    getNpcTypeLoader: () => any | undefined;
-    getGamemode: () => any;
-    getBroadcastScheduler: () => any;
-    getNetworkLayer: () => any;
-    getPlayers: () => any | undefined;
-    getGroundItems: () => any;
-    queueCombatSnapshot: (playerId: number, ...args: any[]) => void;
-    enqueueSpotAnimation: (event: any) => void;
-    broadcastSound: (request: any, tag: string) => void;
+    getPlayer: (id: number) => PlayerState | undefined;
+    getNpcManager: () => NpcManager | undefined;
+    getPlayerCombatManager: () => PlayerCombatManager | undefined;
+    getCombatDataService: () => CombatDataService;
+    getActionScheduler: () => ActionScheduler;
+    getSeqTypeLoader: () => SeqTypeLoader | undefined;
+    getNpcTypeLoader: () => NpcTypeLoader | undefined;
+    getGamemode: () => GamemodeDefinition;
+    getBroadcastScheduler: () => BroadcastScheduler;
+    getNetworkLayer: () => PlayerNetworkLayer;
+    getPlayers: () => PlayerManager | undefined;
+    getGroundItems: () => GroundItemManager;
+    queueCombatSnapshot: (playerId: number, weaponCategory: number, weaponItemId: number, autoRetaliate: boolean, activeStyle?: number, activePrayers?: string[], activeSpellId?: number) => void;
+    enqueueSpotAnimation: (event: PendingSpotAnimation) => void;
+    broadcastSound: (request: SoundBroadcastRequest, tag: string) => void;
     withDirectSendBypass: <T>(tag: string, fn: () => T) => T;
-    messagingService: { queueChatMessage: (msg: any) => void };
+    messagingService: { queueChatMessage: (msg: ChatMessageSnapshot) => void };
 }
 
 export class CombatEffectService {
@@ -58,7 +85,7 @@ export class CombatEffectService {
 
     // ── Prayer Effects ──────────────────────────────────────────────
 
-    handlePrayerDepleted(player: any, opts: { message?: string } = {}): void {
+    handlePrayerDepleted(player: PlayerState, opts: { message?: string } = {}): void {
         const message =
             opts.message ?? "You have run out of Prayer points, you need to recharge at an altar.";
         this.deps.messagingService.queueChatMessage({
@@ -82,7 +109,7 @@ export class CombatEffectService {
         }
     }
 
-    tryActivateRedemption(player: any): boolean {
+    tryActivateRedemption(player: PlayerState): boolean {
         if (!player.prayer.hasPrayerActive("redemption")) return false;
         const currentHp = player.skillSystem.getHitpointsCurrent();
         if (!(currentHp > 0)) return false;
@@ -100,7 +127,7 @@ export class CombatEffectService {
         return true;
     }
 
-    applySmite(attacker: any, target: any, damage: number): void {
+    applySmite(attacker: PlayerState, target: PlayerState, damage: number): void {
         if (!(damage > 0)) return;
         if (!attacker.prayer.hasPrayerActive("smite")) return;
         const drain = Math.max(0, Math.floor(damage / 4));
@@ -112,7 +139,7 @@ export class CombatEffectService {
         }
     }
 
-    tryActivateRetribution(player: any, tick: number): void {
+    tryActivateRetribution(player: PlayerState, tick: number): void {
         if (!player.prayer.hasPrayerActive("retribution")) return;
         const prayerSkill = player.skillSystem.getSkill(SkillId.Prayer);
         const baseDamage = Math.min(25, Math.max(1, Math.floor(prayerSkill.baseLevel * 0.25)));
@@ -154,9 +181,7 @@ export class CombatEffectService {
 
         const players = this.deps.getPlayers();
         if (players) {
-            players.forEach((sock: any) => {
-                const target = players.get(sock);
-                if (!target) return;
+            players.forEach((_sock: unknown, target: PlayerState) => {
                 if (target.id === player.id) return;
                 if (target.level !== playerLevel) return;
                 const dx = Math.abs(target.tileX - playerX);
@@ -190,7 +215,7 @@ export class CombatEffectService {
     // ── Damage Application ──────────────────────────────────────────
 
     applyProtectionPrayers(
-        target: any,
+        target: PlayerState,
         damage: number,
         attackType: AttackType,
         source: "npc" | "player",
@@ -204,9 +229,9 @@ export class CombatEffectService {
     }
 
     applyMultiTargetSpellDamage(opts: {
-        player: any;
-        primary: any;
-        spell: any;
+        player: PlayerState;
+        primary: NpcState;
+        spell: { maxTargets?: number; freezeDuration?: number; impactSpotAnim?: number; splashSpotAnim?: number };
         baseDamage: number;
         style: number;
         hitsplatTick: number;
@@ -224,7 +249,7 @@ export class CombatEffectService {
         }
         const extras = npcManager
             .getNearby(opts.primary.tileX, opts.primary.tileY, opts.primary.level, 1)
-            .filter((npc: any) => npc.id !== opts.primary.id);
+            .filter((npc: NpcState) => npc.id !== opts.primary.id);
         if (extras.length === 0) return;
         let remaining = Math.max(0, opts.spell.maxTargets - 1);
         const splashDamage = Math.max(1, Math.floor(opts.baseDamage / 2));
@@ -275,8 +300,8 @@ export class CombatEffectService {
     }
 
     applyPlayerDamageToNpc(
-        player: any,
-        npc: any,
+        player: PlayerState,
+        npc: NpcState,
         damage: number,
         style: number,
         tick: number,
@@ -299,8 +324,8 @@ export class CombatEffectService {
     // ── NPC Death ───────────────────────────────────────────────────
 
     handleNpcDeathOutsidePrimaryCombat(
-        player: any,
-        npc: any,
+        player: PlayerState,
+        npc: NpcState,
         tick: number,
     ): void {
         if (npc.isPlayerFollower?.() === true || npc.isDead(tick)) {
@@ -313,7 +338,7 @@ export class CombatEffectService {
         const playerCombatManager = this.deps.getPlayerCombatManager();
         const eligibility = playerCombatManager?.getDropEligibility?.(npc);
         const inWilderness = isInWilderness(npc.tileX, npc.tileY);
-        const pendingDrops = this.rollNpcDrops(npc, eligibility).map((drop: any) => ({
+        const pendingDrops = this.rollNpcDrops(npc, eligibility).map((drop) => ({
             ...drop,
             isWilderness: inWilderness,
         }));
@@ -352,12 +377,13 @@ export class CombatEffectService {
         }
         const actionScheduler = this.deps.getActionScheduler();
         for (const affectedPlayerId of affectedPlayerIds) {
-            actionScheduler.cancelActions(affectedPlayerId, (action: any) => {
+            actionScheduler?.cancelActions(affectedPlayerId, (action: ScheduledAction) => {
+                const actionData = action.data as Record<string, unknown> | undefined;
                 const actionNpcId =
                     action.kind === "combat.attack" ||
                     action.kind === "combat.playerHit" ||
                     action.kind === "combat.npcRetaliate"
-                        ? action.data?.npcId
+                        ? actionData?.npcId
                         : undefined;
                 return (
                     actionNpcId === npc.id &&
@@ -391,15 +417,15 @@ export class CombatEffectService {
 
     // ── NPC Combat Resolution ───────────────────────────────────────
 
-    resolveNpcAttackType(npc: any, explicit?: AttackType): AttackType {
+    resolveNpcAttackType(npc: NpcState, explicit?: AttackType): AttackType {
         return resolveNpcAttackTypeRule(npc, explicit);
     }
 
-    resolveNpcAttackRange(npc: any, attackType: AttackType): number {
+    resolveNpcAttackRange(npc: NpcState, attackType: AttackType): number {
         return resolveNpcAttackRangeRule(npc, attackType);
     }
 
-    getDistanceToNpcBounds(player: any, npc: any): number {
+    getDistanceToNpcBounds(player: PlayerState, npc: NpcState): number {
         const px = player.tileX;
         const py = player.tileY;
         const minX = npc.tileX;
@@ -413,8 +439,8 @@ export class CombatEffectService {
     }
 
     computeNpcHitDelay(
-        npc: any,
-        player: any,
+        npc: NpcState,
+        player: PlayerState,
         attackType: AttackType,
         _attackSpeed: number,
     ): number {
@@ -430,7 +456,7 @@ export class CombatEffectService {
         }
     }
 
-    pickNpcAttackSpeed(npc: any, _player?: any): number {
+    pickNpcAttackSpeed(npc: NpcState, _player?: PlayerState): number {
         const paramSpeed = this.deps.getCombatDataService().getNpcParamValue(npc, 14);
         if (paramSpeed !== undefined && paramSpeed > 0) {
             return Math.max(1, paramSpeed);
@@ -438,7 +464,7 @@ export class CombatEffectService {
         return 4;
     }
 
-    pickNpcHitDelay(npc: any, _player: any, _attackSpeed: number): number {
+    pickNpcHitDelay(npc: NpcState, _player: PlayerState, _attackSpeed: number): number {
         const paramHitDelay = this.deps.getCombatDataService().getNpcParamValue(npc, 286);
         if (paramHitDelay !== undefined && paramHitDelay > 0) {
             return Math.max(1, paramHitDelay);
@@ -449,12 +475,12 @@ export class CombatEffectService {
 
     // ── NPC Animation ───────────────────────────────────────────────
 
-    broadcastNpcSequence(npc: any, seqId: number | undefined): void {
+    broadcastNpcSequence(npc: NpcState, seqId: number | undefined): void {
         if (seqId === undefined || seqId < 0) return;
         const frame = this.deps.getActiveFrame();
         if (!frame) return;
         const id = npc.id;
-        const existing = frame.npcUpdates.find((d: any) => d?.id === id);
+        const existing = frame.npcUpdates.find((d: { id?: number; seq?: number }) => d?.id === id);
         if (existing?.seq !== undefined && existing.seq >= 0) {
             const existingPriority = this.getSeqForcedPriority(existing.seq);
             const newPriority = this.getSeqForcedPriority(seqId);
@@ -510,14 +536,14 @@ export class CombatEffectService {
     }
 
     rollNpcDrops(
-        npc: any,
+        npc: NpcState,
         eligibility: DropEligibility | undefined,
-    ): any[] {
+    ): PendingNpcDrop[] {
         const service = this.getNpcDropRollService();
         if (!service) return [];
         const recipients: Array<{
             ownerId?: number;
-            player?: any;
+            player?: PlayerState;
             dropRateMultiplier: number;
         }> = [];
         const seen = new Set<number>();
@@ -564,7 +590,7 @@ export class CombatEffectService {
             isWilderness: isInWilderness(npc.tileX, npc.tileY),
             recipients,
             worldViewId: npc.worldViewId,
-            transformItemId: (npcTypeId: number, itemId: number, recipient: any) =>
+            transformItemId: (npcTypeId: number, itemId: number, recipient: { player?: PlayerState }) =>
                 gamemode.transformDropItemId(npcTypeId, itemId, recipient.player),
         });
     }

@@ -465,7 +465,7 @@ export class PlayerPacketEncoder {
 
             const movement = movementById.get(id);
             const desiredMovementType = (() => {
-                const list = movement?.traversals ?? (view as any)?.traversals;
+                const list = movement?.traversals ?? view?.traversals;
                 if (Array.isArray(list) && list.length > 0) {
                     const last = list[list.length - 1];
                     if (Number.isFinite(last)) {

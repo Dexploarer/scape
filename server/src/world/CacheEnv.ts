@@ -1,6 +1,7 @@
 import path from "path";
 
 import { CacheIndexDat2 } from "../../../src/rs/cache/CacheIndex";
+import { CacheFiles } from "../../../src/rs/cache/CacheFiles";
 import { CacheInfo } from "../../../src/rs/cache/CacheInfo";
 import { CacheSystem } from "../../../src/rs/cache/CacheSystem";
 import { detectCacheType } from "../../../src/rs/cache/CacheType";
@@ -71,7 +72,7 @@ export function initCacheEnv(rootDir: string, name?: string): CacheEnv {
 
     // Load cache files into a MemoryStore and construct a CacheSystem over all indices
     const fileMap = loadDat2CacheFiles(folder);
-    const store = MemoryStore.fromFiles({ files: fileMap } as any);
+    const store = MemoryStore.fromFiles(new CacheFiles(fileMap));
     const cacheType = detectCacheType(info);
     const sys = new CacheSystem(
         CacheSystem.loadIndicesFromStore(cacheType === "dat" ? "dat" : "dat2", store),

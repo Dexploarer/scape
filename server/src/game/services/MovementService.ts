@@ -10,9 +10,50 @@ import type { ActionScheduler } from "../actions";
 import type { EmotePlayActionData, MovementTeleportActionData } from "../actions/actionPayloads";
 import { getEmoteSeq } from "../emotes";
 import { LockState } from "../model/LockState";
-import type { PlayerState } from "../player";
+import type { InventoryEntry, PlayerState } from "../player";
 import type { TickFrame } from "../tick/TickPhaseOrchestrator";
+import type { InterfaceService } from "../../widgets/InterfaceService";
+import type { SailingInstanceManager } from "../sailing/SailingInstanceManager";
+import type { WorldEntityInfoEncoder } from "../../network/encoding/WorldEntityInfoEncoder";
+import type { CacheEnv } from "../../world/CacheEnv";
+import type { PlayerManager } from "../PlayerManager";
+import type { WidgetEvent } from "../../network/wsServerTypes";
+import type { ChatMessageRequest } from "../actions/handlers/CombatActionHandler";
 import { logger } from "../../utils/logger";
+
+export interface RunEnergyPayload {
+    percent: number;
+    units: number;
+    running: boolean;
+    weight: number;
+    staminaTicks?: number;
+    staminaMultiplier?: number;
+    staminaTickMs?: number;
+}
+
+export interface TeleportActionRequest {
+    x: number;
+    y: number;
+    level: number;
+    delayTicks?: number;
+    cooldownTicks?: number;
+    replacePending?: boolean;
+    rejectIfPending?: boolean;
+    requireCanTeleport?: boolean;
+    forceRebuild?: boolean;
+    resetAnimation?: boolean;
+    endSpotAnim?: number;
+    endSpotHeight?: number;
+    endSpotDelay?: number;
+    arriveSoundId?: number;
+    arriveSoundRadius?: number;
+    arriveSoundVolume?: number;
+    arriveMessage?: string;
+    arriveSeqId?: number;
+    arriveFaceTileX?: number;
+    arriveFaceTileY?: number;
+    preserveAnimation?: boolean;
+}
 
 const TELEPORT_ACTION_GROUP = "movement.teleport";
 const SAILING_WORLD_ENTITY_INDEX = 0;
@@ -25,20 +66,20 @@ export interface MovementServiceDeps {
     actionScheduler: ActionScheduler;
     getCurrentTick: () => number;
     getTickMs: () => number;
-    getInventory: (player: PlayerState) => any[];
+    getInventory: (player: PlayerState) => InventoryEntry[];
     ensureEquipArray: (player: PlayerState) => number[];
-    queueWidgetEvent: (playerId: number, event: any) => void;
+    queueWidgetEvent: (playerId: number, event: WidgetEvent) => void;
     queueVarbit: (playerId: number, varbitId: number, value: number) => void;
-    queueChatMessage: (msg: any) => void;
-    spawnLocForPlayer: (player: PlayerState, locId: number, tile: any, level: number, shape: number, rotation: number) => void;
+    queueChatMessage: (msg: ChatMessageRequest) => void;
+    spawnLocForPlayer: (player: PlayerState, locId: number, tile: { x: number; y: number }, level: number, shape: number, rotation: number) => void;
     closeInterruptibleInterfaces: (player: PlayerState) => void;
-    enqueueSpotAnimation: (anim: any) => void;
-    playAreaSound: (opts: any) => void;
-    sailingInstanceManager: any;
-    worldEntityInfoEncoder: any;
-    interfaceService: any;
-    cacheEnv: any;
-    players: any;
+    enqueueSpotAnimation: (anim: { tick: number; playerId: number; spotId: number; height?: number; delay?: number }) => void;
+    playAreaSound: (opts: { soundId: number; tile: { x: number; y: number }; level: number; radius?: number; volume?: number }) => void;
+    sailingInstanceManager: SailingInstanceManager | undefined;
+    worldEntityInfoEncoder: WorldEntityInfoEncoder;
+    interfaceService: InterfaceService | undefined;
+    cacheEnv: CacheEnv;
+    players: PlayerManager | undefined;
 }
 
 // Graceful item ID sets for run energy calculation
@@ -54,15 +95,15 @@ const GRACEFUL_CAPES = new Set([11852, 13581, 13593, 13605, 13617, 13629, 13669,
  * Extracted from WSServer.
  */
 export class MovementService {
-    private pendingWalkCommands = new Map<WebSocket, any>();
+    private pendingWalkCommands = new Map<WebSocket, { to: { x: number; y: number }; run: boolean }>();
 
     constructor(private readonly deps: MovementServiceDeps) {}
 
-    setDeferredDeps(deferred: { interfaceService?: any; players?: any; sailingInstanceManager?: any }): void {
+    setDeferredDeps(deferred: { interfaceService?: InterfaceService; players?: PlayerManager; sailingInstanceManager?: SailingInstanceManager }): void {
         Object.assign(this.deps, deferred);
     }
 
-    getPendingWalkCommands(): Map<WebSocket, any> {
+    getPendingWalkCommands(): Map<WebSocket, { to: { x: number; y: number }; run: boolean }> {
         return this.pendingWalkCommands;
     }
 
@@ -154,7 +195,7 @@ export class MovementService {
 
         const { buildRebuildRegionPayload } = require("../../network/encoding/RebuildRegionEncoder");
         const payload = buildRebuildRegionPayload(regionX, regionY, templateChunks, this.deps.cacheEnv, false);
-        const packet = encodeMessage({ type: "rebuild_region", payload } as any);
+        const packet = encodeMessage({ type: "rebuild_region", payload } as Parameters<typeof encodeMessage>[0]);
         this.deps.networkLayer.withDirectSendBypass("rebuild_region", () =>
             this.deps.networkLayer.sendWithGuard(ws, packet, "rebuild_region"),
         );
@@ -170,7 +211,7 @@ export class MovementService {
 
     requestTeleportAction(
         player: PlayerState,
-        request: any,
+        request: TeleportActionRequest,
     ): { ok: boolean; reason?: string } {
         const playerId = player.id;
 
@@ -322,7 +363,7 @@ export class MovementService {
         }
     }
 
-    buildRunEnergyPayload(player: PlayerState | undefined): any | undefined {
+    buildRunEnergyPayload(player: PlayerState | undefined): RunEnergyPayload | undefined {
         if (!player) return undefined;
         player.energy.syncInfiniteRunEnergy();
         const currentTick = this.deps.getCurrentTick();
@@ -332,7 +373,7 @@ export class MovementService {
         const weight = this.computePlayerWeightKg(player);
         const units = player.energy.getRunEnergyUnits();
         const percent = Math.max(0, Math.min(100, Math.round((units / RUN_ENERGY_MAX) * 100)));
-        const payload: any = {
+        const payload: RunEnergyPayload = {
             percent,
             units: Math.max(0, Math.min(RUN_ENERGY_MAX, units)),
             running: player.energy.wantsToRun(),
@@ -545,7 +586,7 @@ export class MovementService {
         }
     }
 
-    routeOrRejectWalkCommand(sock: WebSocket, command: any, currentTick: number, context: string): boolean {
+    routeOrRejectWalkCommand(sock: WebSocket, command: { to: { x: number; y: number }; run: boolean }, currentTick: number, context: string): boolean {
         const player = this.deps.players?.get(sock);
         if (!player) return true;
         if (!player.canMove()) {

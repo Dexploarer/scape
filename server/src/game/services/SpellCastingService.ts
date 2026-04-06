@@ -222,7 +222,7 @@ export class SpellCastingService {
             casterId: player.id,
             spellId: spellId,
             outcome: "failure",
-            reason: reason as any,
+            reason: reason,
             targetType: "item",
         });
     }

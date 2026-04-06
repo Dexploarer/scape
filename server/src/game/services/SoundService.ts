@@ -3,16 +3,17 @@ import type { WebSocket } from "ws";
 import { encodeMessage } from "../../network/messages";
 import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
 import type { MusicCatalogService } from "../../audio/MusicCatalogService";
+import type { SoundManager, SoundBroadcastRequest } from "../../network/managers/SoundManager";
 import type { PlayerState } from "../player";
 
 export interface SoundServiceDeps {
     networkLayer: PlayerNetworkLayer;
-    soundManager: any;
+    soundManager: SoundManager;
     musicCatalogService: MusicCatalogService | undefined;
     getSocketByPlayerId: (id: number) => WebSocket | undefined;
     getCurrentTick: () => number;
-    enqueueSpotAnimation: (anim: any) => void;
-    broadcastSound: (payload: any, context: string) => void;
+    enqueueSpotAnimation: (anim: { tick: number; spotId: number; delay?: number; height?: number; tile?: { x: number; y: number; level?: number } }) => void;
+    broadcastSound: (payload: SoundBroadcastRequest, context: string) => void;
 }
 
 /**
@@ -20,7 +21,7 @@ export interface SoundServiceDeps {
  * Extracted from WSServer.
  */
 export interface SoundServiceDeferredDeps {
-    soundManager?: any;
+    soundManager?: SoundManager;
     musicCatalogService?: MusicCatalogService;
 }
 
@@ -60,13 +61,13 @@ export class SoundService {
         volume?: number;
     }): void {
         if (!opts || !(opts.soundId > 0)) return;
-        const payload: any = { soundId: opts.soundId };
-        if (opts.tile) {
-            payload.x = opts.tile.x;
-            payload.y = opts.tile.y;
-        }
-        if (opts.level !== undefined) payload.level = opts.level;
-        if (opts.loops !== undefined) payload.loops = Math.max(0, opts.loops);
+        const payload: SoundBroadcastRequest = {
+            soundId: opts.soundId,
+            x: opts.tile?.x ?? 0,
+            y: opts.tile?.y ?? 0,
+            level: opts.level ?? 0,
+        };
+        if (opts.loops !== undefined) Object.assign(payload, { loops: Math.max(0, opts.loops) });
         if (opts.delayMs !== undefined) payload.delay = Math.max(0, opts.delayMs);
         if (opts.radius !== undefined && opts.radius > 0) {
             payload.radius = Math.min(15, Math.max(0, opts.radius));
@@ -88,12 +89,12 @@ export class SoundService {
         delay?: number;
     }): void {
         if (!opts || !(opts.soundId > 0)) return;
-        const payload: any = {
+        const payload: SoundBroadcastRequest = {
             soundId: opts.soundId,
             x: opts.tile.x,
             y: opts.tile.y,
+            level: opts.level ?? 0,
         };
-        if (opts.level !== undefined) payload.level = opts.level;
         if (opts.radius !== undefined && opts.radius > 0) {
             payload.radius = Math.min(15, Math.max(0, opts.radius));
         }

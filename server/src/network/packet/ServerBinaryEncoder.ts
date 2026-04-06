@@ -223,7 +223,7 @@ export class ServerBinaryEncoder {
     encodeHandshake(
         id: number,
         name?: string,
-        appearance?: any,
+        appearance?: { gender?: number; colors?: number[]; kits?: number[]; equip?: number[] },
         chatIcons?: number[],
         chatPrefix?: string,
     ): Uint8Array {
@@ -631,7 +631,7 @@ export class ServerBinaryEncoder {
         return this.buffer.toPacket(ServerPacketId.WIDGET_SET_FLAGS_RANGE);
     }
 
-    encodeWidgetRunScript(scriptId: number, args: any[]): Uint8Array {
+    encodeWidgetRunScript(scriptId: number, args: (number | string)[]): Uint8Array {
         this.buffer.reset();
         this.buffer.writeInt(scriptId);
         this.buffer.writeByte(args.length);
@@ -1535,7 +1535,7 @@ export class ServerBinaryEncoder {
     // DEBUG
     // ========================================
 
-    encodeDebug(payload: any): Uint8Array {
+    encodeDebug(payload: Record<string, unknown>): Uint8Array {
         this.buffer.reset();
         // Encode debug payload as JSON string for flexibility
         const jsonStr = JSON.stringify(payload);

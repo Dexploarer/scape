@@ -118,6 +118,9 @@ import {
     ActorSyncBroadcaster,
 } from "./broadcast";
 import * as ServiceWiring from "./ServiceWiring";
+import type { LocTypeLoader } from "../../../src/rs/config/loctype/LocTypeLoader";
+import type { CacheLoaderFactory } from "../../../src/rs/cache/loader/CacheLoaderFactory";
+import type { WSServerContext } from "./WSServerContext";
 import { MessageRouter, type MessageRouterServices } from "./MessageRouter";
 import { buildTeleportNpcUpdateDelta, upsertNpcUpdateDelta } from "./NpcExternalSync";
 import { PlayerSyncSession } from "./PlayerSyncSession";
@@ -170,7 +173,7 @@ export class WSServer {
     private players?: PlayerManager;
     private npcManager?: NpcManager;
     private objTypeLoader?: ObjTypeLoader;
-    private locTypeLoader?: any;
+    private locTypeLoader?: LocTypeLoader;
     private readonly gamemode: GamemodeDefinition;
     private cacheEnv?: CacheEnv;
     private huffman?: Huffman;
@@ -291,7 +294,7 @@ export class WSServer {
     private accountSummary!: AccountSummaryTracker;
     private reportGameTime!: ReportGameTimeTracker;
     private scriptAdapterDeps!: ScriptServiceAdapterDeps;
-    private cacheFactory: any;
+    private cacheFactory: CacheLoaderFactory | undefined;
 
     // Broadcast domain handlers
     private readonly chatBroadcaster = new ChatBroadcaster();
@@ -337,8 +340,8 @@ export class WSServer {
             },
             this.autosaveIntervalTicks,
         );
-        this.loginHandshakeService = new LoginHandshakeService(this as any);
-        this.tickPhaseService = new TickPhaseService(this as any);
+        this.loginHandshakeService = new LoginHandshakeService(this as unknown as import("./LoginHandshakeService").LoginHandshakeServer);
+        this.tickPhaseService = new TickPhaseService(this as unknown as WSServerContext);
         this.wss.on("connection", (ws) => this.loginHandshakeService.onConnection(ws));
         opts.ticker.on("tick", (data) => this.tickFrameService.handleTick(data));
     }
@@ -377,10 +380,10 @@ export class WSServer {
         this.wss.on("listening", () => {
             logger.info(`WS listening on ws://${opts.host}:${opts.port}`);
 
-            const httpServer = (this.wss as any)._server;
+            const httpServer = (this.wss as unknown as { _server?: import("http").Server })._server;
             if (httpServer) {
                 httpServer.removeAllListeners("request");
-                httpServer.on("request", (req: any, res: any) => {
+                httpServer.on("request", (req: import("http").IncomingMessage, res: import("http").ServerResponse) => {
                     if (req.url === "/status") {
                         const count = this.players?.getRealPlayerCount() ?? 0;
                         res.writeHead(200, {
@@ -435,8 +438,8 @@ export class WSServer {
 
         this.cacheFactory = undefined;
         try {
-            this.cacheFactory = getCacheLoaderFactory(env.info as any, env.cacheSystem as any);
-            this.huffman = tryLoadOsrsHuffman(env.cacheSystem as any);
+            this.cacheFactory = getCacheLoaderFactory(env.info, env.cacheSystem);
+            this.huffman = tryLoadOsrsHuffman(env.cacheSystem);
             if (!this.huffman) {
                 logger.warn(
                     "[chat] failed to load OSRS Huffman table (idx10); public chat may be garbled",
@@ -447,7 +450,7 @@ export class WSServer {
                 if (configIndex.archiveExists(ConfigType.OSRS.healthBar)) {
                     const archive = configIndex.getArchive(ConfigType.OSRS.healthBar);
                     new ArchiveHealthBarDefinitionLoader(
-                        env.info as any,
+                        env.info,
                         archive,
                     );
                 }
@@ -548,7 +551,7 @@ export class WSServer {
         }
         // Initialize InterfaceService for modular modal interface management
         this.interfaceService = new InterfaceService({
-            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
+            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as WidgetAction),
         });
         // Deferred wiring: these services are created later, wire after init
         // (moved to after service creation block below)
@@ -592,7 +595,7 @@ export class WSServer {
                 equipmentService: this.equipmentService,
                 appearanceService: this.appearanceService,
                 locationService: this.locationService,
-                movementService: undefined as any, // Deferred: wired after creation
+                movementService: undefined!, // Deferred: wired after creation
                 collectionLogService: this.collectionLogService,
                 soundService: this.soundService,
                 actionScheduler: this.actionScheduler,
@@ -601,29 +604,29 @@ export class WSServer {
                 doorManager: this.doorManager,
                 npcManager: this.npcManager,
                 interfaceService: this.interfaceService,
-                widgetDialogHandler: undefined as any, // Deferred: wired after creation
+                widgetDialogHandler: undefined!, // Deferred: wired after creation
                 prayerSystem: this.prayerSystem,
-                gatheringSystem: undefined as any, // Deferred: wired after creation
-                cs2ModalManager: undefined as any, // Deferred: wired after creation
-                followerManager: undefined as any, // Deferred: wired after creation
-                followerCombatManager: undefined as any, // Deferred: wired after creation
+                gatheringSystem: undefined!, // Deferred: wired after creation
+                cs2ModalManager: undefined!, // Deferred: wired after creation
+                followerManager: undefined!, // Deferred: wired after creation
+                followerCombatManager: undefined!, // Deferred: wired after creation
                 sailingInstanceManager: this.sailingInstanceManager,
                 worldEntityInfoEncoder: this.worldEntityInfoEncoder,
                 playerPersistence: this.playerPersistence,
                 musicCatalogService: undefined, // Deferred: wired after creation
-                inventoryActionHandler: undefined as any, // Deferred: wired after creation
-                effectDispatcher: undefined as any, // Deferred: wired after creation
+                inventoryActionHandler: undefined!, // Deferred: wired after creation
+                effectDispatcher: undefined!, // Deferred: wired after creation
                 combatEffectApplicator: combatEffectApplicator,
                 getPlayers: () => this.players,
                 enqueueSpotAnimation: (anim) => this.broadcastService.enqueueSpotAnimation(anim),
                 enqueueForcedMovement: (data) => this.broadcastService.enqueueForcedMovement(data),
                 enqueueSoundBroadcast: (soundId, x, y, level) => this.broadcastService.enqueueSoundBroadcast(soundId, x, y, level),
-                queueCombatSnapshot: (...args: any[]) => (this as any).queueCombatSnapshot(...args),
+                queueCombatSnapshot: (...args: Parameters<typeof this.queueCombatSnapshot>) => this.queueCombatSnapshot(...args),
                 queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
                 queueSmithingInterfaceMessage: (pid, p) => this.broadcastService.queueSmithingInterfaceMessage(pid, p),
                 queueExternalNpcTeleportSync: (npc) => this.queueExternalNpcTeleportSync(npc),
-                teleportToWorldEntity: (...args: any[]) => (this.worldEntityService as any).teleportToWorldEntity(...args),
-                sendWorldEntity: (...args: any[]) => (this.worldEntityService as any).sendWorldEntity(...args),
+                teleportToWorldEntity: (...args: Parameters<WorldEntityService["teleportToWorldEntity"]>) => this.worldEntityService.teleportToWorldEntity(...args),
+                sendWorldEntity: (...args: Parameters<WorldEntityService["sendWorldEntity"]>) => this.worldEntityService.sendWorldEntity(...args),
                 completeLogout: (sock, player, reason) => this.loginHandshakeService.completeLogout(sock, player, reason),
                 closeInterruptibleInterfaces: (player) => this.interfaceManager.closeInterruptibleInterfaces(player),
                 activeFrame: () => this.activeFrame,
@@ -788,38 +791,44 @@ export class WSServer {
         }
     }
 
+    /** Structural cast so ServiceWiring factories can read private fields. */
+    private get asContext(): WSServerContext {
+        return this as unknown as WSServerContext;
+    }
+
     private initServiceWiring(_opts: WSServerOptions): void {
+        const ctx = this.asContext;
         if (this.players) {
-            ServiceWiring.createNpcPacketEncoder(this);
-            ServiceWiring.createPlayerPacketEncoder(this);
-            ServiceWiring.createCombatActionHandler(this);
-            ServiceWiring.createSpellActionHandler(this);
+            ServiceWiring.createNpcPacketEncoder(ctx);
+            ServiceWiring.createPlayerPacketEncoder(ctx);
+            ServiceWiring.createCombatActionHandler(ctx);
+            ServiceWiring.createSpellActionHandler(ctx);
             // Initialize InventoryActionHandler
-            this.inventoryActionHandler = ServiceWiring.createInventoryActionHandler(this);
+            this.inventoryActionHandler = ServiceWiring.createInventoryActionHandler(ctx);
             // Initialize EffectDispatcher
-            this.effectDispatcher = ServiceWiring.createEffectDispatcher(this);
+            this.effectDispatcher = ServiceWiring.createEffectDispatcher(ctx);
             // Initialize WidgetDialogHandler
-            this.widgetDialogHandler = ServiceWiring.createWidgetDialogHandler(this);
+            this.widgetDialogHandler = ServiceWiring.createWidgetDialogHandler(ctx);
             // Initialize CS2 modal manager
-            this.cs2ModalManager = ServiceWiring.createCs2ModalManager(this);
-            ServiceWiring.createNpcSyncManager(this);
+            this.cs2ModalManager = ServiceWiring.createCs2ModalManager(ctx);
+            ServiceWiring.createNpcSyncManager(ctx);
             // Initialize PlayerAppearanceManager
-            this.playerAppearanceManager = ServiceWiring.createPlayerAppearanceManager(this);
+            this.playerAppearanceManager = ServiceWiring.createPlayerAppearanceManager(ctx);
             // Initialize SoundManager
-            this.soundManager = ServiceWiring.createSoundManager(this);
+            this.soundManager = ServiceWiring.createSoundManager(ctx);
             // soundManager → soundService wired in deferred block below
             // Initialize GroundItemHandler
-            this.groundItemHandler = ServiceWiring.createGroundItemHandler(this);
-            ServiceWiring.createPlayerDeathService(this);
+            this.groundItemHandler = ServiceWiring.createGroundItemHandler(ctx);
+            ServiceWiring.createPlayerDeathService(ctx);
             // Initialize ProjectileSystem
-            this.projectileSystem = ServiceWiring.createProjectileSystem(this);
+            this.projectileSystem = ServiceWiring.createProjectileSystem(ctx);
             // Initialize GatheringSystemManager
-            this.gatheringSystem = ServiceWiring.createGatheringSystem(this);
+            this.gatheringSystem = ServiceWiring.createGatheringSystem(ctx);
             // Initialize EquipmentHandler
-            this.equipmentHandler = ServiceWiring.createEquipmentHandler(this);
+            this.equipmentHandler = ServiceWiring.createEquipmentHandler(ctx);
             // Phase 3 deferred deps wired in consolidated block below
             // Initialize TickPhaseOrchestrator
-            this.tickOrchestrator = ServiceWiring.createTickOrchestrator(this);
+            this.tickOrchestrator = ServiceWiring.createTickOrchestrator(ctx);
             // Initialize MessageRouter
             this.messageRouter = this.createMessageRouter();
             // Wire up broadcast domain callbacks that require players
@@ -886,7 +895,7 @@ export class WSServer {
             broadcastScheduler: this.broadcastScheduler,
             networkLayer: this.networkLayer,
             gamemode: this.gamemode,
-            enqueueLevelUpPopup: (player, popup) => this.interfaceManager.enqueueLevelUpPopup(player, popup as any),
+            enqueueLevelUpPopup: (player, popup) => this.interfaceManager.enqueueLevelUpPopup(player, popup as import("../game/services/InterfaceManager").LevelUpPopup),
         });
         logger.info("[services] Phase 2 services initialized (Variable, Messaging, Skill)");
 
@@ -901,21 +910,21 @@ export class WSServer {
         this.appearanceService = new AppearanceService({
             dataLoaders: this.dataLoaderService,
             gamemode: this.gamemode,
-            playerAppearanceManager: undefined as any, // Set after playerAppearanceManager is created
+            playerAppearanceManager: undefined!, // Set after playerAppearanceManager is created
             broadcastScheduler: this.broadcastScheduler,
             getActiveFrame: () => this.activeFrame,
             isAdminPlayer: (p) => this.authService.isAdminPlayer(p),
         });
         this.equipmentService = new EquipmentService({
             dataLoaders: this.dataLoaderService,
-            equipmentHandler: undefined as any, // Set after equipmentHandler is created
+            equipmentHandler: undefined!, // Set after equipmentHandler is created
             weaponData: this.appearanceService.getWeaponData(),
             combatCategoryData: undefined, // Set after combatCategoryData is created
             queueVarbit: (pid, vid, val) => this.variableService.queueVarbit(pid, vid, val),
             queueCombatState: (p) => this.queueCombatState(p),
             queueChatMessage: (msg) => this.messagingService.queueChatMessage(msg),
             enqueueSpotAnimation: (anim) => this.broadcastService.enqueueSpotAnimation(anim),
-            scriptRuntime: undefined as any, // Set after scriptRuntime is created
+            scriptRuntime: undefined!, // Set after scriptRuntime is created
             getCurrentTick: () => this.options.ticker.currentTick(),
             getOrCreateAppearance: (p) => this.appearanceService.getOrCreateAppearance(p),
         });
@@ -950,7 +959,7 @@ export class WSServer {
             broadcastScheduler: this.broadcastScheduler,
             actionScheduler: this.actionScheduler,
             queueChatMessage: (msg) => this.messagingService.queueChatMessage(msg),
-            showLevelUpPopup: (player, popup) => this.levelUpDisplayService.showLevelUpPopup(player, popup as any),
+            showLevelUpPopup: (player, popup) => this.levelUpDisplayService.showLevelUpPopup(player, popup),
             closeChatboxModalOverlay: (pid) => this.levelUpDisplayService.closeChatboxModalOverlay(pid),
             getPlayerById: (id) => this.players?.getById(id),
             interfaceService: this.interfaceService,
@@ -966,7 +975,7 @@ export class WSServer {
         this.collectionLogService = new CollectionLogService({
             getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
             networkLayer: this.networkLayer,
-            interfaceService: undefined as any, // Set after interfaceService is created
+            interfaceService: undefined!, // Set after interfaceService is created
             queueVarp: (pid, vid, val) => this.variableService.queueVarp(pid, vid, val),
             queueVarbit: (pid, vid, val) => this.variableService.queueVarbit(pid, vid, val),
             queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
@@ -978,12 +987,12 @@ export class WSServer {
             networkLayer: this.networkLayer,
             worldEntityInfoEncoder: this.worldEntityInfoEncoder,
             locationService: this.locationService,
-            movementService: undefined as any, // Set after movementService is created
+            movementService: undefined!, // Set after movementService is created
             cacheEnv: this.cacheEnv,
         });
         this.soundService = new SoundService({
             networkLayer: this.networkLayer,
-            soundManager: undefined as any, // Set after soundManager is created
+            soundManager: undefined!, // Set after soundManager is created
             musicCatalogService: undefined, // Set after musicCatalogService is created
             getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
             getCurrentTick: () => this.options.ticker.currentTick(),
@@ -1007,11 +1016,11 @@ export class WSServer {
             closeInterruptibleInterfaces: (p) => this.interfaceManager.closeInterruptibleInterfaces(p),
             enqueueSpotAnimation: (event) => this.broadcastService.enqueueSpotAnimation(event),
             playAreaSound: (opts) => this.soundService.playAreaSound(opts),
-            sailingInstanceManager: undefined as any,
+            sailingInstanceManager: undefined!,
             worldEntityInfoEncoder: this.worldEntityInfoEncoder,
-            interfaceService: undefined as any,
+            interfaceService: undefined!,
             cacheEnv: this.cacheEnv,
-            players: undefined as any,
+            players: undefined!,
         });
         new PlayerCombatService({
             dataLoaders: this.dataLoaderService,
@@ -1036,7 +1045,7 @@ export class WSServer {
             withDirectSendBypass: (ctx, fn) => this.withDirectSendBypass(ctx, fn),
             sendWithGuard: (ws, msg, ctx) => this.networkLayer.sendWithGuard(ws, msg, ctx),
             authService: this.authService,
-            soundManager: this.soundManager ?? (undefined as any),
+            soundManager: this.soundManager!,
             queueVarp: (pid, vid, val) => this.variableService.queueVarp(pid, vid, val),
             musicUnlockService: undefined, // Set after musicUnlockService is created
         });
@@ -1071,7 +1080,7 @@ export class WSServer {
         logger.info("[services] All services initialized");
         if (this.cacheEnv) {
             try {
-                this.dbRepository = new DbRepository(this.cacheEnv.cacheSystem as any);
+                this.dbRepository = new DbRepository(this.cacheEnv.cacheSystem);
                 this.combatCategoryData = new CombatCategoryData(this.dbRepository);
                 this.equipmentService.setDeferredDeps({ combatCategoryData: this.combatCategoryData });
                 this.npcSoundLookup = new NpcSoundLookup(this.dbRepository);
@@ -1090,7 +1099,7 @@ export class WSServer {
             try {
                 this.objTypeLoader = this.cacheFactory.getObjTypeLoader();
             } catch (err) { logger.warn("[cache] obj type loader init failed", err); }
-            let enumTypeLoader: any;
+            let enumTypeLoader: import("../../../src/rs/config/enumtype/EnumTypeLoader").EnumTypeLoader | undefined;
             try {
                 enumTypeLoader = this.cacheFactory.getEnumTypeLoader?.();
             } catch (err) { logger.warn("[cache] enum type loader init failed", err); }
@@ -1134,7 +1143,7 @@ export class WSServer {
                     getPlayerById: (id) => this.players?.getById(id),
                     getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
                     refreshCombatWeaponCategory: (p) => this.equipmentService.refreshCombatWeaponCategory(p),
-                    queueCombatSnapshot: (...args: any[]) => (this as any).queueCombatSnapshot(...args),
+                    queueCombatSnapshot: (...args: Parameters<typeof this.queueCombatSnapshot>) => this.queueCombatSnapshot(...args),
                     queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
                     queueGamemodeSnapshot: (k, pid, p) => this.queueGamemodeSnapshot(k, pid, p),
                     registerSnapshotEncoder: (k, e, o) => this.registerSnapshotEncoder(k, e, o),
@@ -1225,7 +1234,7 @@ export class WSServer {
             const bot1 = this.players?.addBot(3168, 3475, 0);
             const bot2 = this.players?.addBot(3173, 3475, 0);
 
-            const setupCasterBot = (p: any, target: any) => {
+            const setupCasterBot = (p: PlayerState, target: PlayerState) => {
                 if (!p) return;
                 p.setItemDefResolver((id: number) => getItemDefinition(id));
                 this.appearanceService.refreshAppearanceKits(p);
@@ -1236,7 +1245,7 @@ export class WSServer {
                 p.addItem(558, 10000, { assureFullInsertion: true }); // Mind rune
             };
 
-            const setupPassiveBot = (p: any) => {
+            const setupPassiveBot = (p: PlayerState) => {
                 if (!p) return;
                 p.setItemDefResolver((id: number) => getItemDefinition(id));
                 this.appearanceService.refreshAppearanceKits(p);
@@ -1415,7 +1424,7 @@ export class WSServer {
         const router = new MessageRouter(services);
 
         // Register message handlers
-        ServiceWiring.registerMessageHandlers(this, router);
+        ServiceWiring.registerMessageHandlers(this.asContext, router);
 
         return router;
     }

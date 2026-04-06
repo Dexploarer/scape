@@ -39,7 +39,7 @@ export class PredicateCondition implements SuspendCondition {
  * Uses generators to simulate coroutine behavior.
  * RSMod parity: gg.rsmod.game.model.queue.QueueTask
  */
-export class QueueTask<TContext = any> {
+export class QueueTask<TContext = unknown> {
     /**
      * The context (usually player or NPC) this task belongs to.
      */
@@ -58,7 +58,7 @@ export class QueueTask<TContext = any> {
     /**
      * A value that can be requested by a task (e.g., dialog input).
      */
-    requestReturnValue: any = null;
+    requestReturnValue: unknown = null;
 
     /**
      * Action to execute if task is terminated early.
@@ -185,7 +185,7 @@ export class QueueTask<TContext = any> {
     /**
      * Set a return value that the task is waiting for.
      */
-    setReturnValue(value: any): void {
+    setReturnValue(value: unknown): void {
         this.requestReturnValue = value;
     }
 }
@@ -222,7 +222,7 @@ export const TaskConditions = {
 /**
  * Type for a task generator function.
  */
-export type TaskGenerator<TContext = any> = (
+export type TaskGenerator<TContext = unknown> = (
     task: QueueTask<TContext>,
 ) => Generator<SuspendCondition, void, void>;
 

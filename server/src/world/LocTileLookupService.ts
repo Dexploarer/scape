@@ -1,5 +1,6 @@
 import { getCacheLoaderFactory } from "../../../src/rs/cache/loader/CacheLoaderFactory";
 import { ByteBuffer } from "../../../src/rs/io/ByteBuffer";
+import { MapFileLoader } from "../../../src/rs/map/MapFileLoader";
 import { logger } from "../utils/logger";
 import type { CacheEnv } from "./CacheEnv";
 
@@ -15,11 +16,11 @@ export type LocTilePlacement = {
 type SquareTileMap = Map<string, LocTilePlacement[]>;
 
 export class LocTileLookupService {
-    private readonly mapFileLoader: any;
+    private readonly mapFileLoader: MapFileLoader;
     private readonly squareCache = new Map<number, SquareTileMap>();
 
     constructor(private readonly env: CacheEnv) {
-        const factory = getCacheLoaderFactory(env.info, env.cacheSystem as any);
+        const factory = getCacheLoaderFactory(env.info, env.cacheSystem);
         this.mapFileLoader = factory.getMapFileLoader();
     }
 

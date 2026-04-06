@@ -1,5 +1,6 @@
 import { getMainmodalUid, getSidemodalUid } from "../../../src/widgets/viewport";
 import type { IScriptRegistry, ScriptServices } from "../../../src/game/scripts/types";
+import type { PlayerState } from "../../../src/game/player";
 
 /**
  * Equipment widget handlers for equipment interfaces.
@@ -88,7 +89,7 @@ const PLAYER_INV_ID = 93;
 /**
  * Open the equipment stats interface.
  */
-function openEquipmentStats(player: any, services: ScriptServices): void {
+function openEquipmentStats(player: PlayerState, services: ScriptServices): void {
     const playerId = player.id;
     const displayMode = player.displayMode ?? 1;
 

@@ -49,13 +49,14 @@ import {
     VARP_SIDE_JOURNAL_STATE,
 } from "../../../../src/shared/vars";
 import type { WidgetAction } from "../../../src/widgets/WidgetManager";
-import { getMainmodalUid, getViewportTrackerFrontUid } from "../../../src/widgets/viewport";
+import { type DisplayMode, getMainmodalUid, getViewportTrackerFrontUid } from "../../../src/widgets/viewport";
 import { syncLeagueGeneralVarp } from "../leagueGeneral";
 import {
     getLeaguePackedVarpsForPlayer,
     syncLeaguePackedVarps,
 } from "../leaguePackedVarps";
 import { type IScriptRegistry, type ScriptServices, type WidgetActionEvent } from "../../../src/game/scripts/types";
+import type { PlayerState } from "../../../src/game/player";
 
 export type LeagueWsUiPlayer = {
     id: number;
@@ -300,7 +301,7 @@ type LeagueRelicIndexEntry = {
 
 const leagueRelicIndexCache: Map<number, LeagueRelicIndexEntry[]> = new Map();
 
-function findEnumIntValue(enumType: any, key: number): number | null {
+function findEnumIntValue(enumType: { keys?: number[]; intValues?: number[] } | undefined, key: number): number | null {
     const keys: number[] | undefined = enumType?.keys;
     const values: number[] | undefined = enumType?.intValues;
     if (!Array.isArray(keys) || !Array.isArray(values)) return null;
@@ -310,12 +311,12 @@ function findEnumIntValue(enumType: any, key: number): number | null {
     return null;
 }
 
-function getEnumOutputCount(enumType: any): number {
+function getEnumOutputCount(enumType: { keys?: number[] } | undefined): number {
     const keys: number[] | undefined = enumType?.keys;
     return Array.isArray(keys) ? keys.length : 0;
 }
 
-function getLeagueRelicIndexMap(services: any, leagueType: number): LeagueRelicIndexEntry[] | null {
+function getLeagueRelicIndexMap(services: ScriptServices, leagueType: number): LeagueRelicIndexEntry[] | null {
     const lt = leagueType;
     const cached = leagueRelicIndexCache.get(lt);
     if (cached) return cached;
@@ -422,7 +423,7 @@ const AREA_SELECTION_VARBITS = [
 // Cached area unlock progression requirements (loaded from cache enum_5677 + structs on demand).
 let leagueAreaUnlockTasksRequiredCache: number[] | null = null;
 
-function getLeagueAreaUnlockTasksRequired(services: any): number[] | null {
+function getLeagueAreaUnlockTasksRequired(services: ScriptServices): number[] | null {
     if (leagueAreaUnlockTasksRequiredCache) return leagueAreaUnlockTasksRequiredCache;
 
     const enumLoader = services?.getEnumTypeLoader?.() ?? services?.enumTypeLoader;
@@ -453,8 +454,8 @@ function getLeagueAreaUnlockTasksRequired(services: any): number[] | null {
 }
 
 function getCurrentLeagueAreaUnlockStage(
-    player: any,
-    services: any,
+    player: PlayerState,
+    services: ScriptServices,
 ): {
     stageIndex: number;
     tasksRequired: number;
@@ -557,7 +558,7 @@ const LEAGUE_AREA_FALLBACK_TELEPORT_COORD: Record<number, number> = Object.freez
     21: packCoord(2230, 3425, 0), // Varlamore (custom / fallback)
 });
 
-function getLeagueAreaTeleportCoord(services: any, regionId: number): number | null {
+function getLeagueAreaTeleportCoord(services: ScriptServices, regionId: number): number | null {
     const normalized = normalizeLeagueAreaSelectionValue(regionId);
     if (!(normalized > 0)) return null;
     const cached = leagueAreaTeleportCoordCache.get(normalized);
@@ -566,7 +567,7 @@ function getLeagueAreaTeleportCoord(services: any, regionId: number): number | n
     const db = services?.getDbRepository?.();
     if (db?.findRows) {
         try {
-            const rows = db.findRows((row: any) => {
+            const rows = db.findRows((row: { getColumn?: (col: number) => { values?: unknown[] } | undefined }) => {
                 const col = row?.getColumn?.(DB_COL_REGION_DATA_REGION_ID);
                 const value = Array.isArray(col?.values) ? col.values[0] : undefined;
                 return value === normalized;
@@ -776,7 +777,7 @@ export function applyLeagueTutorialStepNineUi(
     // During step 9 there should not be a blocking mainmodal in front of the side journal.
     bridge.queueWidgetEvent(playerId, {
         action: "close_sub",
-        targetUid: getMainmodalUid(player.displayMode as any),
+        targetUid: getMainmodalUid(player.displayMode),
     });
 
     const sidePanelGroup = getSideJournalLeaguesContentGroupId(leagueType);
@@ -818,7 +819,7 @@ export function queueLeagueTutorialOverlayUi(
 
     bridge.queueWidgetEvent(playerId, {
         action: "open_sub",
-        targetUid: getViewportTrackerFrontUid(player.displayMode as any),
+        targetUid: getViewportTrackerFrontUid(player.displayMode),
         groupId: LEAGUE_TUTORIAL_MAIN_GROUP_ID,
         type: 1,
         varps: {
@@ -868,7 +869,7 @@ export function handleLeagueAreasTutorialCloseViaWidgetClose(
     const playerId = player.id;
     bridge.queueWidgetEvent(playerId, {
         action: "open_sub",
-        targetUid: getViewportTrackerFrontUid(player.displayMode as any),
+        targetUid: getViewportTrackerFrontUid(player.displayMode),
         groupId: LEAGUE_TUTORIAL_MAIN_GROUP_ID,
         type: 1,
         varps: {
@@ -937,7 +938,7 @@ export function handleLeagueAreasTutorialCloseViaWidgetClose(
 
 function getLeagueAreaButtonState(
     player: { getVarbitValue?: (id: number) => number },
-    services: any,
+    services: ScriptServices,
     regionIdRaw: number,
 ): number {
     // Mirrors [proc,league_areas_show_detailed] (3669) select button logic:
@@ -974,8 +975,8 @@ function getLeagueAreaButtonState(
 }
 
 function tryUnlockLeagueArea(
-    player: any,
-    services: any,
+    player: PlayerState,
+    services: ScriptServices,
     regionIdRaw: number,
 ): { ok: boolean; reason?: string } {
     const regionId = normalizeLeagueAreaSelectionValue(regionIdRaw);
@@ -1075,7 +1076,7 @@ export function getLeagueVarbits(player: {
     return varbits;
 }
 
-function getLeagueVarpsForPlayer(player: any): Record<number, number> {
+function getLeagueVarpsForPlayer(player: PlayerState): Record<number, number> {
     return {
         [VARP_MAP_FLAGS_CACHED]: MAP_FLAGS_LEAGUE_WORLD,
         [VARP_LEAGUE_GENERAL]: player?.varps.getVarpValue?.(VARP_LEAGUE_GENERAL) ?? 0,
@@ -1088,8 +1089,8 @@ function getLeagueVarpsForPlayer(player: any): Record<number, number> {
 }
 
 function refreshLeagueSidePanelProgress(
-    player: any,
-    services: any,
+    player: PlayerState,
+    services: ScriptServices,
     opts?: {
         leagueType?: number;
         varps?: Record<number, number>;
@@ -1113,14 +1114,14 @@ function refreshLeagueSidePanelProgress(
     });
 }
 
-function syncLeagueGeneralVarpAndQueue(player: any, services: any): void {
+function syncLeagueGeneralVarpAndQueue(player: PlayerState, services: ScriptServices): void {
     const res = syncLeagueGeneralVarp(player);
     if (res.changed) {
         services.queueVarp?.(player.id, VARP_LEAGUE_GENERAL, res.value);
     }
 }
 
-function getLeagueWidgetUiBridge(player: any, services: any): LeagueWsUiBridge {
+function getLeagueWidgetUiBridge(player: PlayerState, services: ScriptServices): LeagueWsUiBridge {
     return {
         queueWidgetEvent: (playerId, action) => {
             services.queueWidgetEvent?.(playerId, action);
@@ -1137,8 +1138,8 @@ function getLeagueWidgetUiBridge(player: any, services: any): LeagueWsUiBridge {
 }
 
 function queueWidgetFlagsRange(
-    player: any,
-    services: any,
+    player: PlayerState,
+    services: ScriptServices,
     uid: number,
     fromSlot: number,
     toSlot: number,
@@ -1158,7 +1159,7 @@ function queueWidgetFlagsRange(
     });
 }
 
-function ensureLeagueBasicsInitialized(player: any, services: any): void {
+function ensureLeagueBasicsInitialized(player: PlayerState, services: ScriptServices): void {
     // League interfaces depend on these varbits being set; initialize on demand for older saves.
     const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
     if (leagueType <= 0) {
@@ -1168,7 +1169,7 @@ function ensureLeagueBasicsInitialized(player: any, services: any): void {
     }
 }
 
-function ensureLeagueAreaSelectionsInitialized(player: any, services: any): void {
+function ensureLeagueAreaSelectionsInitialized(player: PlayerState, services: ScriptServices): void {
     const raw = AREA_SELECTION_VARBITS.map((id) => player.varps.getVarbitValue?.(id) ?? 0);
     const values = raw.map((v) => normalizeLeagueAreaSelectionValue(v));
 
@@ -2116,9 +2117,9 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
     // ========== League Relics (655) ==========
 
-    const getPendingRelicSelection = (player: any): LeagueRelicIndexEntry | undefined =>
+    const getPendingRelicSelection = (player: PlayerState): LeagueRelicIndexEntry | undefined =>
         player.gamemodeState.get("leagueRelicPendingSelection") as LeagueRelicIndexEntry | undefined;
-    const clearPendingRelicSelection = (player: any): void => {
+    const clearPendingRelicSelection = (player: PlayerState): void => {
         try {
             player.gamemodeState.delete("leagueRelicPendingSelection");
         } catch {}
@@ -2435,9 +2436,9 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         passiveStructId: number;
     }
 
-    const getPendingMasterySelection = (player: any): PendingMasterySelection | undefined =>
+    const getPendingMasterySelection = (player: PlayerState): PendingMasterySelection | undefined =>
         player.gamemodeState.get("leagueMasteryPendingSelection") as PendingMasterySelection | undefined;
-    const clearPendingMasterySelection = (player: any): void => {
+    const clearPendingMasterySelection = (player: PlayerState): void => {
         try {
             player.gamemodeState.delete("leagueMasteryPendingSelection");
         } catch {}

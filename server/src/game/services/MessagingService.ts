@@ -66,7 +66,7 @@ export class MessagingService {
         }
     }
 
-    queueNotification(playerId: number, payload: any): void {
+    queueNotification(playerId: number, payload: Record<string, unknown>): void {
         this.deps.broadcastScheduler.queueNotification(playerId, payload);
     }
 

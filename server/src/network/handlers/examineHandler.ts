@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { WebSocket } from "ws";
 
 import {
@@ -8,6 +7,11 @@ import {
 } from "../../game/interactions/ExamineText";
 import { loadVisibleLocTypeForPlayer } from "../../world/LocTransforms";
 import type { PlayerState } from "../../game/player";
+import type { LocType } from "../../../../src/rs/config/loctype/LocType";
+import type { NpcType } from "../../../../src/rs/config/npctype/NpcType";
+import type { ObjType } from "../../../../src/rs/config/objtype/ObjType";
+import type { TypeLoader } from "../../../../src/rs/config/TypeLoader";
+import type { NpcState } from "../../game/npc";
 
 export interface ExamineHandlerDeps {
     getPlayer: (ws: WebSocket) => PlayerState | undefined;
@@ -22,17 +26,26 @@ export interface ExamineHandlerDeps {
         worldViewId?: number,
     ) => Array<{ itemId: number }>;
     getCurrentTick: () => number;
-    locTypeLoader: { load(id: number): any } | undefined;
-    npcTypeLoader: { load(id: number): any } | undefined;
-    objTypeLoader: { load(id: number): any } | undefined;
-    getNpcType: (npc: any) => any | undefined;
-    getObjType: (itemId: number) => any | undefined;
+    locTypeLoader: TypeLoader<LocType> | undefined;
+    npcTypeLoader: TypeLoader<NpcType> | undefined;
+    objTypeLoader: TypeLoader<ObjType> | undefined;
+    getNpcType: (npc: NpcState) => NpcType | undefined;
+    getObjType: (itemId: number) => ObjType | undefined;
+}
+
+export interface ExaminePacket {
+    type: string;
+    locId?: number;
+    npcId?: number;
+    itemId?: number;
+    worldX?: number;
+    worldY?: number;
 }
 
 export function handleExaminePacket(
     deps: ExamineHandlerDeps,
     ws: WebSocket,
-    packet: any,
+    packet: ExaminePacket,
 ): boolean {
     const player = deps.getPlayer(ws);
     if (!player) {
@@ -85,8 +98,8 @@ export function handleExaminePacket(
 }
 
 export function resolveNpcOptionByOpNum(
-    getNpcType: (npc: any) => any | undefined,
-    npc: any,
+    getNpcType: (npc: NpcState) => NpcType | undefined,
+    npc: NpcState,
     opNum: number,
 ): string | undefined {
     const idx = opNum - 1;
@@ -103,7 +116,7 @@ export function resolveNpcOptionByOpNum(
 }
 
 export function resolveLocActionByOpNum(
-    locTypeLoader: { load(id: number): any } | undefined,
+    locTypeLoader: TypeLoader<LocType> | undefined,
     locId: number,
     opNum: number,
     player?: PlayerState,
@@ -126,7 +139,7 @@ export function resolveLocActionByOpNum(
 }
 
 export function resolveGroundItemOptionByOpNum(
-    getObjType: (itemId: number) => any | undefined,
+    getObjType: (itemId: number) => ObjType | undefined,
     itemId: number,
     opNum: number,
 ): string | undefined {

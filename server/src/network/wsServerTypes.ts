@@ -8,7 +8,7 @@ import type {
     PlayerAnimSet,
 } from "../game/systems";
 import type { WidgetAction } from "../widgets/WidgetManager";
-import type { SpellResultPayload } from "./messages";
+import type { NotificationPayload, SpellResultPayload } from "./messages";
 import type { PlayerAppearance as PlayerAppearanceState } from "../game/player";
 import type { SkillSyncUpdate } from "../game/player";
 import type { NpcStatusEvent } from "../game/npcManager";
@@ -35,7 +35,7 @@ export interface PlayerViewSnapshot {
     orientation: number;
     running: boolean;
     name?: string;
-    appearance?: any;
+    appearance?: PlayerAppearanceState;
     interactionIndex?: number;
     seq?: number;
     moved: boolean;
@@ -133,8 +133,8 @@ export interface TickFrame {
     playerViews: Map<number, PlayerViewSnapshot>;
     npcViews: Map<number, NpcViewSnapshot>;
     widgetEvents: WidgetEvent[];
-    notifications: Array<{ playerId: number; payload: any }>;
-    keyedMessages: Map<string, Array<{ playerId: number; payload: any }>>;
+    notifications: Array<{ playerId: number; payload: NotificationPayload }>;
+    keyedMessages: Map<string, Array<{ playerId: number; payload: Record<string, unknown> }>>;
     locChanges: LocChangePayload[];
     chatMessages: ChatMessageSnapshot[];
     inventorySnapshots: Array<{

@@ -1,30 +1,54 @@
+import type { WebSocket } from "ws";
+
 import { getItemDefinition } from "../../data/items";
+import type { GroundItemActionPayload } from "../../network/managers/GroundItemHandler";
+import type { ChatMessageSnapshot } from "../systems/BroadcastScheduler";
 import { isInWilderness } from "../combat/MultiCombatZones";
-import { INVENTORY_SLOT_COUNT } from "../player";
+import { INVENTORY_SLOT_COUNT, type InventoryEntry, PlayerState } from "../player";
 import { logger } from "../../utils/logger";
+import type { ActionEnqueueResult, ActionRequest } from "../actions/types";
+import type { ScriptDialogRequest, ScriptDialogOptionRequest } from "../scripts/types";
 
 const CONSUME_VERBS = ["eat", "drink", "quaff", "sip", "imbibe", "swig", "consume", "devour", "activate"];
 const ITEM_DROP_SOUND = 2739;
 
+interface ObjTypeView {
+    inventoryActions?: Array<string | null | undefined>;
+    [key: string]: unknown;
+}
+
+interface ItemActionRequest {
+    tick: number;
+    player: PlayerState;
+    itemId: number;
+    slot: number;
+    option: string;
+}
+
+interface GroundItemSpawnOpts {
+    ownerId?: number;
+    privateTicks?: number;
+}
+
 export interface InventoryMessageServiceDeps {
-    getPlayer: (ws: any) => any | undefined;
-    getInventory: (player: any) => any[];
-    setInventorySlot: (player: any, slot: number, itemId: number, qty: number) => void;
-    ensureEquipArray: (player: any) => number[];
+    getPlayer: (ws: WebSocket) => PlayerState | undefined;
+    getInventory: (player: PlayerState) => InventoryEntry[];
+    setInventorySlot: (player: PlayerState, slot: number, itemId: number, qty: number) => void;
+    ensureEquipArray: (player: PlayerState) => number[];
     resolveEquipSlot: (itemId: number) => number | undefined;
-    getObjType: (itemId: number) => any | undefined;
-    requestAction: (playerId: number, request: any, tick: number) => any;
-    queueItemAction: (request: any) => boolean;
-    closeInterruptibleInterfaces: (player: any) => void;
-    openDialog: (player: any, request: any) => void;
-    openDialogOptions: (player: any, request: any) => void;
-    spawnGroundItem: (itemId: number, qty: number, tile: any, tick: number, opts?: any, worldViewId?: number) => any;
+    getObjType: (itemId: number) => ObjTypeView | undefined;
+    requestAction: (playerId: number, request: ActionRequest, tick: number) => ActionEnqueueResult;
+    queueItemAction: (request: ItemActionRequest) => boolean;
+    closeInterruptibleInterfaces: (player: PlayerState) => void;
+    openDialog: (player: PlayerState, request: ScriptDialogRequest) => void;
+    openDialogOptions: (player: PlayerState, request: ScriptDialogOptionRequest) => void;
+    spawnGroundItem: (itemId: number, qty: number, tile: { x: number; y: number; level: number }, tick: number, opts?: GroundItemSpawnOpts, worldViewId?: number) => unknown;
     withDirectSendBypass: <T>(ctx: string, fn: () => T) => T;
-    sendSound: (player: any, soundId: number) => void;
-    checkAndSendSnapshots: (player: any) => void;
-    queueChatMessage: (msg: any) => void;
-    getPendingWalkCommands: () => Map<any, any>;
-    handleGroundItemActionDelegate: (ws: any, payload: any) => void;
+    sendSound: (player: PlayerState, soundId: number) => void;
+    checkAndSendSnapshots: (player: PlayerState) => void;
+    queueChatMessage: (msg: ChatMessageSnapshot) => void;
+    getPendingWalkCommands: () => Map<WebSocket, Record<string, unknown>>;
+    handleGroundItemActionDelegate: (ws: WebSocket, payload: GroundItemActionPayload | undefined) => void;
     getCurrentTick: () => number;
 }
 
@@ -52,7 +76,7 @@ export class InventoryMessageService {
     }
 
     handleInventoryUseMessage(
-        ws: any,
+        ws: WebSocket,
         payload: { slot: number; itemId: number; quantity?: number; option?: string; op?: number } | undefined,
     ): void {
         if (!payload) return;
@@ -239,7 +263,7 @@ export class InventoryMessageService {
     }
 
     handleInventoryMoveMessage(
-        ws: any,
+        ws: WebSocket,
         payload: { from: number; to: number } | undefined,
     ): void {
         if (!payload) return;
@@ -275,8 +299,8 @@ export class InventoryMessageService {
     }
 
     handleGroundItemAction(
-        ws: any,
-        payload: any | undefined,
+        ws: WebSocket,
+        payload: GroundItemActionPayload | undefined,
     ): void {
         // Interface closing handled centrally by INTERFACE_CLOSING_ACTIONS check
         // Ground item interaction supersedes any pending walk command from earlier clicks.
@@ -285,7 +309,7 @@ export class InventoryMessageService {
     }
 
     handleInventoryUseOnMessage(
-        ws: any,
+        ws: WebSocket,
         payload:
             | {
                   slot: number;
@@ -321,7 +345,7 @@ export class InventoryMessageService {
             const slot = inv[slotIndex];
             if (!slot || slot.itemId <= 0 || slot.itemId !== payload.itemId) {
                 // If targeting another inventory slot, mirror client UX with a benign chat message
-                const tgt: any = payload.target as any;
+                const tgt = payload.target;
                 if (tgt && tgt.kind === "inv") {
                     try {
                         this.deps.queueChatMessage({

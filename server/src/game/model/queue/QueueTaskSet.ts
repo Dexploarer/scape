@@ -9,7 +9,7 @@ type MenuAwareContext = {
  * Manages a set of queue tasks for a pawn.
  * RSMod parity: gg.rsmod.game.model.queue.QueueTaskSet
  */
-export class QueueTaskSet<TContext = any> {
+export class QueueTaskSet<TContext = unknown> {
     private tasks: QueueTask<TContext>[] = [];
     private readonly ctx: TContext;
 
@@ -84,7 +84,7 @@ export class QueueTaskSet<TContext = any> {
     /**
      * Submit a return value for the current task.
      */
-    submitReturnValue(value: any): void {
+    submitReturnValue(value: unknown): void {
         const task = this.tasks[0];
         if (!task) return;
         task.requestReturnValue = value;

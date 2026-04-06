@@ -31,7 +31,7 @@ export class InventoryBroadcaster implements BroadcastDomain {
                 encodeMessage({
                     type: "inventory",
                     payload: { kind: "snapshot", slots },
-                } as any),
+                }),
                 "inventory_snapshot",
             );
         }

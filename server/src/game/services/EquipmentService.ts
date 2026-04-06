@@ -17,7 +17,10 @@ import {
     getSkillcapeSeqId,
     getSkillcapeSpotId,
 } from "../equipment";
-import type { PlayerState } from "../player";
+import type { PlayerState, PlayerAppearance as PlayerAppearanceState } from "../player";
+import type { EquipmentHandler } from "../systems/EquipmentHandler";
+import type { ScriptRuntime } from "../scripts/ScriptRuntime";
+import type { ChatMessageRequest } from "../actions/handlers/CombatActionHandler";
 import type { DataLoaderService } from "./DataLoaderService";
 import { logger } from "../../utils/logger";
 
@@ -26,16 +29,16 @@ const EQUIPMENT_STATS_BONUS_COUNT = 14;
 
 export interface EquipmentServiceDeps {
     dataLoaders: DataLoaderService;
-    equipmentHandler: any;
+    equipmentHandler: EquipmentHandler | undefined;
     weaponData: Map<number, WeaponDataEntry>;
     combatCategoryData: CombatCategoryData | undefined;
     queueVarbit: (playerId: number, varbitId: number, value: number) => void;
     queueCombatState: (player: PlayerState) => void;
-    queueChatMessage: (msg: any) => void;
-    enqueueSpotAnimation: (anim: any) => void;
-    scriptRuntime: any;
+    queueChatMessage: (msg: ChatMessageRequest) => void;
+    enqueueSpotAnimation: (anim: { tick: number; playerId: number; spotId: number; delay?: number; height?: number }) => void;
+    scriptRuntime: ScriptRuntime | undefined;
     getCurrentTick: () => number;
-    getOrCreateAppearance: (player: PlayerState) => any;
+    getOrCreateAppearance: (player: PlayerState) => PlayerAppearanceState;
 }
 
 /**
@@ -43,8 +46,8 @@ export interface EquipmentServiceDeps {
  * Extracted from WSServer.
  */
 export interface EquipmentServiceDeferredDeps {
-    equipmentHandler?: any;
-    scriptRuntime?: any;
+    equipmentHandler?: EquipmentHandler;
+    scriptRuntime?: ScriptRuntime;
     combatCategoryData?: CombatCategoryData;
 }
 

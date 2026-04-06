@@ -3,7 +3,8 @@ import {
     VARBIT_LEAGUE_TUTORIAL_COMPLETED,
     VARBIT_LEAGUE_TYPE,
 } from "../../../../src/shared/vars";
-import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, type NpcInteractionEvent, type ScriptServices } from "../../../src/game/scripts/types";
+import type { PlayerState } from "../../../src/game/player";
 import { queueLeagueTutorialOverlayUi } from "./leagueWidgets";
 
 const LEAGUE_TUTOR_NPC_ID = 315;
@@ -62,7 +63,7 @@ function getCurrentTutorialGuidance(step: number, completeStep: number): string[
     ];
 }
 
-function findEnumIntValue(enumType: any, key: number): number | undefined {
+function findEnumIntValue(enumType: { keys?: number[]; intValues?: number[] } | undefined, key: number): number | undefined {
     const keys: number[] | undefined = enumType?.keys;
     const values: number[] | undefined = enumType?.intValues;
     if (!Array.isArray(keys) || !Array.isArray(values)) return undefined;
@@ -72,7 +73,7 @@ function findEnumIntValue(enumType: any, key: number): number | undefined {
     return undefined;
 }
 
-function resolveTierOneRelicRewardItemId(player: any, services: any): number | undefined {
+function resolveTierOneRelicRewardItemId(player: PlayerState, services: ScriptServices): number | undefined {
     const selectedRelicKey = player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_1) ?? 0;
     if (!(selectedRelicKey > 0)) return undefined;
 
@@ -111,7 +112,7 @@ function resolveTierOneRelicRewardItemId(player: any, services: any): number | u
     return rewardItemId;
 }
 
-function reclaimLostEchoTool(player: any, services: any): string[] {
+function reclaimLostEchoTool(player: PlayerState, services: ScriptServices): string[] {
     const selectedRelicKey = player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_1) ?? 0;
     if (!(selectedRelicKey > 0)) {
         return [
@@ -160,7 +161,7 @@ function reclaimLostEchoTool(player: any, services: any): string[] {
 export function registerLeagueTutorHandlers(registry: IScriptRegistry, services: ScriptServices): void {
     const activeConvos = new Set<number>();
 
-    const openTutorConversation = (event: any) => {
+    const openTutorConversation = (event: NpcInteractionEvent) => {
         const player = event.player;
         const pid = player.id;
         if (activeConvos.has(pid)) return;

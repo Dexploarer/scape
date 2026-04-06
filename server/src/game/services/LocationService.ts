@@ -33,12 +33,12 @@ export interface LocationServiceDeps {
     broadcastScheduler: BroadcastScheduler;
     networkLayer: PlayerNetworkLayer;
     doorManager: DoorStateManager | undefined;
-    dynamicLocState: any;
+    dynamicLocState: { observeLocChange(change: Record<string, unknown>): void; queryScene(baseX: number, baseY: number, level: number): Array<{ oldId: number; newId: number; level: number; oldTile: { x: number; y: number }; newTile: { x: number; y: number }; oldRotation?: number; newRotation?: number }> };
     dataLoaders: DataLoaderService;
     broadcast: (msg: string | Uint8Array, context: string) => void;
-    locTypeLoader?: { load(id: number): any };
+    locTypeLoader?: { load(id: number): { sizeX: number; sizeY: number } | undefined };
     pathService?: { getCollisionFlagAt(x: number, y: number, level: number): number | undefined };
-    playerSyncSessions?: Map<WebSocket, any>;
+    playerSyncSessions?: Map<WebSocket, { baseTileX: number; baseTileY: number }>;
     playerDynamicLocSceneKeys?: Map<number, string>;
     withDirectSendBypass?: (context: string, fn: () => void) => void;
 }
@@ -149,7 +149,7 @@ export class LocationService {
         const msg = encodeMessage({
             type: "loc_add_change",
             payload: { locId, tile, level, shape, rotation },
-        } as any);
+        } as unknown as Parameters<typeof encodeMessage>[0]);
         this.deps.networkLayer.withDirectSendBypass("loc_add_change", () =>
             this.deps.networkLayer.sendWithGuard(ws, msg, "loc_add_change"),
         );

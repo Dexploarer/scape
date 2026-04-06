@@ -1,5 +1,6 @@
 import { MAX_REAL_LEVEL, SkillId, getSkillName } from "../../../../src/rs/skill/skills";
 import type { PlayerState } from "../player";
+import type { PendingSpotAnimation } from "../systems/BroadcastScheduler";
 import type { LevelUpPopup, WidgetAction } from "./InterfaceManager";
 import {
     LEVELUP_INTERFACE_ID,
@@ -53,10 +54,10 @@ const LEVELUP_JINGLE_BY_SKILL: Partial<Record<number, number>> = {
 };
 
 export interface LevelUpDisplayServiceDeps {
-    queueWidgetEvent: (playerId: number, action: any) => void;
-    enqueueSpotAnimation: (event: any) => void;
-    sendJingle: (player: any, jingleId: number, delay?: number) => void;
-    sendSound: (player: any, soundId: number) => void;
+    queueWidgetEvent: (playerId: number, action: WidgetAction) => void;
+    enqueueSpotAnimation: (event: PendingSpotAnimation) => void;
+    sendJingle: (player: PlayerState, jingleId: number, delay?: number) => void;
+    sendSound: (player: PlayerState, soundId: number) => void;
     getCurrentTick: () => number;
 }
 

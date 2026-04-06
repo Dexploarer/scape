@@ -1,6 +1,7 @@
 import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
 import { resolvePlayerAttackType } from "../combat/CombatRules";
 import type { PlayerState } from "../player";
+import type { WidgetAction } from "./InterfaceManager";
 
 export const EQUIPMENT_STATS_GROUP_ID = 84;
 
@@ -51,7 +52,7 @@ const IMBUED_SLAYER_HELM_IDS = new Set<number>([
 ]);
 
 export interface EquipmentStatsUiServiceDeps {
-    queueWidgetEvent: (playerId: number, action: any) => void;
+    queueWidgetEvent: (playerId: number, action: WidgetAction) => void;
     computeEquipmentStatBonuses: (player: PlayerState) => number[];
     ensureEquipArray: (player: PlayerState) => number[];
     formatEquipmentSignedInt: (value: number) => string;

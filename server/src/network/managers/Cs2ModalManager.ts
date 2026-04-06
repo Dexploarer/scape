@@ -35,6 +35,7 @@ import {
 } from "../../../../src/shared/ui/widgets";
 import { FONT_BOLD_12 } from "../../../../src/ui/fonts";
 import type { PlayerState } from "../../game/player";
+import type { WidgetAction } from "../../widgets/WidgetManager";
 
 type SmithingBarOption = {
     barType: number;
@@ -62,7 +63,7 @@ export interface Cs2ModalManagerServices {
     openModal: (player: PlayerState, interfaceId: number, data?: unknown) => void;
     closeModal: (player: PlayerState) => void;
     getCurrentModal: (player: PlayerState) => number | undefined;
-    queueWidgetEvent: (playerId: number, event: any) => void;
+    queueWidgetEvent: (playerId: number, event: WidgetAction) => void;
     queueGameMessage: (playerId: number, text: string) => void;
     setSmithingBarType: (player: PlayerState, barType: number) => void;
     openSmithingForgeInterface: (player: PlayerState) => void;

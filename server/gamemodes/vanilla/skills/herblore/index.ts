@@ -1,5 +1,5 @@
 import { SkillId } from "../../../../../src/rs/skill/skills";
-import type { IScriptRegistry, ScriptServices } from "../../../../src/game/scripts/types";
+import type { IScriptRegistry, ItemOnItemEvent, ScriptServices } from "../../../../src/game/scripts/types";
 import type { PlayerState } from "../../../../src/game/player";
 
 // ---------------------------------------------------------------------------
@@ -126,7 +126,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
 
     // Unfinished potions (herb + vial of water)
     for (const u of UNF_LIST) {
-        const handler = ({ player, source, target }: any) => {
+        const handler = ({ player, source, target }: ItemOnItemEvent) => {
             const level = herbloreLevel(services, player);
             if (level < u.level) {
                 services.sendGameMessage(
@@ -152,7 +152,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
         const key = `${f.unf}|${f.secondary}`;
         if (seenPairs.has(key)) continue;
         seenPairs.add(key);
-        const handler = ({ player, source, target }: any) => {
+        const handler = ({ player, source, target }: ItemOnItemEvent) => {
             const level = herbloreLevel(services, player);
             if (level < f.level) {
                 services.sendGameMessage(
@@ -180,7 +180,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
         registry.registerItemOnItem(
             recipe.superEnergy,
             AMYLASE_CRYSTAL,
-            ({ player, source, target }: any) => {
+            ({ player, source, target }: ItemOnItemEvent) => {
                 const level = herbloreLevel(services, player);
                 if (level < STAMINA_LEVEL) {
                     services.sendGameMessage(

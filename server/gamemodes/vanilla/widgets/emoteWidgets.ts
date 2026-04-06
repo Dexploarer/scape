@@ -68,7 +68,7 @@ export function registerEmoteWidgetHandlers(registry: IScriptRegistry, services:
 /**
  * Handle emote button click
  */
-function handleEmote(event: WidgetActionEvent, services: any): void {
+function handleEmote(event: WidgetActionEvent, services: ScriptServices): void {
     const player = event.player;
     const slot = event.slot;
     const opId = event.opId ?? 1;

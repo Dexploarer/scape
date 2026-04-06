@@ -1,9 +1,9 @@
-import { type IScriptRegistry, type ScriptServices } from "../../../../src/game/scripts";
+import { type IScriptRegistry, type NpcInteractionEvent, type ScriptServices } from "../../../../src/game/scripts";
 
 export function registerRomeoHandlers(registry: IScriptRegistry, services: ScriptServices): void {
     const activeConvos = new Set<number>();
 
-    const playRomeoConversation = (event: any) => {
+    const playRomeoConversation = (event: NpcInteractionEvent) => {
         const pid = event.player.id;
         const npcId = event.npc.typeId;
 

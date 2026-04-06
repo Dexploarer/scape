@@ -3,20 +3,38 @@ import type { SpellDataEntry } from "../spells/SpellDataProvider";
 import type { ProjectileLaunch } from "../../../../src/shared/projectiles/ProjectileLaunch";
 import { PLAYER_CHEST_OFFSET_UNITS } from "../../../../src/shared/projectiles/projectileHeights";
 import type { PathService } from "../../pathfinding/PathService";
+import type { NpcManager } from "../npcManager";
 import type { PlayerState } from "../player";
 import type { NpcState } from "../npc";
 import { logger } from "../../utils/logger";
 
 const TILE_UNIT = 128;
 
+interface SeqType {
+    frameLengths?: number[];
+    frameSounds?: Map<number, unknown[]>;
+}
+
+interface ProjectileSystemView {
+    buildRangedProjectileLaunch(opts: Record<string, unknown>): ProjectileLaunch | undefined;
+    queueProjectileForViewers(launch: ProjectileLaunch): void;
+    setActiveFramePackets(packets: Map<number, unknown>): void;
+}
+
+interface TickFrameView {
+    tick: number;
+    projectilePackets?: Map<number, unknown>;
+    [key: string]: unknown;
+}
+
 export interface ProjectileTimingServiceDeps {
     getTickMs: () => number;
     getCurrentTick: () => number;
-    getActiveFrame: () => any | undefined;
-    getSeqTypeLoader: () => any | undefined;
-    getNpcManager: () => any | undefined;
-    getProjectileSystem: () => any | undefined;
-    getPathService: () => any | undefined;
+    getActiveFrame: () => TickFrameView | undefined;
+    getSeqTypeLoader: () => { load(id: number): SeqType | undefined } | undefined;
+    getNpcManager: () => NpcManager | undefined;
+    getProjectileSystem: () => ProjectileSystemView | undefined;
+    getPathService: () => (PathService & { sampleHeight?: (x: number, y: number, plane: number) => number | undefined }) | undefined;
     pickSpellCastSequence: (player: PlayerState, spellId: number, isAutocast: boolean) => number;
     pickAttackSequence: (player: PlayerState) => number;
 }
@@ -127,16 +145,16 @@ export class ProjectileTimingService {
 
     estimateReleaseOffsetFromSeq(seqId: number, framesPerTick: number): number | undefined {
         if (!(seqId >= 0)) return undefined;
-        const loader: any = this.deps.getSeqTypeLoader();
+        const loader = this.deps.getSeqTypeLoader();
         if (!loader?.load) return undefined;
         try {
             const seq = loader.load(seqId);
             if (!seq) return undefined;
-            const sounds = seq.frameSounds as Map<number, any[]> | undefined;
+            const sounds = seq.frameSounds;
             let frameIndex: number | undefined;
             if (sounds) {
                 let best: number | undefined;
-                sounds.forEach((_v: any, k: number) => {
+                sounds.forEach((_v: unknown[], k: number) => {
                     if (best === undefined || k < best) best = k;
                 });
                 frameIndex = best;

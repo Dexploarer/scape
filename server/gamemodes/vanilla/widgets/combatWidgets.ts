@@ -25,6 +25,7 @@ import {
     wasInstantUtilitySpecialHandledAtTick,
 } from "../../../src/game/combat/RockKnockerSpecial";
 import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
+import type { PlayerState } from "../../../src/game/player";
 
 /**
  * Combat widgets handlers for interface 593 (combat options tab) and 201 (autocast popup).
@@ -88,7 +89,7 @@ const AUTOCAST_SPELLPOS_WEAPON_IDS = new Set<number>([
     27788, // Accursed sceptre (u)
 ]);
 
-function getPlayerDisplayMode(player: any): DisplayMode {
+function getPlayerDisplayMode(player: PlayerState): DisplayMode {
     const mode = player?.displayMode;
     if (!Number.isFinite(mode as number)) {
         return DisplayMode.RESIZABLE_NORMAL;
@@ -110,7 +111,7 @@ function getPlayerDisplayMode(player: any): DisplayMode {
  * Autocast "Choose spell" (interface 201) should mount into the Combat tab container,
  * replacing the Combat Options interface while the chooser is open.
  */
-function getCombatTabUid(player: any): number {
+function getCombatTabUid(player: PlayerState): number {
     const displayMode = getPlayerDisplayMode(player);
     const combat = getDefaultInterfaces(displayMode).find(
         (entry) => entry.groupId === COMBAT_WIDGET_GROUP_ID,
@@ -123,10 +124,10 @@ function getCombatTabUid(player: any): number {
 }
 
 function tryActivateInstantUtilitySpecial(
-    player: any,
+    player: PlayerState,
     weaponObjId: number,
     currentTick: number,
-    services: any,
+    services: ScriptServices,
 ): boolean {
     const rockKnockerSeqId = getRockKnockerSpecialSequence(weaponObjId);
     const fishstabberSeqId = getFishstabberSpecialSequence(weaponObjId);
@@ -335,7 +336,7 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
 /**
  * Open the autocast spell selection popup
  */
-function openAutocastPopup(player: any, isDefensive: boolean, services: any): void {
+function openAutocastPopup(player: PlayerState, isDefensive: boolean, services: ScriptServices): void {
     const equip = player.appearance?.equip;
     const weaponObjId = Array.isArray(equip) ? equip[EquipmentSlot.WEAPON] : 0;
     const spellposSelector =
@@ -387,7 +388,7 @@ function openAutocastPopup(player: any, isDefensive: boolean, services: any): vo
 /**
  * Handle spell selection in autocast popup
  */
-function handleAutocastSpellSelection(player: any, spellIndex: number, services: any): void {
+function handleAutocastSpellSelection(player: PlayerState, spellIndex: number, services: ScriptServices): void {
     const isDefensive = player.combat.pendingAutocastDefensive ?? false;
 
     // Convert spell index to actual spell ID

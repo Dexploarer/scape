@@ -11,7 +11,7 @@ export function createWidgetHandler(services: MessageHandlerServices): MessageHa
         try {
             const p = services.getPlayer(ctx.ws);
             if (!p) return;
-            const { groupId, action, modal } = ctx.payload as any;
+            const { groupId, action, modal } = ctx.payload as unknown as { groupId: number; action: string; modal?: boolean };
             if (action === "open") {
                 logger.info(`[widget-open] player=${p.id} group=${groupId} modal=${modal}`);
                 services.noteWidgetEventForLedger(p.id, { action: "open", groupId, modal });
@@ -57,7 +57,7 @@ export function createWidgetHandler(services: MessageHandlerServices): MessageHa
                 services.handleCs2ModalCloseState(p, groupId);
                 services.handleDialogCloseState(p, groupId);
                 const interfaceService = services.getInterfaceService();
-                let closedEntries: any[] = [];
+                let closedEntries: { groupId: number; targetUid?: number; scope?: string }[] = [];
                 let handledByInterfaceService = false;
                 if (interfaceService?.isChatboxModalOpen(p, groupId)) {
                     handledByInterfaceService = true;

@@ -4,9 +4,11 @@
  * Extracted from wsServer.ts for better organization and testability.
  * Uses a service interface pattern to avoid circular dependencies.
  */
+import type { WebSocket } from "ws";
 import { logger } from "../../utils/logger";
 import type { GroundItemManager } from "../../game/items/GroundItemManager";
 import type { InventoryAddResult, PlayerState } from "../../game/player";
+import type { ServerToClient } from "../messages";
 
 /** Pickup radius in tiles */
 const GROUND_ITEM_PICKUP_RADIUS_TILES = 2;
@@ -61,9 +63,9 @@ export interface WebSocketRef {
 
 /** Player collection reference */
 export interface PlayerCollectionRef {
-    get(ws: any): PlayerState | undefined;
+    get(ws: WebSocket): PlayerState | undefined;
     startGroundItemInteraction(
-        ws: any,
+        ws: WebSocket,
         interaction: {
             itemId: number;
             stackId: number;
@@ -116,9 +118,9 @@ export interface GroundItemHandlerServices {
         targetPlayerIds: number[];
     }): void;
     /** Send with guard */
-    sendWithGuard(sock: any, message: string | Uint8Array, context: string): void;
+    sendWithGuard(sock: WebSocket, message: string | Uint8Array, context: string): void;
     /** Encode message */
-    encodeMessage(msg: { type: string; payload: any }): Uint8Array;
+    encodeMessage(msg: ServerToClient): Uint8Array;
     /** Execute with direct send bypass */
     withDirectSendBypass(context: string, fn: () => void): void;
     /** Log a message */
@@ -252,7 +254,7 @@ export class GroundItemHandler {
     /**
      * Maybe send ground item snapshot to player if changed.
      */
-    maybeSendGroundItemSnapshot(ws: any, player: PlayerState): void {
+    maybeSendGroundItemSnapshot(ws: WebSocket, player: PlayerState): void {
         if (!ws || ws.readyState !== 1) return; // WebSocket.OPEN = 1
 
         const playerId = player.id;
@@ -366,7 +368,7 @@ export class GroundItemHandler {
     /**
      * Handle ground item action from client.
      */
-    handleGroundItemAction(ws: any, payload: GroundItemActionPayload | undefined): void {
+    handleGroundItemAction(ws: WebSocket, payload: GroundItemActionPayload | undefined): void {
         if (!payload) return;
 
         const players = this.services.getPlayers();

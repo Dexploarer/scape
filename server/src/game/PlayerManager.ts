@@ -1,3 +1,5 @@
+import type { WebSocket } from "ws";
+import type { LocTypeLoader } from "../../../src/rs/config/loctype/LocTypeLoader";
 import { PathService } from "../pathfinding/PathService";
 import { logger } from "../utils/logger";
 import { DoorStateManager } from "../world/DoorStateManager";
@@ -34,7 +36,7 @@ const ORPHAN_MAX_TICKS = 100;
 
 // --- Player management / interaction delegation ---
 export class PlayerManager implements PlayerRepository {
-    private players = new Map<any, PlayerState>(); // key by ws
+    private players = new Map<WebSocket, PlayerState>();
     private pathService: PathService;
     // Headless players (no websocket) for testing/simulation
     private bots: PlayerState[] = [];
@@ -54,13 +56,13 @@ export class PlayerManager implements PlayerRepository {
     private freeIds: number[] = [];
     /** O(1) lookup set for in-use player IDs */
     private usedIds = new Set<number>();
-    private locTypeLoader?: any;
+    private locTypeLoader?: LocTypeLoader;
     private doorManager?: DoorStateManager;
     private readonly interactionSystem: PlayerInteractionSystem;
 
     constructor(
         pathService: PathService,
-        locTypeLoader?: any,
+        locTypeLoader?: LocTypeLoader,
         doorManager?: DoorStateManager,
         scriptRuntime?: ScriptRuntime,
     ) {
@@ -159,7 +161,7 @@ export class PlayerManager implements PlayerRepository {
         return this.usedIds.has(id);
     }
 
-    add(ws: any, spawnX: number, spawnY: number, level: number = 0): PlayerState | undefined {
+    add(ws: WebSocket, spawnX: number, spawnY: number, level: number = 0): PlayerState | undefined {
         const id = this.allocatePlayerId();
         if (id === undefined) {
             logger.warn(
@@ -208,7 +210,7 @@ export class PlayerManager implements PlayerRepository {
         return p;
     }
 
-    remove(ws: any): void {
+    remove(ws: WebSocket): void {
         const p = this.players.get(ws);
         if (p) {
             p.visibleNpcIds.clear();
@@ -227,7 +229,7 @@ export class PlayerManager implements PlayerRepository {
         this.interactionSystem.removeSocket(ws);
     }
 
-    get(ws: any): PlayerState | undefined {
+    get(ws: WebSocket): PlayerState | undefined {
         return this.players.get(ws);
     }
 
@@ -259,7 +261,7 @@ export class PlayerManager implements PlayerRepository {
      * @param currentTick The current game tick
      * @returns true if the player was orphaned, false if removed normally
      */
-    orphanPlayer(ws: any, saveKey: string, currentTick: number): boolean {
+    orphanPlayer(ws: WebSocket, saveKey: string, currentTick: number): boolean {
         const player = this.players.get(ws);
         if (!player) return false;
 
@@ -293,7 +295,7 @@ export class PlayerManager implements PlayerRepository {
      * @param saveKey The player's save key
      * @returns The orphaned player if found and reconnected, undefined otherwise
      */
-    reconnectOrphanedPlayer(ws: any, saveKey: string): PlayerState | undefined {
+    reconnectOrphanedPlayer(ws: WebSocket, saveKey: string): PlayerState | undefined {
         const orphan = this.orphanedPlayers.get(saveKey);
         if (!orphan) return undefined;
 
@@ -400,23 +402,23 @@ export class PlayerManager implements PlayerRepository {
         return this.orphanedPlayers.values();
     }
 
-    getInteractionState(ws: any): PlayerInteractionState | undefined {
+    getInteractionState(ws: WebSocket): PlayerInteractionState | undefined {
         return this.interactionSystem.getStateForSocket(ws);
     }
 
     // Expose whether a socket is following a specific player id (follow mode)
-    isFollowingSocket(ws: any, targetId: number): boolean {
+    isFollowingSocket(ws: WebSocket, targetId: number): boolean {
         return this.interactionSystem.isFollowingSocket(ws, targetId);
     }
 
     // Expose the interacting entity (target) for a given socket, if any
     getInteractingForSocket(
-        ws: any,
+        ws: WebSocket,
     ): { targetId: number; mode: "follow" | "trade" | "combat" } | undefined {
         return this.interactionSystem.getInteractingForSocket(ws);
     }
 
-    forEach(cb: (ws: any, p: PlayerState) => void): void {
+    forEach(cb: (ws: WebSocket, p: PlayerState) => void): void {
         for (const [ws, p] of this.players.entries()) cb(ws, p);
     }
 
@@ -424,7 +426,7 @@ export class PlayerManager implements PlayerRepository {
      * Iterate over all players including orphaned ones (for visibility/combat).
      * Orphaned players have null as their socket.
      */
-    forEachIncludingOrphaned(cb: (ws: any | null, p: PlayerState) => void): void {
+    forEachIncludingOrphaned(cb: (ws: WebSocket | null, p: PlayerState) => void): void {
         for (const [ws, p] of this.players.entries()) cb(ws, p);
         for (const orphan of this.orphanedPlayers.values()) cb(null, orphan.player);
     }
@@ -460,7 +462,7 @@ export class PlayerManager implements PlayerRepository {
 
     // Compute and assign a path for player's next walk command
     routePlayer(
-        ws: any,
+        ws: WebSocket,
         to: Tile,
         run: boolean = false,
         currentTick?: number,
@@ -640,7 +642,7 @@ export class PlayerManager implements PlayerRepository {
     }
 
     startFollowing(
-        ws: any,
+        ws: WebSocket,
         targetId: number,
         mode: FollowInteractionKind,
         modifierFlags?: number,
@@ -648,12 +650,12 @@ export class PlayerManager implements PlayerRepository {
         return this.interactionSystem.startFollowing(ws, targetId, mode, modifierFlags);
     }
 
-    stopFollowing(ws: any): void {
+    stopFollowing(ws: WebSocket): void {
         this.interactionSystem.stopFollowing(ws);
     }
 
     startNpcInteraction(
-        ws: any,
+        ws: WebSocket,
         npc: NpcState,
         option?: string,
         modifierFlags?: number,
@@ -662,7 +664,7 @@ export class PlayerManager implements PlayerRepository {
     }
 
     startNpcAttack(
-        ws: any,
+        ws: WebSocket,
         npc: NpcState,
         currentTick: number,
         attackDelay: number = 4,
@@ -677,7 +679,7 @@ export class PlayerManager implements PlayerRepository {
         );
     }
 
-    stopNpcAttack(ws: any): void {
+    stopNpcAttack(ws: WebSocket): void {
         this.interactionSystem.stopNpcAttack(ws);
     }
 
@@ -685,7 +687,7 @@ export class PlayerManager implements PlayerRepository {
         this.interactionSystem.finishNpcCombatByPlayerId(playerId, npcId);
     }
 
-    stopNpcInteraction(ws: any): void {
+    stopNpcInteraction(ws: WebSocket): void {
         this.interactionSystem.stopNpcInteraction(ws);
     }
 
@@ -693,7 +695,7 @@ export class PlayerManager implements PlayerRepository {
      * Clears all interaction state for a socket.
      * RSMod parity: Called when player walks to fully clear combat/interaction state.
      */
-    clearAllInteractions(ws: any): void {
+    clearAllInteractions(ws: WebSocket): void {
         this.interactionSystem.clearAllInteractions(ws);
     }
 
@@ -706,7 +708,7 @@ export class PlayerManager implements PlayerRepository {
     }
 
     applyInteractionFacing(
-        ws: any,
+        ws: WebSocket,
         player: PlayerState,
         npcLookup: (npcId: number) => NpcState | undefined,
         currentTick?: number,
@@ -714,11 +716,11 @@ export class PlayerManager implements PlayerRepository {
         this.interactionSystem.applyInteractionFacing(ws, player, npcLookup, currentTick);
     }
 
-    startPlayerCombat(ws: any, targetPlayerId: number, untilTick?: number): void {
+    startPlayerCombat(ws: WebSocket, targetPlayerId: number, untilTick?: number): void {
         this.interactionSystem.startPlayerCombat(ws, targetPlayerId, untilTick);
     }
 
-    stopPlayerCombat(ws: any): void {
+    stopPlayerCombat(ws: WebSocket): void {
         this.interactionSystem.stopPlayerCombat(ws);
     }
 
@@ -739,7 +741,7 @@ export class PlayerManager implements PlayerRepository {
 
     // Record a pending object (loc) interaction for a socket. Server will log upon proximity.
     startLocInteract(
-        ws: any,
+        ws: WebSocket,
         data: {
             id: number;
             tile: { x: number; y: number };
@@ -753,7 +755,7 @@ export class PlayerManager implements PlayerRepository {
     }
 
     startGroundItemInteraction(
-        ws: any,
+        ws: WebSocket,
         data: {
             itemId: number;
             stackId: number;
@@ -786,7 +788,7 @@ export class PlayerManager implements PlayerRepository {
         type Actor = {
             p: PlayerState;
             id: number;
-            ws?: any;
+            ws?: WebSocket;
             curX: number;
             curY: number;
             intends1?: { x: number; y: number };
@@ -1041,7 +1043,7 @@ export class PlayerManager implements PlayerRepository {
         }
     }
 
-    getSocketByPlayerId(id: number): any | undefined {
+    getSocketByPlayerId(id: number): WebSocket | undefined {
         for (const [ws, p] of this.players.entries()) if (p.id === id) return ws;
         return undefined;
     }

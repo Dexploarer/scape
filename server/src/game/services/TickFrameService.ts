@@ -14,8 +14,8 @@ export interface TickFrameServiceDeps {
     getBroadcastScheduler: () => BroadcastScheduler;
     getPendingNpcUpdates: () => NpcUpdateDelta[];
     setPendingNpcUpdates: (updates: NpcUpdateDelta[]) => void;
-    getPendingNpcPackets: () => Map<number, any>;
-    setPendingNpcPackets: (packets: Map<number, any>) => void;
+    getPendingNpcPackets: () => Map<number, { snapshots: unknown[]; updates: unknown[]; despawns: number[] }>;
+    setPendingNpcPackets: (packets: Map<number, { snapshots: unknown[]; updates: unknown[]; despawns: number[] }>) => void;
     getProjectileSystem: () => ProjectileSystem | undefined;
     getTickOrchestrator: () => TickPhaseOrchestrator;
     getNetworkLayer: () => PlayerNetworkLayer;
@@ -224,7 +224,7 @@ export class TickFrameService {
         if (!players) return;
         const entries: Array<{ key: string; player: PlayerState }> = [];
         players.forEach((_ws, player) => {
-            const key = (player as any).__saveKey ?? buildPlayerSaveKey(player.name, player.id);
+            const key = player.__saveKey ?? buildPlayerSaveKey(player.name, player.id);
             if (key && key.length > 0) {
                 entries.push({ key, player });
             }

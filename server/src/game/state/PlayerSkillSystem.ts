@@ -101,6 +101,15 @@ export type ColorOverrideCallback = (
  */
 export type DefaultSkillXpResolver = (skillId: SkillId) => number | undefined;
 
+export type SlayerTaskLike = {
+    onTask?: boolean;
+    active?: boolean;
+    remaining?: number;
+    amount?: number;
+    monsterName?: string;
+    monsterSpecies?: string[];
+};
+
 export function createInitialSkills(
     gamemodeXpFn?: DefaultSkillXpResolver,
 ): SkillEntry[] {
@@ -358,7 +367,7 @@ export class PlayerSkillSystem {
         }
     }
 
-    getSlayerTaskInfo(slayerTask: any): {
+    getSlayerTaskInfo(slayerTask: SlayerTaskLike | null | undefined): {
         onTask: boolean;
         monsterName?: string;
         monsterSpecies?: string[];

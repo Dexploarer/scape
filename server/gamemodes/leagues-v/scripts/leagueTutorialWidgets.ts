@@ -14,6 +14,7 @@ import { getViewportTrackerFrontUid } from "../../../src/widgets/viewport";
 import { LeagueTaskService } from "../LeagueTaskService";
 import { syncLeagueGeneralVarp } from "../leagueGeneral";
 import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
+import type { PlayerState } from "../../../src/game/player";
 
 // Interface/group IDs
 const LEAGUE_TUTORIAL_MAIN_GROUP_ID = 677; // league_tutorial_main
@@ -47,13 +48,13 @@ const RESIZABLE_QUESTS_TAB_COMPONENT = 61;
 const FIXED_QUESTS_TAB_COMPONENT = 66;
 
 export function registerLeagueTutorialWidgetHandlers(registry: IScriptRegistry, services: ScriptServices): void {
-    const syncLeagueGeneralVarpAndQueue = (player: any): void => {
+    const syncLeagueGeneralVarpAndQueue = (player: PlayerState): void => {
         const res = syncLeagueGeneralVarp(player);
         if (res.changed) {
             services.queueVarp?.(player.id, VARP_LEAGUE_GENERAL, res.value);
         }
     };
-    const syncSideJournalLeagueStateAndQueue = (player: any): void => {
+    const syncSideJournalLeagueStateAndQueue = (player: PlayerState): void => {
         const prevStateVarp = player.varps.getVarpValue?.(VARP_SIDE_JOURNAL_STATE) ?? 0;
         const decodedTab = decodeSideJournalTabFromStateVarp(prevStateVarp);
         const tab = decodedTab >= 0 && decodedTab <= 4 ? decodedTab : 0;

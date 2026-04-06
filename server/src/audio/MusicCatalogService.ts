@@ -119,7 +119,7 @@ export class MusicCatalogService {
         };
     }
 
-    private getValues(row: DbRow, columnId: number): any[] {
+    private getValues(row: DbRow, columnId: number): unknown[] {
         const explicit = row.getColumn(columnId)?.values;
         if (explicit && explicit.length > 0) {
             return explicit;

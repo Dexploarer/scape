@@ -1,6 +1,7 @@
 import { SkillId } from "../../../../../src/rs/skill/skills";
 import type { ActionEffect, ActionExecutionResult } from "../../../../src/game/actions/types";
 import type { PlayerState } from "../../../../src/game/player";
+import type { ItemOnItemEvent } from "../../../../src/game/scripts/types";
 import {
     FLETCHING_COMBINE_RECIPES,
     FLETCHING_LOG_IDS,
@@ -246,7 +247,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
     const closeDialog = services.closeDialog;
 
     const registerHandler = (logId: number) => {
-        const handler = ({ player, source, target, tick }: any) => {
+        const handler = ({ player, source, target, tick }: ItemOnItemEvent) => {
             const otherItem = source.itemId === KNIFE_ITEM_ID ? target : source;
             if (otherItem.itemId !== logId) return;
             const products = getFletchingProductsForLog(logId);
@@ -322,7 +323,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
         const recipe = getStringingRecipeByUnstrungId(unstrungId);
         const secondaryItemId = recipe?.secondaryItemId;
         if (!recipe || !secondaryItemId) return;
-        const handler = ({ player, source, target, tick }: any) => {
+        const handler = ({ player, source, target, tick }: ItemOnItemEvent) => {
             const sourceIsUnstrung = source.itemId === unstrungId;
             const targetIsUnstrung = target.itemId === unstrungId;
             if (!sourceIsUnstrung && !targetIsUnstrung) return;
@@ -383,7 +384,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
     const registerCombineHandler = (recipe: FletchingProductDefinition) => {
         const secondaryId = recipe.secondaryItemId;
         if (!secondaryId) return;
-        const handler = ({ player, source, target, tick }: any) => {
+        const handler = ({ player, source, target, tick }: ItemOnItemEvent) => {
             const sourceIsPrimary = source.itemId === recipe.inputItemId;
             const targetIsPrimary = target.itemId === recipe.inputItemId;
             if (!sourceIsPrimary && !targetIsPrimary) return;

@@ -1,26 +1,27 @@
 import type { ActionExecutionResult, ScheduledAction } from "../actions";
 import type { PlayerState } from "../player";
+import type { ScriptServices } from "../scripts/types";
 
 export interface ActionDispatchServiceDeps {
     inventoryActionHandler: {
-        executeInventoryUseOnAction: (player: PlayerState, data: any, tick: number) => ActionExecutionResult;
-        executeInventoryEquipAction: (player: PlayerState, data: any) => ActionExecutionResult;
-        executeInventoryConsumeAction: (player: PlayerState, data: any) => ActionExecutionResult;
-        executeScriptedConsumeAction: (player: PlayerState, data: any, tick: number) => ActionExecutionResult;
-        executeInventoryMoveAction: (player: PlayerState, data: any) => ActionExecutionResult;
-        executeInventoryUnequipAction: (player: PlayerState, data: any) => ActionExecutionResult;
+        executeInventoryUseOnAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
+        executeInventoryEquipAction: (player: PlayerState, data: Record<string, unknown>) => ActionExecutionResult;
+        executeInventoryConsumeAction: (player: PlayerState, data: Record<string, unknown>) => ActionExecutionResult;
+        executeScriptedConsumeAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
+        executeInventoryMoveAction: (player: PlayerState, data: Record<string, unknown>) => ActionExecutionResult;
+        executeInventoryUnequipAction: (player: PlayerState, data: Record<string, unknown>) => ActionExecutionResult;
     };
     combatActionHandler: {
-        executeCombatAttackAction: (player: PlayerState, data: any, tick: number) => ActionExecutionResult;
-        executeCombatAutocastAction: (player: PlayerState, data: any, tick: number) => ActionExecutionResult;
-        executeCombatPlayerHitAction: (player: PlayerState, data: any, tick: number) => ActionExecutionResult;
-        executeCombatNpcRetaliateAction: (player: PlayerState, data: any, tick: number) => ActionExecutionResult;
-        executeCombatCompanionHitAction: (player: PlayerState, data: any, tick: number) => ActionExecutionResult;
+        executeCombatAttackAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
+        executeCombatAutocastAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
+        executeCombatPlayerHitAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
+        executeCombatNpcRetaliateAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
+        executeCombatCompanionHitAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
     };
-    executeMovementTeleportAction: (player: PlayerState, data: any, tick: number) => ActionExecutionResult;
-    executeEmotePlayAction: (player: PlayerState, data: any) => ActionExecutionResult;
-    getScriptServices: () => any;
-    findActionHandler: (kind: string) => ((event: any) => ActionExecutionResult) | undefined;
+    executeMovementTeleportAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
+    executeEmotePlayAction: (player: PlayerState, data: Record<string, unknown>) => ActionExecutionResult;
+    getScriptServices: () => ScriptServices;
+    findActionHandler: (kind: string) => ((event: Record<string, unknown>) => ActionExecutionResult) | undefined;
 }
 
 export class ActionDispatchService {

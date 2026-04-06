@@ -47,11 +47,11 @@ export interface LoginHandshakeServer {
     sendWithGuard(ws: WebSocket, msg: string | Uint8Array, context: string): void;
 
     // --- Message routing ---
-    readonly messageRouter: { dispatch(ws: WebSocket, msg: any): boolean };
+    readonly messageRouter: { dispatch(ws: WebSocket, msg: RoutedMessage): boolean };
 
     // --- Sync sessions ---
-    readonly playerSyncSessions: Map<WebSocket, any>;
-    readonly npcSyncSessions: Map<WebSocket, any>;
+    readonly playerSyncSessions: Map<WebSocket, PlayerSyncSession>;
+    readonly npcSyncSessions: Map<WebSocket, unknown>;
 
     // --- Extracted services (accessed directly instead of via wsServer delegates) ---
     readonly appearanceService: {
@@ -63,7 +63,7 @@ export interface LoginHandshakeServer {
     };
     readonly equipmentService: {
         ensureEquipArray(p: PlayerState): number[];
-        refreshCombatWeaponCategory(p: PlayerState): any;
+        refreshCombatWeaponCategory(p: PlayerState): void;
     };
     readonly playerCombatService: {
         pickAttackSpeed(player: PlayerState): number;
@@ -81,7 +81,7 @@ export interface LoginHandshakeServer {
         sendSkillsSnapshotImmediate(ws: WebSocket, p: PlayerState): void;
     };
     readonly movementService: {
-        getPendingWalkCommands(): Map<WebSocket, any>;
+        getPendingWalkCommands(): Map<WebSocket, unknown>;
         sendRunEnergyState(sock: WebSocket, player: PlayerState): void;
         teleportPlayer(player: PlayerState, x: number, y: number, level: number): void;
     };
@@ -98,11 +98,11 @@ export interface LoginHandshakeServer {
         queueVarbit(playerId: number, varbitId: number, value: number): void;
     };
     readonly messagingService: {
-        queueNotification(playerId: number, payload: any): void;
+        queueNotification(playerId: number, payload: Record<string, unknown>): void;
         queueChatMessage(message: { messageType: string; text: string; targetPlayerIds: number[] }): void;
     };
     readonly playerAppearanceManager: {
-        queueAppearanceSnapshot(player: PlayerState, opts?: any): void;
+        queueAppearanceSnapshot(player: PlayerState, opts?: Record<string, unknown>): void;
         sanitizeHandshakeAppearance(raw: HandshakeAppearance): PlayerAppearanceState;
     };
     readonly interfaceManager: {
@@ -176,21 +176,21 @@ export interface LoginHandshakeServer {
 
     // --- NPC ---
     readonly npcManager: {
-        getNearby(x: number, y: number, level: number, radius: number): any[];
+        getNearby(x: number, y: number, level: number, radius: number): unknown[];
     } | undefined;
     readonly npcSyncManager: {
-        serializeNpcSnapshot(npc: any): any;
-        queueNpcSnapshot(playerId: number, snap: any): void;
+        serializeNpcSnapshot(npc: unknown): unknown;
+        queueNpcSnapshot(playerId: number, snap: unknown): void;
     };
 
     // --- Ground items ---
-    readonly groundItems: { queryArea(x: number, y: number, level: number, radius: number, tick: number, playerId: number, worldViewId?: number): any[] };
+    readonly groundItems: { queryArea(x: number, y: number, level: number, radius: number, tick: number, playerId: number, worldViewId?: number): unknown[] };
     readonly groundItemHandler: { clearPlayerState(playerId: number): void } | undefined;
 
     // --- Cache loaders (for examine handler) ---
-    readonly locTypeLoader: any;
-    readonly npcTypeLoader: any;
-    readonly objTypeLoader: any;
+    readonly locTypeLoader: { load(id: number): unknown } | undefined;
+    readonly npcTypeLoader: { load(id: number): unknown } | undefined;
+    readonly objTypeLoader: { load(id: number): unknown } | undefined;
 
     // --- Misc cleanup ---
     readonly playerDynamicLocSceneKeys: { delete(playerId: number): void };
@@ -265,7 +265,7 @@ export class LoginHandshakeService {
         } catch (err) { logger.warn("[logout] ws close failed", err); }
     }
 
-    handleLoginMessage(ws: WebSocket, payload: any): void {
+    handleLoginMessage(ws: WebSocket, payload: { username?: string; password?: string; revision?: number }): void {
         const { username, password, revision } = payload;
         const normalizedUsername = (username || "").trim().toLowerCase();
 
@@ -345,7 +345,7 @@ export class LoginHandshakeService {
         logger.info(`Login successful: ${username}`);
     }
 
-    handleHandshakeMessage(ws: WebSocket, payload: any): void {
+    handleHandshakeMessage(ws: WebSocket, payload: { name?: string; appearance?: AppearanceSetPacket; displayMode?: number }): void {
         const parsed = { type: "handshake" as const, payload };
         try {
             const pendingLoginName = this.consumePendingLoginName(ws);
@@ -366,7 +366,7 @@ export class LoginHandshakeService {
             }
 
             if (!p) {
-                const spawn = this.server.gamemode.getSpawnLocation(undefined as any);
+                const spawn = this.server.gamemode.getSpawnLocation(undefined as unknown as PlayerState);
                 const spawnX = spawn.x,
                     spawnY = spawn.y,
                     level = spawn.level;
@@ -676,9 +676,9 @@ export class LoginHandshakeService {
                             payload: {
                                 id: p.id,
                                 name: handshakeName,
-                                appearance: handshakeAppearance,
+                                appearance: handshakeAppearance as unknown as import("./messages").Appearance,
                                 chatIcons: handshakeChatIcons,
-                            } as any,
+                            },
                         }),
                         "handshake_ack",
                     ),
@@ -1143,7 +1143,7 @@ export class LoginHandshakeService {
                                 locTypeLoader: this.server.locTypeLoader,
                                 npcTypeLoader: this.server.npcTypeLoader,
                                 objTypeLoader: this.server.objTypeLoader,
-                                getNpcType: (npc: any) => this.server.npcTypeLoader?.load(npc?.typeId ?? npc),
+                                getNpcType: (npc: { typeId?: number } | number) => this.server.npcTypeLoader?.load(typeof npc === "number" ? npc : npc?.typeId ?? 0),
                                 getObjType: (itemId: number) => this.server.objTypeLoader?.load(itemId),
                             },
                             ws,

@@ -7,8 +7,14 @@ import type { WebSocket } from "ws";
 import { SkillId } from "../../../../src/rs/skill/skills";
 import { CustomItemRegistry } from "../../../../src/custom/items/CustomItemRegistry";
 import type { PlayerState } from "../../game/player";
+import type { ScriptRegistry } from "../../game/scripts";
+import type { ScriptRuntime } from "../../game/scripts";
 import type { MessageRouter, MessageHandler } from "../MessageRouter";
 import type { MessageHandlerServices } from "../MessageHandlers";
+import type { Cs2ModalManager } from "../managers/Cs2ModalManager";
+import type { WidgetDialogHandler } from "../../game/actions/handlers/WidgetDialogHandler";
+import type { LevelUpPopup } from "../../game/services/InterfaceManager";
+import type { GroundItemActionPayload } from "../managers/GroundItemHandler";
 import { logger } from "../../utils/logger";
 
 const LEVELUP_INTERFACE_ID = 233;
@@ -16,14 +22,14 @@ const LEVELUP_CONTINUE_COMPONENT = 2;
 
 export interface BinaryHandlerExtServices extends MessageHandlerServices {
     resolveGroundItemOptionByOpNum: (itemId: number, opNum: number) => string | undefined;
-    handleGroundItemAction: (ws: WebSocket, payload: any) => void;
-    getScriptRegistry: () => any;
-    getScriptRuntime: () => any;
-    getCs2ModalManager: () => any;
-    getWidgetDialogHandler: () => any;
-    getObjType: (itemId: number) => any;
-    handleInventoryUseOnMessage: (ws: WebSocket, payload: any) => void;
-    getLevelUpPopupQueue: (playerId: number) => any[] | undefined;
+    handleGroundItemAction: (ws: WebSocket, payload: GroundItemActionPayload | undefined) => void;
+    getScriptRegistry: () => ScriptRegistry;
+    getScriptRuntime: () => ScriptRuntime;
+    getCs2ModalManager: () => Cs2ModalManager;
+    getWidgetDialogHandler: () => WidgetDialogHandler;
+    getObjType: (itemId: number) => { inventoryActions?: (string | null)[] } | undefined;
+    handleInventoryUseOnMessage: (ws: WebSocket, payload: Record<string, unknown>) => void;
+    getLevelUpPopupQueue: (playerId: number) => LevelUpPopup[] | undefined;
     advanceLevelUpPopupQueue: (player: PlayerState) => void;
 }
 
@@ -43,7 +49,7 @@ function createGroundItemActionHandler(services: BinaryHandlerExtServices): Mess
     return (ctx) => {
         const player = services.getPlayer(ctx.ws);
         if (!player) return;
-        const payload = { ...(ctx.payload as any) };
+        const payload = { ...(ctx.payload as GroundItemActionPayload) };
         if (!payload.option || payload.option.length === 0) {
             const opNum = payload.opNum;
             if (opNum !== undefined && opNum > 0) {
@@ -59,7 +65,7 @@ function createWidgetActionHandler(services: BinaryHandlerExtServices): MessageH
     return (ctx) => {
         const player = services.getPlayer(ctx.ws);
         if (!player) return;
-        const payload = ctx.payload as any;
+        const payload = ctx.payload as unknown as { widgetId: number; groupId?: number; buttonNum?: number; slot?: number; option?: string; itemId?: number };
         const groupId = payload.groupId ?? (payload.widgetId >> 16) & 0xffff;
         const componentId = payload.widgetId & 0xffff;
         const opId = payload.buttonNum ?? 1;
@@ -134,7 +140,7 @@ function createIfTriggerOpLocalHandler(services: BinaryHandlerExtServices): Mess
     return (ctx) => {
         const player = services.getPlayer(ctx.ws);
         if (!player) return;
-        const { widgetUid, childIndex, itemId, opcodeParam } = ctx.payload as any;
+        const { widgetUid, childIndex, itemId, opcodeParam } = ctx.payload as unknown as { widgetUid: number; childIndex: number; itemId?: number; opcodeParam: number };
         if (opcodeParam >= 1 && opcodeParam <= 10) {
             const groupId = (widgetUid >>> 16) & 0xffff;
             const componentId = widgetUid & 0xffff;
@@ -160,7 +166,7 @@ function createResumePauseButtonHandler(services: BinaryHandlerExtServices): Mes
     return (ctx) => {
         const player = services.getPlayer(ctx.ws);
         if (!player) return;
-        const { widgetId, childIndex } = ctx.payload as any;
+        const { widgetId, childIndex } = ctx.payload as unknown as { widgetId: number; childIndex: number };
         const widgetGroup = (widgetId >> 16) & 0xffff;
 
         const q = services.getLevelUpPopupQueue(player.id);

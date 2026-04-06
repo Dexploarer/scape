@@ -22,7 +22,7 @@ interface TickFrameRef {
     spotAnimations: PendingSpotAnimation[];
     spellResults: Array<{ playerId: number; payload: SpellResultPayload }>;
     clientScripts?: Array<{ playerId: number; scriptId: number; args: (number | string)[] }>;
-    keyedMessages: Map<string, Array<{ playerId: number; payload: any }>>;
+    keyedMessages: Map<string, Array<{ playerId: number; payload: Record<string, unknown> }>>;
 }
 
 export interface BroadcastServiceDeps {

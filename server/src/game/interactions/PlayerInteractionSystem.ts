@@ -1,5 +1,8 @@
+import type { LocTypeLoader } from "../../../../src/rs/config/loctype/LocTypeLoader";
 import { LocModelType } from "../../../../src/rs/config/loctype/LocModelType";
+import type { LocType } from "../../../../src/rs/config/loctype/LocType";
 import { faceAngleRs } from "../../../../src/rs/utils/rotation";
+import type { WebSocket } from "ws";
 import {
     MODIFIER_FLAG_CTRL,
     MODIFIER_FLAG_CTRL_SHIFT,
@@ -126,16 +129,16 @@ const WALLISH_TYPES = new Set<LocModelType>([
 ]);
 
 export interface PlayerRepository {
-    get(ws: any): PlayerState | undefined;
+    get(ws: WebSocket): PlayerState | undefined;
     getById(id: number): PlayerState | undefined;
-    getSocketByPlayerId(id: number): any | undefined;
-    forEach(cb: (ws: any, player: PlayerState) => void): void;
+    getSocketByPlayerId(id: number): WebSocket | undefined;
+    forEach(cb: (ws: WebSocket, player: PlayerState) => void): void;
     forEachBot(cb: (player: PlayerState) => void): void;
 }
 
 export class PlayerInteractionSystem {
-    private readonly interactions = new Map<any, PlayerInteractionState>();
-    private readonly pendingLocInteractions = new Map<any, PendingLocInteraction>();
+    private readonly interactions = new Map<WebSocket, PlayerInteractionState>();
+    private readonly pendingLocInteractions = new Map<WebSocket, PendingLocInteraction>();
     private readonly locRouteProfileCache = new Map<number, LocRouteProfile>();
     private onLocChange?: (
         oldId: number,
@@ -176,7 +179,7 @@ export class PlayerInteractionSystem {
     constructor(
         private readonly players: PlayerRepository,
         private readonly pathService: PathService,
-        private readonly locTypeLoader?: any,
+        private readonly locTypeLoader?: LocTypeLoader,
         private readonly doorManager?: DoorStateManager,
         private readonly scriptRuntime?: ScriptRuntime,
     ) {}
@@ -271,14 +274,14 @@ export class PlayerInteractionSystem {
         this.onInterruptSkillActions?.(playerId);
     }
 
-    isFollowingSocket(ws: any, targetId: number): boolean {
+    isFollowingSocket(ws: WebSocket, targetId: number): boolean {
         const st = this.interactions.get(ws);
         if (!st || st.kind !== "follow") return false;
         return st.targetId === targetId;
     }
 
     getInteractingForSocket(
-        ws: any,
+        ws: WebSocket,
     ): { targetId: number; mode: "follow" | "trade" | "combat" } | undefined {
         const player = this.players.get(ws);
         const interaction = player?.getInteractionTarget();
@@ -291,17 +294,17 @@ export class PlayerInteractionSystem {
         return { targetId: interaction.id, mode };
     }
 
-    getInteraction(ws: any): PlayerInteractionState | undefined {
+    getInteraction(ws: WebSocket): PlayerInteractionState | undefined {
         return this.interactions.get(ws);
     }
 
-    forEachInteraction(cb: (ws: any, state: PlayerInteractionState) => void): void {
+    forEachInteraction(cb: (ws: WebSocket, state: PlayerInteractionState) => void): void {
         for (const [ws, state] of this.interactions.entries()) {
             cb(ws, state);
         }
     }
 
-    removeSocket(ws: any): void {
+    removeSocket(ws: WebSocket): void {
         this.interactions.delete(ws);
         this.pendingLocInteractions.delete(ws);
     }
@@ -315,7 +318,7 @@ export class PlayerInteractionSystem {
      * Walking away should stop auto-attack in PlayerCombatManager without immediately
      * deleting the combat-facing intent.
      */
-    clearAllInteractions(ws: any): void {
+    clearAllInteractions(ws: WebSocket): void {
         const st = this.interactions.get(ws);
         if (st) {
             // Clear RSMod-style attributes on the player
@@ -345,7 +348,7 @@ export class PlayerInteractionSystem {
      * - reset player interaction attributes
      * - clear interaction-system state maps
      */
-    private replaceInteractionState(ws: any, player: PlayerState): void {
+    private replaceInteractionState(ws: WebSocket, player: PlayerState): void {
         try {
             player.interruptQueues();
         } catch (err) { logger.warn("[interaction] failed to interrupt queues", err); }
@@ -356,7 +359,7 @@ export class PlayerInteractionSystem {
     }
 
     clearInteractionsWithNpc(npcId: number): void {
-        const toRemove: any[] = [];
+        const toRemove: WebSocket[] = [];
         for (const [ws, interaction] of this.interactions.entries()) {
             if (interaction.kind === "npcCombat" && interaction.npcId === npcId) {
                 toRemove.push(ws);
@@ -375,12 +378,12 @@ export class PlayerInteractionSystem {
         }
     }
 
-    getStateForSocket(ws: any): PlayerInteractionState | undefined {
+    getStateForSocket(ws: WebSocket): PlayerInteractionState | undefined {
         return this.interactions.get(ws);
     }
 
     startFollowing(
-        ws: any,
+        ws: WebSocket,
         targetId: number,
         mode: FollowInteractionKind,
         modifierFlags?: number,
@@ -412,7 +415,7 @@ export class PlayerInteractionSystem {
         return { ok: true };
     }
 
-    stopFollowing(ws: any): void {
+    stopFollowing(ws: WebSocket): void {
         const st = this.interactions.get(ws);
         if (!st) return;
         if (st.kind === "follow" || st.kind === "trade") {
@@ -423,7 +426,7 @@ export class PlayerInteractionSystem {
     }
 
     startNpcInteraction(
-        ws: any,
+        ws: WebSocket,
         npc: NpcState,
         option?: string,
         modifierFlags?: number,
@@ -514,7 +517,7 @@ export class PlayerInteractionSystem {
         return { ok: false, message: "no_path" };
     }
 
-    stopNpcInteraction(ws: any): void {
+    stopNpcInteraction(ws: WebSocket): void {
         const st = this.interactions.get(ws);
         if (!st || st.kind !== "npcInteract") return;
         this.interactions.delete(ws);
@@ -524,7 +527,7 @@ export class PlayerInteractionSystem {
     }
 
     startGroundItemInteraction(
-        ws: any,
+        ws: WebSocket,
         data: {
             itemId: number;
             stackId: number;
@@ -572,7 +575,7 @@ export class PlayerInteractionSystem {
         );
     }
 
-    handleManualMovement(ws: any, destination?: { x: number; y: number }): void {
+    handleManualMovement(ws: WebSocket, destination?: { x: number; y: number }): void {
         const interaction = this.interactions.get(ws);
         const me = this.players.get(ws);
 
@@ -612,7 +615,7 @@ export class PlayerInteractionSystem {
     }
 
     startNpcAttack(
-        ws: any,
+        ws: WebSocket,
         npc: NpcState,
         currentTick: number,
         _attackDelay: number = 4,
@@ -725,7 +728,7 @@ export class PlayerInteractionSystem {
         return { ok: false, message: "no_path" };
     }
 
-    stopNpcAttack(ws: any): void {
+    stopNpcAttack(ws: WebSocket): void {
         const st = this.interactions.get(ws);
         if (!st || st.kind !== "npcCombat") return;
         const me = this.players.get(ws);
@@ -1210,7 +1213,7 @@ export class PlayerInteractionSystem {
     }
 
     applyInteractionFacing(
-        ws: any,
+        ws: WebSocket,
         player: PlayerState,
         npcLookup: InteractionTickNpcLookup,
         currentTick?: number,
@@ -1236,7 +1239,7 @@ export class PlayerInteractionSystem {
         }
     }
 
-    startPlayerCombat(ws: any, targetPlayerId: number, untilTick?: number): void {
+    startPlayerCombat(ws: WebSocket, targetPlayerId: number, untilTick?: number): void {
         const me = this.players.get(ws);
         if (!me) return;
 
@@ -1262,7 +1265,7 @@ export class PlayerInteractionSystem {
         me.setInteractingPlayer(target ?? null);
     }
 
-    stopPlayerCombat(ws: any): void {
+    stopPlayerCombat(ws: WebSocket): void {
         const st = this.interactions.get(ws);
         if (!st || st.kind !== "playerCombat") return;
         this.interactions.delete(ws);
@@ -1345,11 +1348,11 @@ export class PlayerInteractionSystem {
         });
     }
 
-    startLocInteract(ws: any, data: PendingLocInteraction): void {
+    startLocInteract(ws: WebSocket, data: PendingLocInteraction): void {
         this.startLocInteractAtTick(ws, data);
     }
 
-    startLocInteractAtTick(ws: any, data: PendingLocInteraction, currentTick?: number): void {
+    startLocInteractAtTick(ws: WebSocket, data: PendingLocInteraction, currentTick?: number): void {
         const me = this.players.get(ws);
         if (!me) return;
 
@@ -1765,11 +1768,11 @@ export class PlayerInteractionSystem {
 
     private deriveLocRouteProfile(locId: number): LocRouteProfile {
         const fallback: LocRouteProfile = { kind: "adjacent" };
-        const loader: any = this.locTypeLoader;
-        if (!loader?.load) {
+        const loader = this.locTypeLoader;
+        if (!loader) {
             return fallback;
         }
-        let loc: any;
+        let loc: LocType;
         try {
             loc = loader.load(locId);
         } catch {
@@ -1814,7 +1817,7 @@ export class PlayerInteractionSystem {
         return fallback;
     }
 
-    private isFollowingWithMode(ws: any, targetId: number, mode: FollowInteractionKind): boolean {
+    private isFollowingWithMode(ws: WebSocket, targetId: number, mode: FollowInteractionKind): boolean {
         const st = this.interactions.get(ws);
         if (!st || st.kind !== mode) return false;
         return st.targetId === targetId;

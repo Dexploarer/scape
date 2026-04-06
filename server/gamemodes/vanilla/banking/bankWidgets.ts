@@ -113,7 +113,7 @@ const handleWithdrawOp = (event: WidgetActionEvent, opId: number): void => {
 function registerMainBankWidgets(registry: IScriptRegistry): void {
     const guard = (
         option: string,
-        handler: (args: { player: any; services: any; event: any }) => void,
+        handler: (args: { player: PlayerState; services: ScriptServices; event: WidgetActionEvent }) => void,
     ) =>
         registry.registerWidgetAction({
             option,
@@ -167,7 +167,7 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
         );
     });
 
-    const setQuantityMode = (player: PlayerState, services: any, mode: number) => {
+    const setQuantityMode = (player: PlayerState, services: ScriptServices, mode: number) => {
         player.bank.setBankQuantityMode(mode);
         services.sendVarbit?.(player, BankVarbit.QUANTITY_TYPE, mode);
         services.logger?.debug?.(

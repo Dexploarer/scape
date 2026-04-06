@@ -3,7 +3,7 @@ import path from "path";
 import type { EnumTypeLoader } from "../../../../src/rs/config/enumtype/EnumTypeLoader";
 import type { NpcSoundLookup, NpcSoundType } from "../../audio/NpcSoundLookup";
 import type { NpcManager } from "../npcManager";
-import type { NpcState } from "../npc";
+import type { NpcCombatProfile, NpcState } from "../npc";
 import type { DataLoaderService } from "./DataLoaderService";
 import { logger } from "../../utils/logger";
 
@@ -27,7 +27,7 @@ export class CombatDataService {
         block: number;
         death: number;
     };
-    private npcCombatStats?: Record<string, any>;
+    private npcCombatStats?: Record<string, Record<string, unknown>>;
     private specialAttackCostUnitsByWeapon?: Map<number, number>;
     private specialAttackDescriptionByWeapon?: Map<number, string>;
     private specialAttackDefaultDescription?: string;
@@ -52,7 +52,7 @@ export class CombatDataService {
                     death: defaults.death ?? 836,
                 };
             }
-            const entries: Record<string, any> = {};
+            const entries: Record<string, { attack?: number; block?: number; death?: number; deathSound?: number }> = {};
             const npcs = raw?.npcs;
             if (npcs && typeof npcs === "object") {
                 for (const [key, val] of Object.entries(npcs)) {
@@ -101,7 +101,7 @@ export class CombatDataService {
         };
     }
 
-    resolveNpcCombatProfile(npc: NpcState): any {
+    resolveNpcCombatProfile(npc: NpcState): NpcCombatProfile {
         return npc.combat;
     }
 

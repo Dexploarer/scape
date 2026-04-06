@@ -16,6 +16,8 @@ export type SpellDataEntry = {
     castSpotAnim?: number;
     projectileId?: number;
     impactSpotAnim?: number;
+    /** Height offset for impact GFX on target (default 100). Ground-origin effects use 0. */
+    impactSpotAnimHeight?: number;
     splashSpotAnim?: number;
     castAnimId?: number;
     runeCosts?: RuneCost[];
@@ -38,6 +40,10 @@ export type SpellDataEntry = {
         percent: number; // percent reduction of current level (floored, min 1)
         durationTicks?: number; // optional; if omitted, persists until restored by other means
     };
+    /** Fraction of damage dealt healed back to the caster (Blood spells: 0.25 = 25%) */
+    healPercent?: number;
+    /** Starting poison damage applied on hit (Smoke spells: Rush/Burst=2, Blitz/Barrage=4) */
+    poisonDamage?: number;
 };
 
 export type AutocastCompatibilityResult = {

@@ -4,6 +4,7 @@ import { encodeMessage } from "../../network/messages";
 import type { PlayerState } from "../player";
 import {
     MUSIC_UNLOCK_VARPS,
+    VARBIT_ACTIVE_SPELLBOOK,
     VARBIT_ARCEUUS_FAVOR,
     VARBIT_ARCEUUS_SPELLBOOK_UNLOCKED,
     VARBIT_AUTOCAST_DEFMODE,
@@ -54,6 +55,7 @@ export interface VarpSyncServiceDeps {
         syncMusicUnlockVarps: (player: PlayerState, trackId: number) => void;
     };
     queueVarp: (playerId: number, varpId: number, value: number) => void;
+    queueWidgetEvent: (playerId: number, event: Record<string, unknown>) => void;
     musicUnlockService: { initializeDefaults: (player: PlayerState) => void } | undefined;
 }
 
@@ -125,6 +127,35 @@ export class VarpSyncService {
                 ),
             );
         }
+    }
+
+    sendSavedSpellbookState(sock: WebSocket, player: PlayerState): void {
+        const spellbook = player.varps.getVarbitValue(VARBIT_ACTIVE_SPELLBOOK);
+        if (spellbook === 0) return;
+
+        this.deps.withDirectSendBypass("varbit", () =>
+            this.deps.sendWithGuard(
+                sock,
+                encodeMessage({
+                    type: "varbit",
+                    payload: { varbitId: VARBIT_ACTIVE_SPELLBOOK, value: spellbook },
+                }),
+                "varbit",
+            ),
+        );
+
+        const SCRIPT_MAGIC_SPELLBOOK_REDRAW = 2610;
+        const SPELLBOOK_REDRAW_ARGS: (number | string)[] = [
+            14286851, 14287045, 14287054, 14286849, 14287051,
+            14287052, 14287053, 14286850, 14287047, 14287050,
+            0, "Info", "Filters",
+        ];
+        this.deps.queueWidgetEvent(player.id, {
+            action: "run_script",
+            scriptId: SCRIPT_MAGIC_SPELLBOOK_REDRAW,
+            args: SPELLBOOK_REDRAW_ARGS,
+            varbits: { [VARBIT_ACTIVE_SPELLBOOK]: spellbook },
+        });
     }
 
     sendSavedTransmitVarps(sock: WebSocket, player: PlayerState): void {

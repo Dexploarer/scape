@@ -4,7 +4,8 @@ import {
     resolveNpcAttackType as resolveNpcAttackTypeRule,
 } from "../combat/CombatRules";
 import { isInWilderness } from "../combat/MultiCombatZones";
-import { HITMARK_DAMAGE } from "../combat/HitEffects";
+import { HITMARK_DAMAGE, HITMARK_BLOCK } from "../combat/HitEffects";
+import { CombatEngine } from "../systems/combat/CombatEngine";
 import { DropRollService } from "../drops/DropRollService";
 import { NpcDropRegistry } from "../drops/NpcDropRegistry";
 import { SkillId } from "../../../../src/rs/skill/skills";
@@ -75,6 +76,7 @@ export interface CombatEffectServiceDeps {
     broadcastSound: (request: SoundBroadcastRequest, tag: string) => void;
     withDirectSendBypass: <T>(tag: string, fn: () => T) => T;
     messagingService: { queueChatMessage: (msg: ChatMessageSnapshot) => void };
+    pickAttackSpeed: (player: PlayerState) => number;
 }
 
 export class CombatEffectService {
@@ -231,13 +233,13 @@ export class CombatEffectService {
     applyMultiTargetSpellDamage(opts: {
         player: PlayerState;
         primary: NpcState;
-        spell: { maxTargets?: number; freezeDuration?: number; impactSpotAnim?: number; splashSpotAnim?: number };
+        spell: { id: number; maxTargets?: number; freezeDuration?: number; impactSpotAnim?: number; impactSpotAnimHeight?: number; splashSpotAnim?: number; poisonDamage?: number };
         baseDamage: number;
         style: number;
         hitsplatTick: number;
         currentTick: number;
         effects: ActionEffect[];
-    }): void {
+    }): number {
         const npcManager = this.deps.getNpcManager();
         if (
             !npcManager ||
@@ -245,27 +247,51 @@ export class CombatEffectService {
             opts.spell.maxTargets <= 1 ||
             !(opts.baseDamage > 0)
         ) {
-            return;
+            return 0;
         }
         const extras = npcManager
             .getNearby(opts.primary.tileX, opts.primary.tileY, opts.primary.level, 1)
             .filter((npc: NpcState) => npc.id !== opts.primary.id);
-        if (extras.length === 0) return;
+        if (extras.length === 0) return 0;
         let remaining = Math.max(0, opts.spell.maxTargets - 1);
-        const splashDamage = Math.max(1, Math.floor(opts.baseDamage / 2));
-        if (!(splashDamage > 0)) return;
+        let totalSecondaryDamage = 0;
         for (const extra of extras) {
             if (remaining <= 0) break;
+            if (extra.isPlayerFollower?.() === true) continue;
+            if (extra.getHitpoints() <= 0 || extra.isDead(opts.currentTick)) continue;
+
+            let hitLanded = false;
+            let damage = 0;
+            try {
+                const engine = new CombatEngine();
+                const magicCaster = Object.create(opts.player) as PlayerState;
+                (magicCaster as any).combatSpellId = opts.spell.id;
+                (magicCaster as any).autocastEnabled = false;
+                (magicCaster as any).autocastMode = null;
+                (magicCaster as any).getCurrentAttackType = () => "magic";
+                const res = engine.planPlayerAttack({
+                    player: magicCaster,
+                    npc: extra,
+                    attackSpeed: this.deps.pickAttackSpeed(opts.player),
+                });
+                hitLanded = !!res.hitLanded;
+                damage = Math.max(0, res.damage);
+            } catch {
+                hitLanded = false;
+                damage = 0;
+            }
+
             const result = this.applyPlayerDamageToNpc(
                 opts.player,
                 extra,
-                splashDamage,
-                opts.style,
+                damage,
+                hitLanded ? opts.style : HITMARK_BLOCK,
                 opts.currentTick,
                 "magic",
             );
             if (!result) continue;
             remaining--;
+            totalSecondaryDamage += result.amount;
             const hpFields =
                 result.amount > 0 ? { hpCurrent: result.hpCurrent, hpMax: result.hpMax } : {};
             opts.effects.push({
@@ -283,6 +309,9 @@ export class CombatEffectService {
             if (opts.spell.freezeDuration && result.amount > 0) {
                 extra.applyFreeze(opts.spell.freezeDuration, opts.currentTick);
             }
+            if (opts.spell.poisonDamage && result.amount > 0) {
+                extra.inflictPoison(opts.spell.poisonDamage, opts.currentTick);
+            }
             const spotId =
                 result.amount > 0
                     ? opts.spell.impactSpotAnim ?? opts.spell.splashSpotAnim
@@ -293,10 +322,11 @@ export class CombatEffectService {
                     npcId: extra.id,
                     spotId: spotId,
                     delay: 0,
-                    height: 100,
+                    height: result.amount > 0 ? (opts.spell.impactSpotAnimHeight ?? 100) : 100,
                 });
             }
         }
+        return totalSecondaryDamage;
     }
 
     applyPlayerDamageToNpc(

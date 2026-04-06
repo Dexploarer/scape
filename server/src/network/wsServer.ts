@@ -1047,6 +1047,7 @@ export class WSServer {
             authService: this.authService,
             soundManager: this.soundManager!,
             queueVarp: (pid, vid, val) => this.variableService.queueVarp(pid, vid, val),
+            queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
             musicUnlockService: undefined, // Set after musicUnlockService is created
         });
         // --- Deferred wiring: cross-references between services created above ---

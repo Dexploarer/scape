@@ -45,6 +45,24 @@ const SPELL_CAST_SEQUENCE_OVERRIDES: Record<number, number> = {
     9078: 726, // Charge Fire Orb
     9079: 726, // Charge Water Orb
     9001: 722, // Bones to Bananas
+    // Ancient Magicks – Rush / Blitz (single target)
+    4629: 1978, // Smoke Rush
+    4630: 1978, // Shadow Rush
+    4632: 1978, // Blood Rush
+    4633: 1978, // Ice Rush
+    4641: 1978, // Smoke Blitz
+    4642: 1978, // Shadow Blitz
+    4644: 1978, // Blood Blitz
+    4645: 1978, // Ice Blitz
+    // Ancient Magicks – Burst / Barrage (multi-target)
+    4635: 1979, // Smoke Burst
+    4636: 1979, // Shadow Burst
+    4638: 1979, // Blood Burst
+    4639: 1979, // Ice Burst
+    4647: 1979, // Smoke Barrage
+    4648: 1979, // Shadow Barrage
+    4650: 1979, // Blood Barrage
+    4651: 1979, // Ice Barrage
 };
 
 export interface PlayerCombatServiceDeps {

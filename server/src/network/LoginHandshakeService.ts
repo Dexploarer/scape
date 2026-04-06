@@ -692,6 +692,7 @@ export class LoginHandshakeService {
                 this.server.varpSyncService.sendSavedTransmitVarps(ws, p);
                 this.server.collectionLogService.sendCollectionLogDisplayVarps(ws, p);
                 this.server.varpSyncService.sendSavedAutocastTransmitVarbits(ws, p);
+                this.server.varpSyncService.sendSavedSpellbookState(ws, p);
                 this.server.varpSyncService.syncAccountTypeVarbit(ws, p);
                 const sideJournalState = this.server.normalizeSideJournalState(p);
                 this.server.withDirectSendBypass("varp", () =>

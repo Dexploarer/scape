@@ -1,4 +1,5 @@
 import type { EnumTypeLoader } from "../../../../src/rs/config/enumtype/EnumTypeLoader";
+import { logger } from "../../utils/logger";
 import { DisplayMode } from "./index";
 
 /**
@@ -106,7 +107,7 @@ export class ViewportEnumService {
         this.mobileMapping = this.loadEnumAsMap(ViewportEnumIds.MOBILE);
 
         // Log loaded mapping count for debugging
-        console.log(
+        logger.info(
             `[ViewportEnumService] Loaded enum ${ViewportEnumIds.MOBILE} with ${this.mobileMapping.size} mappings`,
         );
     }
@@ -189,12 +190,12 @@ export class ViewportEnumService {
         try {
             const enumType = this.enumLoader.load(enumId);
             if (!enumType) {
-                console.warn(`[ViewportEnumService] Enum ${enumId} not found in cache`);
+                logger.warn(`[ViewportEnumService] Enum ${enumId} not found in cache`);
                 return map;
             }
 
             if (!enumType.keys || !enumType.intValues) {
-                console.warn(`[ViewportEnumService] Enum ${enumId} has no int mappings`);
+                logger.warn(`[ViewportEnumService] Enum ${enumId} has no int mappings`);
                 return map;
             }
 
@@ -202,7 +203,7 @@ export class ViewportEnumService {
                 map.set(enumType.keys[i], enumType.intValues[i]);
             }
         } catch (e) {
-            console.error(`[ViewportEnumService] Failed to load enum ${enumId}:`, e);
+            logger.error(`[ViewportEnumService] Failed to load enum ${enumId}:`, e);
         }
 
         return map;
@@ -214,7 +215,7 @@ export class ViewportEnumService {
      */
     reload(): void {
         this.mobileMapping = this.loadEnumAsMap(ViewportEnumIds.MOBILE);
-        console.log(
+        logger.info(
             `[ViewportEnumService] Reloaded enum ${ViewportEnumIds.MOBILE} with ${this.mobileMapping.size} mappings`,
         );
     }

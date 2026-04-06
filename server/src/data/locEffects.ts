@@ -1,4 +1,5 @@
 import { LocTypeLoader } from "../../../src/rs/config/loctype/LocTypeLoader";
+import { logger } from "../utils/logger";
 
 export type LocSpotEffect = {
     spotId: number;
@@ -57,7 +58,7 @@ export const registerLocEffects = (
         for (const dispose of disposers.reverse()) {
             try {
                 dispose();
-            } catch (err) { console.log("[loc-effects] failed to dispose loc effect", err); }
+            } catch (err) { logger.info("[loc-effects] failed to dispose loc effect", err); }
         }
     };
 };

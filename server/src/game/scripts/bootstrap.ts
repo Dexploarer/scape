@@ -37,7 +37,7 @@ export function bootstrapScripts(runtime: ScriptRuntime, gamemode?: GamemodeDefi
                     gamemode.registerHandlers(registry, services),
                 );
             } catch (err) {
-                console.error(`[script] failed gamemode registerHandlers for ${gamemode.id}`, err);
+                logger.error(`[script] failed gamemode registerHandlers for ${gamemode.id}`, err);
             }
         }
 
@@ -50,7 +50,7 @@ export function bootstrapScripts(runtime: ScriptRuntime, gamemode?: GamemodeDefi
             try {
                 runtime.registerHandlers(entry.id, entry.register);
             } catch (err) {
-                console.error(`[script] failed to load extrascript ${entry.id}`, err);
+                logger.error(`[script] failed to load extrascript ${entry.id}`, err);
             }
         }
     };
@@ -67,7 +67,7 @@ export function bootstrapScripts(runtime: ScriptRuntime, gamemode?: GamemodeDefi
                 fs.watch(EXTRASCRIPTS_DIR, { persistent: false, recursive: true }, reload);
             }
         } catch (err) {
-            console.log("[script] failed to watch extrascripts directory", err);
+            logger.info("[script] failed to watch extrascripts directory", err);
         }
     }
 }

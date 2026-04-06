@@ -1,4 +1,5 @@
 import type { DbRepository } from "../../../../src/rs/config/db/DbRepository";
+import { logger } from "../../utils/logger";
 import { AttackType } from "./AttackType";
 
 const COMBAT_DB_TABLE_ID = 78;
@@ -100,7 +101,7 @@ export class CombatCategoryData {
                 }
             }
         } catch (err) {
-            console.warn("[CombatCategoryData] failed to load DB rows", err);
+            logger.warn("[CombatCategoryData] failed to load DB rows", err);
         }
     }
 

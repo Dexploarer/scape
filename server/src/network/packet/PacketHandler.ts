@@ -8,6 +8,7 @@ import {
     CLIENT_PACKET_LENGTHS,
     ClientPacketId,
 } from "../../../../src/shared/network/ClientPacketId";
+import { logger } from "../../utils/logger";
 import type { ClientToServer } from "../messages";
 import { ServerPacketBuffer } from "./ServerPacketBuffer";
 
@@ -939,7 +940,7 @@ export function parsePackets(data: Uint8Array): Array<{ opcode: number; packet: 
 
         // Validate opcode range (OSRS uses 0-127 for client packets)
         if (opcode < 0 || opcode > 127) {
-            console.error(
+            logger.error(
                 `[PacketHandler] Invalid opcode ${opcode} at offset ${offset - 1}, stopping parse`,
             );
             break;
@@ -949,7 +950,7 @@ export function parsePackets(data: Uint8Array): Array<{ opcode: number; packet: 
 
         if (expectedLength === undefined) {
             // Unknown packet - we cannot safely continue since we don't know its length
-            console.warn(
+            logger.warn(
                 `[PacketHandler] Unknown packet opcode ${opcode} at offset ${
                     offset - 1
                 }, stopping parse (${data.length - offset} bytes remaining)`,
@@ -961,7 +962,7 @@ export function parsePackets(data: Uint8Array): Array<{ opcode: number; packet: 
         if (expectedLength === -1) {
             // Variable byte length - need at least 1 byte for length
             if (offset >= data.length) {
-                console.error(
+                logger.error(
                     `[PacketHandler] Packet ${opcode} truncated: missing variable byte length`,
                 );
                 break;
@@ -970,7 +971,7 @@ export function parsePackets(data: Uint8Array): Array<{ opcode: number; packet: 
         } else if (expectedLength === -2) {
             // Variable short length - need at least 2 bytes for length
             if (offset + 1 >= data.length) {
-                console.error(
+                logger.error(
                     `[PacketHandler] Packet ${opcode} truncated: missing variable short length`,
                 );
                 break;
@@ -982,7 +983,7 @@ export function parsePackets(data: Uint8Array): Array<{ opcode: number; packet: 
 
         // Validate we have enough bytes for the payload
         if (offset + length > data.length) {
-            console.error(
+            logger.error(
                 `[PacketHandler] Packet ${opcode} overrun: needs ${length} bytes, only ${
                     data.length - offset
                 } available`,
@@ -1069,7 +1070,7 @@ export function parsePacketsAsMessages(
 
         // Validate opcode range (OSRS uses 0-127 for client packets)
         if (opcode < 0 || opcode > 127) {
-            console.error(
+            logger.error(
                 `[PacketHandler] Invalid opcode ${opcode} at offset ${offset - 1}, stopping parse`,
             );
             break;
@@ -1079,7 +1080,7 @@ export function parsePacketsAsMessages(
 
         if (expectedLength === undefined) {
             // Unknown packet - we cannot safely continue since we don't know its length
-            console.warn(
+            logger.warn(
                 `[PacketHandler] Unknown packet opcode ${opcode} at offset ${
                     offset - 1
                 }, stopping parse (${data.length - offset} bytes remaining)`,
@@ -1091,7 +1092,7 @@ export function parsePacketsAsMessages(
         if (expectedLength === -1) {
             // Variable byte length - need at least 1 byte for length
             if (offset >= data.length) {
-                console.error(
+                logger.error(
                     `[PacketHandler] Packet ${opcode} truncated: missing variable byte length`,
                 );
                 break;
@@ -1100,7 +1101,7 @@ export function parsePacketsAsMessages(
         } else if (expectedLength === -2) {
             // Variable short length - need at least 2 bytes for length
             if (offset + 1 >= data.length) {
-                console.error(
+                logger.error(
                     `[PacketHandler] Packet ${opcode} truncated: missing variable short length`,
                 );
                 break;
@@ -1112,7 +1113,7 @@ export function parsePacketsAsMessages(
 
         // Validate we have enough bytes for the payload
         if (offset + length > data.length) {
-            console.error(
+            logger.error(
                 `[PacketHandler] Packet ${opcode} overrun: needs ${length} bytes, only ${
                     data.length - offset
                 } available`,

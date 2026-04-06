@@ -6,6 +6,7 @@
  */
 import type { WebSocket } from "ws";
 
+import { logger } from "../../utils/logger";
 import { ServerBinaryEncoder, serverEncoder } from "./ServerBinaryEncoder";
 
 /**
@@ -21,7 +22,7 @@ export function sendMessage(ws: WebSocket | undefined, type: string, payload: an
         if (!binary || !(binary instanceof Uint8Array) || binary.length === 0) return;
         ws.send(binary);
     } catch (err) {
-        console.log(`[binary] failed to send message type="${type}"`, err);
+        logger.info(`[binary] failed to send message type="${type}"`, err);
     }
 }
 

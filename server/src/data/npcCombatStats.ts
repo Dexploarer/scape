@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 
 import type { AttackType } from "../game/combat/AttackType";
+import { logger } from "../utils/logger";
 
 export interface NpcCombatStats {
     name: string;
@@ -66,7 +67,7 @@ export function loadNpcCombatStats(): Map<number, NpcCombatStats> {
     const filePath = path.resolve(__dirname, "../../../gamemodes/vanilla/data/npc-combat-stats.json");
 
     if (!fs.existsSync(filePath)) {
-        console.warn(`[NpcCombatStats] File not found: ${filePath}`);
+        logger.warn(`[NpcCombatStats] File not found: ${filePath}`);
         npcStatsCache = new Map();
         return npcStatsCache;
     }
@@ -84,9 +85,9 @@ export function loadNpcCombatStats(): Map<number, NpcCombatStats> {
             }
         }
 
-        console.log(`[NpcCombatStats] Loaded ${npcStatsCache.size} NPC combat profiles`);
+        logger.info(`[NpcCombatStats] Loaded ${npcStatsCache.size} NPC combat profiles`);
     } catch (error) {
-        console.error("[NpcCombatStats] Failed to load:", error);
+        logger.error("[NpcCombatStats] Failed to load:", error);
         npcStatsCache = new Map();
     }
 

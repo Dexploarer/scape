@@ -1164,7 +1164,7 @@ export class LoginHandshakeService {
             }
 
             if (!binaryParsed) {
-                console.warn("[ws] Received non-binary message, ignoring");
+                logger.warn("[ws] Received non-binary message, ignoring");
                 return;
             }
             const parsed = binaryParsed;

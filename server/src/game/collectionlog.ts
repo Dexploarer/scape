@@ -16,6 +16,7 @@ import fs from "fs";
 import path from "path";
 
 import { getItemDefinition } from "../data/items";
+import { logger } from "../utils/logger";
 import type { WidgetAction } from "../widgets/WidgetManager";
 import {
     createCollectionLogChatMessage,
@@ -505,10 +506,10 @@ export function loadCollectionLogItems(): void {
     totalMaxCount = nextTotalMaxCount;
     collectionLogLoaded = true;
 
-    console.log(
+    logger.info(
         `[collection-log] Loaded ${collectionLogItemSet.size} trackable items, max=${totalMaxCount} from ${categoriesByTab.size} tabs`,
     );
-    console.log(
+    logger.info(
         `[collection-log] Category struct counts by tab: ${[...categoryStructsByTab.entries()]
             .map(([tabIndex, structIds]) => `tab${tabIndex}=${structIds.length}`)
             .join(", ")}`,

@@ -5,6 +5,8 @@
 import * as fs from "fs";
 import * as path from "path";
 
+import { logger } from "../utils/logger";
+
 interface MusicData {
     regions: Record<number, number[]>;
     trackNames: Record<number, string>;
@@ -16,7 +18,7 @@ function loadMusicData(): MusicData {
     try {
         return JSON.parse(fs.readFileSync(path.join(__dirname, "music-data.json"), "utf-8"));
     } catch {
-        console.warn("[MusicRegionService] Could not load music-data.json");
+        logger.warn("[MusicRegionService] Could not load music-data.json");
         return { regions: {}, trackNames: {} };
     }
 }
@@ -30,7 +32,7 @@ export class MusicRegionService {
     constructor() {
         const regionCount = Object.keys(DATA.regions).length;
         const trackCount = Object.keys(DATA.trackNames).length;
-        console.log(
+        logger.info(
             `[MusicRegionService] Loaded ${regionCount} regions, ${trackCount} track names`,
         );
     }

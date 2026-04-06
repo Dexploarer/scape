@@ -399,7 +399,7 @@ export class InventoryActionHandler {
             });
             return { ok: true, groups: ["inventory"] };
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             return { ok: false, reason: "use_on_exception" };
         }
     }

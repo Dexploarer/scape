@@ -15,6 +15,7 @@ import {
     type TickHandler,
     type WidgetActionHandler,
 } from "./types";
+import { logger } from "../../utils/logger";
 
 type RegistryKey = string;
 
@@ -60,7 +61,7 @@ const makeRegistrationResult = (
 
 function warnOverwrite(map: Map<any, any>, key: any, label: string): void {
     if (map.has(key)) {
-        console.log(`[script] warning: overwriting ${label} handler for key "${key}"`);
+        logger.info(`[script] warning: overwriting ${label} handler for key "${key}"`);
     }
 }
 

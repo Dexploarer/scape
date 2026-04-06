@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 
+import { logger } from "../../utils/logger";
 import type { IScriptRegistry, ScriptServices } from "./types";
 
 export interface ExtrascriptEntry {
@@ -50,7 +51,7 @@ export function loadExtrascriptEntries(): ExtrascriptEntry[] {
     }
 
     if (entries.length > 0) {
-        console.log(
+        logger.info(
             `[extrascripts] discovered ${entries.length}: ${entries.map((e) => e.id).join(", ")}`,
         );
     }

@@ -32,6 +32,7 @@ import {
     syncCollectionDisplayVarps,
 } from "../../game/collectionlog";
 import type { PlayerState } from "../../game/player";
+import { logger } from "../../utils/logger";
 import type { InterfaceService } from "../InterfaceService";
 
 /**
@@ -59,7 +60,7 @@ export function registerCollectionLogInterfaceHooks(interfaceService: InterfaceS
     interfaceService.onInterfaceOpen(COLLECTION_LOG_GROUP_ID, (player, ctx) => {
         const data = ctx.data as CollectionLogOpenData | undefined;
         if (!data) {
-            console.warn("[CollectionLogHooks] onOpen: No services data provided");
+            logger.warn("[CollectionLogHooks] onOpen: No services data provided");
             return;
         }
 

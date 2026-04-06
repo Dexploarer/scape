@@ -626,7 +626,7 @@ export function decodeClientPacket(data: Uint8Array | ArrayBuffer): DecodedClien
         }
 
         default:
-            console.warn(`Unknown client packet opcode: ${opcode}`);
+            logger.warn(`Unknown client packet opcode: ${opcode}`);
             return null;
     }
 }

@@ -7,6 +7,7 @@ import { CacheSystem } from "../../../src/rs/cache/CacheSystem";
 import { getCacheLoaderFactory } from "../../../src/rs/cache/loader/CacheLoaderFactory";
 import type { EnumTypeLoader } from "../../../src/rs/config/enumtype/EnumTypeLoader";
 import type { ObjTypeLoader } from "../../../src/rs/config/objtype/ObjTypeLoader";
+import { logger } from "../utils/logger";
 
 export const SPELLBOOK_GROUP_ID = 218;
 
@@ -155,7 +156,7 @@ function loadSpellWidgetInfos(cacheInfo: CacheInfo, cache: CacheSystem): SpellWi
     const cacheFactory = getCacheLoaderFactory(cacheInfo, cache);
     const enumLoader = cacheFactory.getEnumTypeLoader();
     if (!enumLoader) {
-        console.warn("[SpellWidgetLoader] Enum loader unavailable; spell widget mapping is empty");
+        logger.warn("[SpellWidgetLoader] Enum loader unavailable; spell widget mapping is empty");
         spellWidgetsByName.clear();
         return [];
     }
@@ -207,7 +208,7 @@ export function buildSpellNameToWidgetMap(
         }
     }
 
-    console.log(
+    logger.info(
         `[SpellWidgetLoader] Loaded ${spellWidgets.length} spell widget records (${result.size} unique names)`,
     );
     return result;

@@ -1,4 +1,5 @@
 import type { ProjectileLaunch } from "../../../src/shared/projectiles/ProjectileLaunch";
+import { logger } from "../utils/logger";
 import type { WidgetAction } from "../widgets/WidgetManager";
 import type { RoutedMessage } from "./MessageRouter";
 import { sendMessage, serverEncoder } from "./packet/BinaryProtocol";
@@ -993,7 +994,7 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
 
         default:
             // All message types should be handled above
-            console.warn(`[BinaryProtocol] Unknown message type: ${type}`);
+            logger.warn(`[BinaryProtocol] Unknown message type: ${type}`);
             throw new Error(`Binary encoder not implemented for message type: ${type}`);
     }
 }
@@ -1139,7 +1140,7 @@ export function decodeClientMessage(raw: string | Buffer | ArrayBuffer): RoutedM
 
     // JSON protocol removed - only binary is supported
     if (raw.constructor === String) {
-        console.warn("[messages] JSON messages no longer supported");
+        logger.warn("[messages] JSON messages no longer supported");
         return null;
     }
 

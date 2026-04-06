@@ -349,8 +349,8 @@ export class InventoryActionHandler {
                         Array.isArray(res.steps) &&
                         res.steps.length > 0
                     ) {
-                        const run = player.resolveRequestedRun(
-                            resolveRunWithModifier(player.wantsToRun(), data?.modifierFlags),
+                        const run = player.energy.resolveRequestedRun(
+                            resolveRunWithModifier(player.energy.wantsToRun(), data?.modifierFlags),
                         );
                         player.setPath(res.steps, run);
                     } else {

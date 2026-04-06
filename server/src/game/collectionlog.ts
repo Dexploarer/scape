@@ -550,12 +550,12 @@ export function getTotalMaxCount(): number {
 }
 
 function countObtainedCollectionSlots(
-    player: Pick<CollectionLogPlayer, "hasCollectionItem">,
+    player: Pick<CollectionLogPlayer, "collectionLog">,
     itemIds: readonly number[],
 ): number {
     let count = 0;
     for (const itemId of itemIds) {
-        if (player.hasCollectionItem(itemId)) {
+        if (player.collectionLog.hasItem(itemId)) {
             count++;
         }
     }
@@ -563,13 +563,13 @@ function countObtainedCollectionSlots(
 }
 
 function buildCollectionOverviewRecentItemVarps(
-    player: Pick<CollectionLogPlayer, "hasCollectionItem" | "getCollectionItemUnlocks">,
+    player: Pick<CollectionLogPlayer, "collectionLog">,
 ): Record<number, number> {
     const varps: Record<number, number> = {};
-    const latestUnlocks = player
-        .getCollectionItemUnlocks()
+    const latestUnlocks = player.collectionLog
+        .getItemUnlocks()
         .filter(
-            (entry) => player.hasCollectionItem(entry.itemId) && isCollectionLogItem(entry.itemId),
+            (entry) => player.collectionLog.hasItem(entry.itemId) && isCollectionLogItem(entry.itemId),
         )
         .sort(
             (left, right) =>
@@ -594,7 +594,7 @@ function buildCollectionOverviewRecentItemVarps(
  * and the main collection log header.
  */
 export function buildCollectionDisplayVarps(
-    player: Pick<CollectionLogPlayer, "hasCollectionItem" | "getCollectionItemUnlocks">,
+    player: Pick<CollectionLogPlayer, "collectionLog">,
 ): Record<number, number> {
     ensureCollectionLogLoaded();
 
@@ -630,7 +630,7 @@ export function buildCollectionDisplayVarps(
 export function syncCollectionDisplayVarps(player: CollectionLogPlayer): Record<number, number> {
     const varps = buildCollectionDisplayVarps(player);
     for (const [varpIdRaw, valueRaw] of Object.entries(varps)) {
-        player.setVarpValue(Number(varpIdRaw), valueRaw | 0);
+        player.varps.setVarpValue(Number(varpIdRaw), valueRaw | 0);
     }
     return varps;
 }
@@ -660,14 +660,18 @@ export function buildCollectionOverviewOpenState(
 export interface CollectionLogPlayer {
     id: number;
     displayMode: number;
-    getCollectionObtainedItems(): Array<{ itemId: number; quantity: number }>;
-    getCollectionItemUnlocks(): Array<{ itemId: number; runeDay: number; sequence: number }>;
-    getCollectionTotalObtained(): number;
-    hasCollectionItem(itemId: number): boolean;
-    addCollectionItem(itemId: number, quantity: number): void;
-    recordCollectionItemUnlock(itemId: number, runeDay: number): void;
-    setVarpValue(varpId: number, value: number): void;
-    setVarbitValue(varbitId: number, value: number): void;
+    collectionLog: {
+        getObtainedItems(): Array<{ itemId: number; quantity: number }>;
+        getItemUnlocks(): Array<{ itemId: number; runeDay: number; sequence: number }>;
+        getTotalObtained(): number;
+        hasItem(itemId: number): boolean;
+        addItem(itemId: number, quantity: number): void;
+        recordItemUnlock(itemId: number, runeDay: number): void;
+    };
+    varps: {
+        setVarpValue(varpId: number, value: number): void;
+        setVarbitValue(varbitId: number, value: number): void;
+    };
 }
 
 /**
@@ -728,13 +732,13 @@ export function trackCollectionLogItem(
     if (!isCollectionLogItem(id)) return;
 
     // Check if player already has this item
-    const wasNew = !player.hasCollectionItem(id);
+    const wasNew = !player.collectionLog.hasItem(id);
 
     // Add to player's collection log
-    player.addCollectionItem(id, 1);
+    player.collectionLog.addItem(id, 1);
 
     if (wasNew) {
-        player.recordCollectionItemUnlock(id, getRuneDay());
+        player.collectionLog.recordItemUnlock(id, getRuneDay());
         const displayVarps = syncCollectionDisplayVarps(player);
         for (const [varpIdRaw, valueRaw] of Object.entries(displayVarps)) {
             services.queueVarp(player.id, Number(varpIdRaw), valueRaw | 0);

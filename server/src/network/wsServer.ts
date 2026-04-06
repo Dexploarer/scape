@@ -64,13 +64,11 @@ import {
 import { PlayerCombatManager, createPlayerCombatManager } from "../game/combat";
 import { applyAutocastState, clearAutocastState } from "../game/combat/AutocastState";
 import { CombatCategoryData } from "../game/combat/CombatCategoryData";
-import { combatEffectApplicator } from "../game/combat/CombatEffectApplicator";
+import { combatEffectApplicator } from "../game/combat";
 import {
     HITMARK_DAMAGE,
-} from "../game/combat/HitEffects";
-import {
-    multiCombatSystem,
-} from "../game/combat/MultiCombatZones";
+    multiCombatSystem
+} from "../game/combat";
 import { FollowerCombatManager } from "../game/followers/FollowerCombatManager";
 import { FollowerManager } from "../game/followers/FollowerManager";
 import { GroundItemManager } from "../game/items/GroundItemManager";
@@ -84,10 +82,10 @@ import {
     PlayerState,
     SkillSyncUpdate,
 } from "../game/player";
-import { PrayerSystem } from "../../gamemodes/vanilla/prayer/PrayerSystem";
+import { PrayerSystem } from "../game/prayer/PrayerSystem";
 import { ScriptRegistry } from "../game/scripts";
 import { ScriptRuntime } from "../game/scripts";
-import { bootstrapScripts } from "../game/scripts/bootstrap";
+import { bootstrapScripts } from "../game/scripts";
 import { PlayerPersistence } from "../game/state/PlayerPersistence";
 import {
     BroadcastScheduler,
@@ -97,15 +95,9 @@ import {
     type HitsplatBroadcast,
     type PendingSpotAnimation,
     type PlayerAnimSet,
-} from "../game/systems/BroadcastScheduler";
-import { EquipmentHandler } from "../game/systems/EquipmentHandler";
-import {
-    GatheringSystemManager,
-} from "../game/systems/GatheringSystemManager";
-import { MovementSystem } from "../game/systems/MovementSystem";
-import { ProjectileSystem } from "../game/systems/ProjectileSystem";
-import { ScriptScheduler } from "../game/systems/ScriptScheduler";
-import { StatusEffectSystem } from "../game/systems";
+} from "../game/systems";
+import { EquipmentHandler } from "../game/systems";
+import { GatheringSystemManager, ScriptScheduler, StatusEffectSystem, ProjectileSystem, MovementSystem } from "../game/systems";
 import {
     TickPhaseOrchestrator,
 } from "../game/tick";

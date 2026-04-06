@@ -976,13 +976,13 @@ export class CombatEngine {
 
     private getPlayerHitpoints(player: PlayerState): { current: number; max: number } {
         return {
-            current: Math.max(0, player.getHitpointsCurrent()),
-            max: Math.max(1, player.getHitpointsMax()),
+            current: Math.max(0, player.skillSystem.getHitpointsCurrent()),
+            max: Math.max(1, player.skillSystem.getHitpointsMax()),
         };
     }
 
     private getSlayerTaskInfo(player: PlayerState): SlayerTaskInfo {
-        return player.getSlayerTaskInfo();
+        return player.skillSystem.getSlayerTaskInfo(player.slayerTask);
     }
 
     private buildTargetInfo(npc: NpcState): TargetInfo {
@@ -1421,7 +1421,7 @@ export class CombatEngine {
 
     /** Get player's boosted skill level. Public for use by PlayerCombatManager. */
     getBoostedLevel(player: PlayerState, skill: SkillId): number {
-        const entry = player.getSkill(skill);
+        const entry = player.skillSystem.getSkill(skill);
         const base = entry.baseLevel;
         const boost = entry.boost;
         const result = base + boost;

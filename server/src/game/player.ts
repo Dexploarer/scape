@@ -35,8 +35,8 @@ import {
 } from "./model/timer";
 import { NpcState } from "./npc";
 import { PlayerAccountState } from "./state/PlayerAccountState";
-import { PlayerCollectionLogState } from "../../gamemodes/vanilla/state/PlayerCollectionLogState";
-import type { CollectionLogUnlockEntry } from "../../gamemodes/vanilla/state/PlayerCollectionLogState";
+import { PlayerCollectionLogState } from "./state/PlayerCollectionLogState";
+import type { CollectionLogUnlockEntry } from "./state/PlayerCollectionLogState";
 import { PlayerCombatState } from "./state/PlayerCombatState";
 import { PlayerFollowerPersistState } from "./state/PlayerFollowerPersistState";
 import { PlayerInventoryState } from "./state/PlayerInventoryState";
@@ -155,7 +155,7 @@ export interface PlayerFollowerPersistentEntry {
     npcTypeId: number;
 }
 
-export type { CollectionLogUnlockEntry } from "../../gamemodes/vanilla/state/PlayerCollectionLogState";
+export type { CollectionLogUnlockEntry } from "./state/PlayerCollectionLogState";
 
 // modern OSRS bank starts at 800 slots (varp BANK_LOCKED_SLOTS is based on 1410 max slots).
 export const DEFAULT_BANK_CAPACITY = 800;
@@ -281,15 +281,6 @@ export class PlayerState extends Actor {
     /** Composed skill system (levels, XP, hitpoints, status effects, restoration) */
     readonly skillSystem: PlayerSkillSystem;
 
-    // Skill system delegation accessors (backward compat)
-    /** @deprecated Use `skillSystem.skills` instead. */
-    get skills(): SkillEntry[] { return this.skillSystem.skills; }
-    /** @deprecated Use `skillSystem.skillTotal` instead. */
-    get skillTotal(): number { return this.skillSystem.skillTotal; }
-    set skillTotal(v: number) { this.skillSystem.skillTotal = v; }
-    /** @deprecated Use `skillSystem.combatLevel` instead. */
-    get combatLevel(): number { return this.skillSystem.combatLevel; }
-    set combatLevel(v: number) { this.skillSystem.combatLevel = v; }
 
     /**
      * OSRS PID-style processing priority. Lower values execute first
@@ -638,9 +629,6 @@ export class PlayerState extends Actor {
     private appearanceDirty: boolean = false;
     private combatStateDirty: boolean = false;
     public appearance: PlayerAppearance;
-    /** @deprecated Use `account.accountStage` instead. */
-    get accountStage(): number { return this.account.accountStage; }
-    set accountStage(v: number) { this.account.accountStage = v; }
     /** Player display name */
     public name: string = "";
     /** Display mode (mobile vs desktop) - set during login based on clientType */
@@ -663,7 +651,7 @@ export class PlayerState extends Actor {
                 ? (id) => PlayerState.gamemodeRef!.getDefaultSkillXp!(id)
                 : undefined,
         );
-        this.requestFullSkillSync();
+        this.skillSystem.requestFullSkillSync();
         this.combatStyleCategory = 0;
         this.appearance = {
             gender: 0,
@@ -673,7 +661,7 @@ export class PlayerState extends Actor {
             headIcons: { prayer: -1 },
         };
         // Default to post-design for existing saves; new accounts can override to 0.
-        this.accountStage = 1;
+        this.account.accountStage = 1;
 
         // Delegate gamemode-specific player initialization
         PlayerState.gamemodeRef?.initializePlayer(this);
@@ -686,20 +674,6 @@ export class PlayerState extends Actor {
         this.taskQueue = new QueueTaskSet<PlayerState>(this);
     }
 
-    /** @deprecated Use `account.getSessionPlayTimeSeconds()` instead. */
-    getSessionPlayTimeSeconds(nowMs: number = Date.now()): number {
-        return this.account.getSessionPlayTimeSeconds(nowMs);
-    }
-
-    /** @deprecated Use `account.getLifetimePlayTimeSeconds()` instead. */
-    getLifetimePlayTimeSeconds(nowMs: number = Date.now()): number {
-        return this.account.getLifetimePlayTimeSeconds(nowMs);
-    }
-
-    /** @deprecated Use `account.getAccountAgeMinutes()` instead. */
-    getAccountAgeMinutes(nowMs: number = Date.now()): number {
-        return this.account.getAccountAgeMinutes(nowMs);
-    }
 
     getPidPriority(): number {
         return this.pidPriority;
@@ -810,29 +784,6 @@ export class PlayerState extends Actor {
     // OSRS Aggression Tolerance System
     // =========================================================================
 
-    /** @deprecated Use `this.aggression.getAggressionState(currentTick, tileX, tileY)` */
-    getAggressionState(currentTick: number): PlayerAggressionState {
-        return this.aggression.getAggressionState(currentTick, this.tileX, this.tileY);
-    }
-
-    /** @deprecated Use `this.aggression.updateAggressionState(...)` */
-    updateAggressionState(
-        currentTick: number,
-        neverTolerant: boolean = false,
-        customTimer?: number,
-    ): void {
-        this.aggression.updateAggressionState(currentTick, this.tileX, this.tileY, neverTolerant, customTimer);
-    }
-
-    /** @deprecated Use `this.aggression.resetAggressionState(...)` */
-    resetAggressionState(currentTick: number): void {
-        this.aggression.resetAggressionState(currentTick, this.tileX, this.tileY);
-    }
-
-    /** @deprecated Use `this.aggression.isAggressionExpired()` */
-    isAggressionExpired(): boolean {
-        return this.aggression.isAggressionExpired();
-    }
 
     private canInteractWithWorld(): boolean {
         return PlayerState.gamemodeRef?.canInteract(this) ?? true;
@@ -1046,42 +997,7 @@ export class PlayerState extends Actor {
         return true;
     }
 
-    /** @deprecated Use `this.energy.getRunEnergyUnits()` */
-    getRunEnergyUnits(): number { return this.energy.getRunEnergyUnits(); }
-    /** @deprecated Use `this.energy.hasInfiniteRunEnergy()` */
-    hasInfiniteRunEnergy(): boolean { return this.energy.hasInfiniteRunEnergy(); }
-    /** @deprecated Use `this.energy.wantsToRun()` */
-    wantsToRun(): boolean { return this.energy.wantsToRun(); }
-    /** @deprecated Use `this.energy.hasAvailableRunEnergy()` */
     public override hasAvailableRunEnergy(): boolean { return this.energy.hasAvailableRunEnergy(); }
-    /** @deprecated Use `this.energy.resolveRequestedRun(run)` */
-    resolveRequestedRun(run: boolean): boolean { return this.energy.resolveRequestedRun(run); }
-    /** @deprecated Use `this.energy.isRunActive()` */
-    isRunActive(): boolean { return this.energy.isRunActive(); }
-    /** @deprecated Use `this.energy.syncInfiniteRunEnergy()` */
-    syncInfiniteRunEnergy(): boolean { return this.energy.syncInfiniteRunEnergy(); }
-    /** @deprecated Use `this.energy.setRunEnergyUnits(units)` */
-    setRunEnergyUnits(units: number): void { this.energy.setRunEnergyUnits(units); }
-    /** @deprecated Use `this.energy.adjustRunEnergyUnits(deltaUnits)` */
-    adjustRunEnergyUnits(deltaUnits: number): number { return this.energy.adjustRunEnergyUnits(deltaUnits); }
-    /** @deprecated Use `this.energy.getRunEnergyPercent()` */
-    getRunEnergyPercent(): number { return this.energy.getRunEnergyPercent(); }
-    /** @deprecated Use `this.energy.setRunEnergyPercent(percent)` */
-    setRunEnergyPercent(percent: number): void { this.energy.setRunEnergyPercent(percent); }
-    /** @deprecated Use `this.energy.adjustRunEnergyPercent(deltaPercent)` */
-    adjustRunEnergyPercent(deltaPercent: number): number { return this.energy.adjustRunEnergyPercent(deltaPercent); }
-    /** @deprecated Use `this.energy.applyStaminaEffect(...)` */
-    applyStaminaEffect(currentTick: number, durationTicks: number, drainMultiplier?: number): void { this.energy.applyStaminaEffect(currentTick, durationTicks, drainMultiplier); }
-    /** @deprecated Use `this.energy.tickStaminaEffect(currentTick)` */
-    tickStaminaEffect(currentTick: number): void { this.energy.tickStaminaEffect(currentTick); }
-    /** @deprecated Use `this.energy.getStaminaEffectRemainingTicks(currentTick)` */
-    getStaminaEffectRemainingTicks(currentTick: number): number { return this.energy.getStaminaEffectRemainingTicks(currentTick); }
-    /** @deprecated Use `this.energy.getRunEnergyDrainMultiplier(currentTick)` */
-    getRunEnergyDrainMultiplier(currentTick: number): number { return this.energy.getRunEnergyDrainMultiplier(currentTick); }
-    /** @deprecated Use `this.energy.hasRunEnergyUpdate()` */
-    hasRunEnergyUpdate(): boolean { return this.energy.hasRunEnergyUpdate(); }
-    /** @deprecated Use `this.energy.markRunEnergySynced()` */
-    markRunEnergySynced(): void { this.energy.markRunEnergySynced(); }
 
     public override setRunToggle(on: boolean): void {
         const prev = this.runToggle;
@@ -1207,24 +1123,6 @@ export class PlayerState extends Actor {
         this.combat.specialEnergyDirty = false;
     }
 
-    /** @deprecated Use `this.varps.getVarbitValue(id)` */
-    getVarbitValue(id: number): number { return this.varps.getVarbitValue(id); }
-    /** @deprecated Use `this.varps.setVarbitValue(id, value)` */
-    setVarbitValue(id: number, value: number): void { this.varps.setVarbitValue(id, value); }
-    /** @deprecated Use `this.varps.getVarpValue(id)` */
-    getVarpValue(id: number): number { return this.varps.getVarpValue(id); }
-    /** @deprecated Use `this.varps.hasVarpValue(id)` */
-    hasVarpValue(id: number): boolean { return this.varps.hasVarpValue(id); }
-    /** @deprecated Use `this.varps.setVarpValue(id, value)` */
-    setVarpValue(id: number, value: number): void { this.varps.setVarpValue(id, value); }
-    /** @deprecated Use `this.varps.getLastMusicRegionId()` */
-    getLastMusicRegionId(): number { return this.varps.getLastMusicRegionId(); }
-    /** @deprecated Use `this.varps.setLastMusicRegionId(regionId)` */
-    setLastMusicRegionId(regionId: number): void { this.varps.setLastMusicRegionId(regionId); }
-    /** @deprecated Use `this.varps.getLastPlayedMusicTrackId()` */
-    getLastPlayedMusicTrackId(): number { return this.varps.getLastPlayedMusicTrackId(); }
-    /** @deprecated Use `this.varps.setLastPlayedMusicTrackId(trackId)` */
-    setLastPlayedMusicTrackId(trackId: number): void { this.varps.setLastPlayedMusicTrackId(trackId); }
 
     getBankCapacity(): number {
         return Math.max(1, this.items.bankCapacity);
@@ -1636,86 +1534,6 @@ export class PlayerState extends Actor {
     }
 
 
-    // ========================================================================
-    // Collection Log Methods
-    // ========================================================================
-
-    /** @deprecated Use `collectionLog.hasItem()` instead. */
-    hasCollectionItem(itemId: number): boolean {
-        return this.collectionLog.hasItem(itemId);
-    }
-
-    /** @deprecated Use `collectionLog.getItemCount()` instead. */
-    getCollectionItemCount(itemId: number): number {
-        return this.collectionLog.getItemCount(itemId);
-    }
-
-    /** @deprecated Use `collectionLog.addItem()` instead. */
-    addCollectionItem(itemId: number, quantity: number = 1): boolean {
-        return this.collectionLog.addItem(itemId, quantity);
-    }
-
-    /** @deprecated Use `collectionLog.getObtainedItems()` instead. */
-    getCollectionObtainedItems(): Array<{ itemId: number; quantity: number }> {
-        return this.collectionLog.getObtainedItems();
-    }
-
-    /** @deprecated Use `collectionLog.getTotalObtained()` instead. */
-    getCollectionTotalObtained(): number {
-        return this.collectionLog.getTotalObtained();
-    }
-
-    /** @deprecated Use `collectionLog.getCategoryStat()` instead. */
-    getCollectionCategoryStat(
-        structId: number,
-    ): { count1: number; count2?: number; count3?: number } | undefined {
-        return this.collectionLog.getCategoryStat(structId);
-    }
-
-    /** @deprecated Use `collectionLog.incrementCategoryStat()` instead. */
-    incrementCollectionCategoryStat(structId: number, which: 1 | 2 | 3 = 1): void {
-        this.collectionLog.incrementCategoryStat(structId, which);
-    }
-
-    /** @deprecated Use `collectionLog.getItemUnlocks()` instead. */
-    getCollectionItemUnlocks(): CollectionLogUnlockEntry[] {
-        return this.collectionLog.getItemUnlocks();
-    }
-
-    /** @deprecated Use `collectionLog.recordItemUnlock()` instead. */
-    recordCollectionItemUnlock(itemId: number, runeDay: number): void {
-        this.collectionLog.recordItemUnlock(itemId, runeDay);
-    }
-
-    /** @deprecated Use `collectionLog.setCategoryStat()` instead. */
-    setCollectionCategoryStat(
-        structId: number,
-        count1: number,
-        count2?: number,
-        count3?: number,
-    ): void {
-        this.collectionLog.setCategoryStat(structId, count1, count2, count3);
-    }
-
-    /** @deprecated Use `collectionLog.isDirty()` instead. */
-    isCollectionLogDirty(): boolean {
-        return this.collectionLog.isDirty();
-    }
-
-    /** @deprecated Use `collectionLog.clearDirty()` instead. */
-    clearCollectionLogDirty(): void {
-        this.collectionLog.clearDirty();
-    }
-
-    /** @deprecated Use `collectionLog.serialize()` instead. */
-    exportCollectionLogSnapshot(): PlayerPersistentVars["collectionLog"] {
-        return this.collectionLog.serialize();
-    }
-
-    /** @deprecated Use `collectionLog.deserialize()` instead. */
-    loadCollectionLogSnapshot(data?: PlayerPersistentVars["collectionLog"]): void {
-        this.collectionLog.deserialize(data);
-    }
 
     getInventoryEntries(): InventoryEntry[] {
         if (!Array.isArray(this.items.inventory) || this.items.inventory.length !== INVENTORY_SLOT_COUNT) {
@@ -2079,7 +1897,7 @@ export class PlayerState extends Actor {
         snapshot.inventory = this.exportInventorySnapshot();
         snapshot.equipment = this.exportEquipmentSnapshot();
         snapshot.skills = this.exportSkillSnapshot();
-        snapshot.hitpoints = this.getHitpointsCurrent();
+        snapshot.hitpoints = this.skillSystem.getHitpointsCurrent();
         snapshot.location = {
             x: this.tileX,
             y: this.tileY,
@@ -2087,7 +1905,7 @@ export class PlayerState extends Actor {
             orientation: this.orientation & 2047,
             rot: this.rot & 2047,
         };
-        snapshot.runEnergy = this.getRunEnergyUnits();
+        snapshot.runEnergy = this.energy.getRunEnergyUnits();
         snapshot.runToggle = !!this.runToggle;
         snapshot.autoRetaliate = !!this.autoRetaliate;
         snapshot.combatStyleSlot = this.combatStyleSlot;
@@ -2205,13 +2023,13 @@ export class PlayerState extends Actor {
             this.applySkillSnapshot(state.skills);
         }
         if (state.hitpoints !== undefined) {
-            this.setHitpointsCurrent(state.hitpoints);
+            this.skillSystem.setHitpointsCurrent(state.hitpoints);
         }
         if (state.location) {
             this.applyLocationSnapshot(state.location);
         }
         if (state.runEnergy !== undefined) {
-            this.setRunEnergyUnits(state.runEnergy);
+            this.energy.setRunEnergyUnits(state.runEnergy);
         }
         if (state.runToggle !== undefined) {
             this.setRunToggle(state.runToggle);
@@ -2278,30 +2096,6 @@ export class PlayerState extends Actor {
         this.followers.deserialize(state.follower);
     }
 
-    /** @deprecated Use `followers.getState()` instead. */
-    getFollowerState(): PlayerFollowerPersistentEntry | undefined {
-        return this.followers.getState();
-    }
-
-    /** @deprecated Use `followers.setState()` instead. */
-    setFollowerState(state?: PlayerFollowerPersistentEntry): void {
-        this.followers.setState(state);
-    }
-
-    /** @deprecated Use `followers.clearState()` instead. */
-    clearFollowerState(): void {
-        this.followers.clearState();
-    }
-
-    /** @deprecated Use `followers.getActiveNpcId()` instead. */
-    getActiveFollowerNpcId(): number | undefined {
-        return this.followers.getActiveNpcId();
-    }
-
-    /** @deprecated Use `followers.setActiveNpcId()` instead. */
-    setActiveFollowerNpcId(npcId: number | undefined): void {
-        this.followers.setActiveNpcId(npcId);
-    }
 
     private ensureAppearanceEquip(): number[] {
         ensureEquipQtyArrayOn(this.appearance, DEFAULT_EQUIP_SLOT_COUNT);
@@ -2382,7 +2176,7 @@ export class PlayerState extends Actor {
     }
 
     getPrayerLevel(): number {
-        const skill = this.getSkill(SkillId.Prayer);
+        const skill = this.skillSystem.getSkill(SkillId.Prayer);
         return Math.max(0, skill.baseLevel + skill.boost);
     }
 
@@ -2398,41 +2192,6 @@ export class PlayerState extends Actor {
         this.prayer.drainAccumulator = 0;
     }
 
-    /** @deprecated Use `skillSystem.getSkill(id)` instead. */
-    getSkill(id: SkillId): SkillEntry { return this.skillSystem.getSkill(id); }
-    /** @deprecated Use `skillSystem.setSkillXp(id, xp)` instead. */
-    setSkillXp(id: SkillId, xp: number): void { this.skillSystem.setSkillXp(id, xp); }
-    /** @deprecated Use `skillSystem.setSkillBoost(id, boostedLevel)` instead. */
-    setSkillBoost(id: SkillId, boostedLevel: number): void { this.skillSystem.setSkillBoost(id, boostedLevel); }
-    /** @deprecated Use `skillSystem.adjustSkillBoost(id, delta)` instead. */
-    adjustSkillBoost(id: SkillId, delta: number): void { this.skillSystem.adjustSkillBoost(id, delta); }
-    /** @deprecated Use `skillSystem.takeSkillSync()` instead. */
-    takeSkillSync(): SkillSyncUpdate | undefined { return this.skillSystem.takeSkillSync(); }
-    /** @deprecated Use `skillSystem.requestFullSkillSync()` instead. */
-    requestFullSkillSync(): void { this.skillSystem.requestFullSkillSync(); }
-    /** @deprecated Use `skillSystem.markAllSkillsDirty()` instead. */
-    markAllSkillsDirty(): void { this.skillSystem.markAllSkillsDirty(); }
-    /** @deprecated Use `skillSystem.markSkillDirty(id)` instead. */
-    markSkillDirty(id: SkillId): void { this.skillSystem.markSkillDirty(id); }
-    /** @deprecated Use `skillSystem.getSkillMinLevel(id)` instead. */
-    getSkillMinLevel(id: SkillId): number { return this.skillSystem.getSkillMinLevel(id); }
-    /** @deprecated Use `skillSystem.getHitpointsMax()` instead. */
-    getHitpointsMax(): number { return this.skillSystem.getHitpointsMax(); }
-    /** @deprecated Use `skillSystem.getHitpointsCurrent()` instead. */
-    getHitpointsCurrent(): number { return this.skillSystem.getHitpointsCurrent(); }
-    /** @deprecated Use `skillSystem.getSlayerTaskInfo(this.slayerTask)` instead. */
-    getSlayerTaskInfo(): {
-        onTask: boolean;
-        monsterName?: string;
-        monsterSpecies?: string[];
-    } { return this.skillSystem.getSlayerTaskInfo(this.slayerTask); }
-    /** @deprecated Use `skillSystem.setHitpointsCurrent(value)` instead. */
-    setHitpointsCurrent(value: number): void { this.skillSystem.setHitpointsCurrent(value); }
-    /** @deprecated Use `skillSystem.applyHitpointsDamage(amount)` instead. */
-    applyHitpointsDamage(amount: number): { current: number; max: number } { return this.skillSystem.applyHitpointsDamage(amount); }
-    /** @deprecated Use `skillSystem.applyHitpointsHeal(amount)` instead. */
-    applyHitpointsHeal(amount: number): { current: number; max: number } { return this.skillSystem.applyHitpointsHeal(amount); }
-
     /**
      * Add delay to the player's attack timer (OSRS: eating food adds +3 ticks, combo food +2 ticks).
      * Reference: docs/tick-cycle-order.md
@@ -2443,27 +2202,6 @@ export class PlayerState extends Actor {
         if (!(ticks > 0)) return;
         this.attackDelayTicks = Math.max(this.attackDelayTicks, 0) + ticks;
     }
-
-    /** @deprecated Use `skillSystem.inflictPoison(...)` instead. */
-    inflictPoison(potency: number, currentTick: number, interval?: number): void { this.skillSystem.inflictPoison(potency, currentTick, interval); }
-    /** @deprecated Use `skillSystem.curePoison()` instead. */
-    curePoison(): void { this.skillSystem.curePoison(); }
-    /** @deprecated Use `skillSystem.inflictVenom(...)` instead. */
-    inflictVenom(stage: number, currentTick: number, interval?: number, ramp?: number, cap?: number): void { this.skillSystem.inflictVenom(stage, currentTick, interval, ramp, cap); }
-    /** @deprecated Use `skillSystem.cureVenom()` instead. */
-    cureVenom(): void { this.skillSystem.cureVenom(); }
-    /** @deprecated Use `skillSystem.inflictDisease(...)` instead. */
-    inflictDisease(potency: number, currentTick: number, interval?: number): void { this.skillSystem.inflictDisease(potency, currentTick, interval); }
-    /** @deprecated Use `skillSystem.cureDisease()` instead. */
-    cureDisease(): void { this.skillSystem.cureDisease(); }
-    /** @deprecated Use `skillSystem.startRegeneration(...)` instead. */
-    startRegeneration(heal: number, durationTicks: number, currentTick: number, interval?: number): void { this.skillSystem.startRegeneration(heal, durationTicks, currentTick, interval); }
-    /** @deprecated Use `skillSystem.stopRegeneration()` instead. */
-    stopRegeneration(): void { this.skillSystem.stopRegeneration(); }
-    /** @deprecated Use `skillSystem.tickSkillRestoration(currentTick)` instead. */
-    tickSkillRestoration(currentTick: number): void { this.skillSystem.tickSkillRestoration(currentTick); }
-    /** @deprecated Use `skillSystem.tickHitpoints(currentTick)` instead. */
-    tickHitpoints(currentTick: number): StatusHitsplat[] | undefined { return this.skillSystem.tickHitpoints(currentTick); }
 }
 
 export { PlayerManager, type OrphanedPlayer } from "./PlayerManager";

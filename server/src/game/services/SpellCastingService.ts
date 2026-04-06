@@ -88,7 +88,7 @@ export class SpellCastingService {
             return;
         }
 
-        const magicSkill = player.getSkill(SkillId.Magic);
+        const magicSkill = player.skillSystem.getSkill(SkillId.Magic);
         const magicLevel = Math.max(1, magicSkill.baseLevel + magicSkill.boost);
         if (spellData.levelRequired && magicLevel < spellData.levelRequired) {
             this.deps.queueChatMessage({

@@ -17,7 +17,7 @@ function syncAutocastVarbit(
     value: number,
     callbacks?: AutocastSyncCallbacks,
 ): void {
-    player.setVarbitValue(varbitId, value);
+    player.varps.setVarbitValue(varbitId, value);
     callbacks?.sendVarbit?.(player, varbitId, value);
 }
 

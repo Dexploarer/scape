@@ -9,8 +9,8 @@ import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scr
 
 export function registerMusicWidgetHandlers(registry: IScriptRegistry, services: ScriptServices): void {
     const playTrack = (player: PlayerState, trackId: number, trackName: string): void => {
-        if (player.getVarpValue(VARP_MUSICPLAY) !== 2) {
-            player.setVarpValue(VARP_MUSICPLAY, 2);
+        if (player.varps.getVarpValue(VARP_MUSICPLAY) !== 2) {
+            player.varps.setVarpValue(VARP_MUSICPLAY, 2);
             services.sendVarp?.(player, VARP_MUSICPLAY, 2);
         }
         services.playSong?.(player, trackId, trackName);
@@ -26,7 +26,7 @@ export function registerMusicWidgetHandlers(registry: IScriptRegistry, services:
     });
 
     registry.onButton(MUSIC_GROUP_ID, MUSIC_SKIP_CHILD_ID, (event) => {
-        if (event.player.getVarpValue(VARP_MUSICPLAY) !== 1) {
+        if (event.player.varps.getVarpValue(VARP_MUSICPLAY) !== 1) {
             return;
         }
         services.skipMusicTrack?.(event.player);

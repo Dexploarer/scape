@@ -110,7 +110,7 @@ export class EquipmentStatsUiService {
         }
 
         let slayerPercent = 0;
-        const task = player.getSlayerTaskInfo();
+        const task = player.skillSystem.getSlayerTaskInfo(player.slayerTask);
         const onSlayerTask = !!task.onTask;
         const hasSlayerHelm = SLAYER_HELM_IDS.has(headId) || IMBUED_SLAYER_HELM_IDS.has(headId);
         const hasImbuedSlayerHelm = IMBUED_SLAYER_HELM_IDS.has(headId);

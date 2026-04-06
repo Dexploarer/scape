@@ -77,32 +77,32 @@ export function registerPohPoolHandlers(registry: IScriptRegistry, services: Scr
         registry.registerLocInteraction(
             pool.locId,
             ({ player, tick }) => {
-                player.setRunEnergyUnits(RUN_ENERGY_MAX);
+                player.energy.setRunEnergyUnits(RUN_ENERGY_MAX);
                 if (pool.restoreStats) {
                     for (const id of SKILL_IDS) {
                         if (id === SkillId.Hitpoints || id === SkillId.Prayer) continue;
-                        const skill = player.getSkill(id);
-                        player.setSkillBoost(id, skill.baseLevel);
+                        const skill = player.skillSystem.getSkill(id);
+                        player.skillSystem.setSkillBoost(id, skill.baseLevel);
                     }
                 }
                 if (pool.healHitpoints) {
-                    const hpSkill = player.getSkill(SkillId.Hitpoints);
-                    player.setSkillBoost(SkillId.Hitpoints, hpSkill.baseLevel);
-                    player.setHitpointsCurrent(player.getHitpointsMax());
+                    const hpSkill = player.skillSystem.getSkill(SkillId.Hitpoints);
+                    player.skillSystem.setSkillBoost(SkillId.Hitpoints, hpSkill.baseLevel);
+                    player.skillSystem.setHitpointsCurrent(player.skillSystem.getHitpointsMax());
                 }
                 if (pool.restorePrayer) {
-                    const prayer = player.getSkill(SkillId.Prayer);
-                    player.setSkillBoost(SkillId.Prayer, prayer.baseLevel);
+                    const prayer = player.skillSystem.getSkill(SkillId.Prayer);
+                    player.skillSystem.setSkillBoost(SkillId.Prayer, prayer.baseLevel);
                 }
                 if (pool.restoreSpecial) {
                     player.setSpecialEnergyPercent(100);
                 }
-                if (pool.curePoison) player.curePoison();
-                if (pool.cureDisease) player.cureDisease();
-                if (pool.cureVenom) player.cureVenom();
+                if (pool.curePoison) player.skillSystem.curePoison();
+                if (pool.cureDisease) player.skillSystem.cureDisease();
+                if (pool.cureVenom) player.skillSystem.cureVenom();
                 if (pool.stamina) {
                     const durationTicks = secondsToTicks(pool.stamina.durationSeconds);
-                    player.applyStaminaEffect(tick, durationTicks, pool.stamina.multiplier);
+                    player.energy.applyStaminaEffect(tick, durationTicks, pool.stamina.multiplier);
                 }
                 services.sendGameMessage(player, pool.message);
             },

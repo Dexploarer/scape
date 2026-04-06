@@ -203,7 +203,7 @@ export class ActionScheduler {
         for (const { player, state, action } of maturedGlobal) {
             // OSRS: dead players do not execute further actions this tick.
             try {
-                const hp = player.getHitpointsCurrent();
+                const hp = player.skillSystem.getHitpointsCurrent();
                 if (hp <= 0) continue;
             } catch (err) { logger.warn("[action-scheduler] failed to check player hp", err); }
 

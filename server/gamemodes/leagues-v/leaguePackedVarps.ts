@@ -97,13 +97,13 @@ function computePackedVarpValue(
     player: Pick<LeaguePackedVarpPlayer, "getVarbitValue" | "getVarpValue">,
     def: LeaguePackedVarpDef,
 ): number {
-    let value = player.getVarpValue(def.varpId);
+    let value = player.varps.getVarpValue(def.varpId);
     for (const field of def.fields) {
         value = writeBits(
             value,
             field.startBit,
             field.endBit,
-            player.getVarbitValue(field.varbitId),
+            player.varps.getVarbitValue(field.varbitId),
         );
     }
     return value;
@@ -127,10 +127,10 @@ export function syncLeaguePackedVarps(
     for (const [rawVarpId, rawValue] of Object.entries(nextVarps)) {
         const varpId = parseInt(rawVarpId, 10);
         const value = rawValue;
-        if (player.getVarpValue(varpId) === value) {
+        if (player.varps.getVarpValue(varpId) === value) {
             continue;
         }
-        player.setVarpValue(varpId, value);
+        player.varps.setVarpValue(varpId, value);
         updates.push({ id: varpId, value });
     }
     return updates;

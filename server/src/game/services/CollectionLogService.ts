@@ -41,7 +41,7 @@ export class CollectionLogService {
         const ws = this.deps.getSocketByPlayerId(player.id);
         if (!ws) return;
 
-        const items = player.getCollectionObtainedItems();
+        const items = player.collectionLog.getObtainedItems();
         const slots = items.map((item: any, idx: number) => ({
             slot: idx,
             itemId: item.itemId,

@@ -81,7 +81,7 @@ export class LeagueSummaryTracker {
             return;
         }
 
-        const text = formatLeagueSummaryAccountAge(player.getAccountAgeMinutes(nowMs));
+        const text = formatLeagueSummaryAccountAge(player.account.getAccountAgeMinutes(nowMs));
         if (!force && this.lastTextByPlayer.get(playerId) === text) {
             return;
         }

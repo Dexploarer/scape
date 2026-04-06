@@ -132,14 +132,14 @@ function buildJournalLines(player: PlayerState, quest: QuestEntry): string[] {
     const completionEntry = QUEST_COMPLETION_DATA.get(quest.displayName.toLowerCase());
     if (completionEntry) {
         const currentValue = completionEntry.varpId >= 0
-            ? player.getVarpValue(completionEntry.varpId)
+            ? player.varps.getVarpValue(completionEntry.varpId)
             : 0;
 
         // Check varbit entries too
         let allVarbitsComplete = true;
         if (completionEntry.varbitEntries) {
             for (const { varbitId, value } of completionEntry.varbitEntries) {
-                if (player.getVarbitValue(varbitId) < value) {
+                if (player.varps.getVarbitValue(varbitId) < value) {
                     allVarbitsComplete = false;
                     break;
                 }
@@ -273,7 +273,7 @@ export function registerQuestJournalWidgetHandlers(registry: IScriptRegistry, se
     // Toggles between journal text and quest overview
     registry.onButton(QUEST_JOURNAL_GROUP_ID, QJ_SWITCH_VIEW_CHILD, (event) => {
         const { player } = event;
-        const dbrowId = player.getVarpValue(VARP_LATEST_QUEST_JOURNAL);
+        const dbrowId = player.varps.getVarpValue(VARP_LATEST_QUEST_JOURNAL);
         if (dbrowId <= 0) return;
 
         // Look up quest name from the map for the overview title
@@ -346,9 +346,9 @@ function openQuestJournal(
     const playerId = player.id;
 
     // 1. Set varps (sent before widget events in broadcast order)
-    player.setVarpValue(VARP_LATEST_QUEST_JOURNAL, quest.dbrowId);
+    player.varps.setVarpValue(VARP_LATEST_QUEST_JOURNAL, quest.dbrowId);
     services.sendVarp?.(player, VARP_LATEST_QUEST_JOURNAL, quest.dbrowId);
-    player.setVarpValue(VARP_QJ_LINES, lineCount);
+    player.varps.setVarpValue(VARP_QJ_LINES, lineCount);
     services.sendVarp?.(player, VARP_QJ_LINES, lineCount);
 
     // 2. Open quest journal interface on the floater container.

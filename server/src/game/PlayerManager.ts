@@ -542,7 +542,7 @@ export class PlayerManager implements PlayerRepository {
             p.setWalkDestination(destinationCorrection, !!run);
         }
 
-        const shouldRun = p.resolveRequestedRun(run);
+        const shouldRun = p.energy.resolveRequestedRun(run);
         p.setPathPreservingWalkDestination(res.steps, shouldRun);
         this.interactionSystem.handleManualMovement(ws, { x: to.x, y: to.y });
 
@@ -608,7 +608,7 @@ export class PlayerManager implements PlayerRepository {
             player.setWalkDestination(destinationCorrection, !!target.run);
         }
 
-        const shouldRun = player.resolveRequestedRun(!!target.run);
+        const shouldRun = player.energy.resolveRequestedRun(!!target.run);
         player.setPathPreservingWalkDestination(res.steps, shouldRun);
         if (destinationCorrection) {
             return { destinationCorrection };
@@ -630,8 +630,8 @@ export class PlayerManager implements PlayerRepository {
         for (const p of this.bots) {
             if (currentTick !== undefined) {
                 p.processTimersAndQueue();
-                p.tickHitpoints(currentTick);
-                p.tickSkillRestoration(currentTick);
+                p.skillSystem.tickHitpoints(currentTick);
+                p.skillSystem.tickSkillRestoration(currentTick);
                 p.tickSpecialEnergy(currentTick);
                 p.setMovementTick(currentTick);
             }
@@ -806,7 +806,7 @@ export class PlayerManager implements PlayerRepository {
         };
         // Collect socket-backed players
         for (const [ws, p] of this.players.entries()) {
-            const runningNow = p.resolveRequestedRun(!!p.running);
+            const runningNow = p.energy.resolveRequestedRun(!!p.running);
             const i1 = peek(p, 0);
             const i2 = runningNow ? peek(p, 1) : undefined;
             actors.push({
@@ -824,7 +824,7 @@ export class PlayerManager implements PlayerRepository {
         }
         // Collect bots as well
         for (const p of this.bots) {
-            const runningNow = p.resolveRequestedRun(!!p.running);
+            const runningNow = p.energy.resolveRequestedRun(!!p.running);
             const i1 = peek(p, 0);
             const i2 = runningNow ? peek(p, 1) : undefined;
             actors.push({

@@ -62,8 +62,8 @@ export function registerSkillGuideWidgetHandlers(registry: IScriptRegistry, serv
         registry.onButton(SKILLS_TAB_GROUP_ID, childId, (event) => {
             const player = event.player;
 
-            player.setVarbitValue(VARBIT_SKILL_GUIDE_SUBSECTION, 0);
-            player.setVarbitValue(VARBIT_SKILL_GUIDE_SKILL, skillVarbitValue);
+            player.varps.setVarbitValue(VARBIT_SKILL_GUIDE_SUBSECTION, 0);
+            player.varps.setVarbitValue(VARBIT_SKILL_GUIDE_SKILL, skillVarbitValue);
 
             services.queueVarbit?.(player.id, VARBIT_SKILL_GUIDE_SUBSECTION, 0);
             services.queueVarbit?.(player.id, VARBIT_SKILL_GUIDE_SKILL, skillVarbitValue);

@@ -905,8 +905,8 @@ export class PlayerPacketEncoder {
             if (!actor) continue;
             const hbDefId = Math.max(0, actor.getHealthBarDefinitionId());
             const hbWidth = this.services.resolveHealthBarWidth(hbDefId);
-            const maxHp = Math.max(1, actor.getHitpointsMax());
-            const curHp = Math.max(0, actor.getHitpointsCurrent());
+            const maxHp = Math.max(1, actor.skillSystem.getHitpointsMax());
+            const curHp = Math.max(0, actor.skillSystem.getHitpointsCurrent());
 
             // Don't skip when HP is 0 - we need to send health bar update showing 0%
             // before death animation plays. The health bar should animate to empty.

@@ -47,7 +47,7 @@ const TUTORIAL_SPAWN = { x: 3094, y: 3107, level: 0 };
 const VARP_LEAGUE_TASK_COUNT = 2612;
 
 function getTutorialCompleteStep(player: PlayerState): number {
-    const leagueType = player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+    const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
     return leagueType === 3 ? 14 : 12;
 }
 
@@ -66,7 +66,7 @@ export class LeaguesVGamemode extends VanillaGamemode {
     override getSkillXpMultiplier(player: PlayerState): number {
         if (!isLeagueWorld(player)) return 1;
         const leagueType = getActiveLeagueType(player);
-        const pointsClaimed = player.getVarpValue(VARP_LEAGUE_POINTS_CLAIMED);
+        const pointsClaimed = player.varps.getVarpValue(VARP_LEAGUE_POINTS_CLAIMED);
         return getLeagueSkillXpMultiplier(leagueType, pointsClaimed ?? 0);
     }
 
@@ -91,7 +91,7 @@ export class LeaguesVGamemode extends VanillaGamemode {
     }
 
     override canInteract(player: PlayerState): boolean {
-        const tutorialStep = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorialStep = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         return tutorialStep >= getTutorialCompleteStep(player);
     }
 
@@ -105,28 +105,28 @@ export class LeaguesVGamemode extends VanillaGamemode {
     // === Player Lifecycle ===
 
     override initializePlayer(player: PlayerState): void {
-        if (player.getVarbitValue(VARBIT_LEAGUE_TYPE) === 0) {
-            player.setVarbitValue(VARBIT_LEAGUE_TYPE, 5);
+        if (player.varps.getVarbitValue(VARBIT_LEAGUE_TYPE) === 0) {
+            player.varps.setVarbitValue(VARBIT_LEAGUE_TYPE, 5);
         }
-        if (player.getVarpValue(VARP_LEAGUE_GENERAL) === 0) {
+        if (player.varps.getVarpValue(VARP_LEAGUE_GENERAL) === 0) {
             syncLeagueGeneralVarp(player);
         }
-        const a0 = player.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_0);
-        const a1 = player.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_1);
-        const a2 = player.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_2);
-        const a3 = player.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_3);
-        const a4 = player.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_4);
-        const a5 = player.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_5);
+        const a0 = player.varps.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_0);
+        const a1 = player.varps.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_1);
+        const a2 = player.varps.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_2);
+        const a3 = player.varps.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_3);
+        const a4 = player.varps.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_4);
+        const a5 = player.varps.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_5);
         if ((a0 | a1 | a2 | a3 | a4 | a5) === 0) {
-            player.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_0, 1);
-            player.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_1, 0);
-            player.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_2, 0);
-            player.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_3, 0);
-            player.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_4, 0);
-            player.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_5, 0);
+            player.varps.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_0, 1);
+            player.varps.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_1, 0);
+            player.varps.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_2, 0);
+            player.varps.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_3, 0);
+            player.varps.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_4, 0);
+            player.varps.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_5, 0);
         }
-        if (player.getVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED) === 0) {
-            player.setVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED, 1);
+        if (player.varps.getVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED) === 0) {
+            player.varps.setVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED, 1);
         }
     }
 
@@ -158,12 +158,12 @@ export class LeaguesVGamemode extends VanillaGamemode {
     // === Login / Handshake ===
 
     override isTutorialActive(player: PlayerState): boolean {
-        const tutorialStep = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorialStep = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         return tutorialStep < getTutorialCompleteStep(player);
     }
 
     isTutorialPreStart(player: PlayerState): boolean {
-        const tutorialStep = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorialStep = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         return tutorialStep === 0;
     }
 
@@ -173,27 +173,27 @@ export class LeaguesVGamemode extends VanillaGamemode {
 
     override onPlayerHandshake(player: PlayerState, bridge: HandshakeBridge): void {
         // Set map_flags_cached to indicate league world (bit 30 set)
-        player.setVarpValue(VARP_MAP_FLAGS_CACHED, MAP_FLAGS_LEAGUE_WORLD);
+        player.varps.setVarpValue(VARP_MAP_FLAGS_CACHED, MAP_FLAGS_LEAGUE_WORLD);
         bridge.sendVarp(VARP_MAP_FLAGS_CACHED, MAP_FLAGS_LEAGUE_WORLD);
 
         // Set league type and packed league general state
         const leagueType = 5;
-        player.setVarbitValue(VARBIT_LEAGUE_TYPE, leagueType);
+        player.varps.setVarbitValue(VARBIT_LEAGUE_TYPE, leagueType);
         const { value: leagueGeneral } = syncLeagueGeneralVarp(player);
         bridge.sendVarp(VARP_LEAGUE_GENERAL, leagueGeneral);
         bridge.sendVarbit(VARBIT_LEAGUE_TYPE, leagueType);
 
         // Flash quest tab during tutorial step 3
-        const tutorial = player.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
-        if (tutorial === 3 && player.getVarbitValue(VARBIT_FLASHSIDE) === 0) {
-            player.setVarbitValue(VARBIT_FLASHSIDE, 3);
+        const tutorial = player.varps.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
+        if (tutorial === 3 && player.varps.getVarbitValue(VARBIT_FLASHSIDE) === 0) {
+            player.varps.setVarbitValue(VARBIT_FLASHSIDE, 3);
             bridge.sendVarbit(VARBIT_FLASHSIDE, 3);
         }
 
         // Send league points varps from saved state
-        bridge.sendVarp(VARP_LEAGUE_POINTS_CLAIMED, player.getVarpValue(VARP_LEAGUE_POINTS_CLAIMED));
-        bridge.sendVarp(VARP_LEAGUE_POINTS_COMPLETED, player.getVarpValue(VARP_LEAGUE_POINTS_COMPLETED));
-        bridge.sendVarp(VARP_LEAGUE_POINTS_CURRENCY, player.getVarpValue(VARP_LEAGUE_POINTS_CURRENCY));
+        bridge.sendVarp(VARP_LEAGUE_POINTS_CLAIMED, player.varps.getVarpValue(VARP_LEAGUE_POINTS_CLAIMED));
+        bridge.sendVarp(VARP_LEAGUE_POINTS_COMPLETED, player.varps.getVarpValue(VARP_LEAGUE_POINTS_COMPLETED));
+        bridge.sendVarp(VARP_LEAGUE_POINTS_CURRENCY, player.varps.getVarpValue(VARP_LEAGUE_POINTS_CURRENCY));
 
         // Send packed league varps (relic/mastery varbits)
         for (const [rawVarpId, rawValue] of Object.entries(getLeaguePackedVarpsForPlayer(player))) {
@@ -202,14 +202,14 @@ export class LeaguesVGamemode extends VanillaGamemode {
         }
 
         // Send varp backing league_total_tasks_completed varbit
-        const taskCountVarpValue = player.getVarpValue(VARP_LEAGUE_TASK_COUNT);
+        const taskCountVarpValue = player.varps.getVarpValue(VARP_LEAGUE_TASK_COUNT);
         if (taskCountVarpValue !== 0) {
             bridge.sendVarp(VARP_LEAGUE_TASK_COUNT, taskCountVarpValue);
         }
 
         // Send league task completion bitfield varps
         for (const varpId of LEAGUE_TASK_COMPLETION_VARPS) {
-            const value = player.getVarpValue(varpId);
+            const value = player.varps.getVarpValue(varpId);
             if (value !== 0) {
                 bridge.sendVarp(varpId, value);
             }
@@ -223,10 +223,10 @@ export class LeaguesVGamemode extends VanillaGamemode {
     }
 
     resolveAccountStage(player: PlayerState): void {
-        const tutorial = player.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
+        const tutorial = player.varps.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
         const completeStep = getTutorialCompleteStep(player);
-        if (tutorial >= completeStep && player.accountStage < 2) {
-            player.accountStage = 2;
+        if (tutorial >= completeStep && player.account.accountStage < 2) {
+            player.account.accountStage = 2;
         }
     }
 
@@ -261,13 +261,13 @@ export class LeaguesVGamemode extends VanillaGamemode {
         }
 
         // Tutorial progression: opening Leagues tab advances step 3/4 → 5
-        const tutorial = player.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
+        const tutorial = player.varps.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
         if (currentTab === 4 && (tutorial === 3 || tutorial === 4)) {
-            player.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 5);
+            player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 5);
             this.initBridge?.queueVarbit(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 5);
             syncLeagueGeneralVarp(player);
-            if (player.getVarbitValue(VARBIT_FLASHSIDE) !== 0) {
-                player.setVarbitValue(VARBIT_FLASHSIDE, 0);
+            if (player.varps.getVarbitValue(VARBIT_FLASHSIDE) !== 0) {
+                player.varps.setVarbitValue(VARBIT_FLASHSIDE, 0);
                 this.initBridge?.queueVarbit(player.id, VARBIT_FLASHSIDE, 0);
             }
         }

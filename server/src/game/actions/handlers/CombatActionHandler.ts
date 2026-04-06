@@ -696,7 +696,7 @@ export class CombatActionHandler {
             if (costPercent > 0) {
                 const ok = player.consumeSpecialEnergy(costPercent);
                 specialActivated = ok;
-                player.setVarpValue(VARP_SPECIAL_ATTACK, 0);
+                player.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
                 this.services.queueCombatState(player);
                 if (!ok) {
                     this.services.queueChatMessage({
@@ -1085,7 +1085,7 @@ export class CombatActionHandler {
         target.refreshActiveCombatTimer();
 
         // Apply damage with protection prayers
-        const currentHp = target.getHitpointsCurrent?.() ?? 0;
+        const currentHp = target.skillSystem.getHitpointsCurrent?.() ?? 0;
         const actualDamage = Math.min(damage, currentHp);
         const mitigatedDamage = this.services.applyProtectionPrayers(
             target,
@@ -1797,16 +1797,16 @@ export class CombatActionHandler {
         const awardedXp = baseXp * xpMultiplier;
         if (awardedXp <= 0) return;
 
-        const skill = player.getSkill(6); // SkillId.Magic
+        const skill = player.skillSystem.getSkill(6); // SkillId.Magic
         const currentXp = skill.xp;
         const MAX_XP = 200_000_000;
         const newXp = Math.min(MAX_XP, currentXp + awardedXp);
 
         if (newXp > currentXp) {
-            const oldCombatLevel = player.combatLevel;
+            const oldCombatLevel = player.skillSystem.combatLevel;
             const oldLevel = skill.baseLevel;
-            player.setSkillXp(6, newXp);
-            const newLevel = player.getSkill(6).baseLevel;
+            player.skillSystem.setSkillXp(6, newXp);
+            const newLevel = player.skillSystem.getSkill(6).baseLevel;
             if (newLevel > oldLevel) {
                 effects.push({
                     type: "levelUp",
@@ -1816,7 +1816,7 @@ export class CombatActionHandler {
                     levelIncrement: Math.max(1, newLevel - oldLevel),
                 });
             }
-            const newCombatLevel = player.combatLevel;
+            const newCombatLevel = player.skillSystem.combatLevel;
             if (newCombatLevel > oldCombatLevel) {
                 effects.push({
                     type: "combatLevelUp",
@@ -1825,7 +1825,7 @@ export class CombatActionHandler {
                     levelIncrement: Math.max(1, newCombatLevel - oldCombatLevel),
                 });
             }
-            const sync = player.takeSkillSync();
+            const sync = player.skillSystem.takeSkillSync();
             if (sync) {
                 this.services.queueSkillSnapshot(player.id, sync);
             }
@@ -1911,14 +1911,14 @@ export class CombatActionHandler {
                     : spell.statDebuff.stat === "strength"
                     ? 2
                     : 1;
-            const cur = target.getSkill(skillId);
+            const cur = target.skillSystem.getSkill(skillId);
             const currentLevel = Math.max(1, cur.baseLevel + cur.boost);
             const drop = Math.max(
                 1,
                 Math.floor((currentLevel * Math.max(0, spell.statDebuff.percent)) / 100),
             );
             const newLevel = Math.max(1, currentLevel - drop);
-            target.setSkillBoost(skillId, newLevel);
+            target.skillSystem.setSkillBoost(skillId, newLevel);
             if (targetSock) this.services.sendSkillsMessage(targetSock, target);
         }
 
@@ -1977,11 +1977,11 @@ export class CombatActionHandler {
         if (ammoEffect.leechPercent && dealt > 0) {
             const heal = Math.floor(dealt * Math.max(0, ammoEffect.leechPercent));
             if (heal > 0) {
-                player.applyHitpointsHeal(heal);
+                player.skillSystem.applyHitpointsHeal(heal);
             }
         }
         if (ammoEffect.selfDamage && ammoEffect.selfDamage > 0) {
-            player.applyHitpointsDamage(Math.max(0, ammoEffect.selfDamage));
+            player.skillSystem.applyHitpointsDamage(Math.max(0, ammoEffect.selfDamage));
         }
     }
 
@@ -2013,7 +2013,7 @@ export class CombatActionHandler {
             Number.isFinite(healFraction) &&
             healFraction > 0
         ) {
-            player.applyHitpointsHeal(Math.floor(dealt * healFraction));
+            player.skillSystem.applyHitpointsHeal(Math.floor(dealt * healFraction));
         }
 
         // Prayer restore
@@ -2027,13 +2027,13 @@ export class CombatActionHandler {
             const restore = Math.floor(dealt * prayerFraction);
             if (restore > 0) {
                 const current = player.getPrayerLevel();
-                const base = player.getSkill(5).baseLevel; // SkillId.Prayer
+                const base = player.skillSystem.getSkill(5).baseLevel; // SkillId.Prayer
                 const target = Math.min(base, current + restore);
-                player.setSkillBoost(5, target);
+                player.skillSystem.setSkillBoost(5, target);
             }
         }
 
-        const sync = player.takeSkillSync();
+        const sync = player.skillSystem.takeSkillSync();
         if (sync) {
             this.services.queueSkillSnapshot(player.id, sync);
         }

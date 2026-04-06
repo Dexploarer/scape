@@ -61,15 +61,15 @@ function openPlayerDialog(
 
 function hasCompletedAnyVarrockDiary(player: any): boolean {
     return (
-        player.getVarbitValue(VARBIT_VARROCK_EASY) >= 1 ||
-        player.getVarbitValue(VARBIT_VARROCK_MEDIUM) >= 1 ||
-        player.getVarbitValue(VARBIT_VARROCK_HARD) >= 1 ||
-        player.getVarbitValue(VARBIT_VARROCK_ELITE) >= 1
+        player.varps.getVarbitValue(VARBIT_VARROCK_EASY) >= 1 ||
+        player.varps.getVarbitValue(VARBIT_VARROCK_MEDIUM) >= 1 ||
+        player.varps.getVarbitValue(VARBIT_VARROCK_HARD) >= 1 ||
+        player.varps.getVarbitValue(VARBIT_VARROCK_ELITE) >= 1
     );
 }
 
 function hasCompletedWhatLiesBelow(player: any): boolean {
-    return player.getVarpValue(WHAT_LIES_BELOW_VARP) >= WHAT_LIES_BELOW_COMPLETE;
+    return player.varps.getVarpValue(WHAT_LIES_BELOW_VARP) >= WHAT_LIES_BELOW_COMPLETE;
 }
 
 function hasItemInBank(player: any, itemId: number): boolean {

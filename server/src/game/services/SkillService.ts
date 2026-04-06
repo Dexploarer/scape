@@ -52,7 +52,7 @@ export class SkillService {
         player: PlayerState,
         update?: SkillSyncUpdate,
     ): void {
-        const sync = update ?? player.takeSkillSync();
+        const sync = update ?? player.skillSystem.takeSkillSync();
         if (!sync) return;
         const payload = {
             kind: sync.snapshot ? ("snapshot" as const) : ("delta" as const),
@@ -73,15 +73,15 @@ export class SkillService {
         if (!(xp > 0)) return;
         try {
             const multiplier = this.deps.gamemode.getSkillXpMultiplier(player);
-            const skill = player.getSkill(skillId);
+            const skill = player.skillSystem.getSkill(skillId);
             const prev = skill.xp;
             const oldLevel = skill.baseLevel;
-            const oldCombatLevel = player.combatLevel;
+            const oldCombatLevel = player.skillSystem.combatLevel;
             const baseDelta = Number.isFinite(xp) ? xp : 0;
             const delta = baseDelta * multiplier;
             if (!(delta > 0)) return;
-            player.setSkillXp(skillId, prev + delta);
-            const newLevel = player.getSkill(skillId).baseLevel;
+            player.skillSystem.setSkillXp(skillId, prev + delta);
+            const newLevel = player.skillSystem.getSkill(skillId).baseLevel;
             if (newLevel > oldLevel) {
                 this.deps.enqueueLevelUpPopup(player, {
                     kind: "skill",
@@ -90,7 +90,7 @@ export class SkillService {
                     levelIncrement: Math.max(1, newLevel - oldLevel),
                 });
             }
-            const newCombatLevel = player.combatLevel;
+            const newCombatLevel = player.skillSystem.combatLevel;
             if (newCombatLevel > oldCombatLevel) {
                 this.deps.enqueueLevelUpPopup(player, {
                     kind: "combat",
@@ -98,7 +98,7 @@ export class SkillService {
                     levelIncrement: Math.max(1, newCombatLevel - oldCombatLevel),
                 });
             }
-            const update = player.takeSkillSync();
+            const update = player.skillSystem.takeSkillSync();
             if (update) {
                 this.queueSkillSnapshot(player.id, update);
             }
@@ -137,19 +137,19 @@ export class SkillService {
         );
 
         let xpChanged = false;
-        const oldCombatLevel = player.combatLevel;
+        const oldCombatLevel = player.skillSystem.combatLevel;
         const multiplier = this.deps.gamemode.getSkillXpMultiplier(player);
         const MAX_XP = 200_000_000;
         for (const award of awards) {
-            const skill = player.getSkill(award.skillId);
+            const skill = player.skillSystem.getSkill(award.skillId);
             const currentXp = skill?.xp ?? 0;
             const scaledXp = award.xp * multiplier;
             const newXp = Math.min(MAX_XP, currentXp + scaledXp);
 
             if (newXp > currentXp) {
                 const oldLevel = skill.baseLevel;
-                player.setSkillXp(award.skillId, newXp);
-                const newLevel = player.getSkill(award.skillId).baseLevel;
+                player.skillSystem.setSkillXp(award.skillId, newXp);
+                const newLevel = player.skillSystem.getSkill(award.skillId).baseLevel;
                 xpChanged = true;
 
                 if (newLevel > oldLevel) {
@@ -164,7 +164,7 @@ export class SkillService {
             }
         }
 
-        const newCombatLevel = player.combatLevel;
+        const newCombatLevel = player.skillSystem.combatLevel;
         if (newCombatLevel > oldCombatLevel) {
             effects.push({
                 type: "combatLevelUp",
@@ -175,7 +175,7 @@ export class SkillService {
         }
 
         if (xpChanged) {
-            const sync = player.takeSkillSync();
+            const sync = player.skillSystem.takeSkillSync();
             if (sync) {
                 this.queueSkillSnapshot(player.id, sync);
             }

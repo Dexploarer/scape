@@ -679,7 +679,7 @@ export function walkToAttackRange(
     }
 
     // Apply path to pawn
-    const run = pawn instanceof PlayerState ? pawn.isRunActive() : false;
+    const run = pawn instanceof PlayerState ? pawn.energy.isRunActive() : false;
     pawn.setPath(result.steps, run);
 
     return true;
@@ -742,7 +742,7 @@ export function combatCycle(ctx: CombatCycleContext): CombatCycleResult {
     if (target instanceof NpcState && target.getHitpoints() <= 0) {
         return CombatCycleResult.END;
     }
-    if (target instanceof PlayerState && target.getHitpointsCurrent() <= 0) {
+    if (target instanceof PlayerState && target.skillSystem.getHitpointsCurrent() <= 0) {
         return CombatCycleResult.END;
     }
 

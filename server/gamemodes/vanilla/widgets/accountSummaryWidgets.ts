@@ -30,9 +30,9 @@ export function registerAccountSummaryWidgetHandlers(registry: IScriptRegistry, 
 
             const player = event.player;
             const nextValue =
-                player.getVarbitValue(VARBIT_ACCOUNT_SUMMARY_DISPLAY_PLAYTIME) === 1 ? 0 : 1;
+                player.varps.getVarbitValue(VARBIT_ACCOUNT_SUMMARY_DISPLAY_PLAYTIME) === 1 ? 0 : 1;
 
-            player.setVarbitValue(VARBIT_ACCOUNT_SUMMARY_DISPLAY_PLAYTIME, nextValue);
+            player.varps.setVarbitValue(VARBIT_ACCOUNT_SUMMARY_DISPLAY_PLAYTIME, nextValue);
             services.queueVarbit?.(
                 player.id,
                 VARBIT_ACCOUNT_SUMMARY_DISPLAY_PLAYTIME,

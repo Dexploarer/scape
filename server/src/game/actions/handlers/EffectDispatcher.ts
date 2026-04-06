@@ -234,8 +234,8 @@ export class EffectDispatcher {
         if (effect.hpCurrent === undefined && effect.targetType === "player") {
             const target = this.services.getPlayer(effect.targetId);
             if (target) {
-                hpCurrent = target.getHitpointsCurrent?.() ?? 0;
-                hpMax = target.getHitpointsMax?.() ?? 0;
+                hpCurrent = target.skillSystem.getHitpointsCurrent?.() ?? 0;
+                hpMax = target.skillSystem.getHitpointsMax?.() ?? 0;
             }
         }
 

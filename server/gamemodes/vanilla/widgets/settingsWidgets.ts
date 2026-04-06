@@ -73,10 +73,10 @@ export function registerSettingsWidgetHandlers(registry: IScriptRegistry, servic
         option: "Toggle unlock message",
         handler: ({ player, services: svc }) => {
             // Toggle the varbit value (0 <-> 1)
-            const currentValue = player.getVarbitValue(VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE);
+            const currentValue = player.varps.getVarbitValue(VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE);
             const newValue = currentValue === 0 ? 1 : 0;
 
-            player.setVarbitValue(VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE, newValue);
+            player.varps.setVarbitValue(VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE, newValue);
             svc.sendVarbit?.(player, VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE, newValue);
 
             svc.logger?.info?.(
@@ -141,7 +141,7 @@ export function registerSettingsWidgetHandlers(registry: IScriptRegistry, servic
                 : MAX_NPC_ATTACK_OPTION;
         if (selectedIndex > maxValue) return;
 
-        player.setVarpValue(varpId, selectedIndex);
+        player.varps.setVarpValue(varpId, selectedIndex);
         svc.sendVarp?.(player, varpId, selectedIndex);
         activeSideDropdownSettingByPlayerId.delete(player.id);
 

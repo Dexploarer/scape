@@ -84,19 +84,19 @@ export class CombatEffectService {
 
     tryActivateRedemption(player: any): boolean {
         if (!player.hasPrayerActive("redemption")) return false;
-        const currentHp = player.getHitpointsCurrent();
+        const currentHp = player.skillSystem.getHitpointsCurrent();
         if (!(currentHp > 0)) return false;
-        const maxHp = player.getHitpointsMax();
+        const maxHp = player.skillSystem.getHitpointsMax();
         const threshold = Math.max(1, Math.floor(maxHp / 10));
         if (currentHp > threshold) return false;
-        const prayerSkill = player.getSkill(SkillId.Prayer);
+        const prayerSkill = player.skillSystem.getSkill(SkillId.Prayer);
         const currentPrayer = Math.max(0, prayerSkill.baseLevel + prayerSkill.boost);
         if (currentPrayer <= 0) return false;
         const healAmount = Math.max(1, Math.floor(prayerSkill.baseLevel * 0.25));
         if (!(healAmount > 0)) return false;
-        player.setSkillBoost(SkillId.Prayer, 0);
+        player.skillSystem.setSkillBoost(SkillId.Prayer, 0);
         this.handlePrayerDepleted(player);
-        player.applyHitpointsHeal(healAmount);
+        player.skillSystem.applyHitpointsHeal(healAmount);
         return true;
     }
 
@@ -105,16 +105,16 @@ export class CombatEffectService {
         if (!attacker.hasPrayerActive("smite")) return;
         const drain = Math.max(0, Math.floor(damage / 4));
         if (!(drain > 0)) return;
-        target.adjustSkillBoost(SkillId.Prayer, -drain);
+        target.skillSystem.adjustSkillBoost(SkillId.Prayer, -drain);
         if (target.getPrayerLevel() <= 0) {
-            target.setSkillBoost(SkillId.Prayer, 0);
+            target.skillSystem.setSkillBoost(SkillId.Prayer, 0);
             this.handlePrayerDepleted(target);
         }
     }
 
     tryActivateRetribution(player: any, tick: number): void {
         if (!player.hasPrayerActive("retribution")) return;
-        const prayerSkill = player.getSkill(SkillId.Prayer);
+        const prayerSkill = player.skillSystem.getSkill(SkillId.Prayer);
         const baseDamage = Math.min(25, Math.max(1, Math.floor(prayerSkill.baseLevel * 0.25)));
         if (!(baseDamage > 0)) return;
 
@@ -162,7 +162,7 @@ export class CombatEffectService {
                 const dx = Math.abs(target.tileX - playerX);
                 const dy = Math.abs(target.tileY - playerY);
                 if (dx > 1 || dy > 1) return;
-                const result = target.applyHitpointsDamage(baseDamage);
+                const result = target.skillSystem.applyHitpointsDamage(baseDamage);
                 const activeFrame = this.deps.getActiveFrame();
                 if (activeFrame) {
                     activeFrame.hitsplats.push({

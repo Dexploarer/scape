@@ -54,7 +54,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             const barType = smithingUI.getBarTypeByItemId(event.source.itemId);
             if (!(barType !== undefined && barType > 0)) return;
             const player = event.player;
-            player.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType);
+            player.varps.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType);
             services.production?.openSmithingInterface?.(player);
         });
     }

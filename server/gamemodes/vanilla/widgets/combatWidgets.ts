@@ -142,7 +142,7 @@ function tryActivateInstantUtilitySpecial(
     const currentEnergy = player.getSpecialEnergyUnits?.() ?? 0;
     if (currentEnergy < 100) {
         player.setSpecialActivated?.(false);
-        player.setVarpValue(VARP_SPECIAL_ATTACK, 0);
+        player.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
         services.sendVarp?.(player, VARP_SPECIAL_ATTACK, 0);
         services.queueCombatState?.(player);
         services.sendGameMessage(player, "You do not have enough special attack energy.");
@@ -152,7 +152,7 @@ function tryActivateInstantUtilitySpecial(
     const consumed = player.consumeSpecialEnergy?.(100) ?? false;
     if (!consumed) {
         player.setSpecialActivated?.(false);
-        player.setVarpValue(VARP_SPECIAL_ATTACK, 0);
+        player.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
         services.sendVarp?.(player, VARP_SPECIAL_ATTACK, 0);
         services.queueCombatState?.(player);
         services.sendGameMessage(player, "You do not have enough special attack energy.");
@@ -168,7 +168,7 @@ function tryActivateInstantUtilitySpecial(
     }
 
     player.setSpecialActivated?.(false);
-    player.setVarpValue(VARP_SPECIAL_ATTACK, 0);
+    player.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
     services.sendVarp?.(player, VARP_SPECIAL_ATTACK, 0);
     services.queueCombatState?.(player);
 
@@ -214,7 +214,7 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
 
         // Update varp (0 = ON, 1 = OFF - inverted logic)
         const varpValue = newState ? 0 : 1;
-        player.setVarpValue(VARP_AUTO_RETALIATE, varpValue);
+        player.varps.setVarpValue(VARP_AUTO_RETALIATE, varpValue);
 
         // Send varp to client to update the UI
         services.sendVarp?.(player, VARP_AUTO_RETALIATE, varpValue);
@@ -249,7 +249,7 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
 
         // Update varp (0 = off, 1 = on)
         const varpValue = newState ? 1 : 0;
-        player.setVarpValue(VARP_SPECIAL_ATTACK, varpValue);
+        player.varps.setVarpValue(VARP_SPECIAL_ATTACK, varpValue);
 
         // Send varp to client to update the UI
         services.sendVarp?.(player, VARP_SPECIAL_ATTACK, varpValue);

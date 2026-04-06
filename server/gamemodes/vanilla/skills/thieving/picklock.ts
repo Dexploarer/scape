@@ -200,7 +200,7 @@ export function register(registry: IScriptRegistry, _services: ScriptServices): 
 
         registry.registerLocInteraction(def.openTransformId, (event) => {
             const { player, tile, level, services } = event;
-            player.setVarbitValue(def.varbitId, 0);
+            player.varps.setVarbitValue(def.varbitId, 0);
             services.sendVarbit?.(player, def.varbitId, 0);
             services.sendLocChangeToPlayer?.(player, def.locId, def.locId, tile, level);
         }, "close");
@@ -210,7 +210,7 @@ export function register(registry: IScriptRegistry, _services: ScriptServices): 
 
             services.sendGameMessage(player, "You climb down through the trapdoor...");
 
-            player.setVarbitValue(def.varbitId, 0);
+            player.varps.setVarbitValue(def.varbitId, 0);
             services.sendVarbit?.(player, def.varbitId, 0);
 
             services.teleportPlayer?.(player, 3149, 9652, 0);

@@ -111,11 +111,11 @@ function initializeCollectionLog(player: PlayerState, services: CollectionLogOpe
     });
 
     // Set varbit 6905 (tab) to 0 = Bosses
-    player.setVarbitValue(VARBIT_COLLECTION_LAST_TAB, 0);
+    player.varps.setVarbitValue(VARBIT_COLLECTION_LAST_TAB, 0);
     services.queueVarbit(playerId, VARBIT_COLLECTION_LAST_TAB, 0);
 
     // Set varbit 6906 (selected category) to -1 = none selected (show category list)
-    player.setVarbitValue(VARBIT_COLLECTION_LAST_CATEGORY, -1);
+    player.varps.setVarbitValue(VARBIT_COLLECTION_LAST_CATEGORY, -1);
     services.queueVarbit(playerId, VARBIT_COLLECTION_LAST_CATEGORY, -1);
 
     // Reset category count varp

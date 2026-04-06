@@ -20,7 +20,7 @@ import type { GroundItemManager } from "../items/GroundItemManager";
 import type { NpcState, NpcUpdateDelta } from "../npc";
 import type { NpcManager } from "../npcManager";
 import type { InventoryEntry, PlayerManager, PlayerState, SkillSyncUpdate } from "../player";
-import type { PrayerSystem } from "../../../gamemodes/vanilla/prayer/PrayerSystem";
+import type { PrayerSystemProvider } from "../prayer/PrayerSystemProvider";
 import type { ScriptRuntime } from "../scripts/ScriptRuntime";
 import type {
     BroadcastScheduler,
@@ -125,7 +125,7 @@ export interface TickPhaseServiceDeps {
     scriptRuntime: ScriptRuntime;
     scriptScheduler: ScriptScheduler;
     statusEffects: StatusEffectSystem;
-    prayerSystem: PrayerSystem;
+    prayerSystem: PrayerSystemProvider;
     playerDeathService: PlayerDeathService | undefined;
     gatheringSystem: GatheringSystemManager | undefined;
     groundItems: GroundItemManager;
@@ -263,7 +263,7 @@ export class TickPhaseService implements TickPhaseProvider {
                 if (players) {
                     players.forEach((_client, player) => {
                         const inWilderness = isInWilderness(player.tileX, player.tileY);
-                        player.updateAggressionState(frame.tick, inWilderness);
+                        player.aggression.updateAggressionState(frame.tick, player.tileX, player.tileY, inWilderness);
                     });
                 }
 
@@ -299,9 +299,9 @@ export class TickPhaseService implements TickPhaseProvider {
                                 x: player.tileX,
                                 y: player.tileY,
                                 level: player.level,
-                                combatLevel: player.combatLevel,
+                                combatLevel: player.skillSystem.combatLevel,
                                 inCombat: player.isAttacking() || player.isBeingAttacked(),
-                                aggressionState: player.getAggressionState(frame.tick),
+                                aggressionState: player.aggression.getAggressionState(frame.tick, player.tileX, player.tileY),
                             });
                         });
                     }
@@ -497,7 +497,7 @@ export class TickPhaseService implements TickPhaseProvider {
                 frame.tick,
             );
 
-            if (player.hasRunEnergyUpdate()) {
+            if (player.energy.hasRunEnergyUpdate()) {
                 this.deps.movementService.queueRunEnergySnapshot(player);
             }
 
@@ -569,7 +569,7 @@ export class TickPhaseService implements TickPhaseProvider {
                 this.deps.variableService.queueVarbit(player.id, VARBIT_IN_LMS, currentInLMS ? 1 : 0);
             }
 
-            player.tickSkillRestoration(frame.tick);
+            player.skillSystem.tickSkillRestoration(frame.tick);
             let specialUpdated = player.tickSpecialEnergy(frame.tick);
             if (!specialUpdated && player.hasSpecialEnergyUpdate?.()) {
                 specialUpdated = true;
@@ -619,7 +619,7 @@ export class TickPhaseService implements TickPhaseProvider {
                     player.clearTeleportFlag();
                 } catch (err) { logger.warn("Failed to clear player teleport flag", err); }
             }
-            const skillUpdate = player.takeSkillSync();
+            const skillUpdate = player.skillSystem.takeSkillSync();
             if (skillUpdate) {
                 this.deps.sendSkillsMessage(sock, player, skillUpdate);
             }

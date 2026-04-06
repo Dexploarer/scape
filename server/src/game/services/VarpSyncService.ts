@@ -83,11 +83,11 @@ export class VarpSyncService {
 
     syncCombatTargetPlayerVarp(player: PlayerState): void {
         const nextValue = this.getCombatTargetPlayerVarpValue(player);
-        if ((player.getVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX) | 0) === (nextValue | 0)) {
+        if ((player.varps.getVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX) | 0) === (nextValue | 0)) {
             return;
         }
 
-        player.setVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX, nextValue);
+        player.varps.setVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX, nextValue);
         this.deps.queueVarp(player.id, VARP_COMBAT_TARGET_PLAYER_INDEX, nextValue);
     }
 
@@ -113,7 +113,7 @@ export class VarpSyncService {
             VARBIT_AUTOCAST_DEFMODE,
         ] as const;
         for (const varbitId of autocastVarbits) {
-            const value = player.getVarbitValue(varbitId);
+            const value = player.varps.getVarbitValue(varbitId);
             this.deps.withDirectSendBypass("varbit", () =>
                 this.deps.sendWithGuard(
                     sock,
@@ -135,15 +135,15 @@ export class VarpSyncService {
             VARP_SPECIAL_ATTACK,
         ];
         for (const varpId of transmitVarpIds) {
-            let value = player.getVarpValue(varpId);
+            let value = player.varps.getVarpValue(varpId);
 
             if (varpId === VARP_AUTO_RETALIATE) {
                 value = player.autoRetaliate ? 0 : 1;
-                player.setVarpValue(VARP_AUTO_RETALIATE, value);
+                player.varps.setVarpValue(VARP_AUTO_RETALIATE, value);
             }
 
             if (varpId === VARP_OPTION_RUN) {
-                value = player.wantsToRun() ? 1 : 0;
+                value = player.energy.wantsToRun() ? 1 : 0;
             }
 
             if (varpId === VARP_OPTION_RUN || varpId === VARP_AUTO_RETALIATE || value !== 0) {
@@ -161,7 +161,7 @@ export class VarpSyncService {
         }
 
         for (const varpId of XPDROPS_TRANSMIT_VARPS) {
-            const value = player.getVarpValue(varpId);
+            const value = player.varps.getVarpValue(varpId);
             if (value === 0) continue;
             this.deps.withDirectSendBypass("varp", () =>
                 this.deps.sendWithGuard(
@@ -183,16 +183,16 @@ export class VarpSyncService {
             VARP_MASTER_VOLUME,
         ];
         for (const varpId of volumeVarps) {
-            if (!player.hasVarpValue(varpId)) {
-                player.setVarpValue(varpId, DEFAULT_SOUND_VOLUME);
+            if (!player.varps.hasVarpValue(varpId)) {
+                player.varps.setVarpValue(varpId, DEFAULT_SOUND_VOLUME);
             }
         }
 
         if (
-            !player.hasVarpValue(VARP_MUSIC_CURRENT_TRACK) ||
-            player.getVarpValue(VARP_MUSIC_CURRENT_TRACK) === 0
+            !player.varps.hasVarpValue(VARP_MUSIC_CURRENT_TRACK) ||
+            player.varps.getVarpValue(VARP_MUSIC_CURRENT_TRACK) === 0
         ) {
-            player.setVarpValue(VARP_MUSIC_CURRENT_TRACK, -1);
+            player.varps.setVarpValue(VARP_MUSIC_CURRENT_TRACK, -1);
         }
         const soundVarps = [
             VARP_MUSIC_VOLUME,
@@ -203,7 +203,7 @@ export class VarpSyncService {
             VARP_MUSIC_CURRENT_TRACK,
         ];
         for (const varpId of soundVarps) {
-            const value = player.getVarpValue(varpId);
+            const value = player.varps.getVarpValue(varpId);
             this.deps.withDirectSendBypass("varp", () =>
                 this.deps.sendWithGuard(
                     sock,
@@ -221,7 +221,7 @@ export class VarpSyncService {
             VARP_OPTION_ATTACK_PRIORITY_NPC,
         ];
         for (const varpId of attackOptionVarps) {
-            const value = player.getVarpValue(varpId);
+            const value = player.varps.getVarpValue(varpId);
             this.deps.withDirectSendBypass("varp", () =>
                 this.deps.sendWithGuard(
                     sock,
@@ -235,7 +235,7 @@ export class VarpSyncService {
         }
 
         const combatTargetPlayerIndex = this.getCombatTargetPlayerVarpValue(player);
-        player.setVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX, combatTargetPlayerIndex);
+        player.varps.setVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX, combatTargetPlayerIndex);
         this.deps.withDirectSendBypass("varp", () =>
             this.deps.sendWithGuard(
                 sock,
@@ -319,7 +319,7 @@ export class VarpSyncService {
         }
 
         for (const varpId of MUSIC_UNLOCK_VARPS) {
-            const value = player.getVarpValue(varpId);
+            const value = player.varps.getVarpValue(varpId);
             if (value !== 0) {
                 this.deps.withDirectSendBypass("varp", () =>
                     this.deps.sendWithGuard(
@@ -337,7 +337,7 @@ export class VarpSyncService {
         if (this.deps.musicUnlockService) {
             this.deps.musicUnlockService.initializeDefaults(player);
         }
-        const musicUnlockMsgValue = player.getVarbitValue(VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE);
+        const musicUnlockMsgValue = player.varps.getVarbitValue(VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE);
         this.deps.withDirectSendBypass("varbit", () =>
             this.deps.sendWithGuard(
                 sock,
@@ -352,7 +352,7 @@ export class VarpSyncService {
             ),
         );
 
-        const xpDropsEnabledValue = player.getVarbitValue(VARBIT_XPDROPS_ENABLED);
+        const xpDropsEnabledValue = player.varps.getVarbitValue(VARBIT_XPDROPS_ENABLED);
         this.deps.withDirectSendBypass("varbit", () =>
             this.deps.sendWithGuard(
                 sock,

@@ -243,7 +243,7 @@ export function createCombatActionHandler(server: any): CombatActionHandler {
         clearInteractionsWithNpc: (npcId) => server.players?.clearInteractionsWithNpc(npcId),
         sendSkillsMessage: (socket, player) => {
             if (socket instanceof WebSocket) {
-                const sync = player.takeSkillSync();
+                const sync = player.skillSystem.takeSkillSync();
                 if (sync) server.skillService.queueSkillSnapshot(player.id, sync);
             }
         },
@@ -742,7 +742,7 @@ export function createCs2ModalManager(server: any): Cs2ModalManager {
                 targetPlayerIds: [playerId],
             }),
         setSmithingBarType: (player, barType) =>
-            player.setVarbitValue(3216, barType),
+            player.varps.setVarbitValue(3216, barType),
         openSmithingForgeInterface: (player) => {
             server.scriptRuntime.getServices().production?.openForgeInterface?.(player);
         },

@@ -152,7 +152,7 @@ export function registerEquipmentHandlers(registry: IScriptRegistry, services: S
                     return;
                 }
                 state.used++;
-                player.adjustRunEnergyPercent(ring.restorePercent);
+                player.energy.adjustRunEnergyPercent(ring.restorePercent);
                 const remaining = Math.max(0, ring.chargesPerDay - state.used);
                 services.sendGameMessage(
                     player,

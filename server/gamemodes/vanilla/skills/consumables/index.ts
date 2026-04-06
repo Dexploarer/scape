@@ -47,7 +47,7 @@ type FoodDef = {
 };
 
 function computeAnglerfishHeal(player: PlayerState): number {
-    const skill = player.getSkill(SkillId.Hitpoints);
+    const skill = player.skillSystem.getSkill(SkillId.Hitpoints);
     const base = Math.max(1, skill.baseLevel);
     let bonus = 2;
     if (base >= 25 && base <= 49) bonus = 4;
@@ -705,7 +705,7 @@ const formatDrinkMessage = (label: string): string => `You drink some of your ${
 
 const applyPrayerRestore = (player: PlayerState, formula: PrayerRestoreFormula): void => {
     if (!formula) return;
-    const skill = player.getSkill(SkillId.Prayer);
+    const skill = player.skillSystem.getSkill(SkillId.Prayer);
     const baseLevel = Math.max(1, skill.baseLevel);
     const current = Math.max(0, skill.baseLevel + skill.boost);
     const missing = Math.max(0, baseLevel - current);
@@ -713,7 +713,7 @@ const applyPrayerRestore = (player: PlayerState, formula: PrayerRestoreFormula):
     const restore = Math.max(0, Math.floor(formula.base + baseLevel * formula.percent));
     const applied = Math.min(missing, restore);
     if (applied > 0) {
-        player.adjustSkillBoost(SkillId.Prayer, applied);
+        player.skillSystem.adjustSkillBoost(SkillId.Prayer, applied);
     }
 };
 
@@ -724,20 +724,20 @@ const applyStatRestores = (player: PlayerState, formula?: StatRestoreFormula): v
     for (const skillId of skills) {
         if (skillId === SkillId.Prayer || skillId === SkillId.Hitpoints) continue;
         if (excluded.has(skillId)) continue;
-        const skill = player.getSkill(skillId);
+        const skill = player.skillSystem.getSkill(skillId);
         const baseLevel = Math.max(1, skill.baseLevel);
         const current = Math.max(0, skill.baseLevel + skill.boost);
         if (current >= baseLevel) continue;
         const restoreAmount = Math.max(0, Math.floor(formula.base + baseLevel * formula.percent));
         const applied = Math.min(baseLevel - current, restoreAmount);
         if (applied > 0) {
-            player.adjustSkillBoost(skillId, applied);
+            player.skillSystem.adjustSkillBoost(skillId, applied);
         }
     }
 };
 
 const applyStatBoost = (player: PlayerState, skillId: SkillId, formula: BoostFormula): void => {
-    const skill = player.getSkill(skillId);
+    const skill = player.skillSystem.getSkill(skillId);
     const baseLevel = Math.max(1, skill.baseLevel);
     const currentBoost = skill.boost;
     const boostAmount = Math.floor(formula.base + baseLevel * formula.percent);
@@ -746,7 +746,7 @@ const applyStatBoost = (player: PlayerState, skillId: SkillId, formula: BoostFor
         const newBoost = maxBoost;
         const adjustment = newBoost - currentBoost;
         if (adjustment > 0) {
-            player.adjustSkillBoost(skillId, adjustment);
+            player.skillSystem.adjustSkillBoost(skillId, adjustment);
         }
     }
 };
@@ -776,7 +776,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                     onExecute: () => {
                         const healAmount = resolveHeal(def, player);
                         if (healAmount > 0) {
-                            player.applyHitpointsHeal(healAmount);
+                            player.skillSystem.applyHitpointsHeal(healAmount);
                         }
                         if (def.nextItemId !== undefined) {
                             setInventorySlot(player, slot, def.nextItemId, 1);
@@ -828,9 +828,9 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                         if (def.nextItemId !== undefined) {
                             setInventorySlot(player, slot, def.nextItemId, 1);
                         }
-                        player.adjustRunEnergyPercent(def.boostPercent);
+                        player.energy.adjustRunEnergyPercent(def.boostPercent);
                         if (def.healAmount && def.healAmount > 0) {
-                            player.applyHitpointsHeal(def.healAmount);
+                            player.skillSystem.applyHitpointsHeal(def.healAmount);
                         }
                         if (option !== "eat") {
                             services.playPlayerSeq?.(player, DRINK_SEQ);
@@ -850,21 +850,21 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                                 volume: 255,
                             });
                         }
-                        if (def.curePoison) player.curePoison();
-                        if (def.cureDisease) player.cureDisease();
-                        if (def.cureVenom) player.cureVenom();
+                        if (def.curePoison) player.skillSystem.curePoison();
+                        if (def.cureDisease) player.skillSystem.cureDisease();
+                        if (def.cureVenom) player.skillSystem.cureVenom();
                         if (def.skillBoosts) {
                             for (const boost of def.skillBoosts) {
                                 if (boost.relativeToBase !== undefined) {
-                                    const baseLevel = player.getSkill(boost.skillId).baseLevel;
-                                    player.setSkillBoost(
+                                    const baseLevel = player.skillSystem.getSkill(boost.skillId).baseLevel;
+                                    player.skillSystem.setSkillBoost(
                                         boost.skillId,
                                         baseLevel + boost.relativeToBase,
                                     );
                                 } else if (boost.targetLevel !== undefined) {
-                                    player.setSkillBoost(boost.skillId, boost.targetLevel);
+                                    player.skillSystem.setSkillBoost(boost.skillId, boost.targetLevel);
                                 } else if (boost.delta !== undefined) {
-                                    player.adjustSkillBoost(boost.skillId, boost.delta);
+                                    player.skillSystem.adjustSkillBoost(boost.skillId, boost.delta);
                                 }
                             }
                         }
@@ -873,7 +873,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                                 def.staminaDurationTicks ??
                                 secondsToTicks(def.staminaDurationSeconds);
                             if (durationTicks > 0) {
-                                player.applyStaminaEffect(
+                                player.energy.applyStaminaEffect(
                                     actionTick,
                                     durationTicks,
                                     def.staminaMultiplier,
@@ -918,8 +918,8 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                     loggerTag: "stamina",
                     onExecute: ({ tick: actionTick }) => {
                         setInventorySlot(player, slot, def.nextItemId, 1);
-                        player.adjustRunEnergyPercent(STAMINA_RUN_ENERGY_BOOST);
-                        player.applyStaminaEffect(
+                        player.energy.adjustRunEnergyPercent(STAMINA_RUN_ENERGY_BOOST);
+                        player.energy.applyStaminaEffect(
                             actionTick,
                             STAMINA_DURATION_TICKS,
                             STAMINA_EFFECT_MULTIPLIER,
@@ -975,11 +975,11 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                         applyPrayerRestore(player, def.prayerRestore);
                         applyStatRestores(player, def.statRestore);
                         if (def.healAmount) {
-                            player.applyHitpointsHeal(def.healAmount);
+                            player.skillSystem.applyHitpointsHeal(def.healAmount);
                         }
-                        if (def.curePoison) player.curePoison();
-                        if (def.cureDisease) player.cureDisease();
-                        if (def.cureVenom) player.cureVenom();
+                        if (def.curePoison) player.skillSystem.curePoison();
+                        if (def.cureDisease) player.skillSystem.cureDisease();
+                        if (def.cureVenom) player.skillSystem.cureVenom();
                         const consumeText =
                             def.consumeMessage ?? `You drink some of your ${def.label}.`;
                         services.sendGameMessage(player, consumeText);

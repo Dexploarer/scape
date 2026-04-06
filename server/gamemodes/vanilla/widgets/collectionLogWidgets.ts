@@ -111,11 +111,11 @@ export function registerCollectionLogWidgetHandlers(registry: IScriptRegistry, s
             services.queueVarp?.(player.id, VARP_COLLECTION_CATEGORY_COUNT, 0);
 
             // Set varbit 6905 (VARBIT_COLLECTION_LAST_TAB) to selected tab
-            player.setVarbitValue(VARBIT_COLLECTION_LAST_TAB, tabIndex);
+            player.varps.setVarbitValue(VARBIT_COLLECTION_LAST_TAB, tabIndex);
             services.queueVarbit?.(player.id, VARBIT_COLLECTION_LAST_TAB, tabIndex);
 
             // Reset category selection (varbit 6906 = -1 means no category selected)
-            player.setVarbitValue(VARBIT_COLLECTION_LAST_CATEGORY, -1);
+            player.varps.setVarbitValue(VARBIT_COLLECTION_LAST_CATEGORY, -1);
             services.queueVarbit?.(player.id, VARBIT_COLLECTION_LAST_CATEGORY, -1);
 
             // Build args for script 7797: [tabIndex, comp1, comp2, comp3, comp4, structId, mode]
@@ -199,7 +199,7 @@ export function registerCollectionLogWidgetHandlers(registry: IScriptRegistry, s
             );
 
             // Set varbit 6906 (VARBIT_COLLECTION_LAST_CATEGORY) to selected category
-            player.setVarbitValue(VARBIT_COLLECTION_LAST_CATEGORY, categoryIndex);
+            player.varps.setVarbitValue(VARBIT_COLLECTION_LAST_CATEGORY, categoryIndex);
             services.queueVarbit?.(player.id, VARBIT_COLLECTION_LAST_CATEGORY, categoryIndex);
 
             // Set category kill/completion count varps

@@ -600,7 +600,7 @@ function consumeItemFromInventory(
 }
 
 function getMagicLevel(player: PlayerState): number {
-    return Math.max(1, player.getSkill(MAGIC_SKILL_ID).baseLevel);
+    return Math.max(1, player.skillSystem.getSkill(MAGIC_SKILL_ID).baseLevel);
 }
 
 function countInventoryItem(inventory: InventoryItem[], itemId: number): number {
@@ -692,7 +692,7 @@ function clearBoltEnchantUiSession(
 function openMinigameTeleportInterface(player: PlayerState, services: ScriptServices): void {
     const mainmodalUid = getMainmodalUid(player.displayMode);
 
-    player.setVarbitValue(MINIGAME_TELEPORT_OPEN_VARBIT_ID, 1);
+    player.varps.setVarbitValue(MINIGAME_TELEPORT_OPEN_VARBIT_ID, 1);
 
     services.openSubInterface?.(player, mainmodalUid, MINIGAME_TELEPORT_GROUP_ID, 0, {
         varbits: {
@@ -1084,7 +1084,7 @@ function executeTeleport(
     const { destination, levelRequired, castAnimId, castSpotAnim, name, runeCosts } = spell;
 
     // Check magic level (skill 6 = Magic)
-    const magicLevel = player.getSkill(SkillId.Magic).baseLevel;
+    const magicLevel = player.skillSystem.getSkill(SkillId.Magic).baseLevel;
     if (magicLevel < levelRequired) {
         services.sendGameMessage(
             player,

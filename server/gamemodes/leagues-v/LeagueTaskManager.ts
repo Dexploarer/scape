@@ -120,14 +120,14 @@ export class LeagueTaskManager {
      */
     private awardMasteryPoint(player: LeagueTaskPlayer, playerId: number): void {
         // Get current points
-        const pointsToSpend = player.getVarbitValue?.(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND) ?? 0;
-        const pointsEarned = player.getVarbitValue?.(VARBIT_LEAGUE_MASTERY_POINTS_EARNED) ?? 0;
+        const pointsToSpend = player.varps.getVarbitValue?.(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND) ?? 0;
+        const pointsEarned = player.varps.getVarbitValue?.(VARBIT_LEAGUE_MASTERY_POINTS_EARNED) ?? 0;
         const nextPointsToSpend = pointsToSpend + 1;
         const nextPointsEarned = pointsEarned + 1;
 
         // Persist the new values before syncing them so later UI snapshots stay coherent.
-        player.setVarbitValue(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND, nextPointsToSpend);
-        player.setVarbitValue(VARBIT_LEAGUE_MASTERY_POINTS_EARNED, nextPointsEarned);
+        player.varps.setVarbitValue(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND, nextPointsToSpend);
+        player.varps.setVarbitValue(VARBIT_LEAGUE_MASTERY_POINTS_EARNED, nextPointsEarned);
         const packedVarpUpdates = syncLeaguePackedVarps(player);
         queuePackedVarpUpdates(this.services, playerId, packedVarpUpdates);
 
@@ -366,13 +366,13 @@ export class LeagueTaskManager {
         const varbitId = VARBIT_MASTERY_POINT_UNLOCK_BASE + challenge.customIndex;
 
         // Check if already completed (varbit >= 1)
-        const currentValue = player.getVarbitValue?.(varbitId) ?? 0;
+        const currentValue = player.varps.getVarbitValue?.(varbitId) ?? 0;
         if (currentValue >= 1) {
             return; // Already complete
         }
 
         // Mark as complete by setting varbit to 1
-        player.setVarbitValue(varbitId, 1);
+        player.varps.setVarbitValue(varbitId, 1);
         const packedVarpUpdates = syncLeaguePackedVarps(player);
         queuePackedVarpUpdates(this.services, playerId, packedVarpUpdates);
         this.services.queueVarbit(playerId, varbitId, 1);

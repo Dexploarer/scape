@@ -99,7 +99,7 @@ export class MovementService {
 
             const sailingVarbits = [19136, 19137, 19122, 19104, 19151, 19153, 19176, 19175, 19118];
             for (const id of sailingVarbits) {
-                player.setVarbitValue(id, 0);
+                player.varps.setVarbitValue(id, 0);
                 this.deps.queueVarbit(player.id, id, 0);
             }
         }
@@ -237,7 +237,7 @@ export class MovementService {
     // --- Run Energy ---
 
     getPlayerAgilityLevel(player: PlayerState): number {
-        const agility = player.getSkill(SkillId.Agility);
+        const agility = player.skillSystem.getSkill(SkillId.Agility);
         return Math.max(1, Math.min((agility.baseLevel ?? 1) + (agility.boost ?? 0), 120));
     }
 
@@ -296,16 +296,16 @@ export class MovementService {
         activity: { ran: boolean; moved: boolean; runSteps: number },
         currentTick: number,
     ): void {
-        player.tickStaminaEffect(currentTick);
-        if (player.syncInfiniteRunEnergy()) return;
+        player.energy.tickStaminaEffect(currentTick);
+        if (player.energy.syncInfiniteRunEnergy()) return;
         const agilityLevel = this.getPlayerAgilityLevel(player);
         if (activity.ran) {
             const weight = this.computePlayerWeightKg(player);
             const baseDrain = this.computeRunEnergyDrainUnits(weight, agilityLevel);
-            const multiplier = player.getRunEnergyDrainMultiplier(currentTick);
+            const multiplier = player.energy.getRunEnergyDrainMultiplier(currentTick);
             const stepCount = Math.max(1, activity.runSteps);
             const drain = Math.max(0, baseDrain * stepCount * multiplier);
-            const nextUnits = player.adjustRunEnergyUnits(-drain);
+            const nextUnits = player.energy.adjustRunEnergyUnits(-drain);
             if (nextUnits <= 0) {
                 player.running = false;
                 if (player.runToggle) player.setRunToggle(false);
@@ -316,26 +316,26 @@ export class MovementService {
                 resting: !activity.moved,
                 gracefulPieces,
             });
-            if (regen > 0 && player.getRunEnergyUnits() < RUN_ENERGY_MAX) {
-                player.adjustRunEnergyUnits(regen);
+            if (regen > 0 && player.energy.getRunEnergyUnits() < RUN_ENERGY_MAX) {
+                player.energy.adjustRunEnergyUnits(regen);
             }
         }
     }
 
     buildRunEnergyPayload(player: PlayerState | undefined): any | undefined {
         if (!player) return undefined;
-        player.syncInfiniteRunEnergy();
+        player.energy.syncInfiniteRunEnergy();
         const currentTick = this.deps.getCurrentTick();
-        const staminaEffectTicks = player.getStaminaEffectRemainingTicks?.(currentTick) ?? 0;
-        const staminaMultiplier = player.getRunEnergyDrainMultiplier?.(currentTick) ?? 1;
+        const staminaEffectTicks = player.energy.getStaminaEffectRemainingTicks(currentTick) ?? 0;
+        const staminaMultiplier = player.energy.getRunEnergyDrainMultiplier(currentTick) ?? 1;
         const staminaActive = staminaEffectTicks > 0;
         const weight = this.computePlayerWeightKg(player);
-        const units = player.getRunEnergyUnits();
+        const units = player.energy.getRunEnergyUnits();
         const percent = Math.max(0, Math.min(100, Math.round((units / RUN_ENERGY_MAX) * 100)));
         const payload: any = {
             percent,
             units: Math.max(0, Math.min(RUN_ENERGY_MAX, units)),
-            running: player.wantsToRun(),
+            running: player.energy.wantsToRun(),
             weight,
         };
         if (staminaActive) {
@@ -352,11 +352,11 @@ export class MovementService {
         const frame = this.deps.getActiveFrame();
         if (frame) {
             frame.runEnergySnapshots.push({ playerId: player.id, ...payload });
-            player.markRunEnergySynced?.();
+            player.energy.markRunEnergySynced();
             return;
         }
         this.deps.broadcastScheduler.queueRunEnergySnapshot({ playerId: player.id, ...payload });
-        player.markRunEnergySynced?.();
+        player.energy.markRunEnergySynced();
     }
 
     sendRunEnergyState(sock: WebSocket, player: PlayerState): void {
@@ -365,7 +365,7 @@ export class MovementService {
         this.deps.networkLayer.withDirectSendBypass("run_energy", () =>
             this.deps.networkLayer.sendWithGuard(sock, encodeMessage({ type: "run_energy", payload }), "run_energy"),
         );
-        player.markRunEnergySynced?.();
+        player.energy.markRunEnergySynced();
     }
 
     // --- Action Execution ---

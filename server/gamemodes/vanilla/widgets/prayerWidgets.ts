@@ -192,9 +192,9 @@ export function registerPrayerWidgetHandlers(registry: IScriptRegistry, services
         if (varbitId === undefined) return;
 
         const player = event.player;
-        const current = player.getVarbitValue(varbitId);
+        const current = player.varps.getVarbitValue(varbitId);
         const next = current === 0 ? 1 : 0;
-        player.setVarbitValue(varbitId, next);
+        player.varps.setVarbitValue(varbitId, next);
 
         if (services.queueVarbit) {
             services.queueVarbit(player.id, varbitId, next);

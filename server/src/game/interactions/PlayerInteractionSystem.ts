@@ -190,7 +190,7 @@ export class PlayerInteractionSystem {
     }
 
     private resolveRunMode(player: PlayerState, modifierFlags?: number): boolean {
-        let run = player.wantsToRun();
+        let run = player.energy.wantsToRun();
         const flags = this.normalizeModifierFlags(modifierFlags);
         if ((flags & MODIFIER_FLAG_CTRL) !== 0) {
             run = !run;
@@ -198,7 +198,7 @@ export class PlayerInteractionSystem {
         if (flags === MODIFIER_FLAG_CTRL_SHIFT) {
             run = true;
         }
-        return player.resolveRequestedRun(run);
+        return player.energy.resolveRequestedRun(run);
     }
 
     setLocChangeCallback(
@@ -1311,7 +1311,7 @@ export class PlayerInteractionSystem {
                 this.interactions.delete(ws);
                 return;
             }
-            if (target.getHitpointsCurrent() <= 0) {
+            if (target.skillSystem.getHitpointsCurrent() <= 0) {
                 me.clearInteraction();
                 me.removeCombatTarget();
                 me.setInteractingPlayer(null);

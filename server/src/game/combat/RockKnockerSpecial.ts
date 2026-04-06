@@ -55,7 +55,7 @@ const LUMBER_UP_SEQ_BY_WEAPON = new Map<number, number>([
     [30352, 11940], // Dragon axe (or, reloaded)
 ]);
 
-type RockKnockerBoostPlayer = Pick<PlayerState, "getSkill" | "setSkillBoost">;
+type RockKnockerBoostPlayer = Pick<PlayerState, "skillSystem">;
 type InstantUtilityMarkerCarrier = Record<string, number | undefined> | null | undefined;
 
 const INSTANT_UTILITY_SPECIAL_HANDLED_TICK_KEY = "__instantUtilitySpecialHandledTick";
@@ -90,28 +90,28 @@ export function wasInstantUtilitySpecialHandledAtTick(
 }
 
 export function applyRockKnockerMiningBoost(player: RockKnockerBoostPlayer): void {
-    const miningSkill = player.getSkill(SkillId.Mining);
+    const miningSkill = player.skillSystem.getSkill(SkillId.Mining);
     const baseLevel = Math.max(1, miningSkill.baseLevel);
     const boost = miningSkill.boost;
     const currentLevel = Math.max(1, baseLevel + boost);
     const targetLevel = Math.max(currentLevel, baseLevel + ROCK_KNOCKER_MINING_BOOST);
-    player.setSkillBoost(SkillId.Mining, targetLevel);
+    player.skillSystem.setSkillBoost(SkillId.Mining, targetLevel);
 }
 
 export function applyFishstabberFishingBoost(player: RockKnockerBoostPlayer): void {
-    const fishingSkill = player.getSkill(SkillId.Fishing);
+    const fishingSkill = player.skillSystem.getSkill(SkillId.Fishing);
     const baseLevel = Math.max(1, fishingSkill.baseLevel);
     const boost = fishingSkill.boost;
     const currentLevel = Math.max(1, baseLevel + boost);
     const targetLevel = Math.max(currentLevel, baseLevel + FISHSTABBER_FISHING_BOOST);
-    player.setSkillBoost(SkillId.Fishing, targetLevel);
+    player.skillSystem.setSkillBoost(SkillId.Fishing, targetLevel);
 }
 
 export function applyLumberUpWoodcuttingBoost(player: RockKnockerBoostPlayer): void {
-    const woodcuttingSkill = player.getSkill(SkillId.Woodcutting);
+    const woodcuttingSkill = player.skillSystem.getSkill(SkillId.Woodcutting);
     const baseLevel = Math.max(1, woodcuttingSkill.baseLevel);
     const boost = woodcuttingSkill.boost;
     const currentLevel = Math.max(1, baseLevel + boost);
     const targetLevel = Math.max(currentLevel, baseLevel + LUMBER_UP_WOODCUTTING_BOOST);
-    player.setSkillBoost(SkillId.Woodcutting, targetLevel);
+    player.skillSystem.setSkillBoost(SkillId.Woodcutting, targetLevel);
 }

@@ -28,9 +28,9 @@ export function computeLeagueGeneralVarpFromPlayer(player: {
     getVarpValue: (id: number) => number;
     getVarbitValue: (id: number) => number;
 }): number {
-    let v = player.getVarpValue(VARP_LEAGUE_GENERAL);
-    const leagueType = player.getVarbitValue(VARBIT_LEAGUE_TYPE);
-    const tutorial = player.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
+    let v = player.varps.getVarpValue(VARP_LEAGUE_GENERAL);
+    const leagueType = player.varps.getVarbitValue(VARBIT_LEAGUE_TYPE);
+    const tutorial = player.varps.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
 
     // Enable league mode (bit 0) when league_type is set.
     if (leagueType > 0) v |= 1;
@@ -48,8 +48,8 @@ export function syncLeagueGeneralVarp(player: {
     getVarbitValue: (id: number) => number;
 }): { changed: boolean; value: number } {
     const next = computeLeagueGeneralVarpFromPlayer(player);
-    const prev = player.getVarpValue(VARP_LEAGUE_GENERAL);
+    const prev = player.varps.getVarpValue(VARP_LEAGUE_GENERAL);
     if (next === prev) return { changed: false, value: prev };
-    player.setVarpValue(VARP_LEAGUE_GENERAL, next);
+    player.varps.setVarpValue(VARP_LEAGUE_GENERAL, next);
     return { changed: true, value: next };
 }

@@ -44,10 +44,10 @@ export function createVarpTransmitHandler(services: MessageHandlerServices): Mes
             const payload = ctx.payload as any;
             const varpId = payload?.varpId as number;
             const value = payload?.value as number;
-            const previousVarpValue = p.getVarpValue(varpId);
+            const previousVarpValue = p.varps.getVarpValue(varpId);
 
-            p.setVarpValue(varpId, value);
-            const nextVarpValue = p.getVarpValue(varpId);
+            p.varps.setVarpValue(varpId, value);
+            const nextVarpValue = p.varps.getVarpValue(varpId);
 
             if (varpId === VARP_SIDE_JOURNAL_STATE) {
                 handleSideJournalVarp(services, ctx.ws, p, value, previousVarpValue);
@@ -132,7 +132,7 @@ function handleSpecialAttackVarp(
 
     const normalizedVarpValue = desired ? 1 : 0;
     p.setSpecialActivated(desired);
-    p.setVarpValue(VARP_SPECIAL_ATTACK, normalizedVarpValue);
+    p.varps.setVarpValue(VARP_SPECIAL_ATTACK, normalizedVarpValue);
     if (normalizedVarpValue !== value) {
         sendVarpCorrection(services, ws, VARP_SPECIAL_ATTACK, normalizedVarpValue);
     }
@@ -174,7 +174,7 @@ function handleInstantUtilitySpecial(
     else applyLumberUpWoodcuttingBoost(p);
 
     p.setSpecialActivated(false);
-    p.setVarpValue(VARP_SPECIAL_ATTACK, 0);
+    p.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
     p.queueOneShotSeq(seqId, 0);
     if (rockKnockerSeqId !== undefined) services.sendSound?.(p, ROCK_KNOCKER_SOUND_ID);
     services.queueCombatState(p);
@@ -190,7 +190,7 @@ function handleInstantUtilitySpecial(
 }
 
 function revertSpecialAttack(services: MessageHandlerServices, ws: WebSocket, p: PlayerState): void {
-    p.setVarpValue(VARP_SPECIAL_ATTACK, 0);
+    p.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
     p.setSpecialActivated(false);
     services.queueCombatState(p);
     sendVarpCorrection(services, ws, VARP_SPECIAL_ATTACK, 0);
@@ -205,7 +205,7 @@ function handleAttackStyleVarp(
     const requested = Math.max(0, Math.min(3, value));
     p.setCombatStyle(requested, p.combatWeaponCategory);
     const normalized = p.combatStyleSlot;
-    p.setVarpValue(VARP_ATTACK_STYLE, normalized);
+    p.varps.setVarpValue(VARP_ATTACK_STYLE, normalized);
     sendVarpCorrection(services, ws, VARP_ATTACK_STYLE, normalized);
     services.queueCombatState(p);
     logger.info(`[combat] attack style change: player=${p.id} slot=${normalized}`);
@@ -221,7 +221,7 @@ function handleAutoRetaliateVarp(
     p.setAutoRetaliate(on);
     const normalized = on ? 0 : 1;
     if (normalized !== value) {
-        p.setVarpValue(VARP_AUTO_RETALIATE, normalized);
+        p.varps.setVarpValue(VARP_AUTO_RETALIATE, normalized);
         sendVarpCorrection(services, ws, VARP_AUTO_RETALIATE, normalized);
     }
     services.queueCombatState(p);

@@ -476,24 +476,24 @@ export class PlayerDeathService {
         player.timers.clearOnDeath();
 
         // Restore HP to max
-        const maxHp = player.getHitpointsMax();
-        player.setHitpointsCurrent(maxHp);
+        const maxHp = player.skillSystem.getHitpointsMax();
+        player.skillSystem.setHitpointsCurrent(maxHp);
 
         // Reset all skill boosts/drains to base level (OSRS behavior)
         // This includes prayer points, stat drains from monsters, and potion boosts
         for (const skillId of SKILL_IDS) {
             if (skillId === SkillId.Hitpoints) continue; // HP handled separately above
-            const skill = player.getSkill(skillId);
-            player.setSkillBoost(skillId, skill.baseLevel);
+            const skill = player.skillSystem.getSkill(skillId);
+            player.skillSystem.setSkillBoost(skillId, skill.baseLevel);
         }
 
         // Restore run energy to 100% (OSRS behavior)
-        player.setRunEnergyUnits(RUN_ENERGY_MAX);
+        player.energy.setRunEnergyUnits(RUN_ENERGY_MAX);
 
         // Clear poison/venom/disease effects
-        player.curePoison();
-        player.cureVenom();
-        player.cureDisease();
+        player.skillSystem.curePoison();
+        player.skillSystem.cureVenom();
+        player.skillSystem.cureDisease();
 
         // Reset special attack energy to 100%
         player.setSpecialEnergyPercent(1000);

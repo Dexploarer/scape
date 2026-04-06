@@ -47,7 +47,7 @@ export class SmithingUI {
 
     buildSmeltingOptions(player: PlayerState): SmithingOptionMessage[] {
         const inventory = this.services.getInventoryItems(player);
-        const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
+        const smithLevel = player.skillSystem.getSkill(SkillId.Smithing).baseLevel;
         return SMELTING_RECIPES.map((recipe) => {
             const available = Math.max(0, Math.min(28, computeSmeltingBatchCount(inventory, recipe)));
             return {
@@ -67,7 +67,7 @@ export class SmithingUI {
 
     buildForgingOptions(player: PlayerState): SmithingOptionMessage[] {
         const inventory = this.services.getInventoryItems(player);
-        const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
+        const smithLevel = player.skillSystem.getSkill(SkillId.Smithing).baseLevel;
         const hammerAvailable = !!this.services.playerHasItem?.(player, HAMMER_ITEM_ID);
         return SMITHING_RECIPES.map((recipe) => {
             const available = Math.max(
@@ -186,7 +186,7 @@ export class SmithingUI {
 
     findBarTypeForOpen(player: PlayerState): number | undefined {
         this.initializeBarEnumCache();
-        const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
+        const smithLevel = player.skillSystem.getSkill(SkillId.Smithing).baseLevel;
         const unlockedTypes: number[] = [];
         const inventoryTypes: number[] = [];
 
@@ -204,7 +204,7 @@ export class SmithingUI {
         unlockedTypes.sort((a, b) => a - b);
         inventoryTypes.sort((a, b) => a - b);
 
-        const lastBarType = player.getVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID);
+        const lastBarType = player.varps.getVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID);
         if (unlockedTypes.includes(lastBarType)) return lastBarType;
         if (inventoryTypes.length > 0) return inventoryTypes[0];
         return unlockedTypes[0];
@@ -215,7 +215,7 @@ export class SmithingUI {
     ): { ok: true; varbits: Record<number, number> } | { ok: false } {
         const barType = this.findBarTypeForOpen(player);
         if (barType === undefined || !(barType > 0)) return { ok: false };
-        player.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType);
+        player.varps.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType);
         return { ok: true, varbits: { [SMITHING_BAR_TYPE_VARBIT_ID]: barType } };
     }
 
@@ -254,7 +254,7 @@ export class SmithingUI {
             this.services.sendGameMessage(player, "You can't smelt that.");
             return;
         }
-        const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
+        const smithLevel = player.skillSystem.getSkill(SkillId.Smithing).baseLevel;
         if (smithLevel < recipe.level) {
             this.services.sendGameMessage(player, `You need Smithing level ${recipe.level} to smelt that.`);
             return;
@@ -296,7 +296,7 @@ export class SmithingUI {
             this.services.sendGameMessage(player, "You need a hammer to smith.");
             return;
         }
-        const smithLevel = player.getSkill(SkillId.Smithing).baseLevel;
+        const smithLevel = player.skillSystem.getSkill(SkillId.Smithing).baseLevel;
         if (smithLevel < recipe.level) {
             this.services.sendGameMessage(player, `You need Smithing level ${recipe.level} to smith that.`);
             return;

@@ -31,7 +31,7 @@ function matchesCondition(
     if (!condition) return true;
     if (condition.wildernessOnly && !context.isWilderness) return false;
     if (condition.minimumQuestPoints !== undefined) {
-        const questPoints = recipient.player?.getVarpValue(VARP_QUEST_POINTS) ?? 0;
+        const questPoints = recipient.player?.varps.getVarpValue(VARP_QUEST_POINTS) ?? 0;
         if (questPoints < condition.minimumQuestPoints) return false;
     }
     const requiredAnyEquippedItemIds = condition.requiredAnyEquippedItemIds ?? [];

@@ -125,7 +125,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
     const activeConvos = new Set<number>();
 
     function getSailingIntro(player: PlayerState): number {
-        return player.getVarbitValue(VARBIT_SAILING_INTRO);
+        return player.varps.getVarbitValue(VARBIT_SAILING_INTRO);
     }
 
     function playShoreConversation(event: NpcInteractionEvent) {
@@ -817,7 +817,7 @@ function setPlayerVarbitAndSend(
     varbitId: number,
     value: number,
 ): void {
-    player.setVarbitValue(varbitId, value);
+    player.varps.setVarbitValue(varbitId, value);
     services.sendVarbit?.(player, varbitId, value);
 }
 
@@ -827,7 +827,7 @@ function setPlayerVarpAndSend(
     varpId: number,
     value: number,
 ): void {
-    player.setVarpValue(varpId, value);
+    player.varps.setVarpValue(varpId, value);
     services.sendVarp?.(player, varpId, value);
 }
 
@@ -984,20 +984,20 @@ function openSailingUi(
     // `script8727` sees %sailing_player_is_on_player_boat == 0 and early-returns
     // without creating the scrollbar or facility content.
     const sidepanelVarbits: Record<number, number> = {
-        [VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT]: player.getVarbitValue(VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT) || 1,
-        [VARBIT_SAILING_BOARDED_BOAT]: player.getVarbitValue(VARBIT_SAILING_BOARDED_BOAT) || 1,
-        [VARBIT_SAILING_BOARDED_BOAT_TYPE]: player.getVarbitValue(VARBIT_SAILING_BOARDED_BOAT_TYPE) || 3,
-        [VARBIT_SAILING_SIDEPANEL_VISIBLE]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_VISIBLE) || 1,
-        [VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB) || 1,
-        [VARBIT_SAILING_SIDEPANEL_PLAYER_ROLE]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_PLAYER_ROLE) || 10,
-        [VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE) || 4,
-        [VARBIT_SAILING_SIDEPANEL_PLAYERS_ON_BOARD_TOTAL]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_PLAYERS_ON_BOARD_TOTAL) || 1,
-        [VARBIT_SAILING_SIDEPANEL_BOAT_HP_MAX]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_BOAT_HP_MAX) || 170,
-        [VARBIT_SAILING_SIDEPANEL_BOAT_HP]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_BOAT_HP) || 170,
-        [VARBIT_SAILING_SIDEPANEL_HELM_STATUS]: player.getVarbitValue(VARBIT_SAILING_SIDEPANEL_HELM_STATUS) || 1,
+        [VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT]: player.varps.getVarbitValue(VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT) || 1,
+        [VARBIT_SAILING_BOARDED_BOAT]: player.varps.getVarbitValue(VARBIT_SAILING_BOARDED_BOAT) || 1,
+        [VARBIT_SAILING_BOARDED_BOAT_TYPE]: player.varps.getVarbitValue(VARBIT_SAILING_BOARDED_BOAT_TYPE) || 3,
+        [VARBIT_SAILING_SIDEPANEL_VISIBLE]: player.varps.getVarbitValue(VARBIT_SAILING_SIDEPANEL_VISIBLE) || 1,
+        [VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB]: player.varps.getVarbitValue(VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB) || 1,
+        [VARBIT_SAILING_SIDEPANEL_PLAYER_ROLE]: player.varps.getVarbitValue(VARBIT_SAILING_SIDEPANEL_PLAYER_ROLE) || 10,
+        [VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE]: player.varps.getVarbitValue(VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE) || 4,
+        [VARBIT_SAILING_SIDEPANEL_PLAYERS_ON_BOARD_TOTAL]: player.varps.getVarbitValue(VARBIT_SAILING_SIDEPANEL_PLAYERS_ON_BOARD_TOTAL) || 1,
+        [VARBIT_SAILING_SIDEPANEL_BOAT_HP_MAX]: player.varps.getVarbitValue(VARBIT_SAILING_SIDEPANEL_BOAT_HP_MAX) || 170,
+        [VARBIT_SAILING_SIDEPANEL_BOAT_HP]: player.varps.getVarbitValue(VARBIT_SAILING_SIDEPANEL_BOAT_HP) || 170,
+        [VARBIT_SAILING_SIDEPANEL_HELM_STATUS]: player.varps.getVarbitValue(VARBIT_SAILING_SIDEPANEL_HELM_STATUS) || 1,
     };
     const sidepanelVarps: Record<number, number> = {
-        [VARP_SAILING_SIDEPANEL_BOAT_TYPE]: player.getVarpValue?.(VARP_SAILING_SIDEPANEL_BOAT_TYPE) ?? 8113,
+        [VARP_SAILING_SIDEPANEL_BOAT_TYPE]: player.varps.getVarpValue?.(VARP_SAILING_SIDEPANEL_BOAT_TYPE) ?? 8113,
     };
 
     services.openSubInterface?.(
@@ -1014,14 +1014,14 @@ function openSailingUi(
         1,
         { modal: false },
     );
-    services.queueClientScript?.(pid, SCRIPT_COMBAT_LEVEL, player.combatLevel ?? 3);
+    services.queueClientScript?.(pid, SCRIPT_COMBAT_LEVEL, player.skillSystem.combatLevel ?? 3);
     services.queueClientScript?.(pid, SCRIPT_CAMERA_BOUNDS, -100, 896, -100, 896);
 }
 
 export function isPlayerOnDockedSailingBoat(player: PlayerState): boolean {
     return (
-        player.getVarbitValue(VARBIT_SAILING_BOARDED_BOAT) === 1 &&
-        player.getVarbitValue(VARBIT_SAILING_BOARDED_BOAT_WORLD) === SAILING_DOCKED_WORLD_ID
+        player.varps.getVarbitValue(VARBIT_SAILING_BOARDED_BOAT) === 1 &&
+        player.varps.getVarbitValue(VARBIT_SAILING_BOARDED_BOAT_WORLD) === SAILING_DOCKED_WORLD_ID
     );
 }
 

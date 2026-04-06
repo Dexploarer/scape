@@ -464,7 +464,7 @@ function getCurrentLeagueAreaUnlockStage(
     const tasksRequiredByStage = getLeagueAreaUnlockTasksRequired(services);
     if (!tasksRequiredByStage) return null;
 
-    const tasksCompleted = player.getVarbitValue?.(VARBIT_LEAGUE_TOTAL_TASKS_COMPLETED) ?? 0;
+    const tasksCompleted = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TOTAL_TASKS_COMPLETED) ?? 0;
     for (let stage = 0; stage < tasksRequiredByStage.length && stage < 5; stage++) {
         const tasksRequired = tasksRequiredByStage[stage];
         if (tasksCompleted < tasksRequired) {
@@ -477,7 +477,7 @@ function getCurrentLeagueAreaUnlockStage(
         }
 
         const slotVarbitId = AREA_SELECTION_VARBITS[stage];
-        const slotValue = player.getVarbitValue?.(slotVarbitId) ?? 0;
+        const slotValue = player.varps.getVarbitValue?.(slotVarbitId) ?? 0;
         if (slotValue === 0) {
             return {
                 stageIndex: stage,
@@ -601,7 +601,7 @@ function isLeagueAreaUnlocked(
     const normalized = normalizeLeagueAreaSelectionValue(regionId);
     if (!(normalized > 0)) return false;
     for (const varbit of AREA_SELECTION_VARBITS) {
-        const stored = normalizeLeagueAreaSelectionValue(player.getVarbitValue?.(varbit) ?? 0);
+        const stored = normalizeLeagueAreaSelectionValue(player.varps.getVarbitValue?.(varbit) ?? 0);
         if (stored === normalized) return true;
     }
     return false;
@@ -611,7 +611,7 @@ function getLeagueTutorialCompleteStep(player: {
     getVarbitValue?: (id: number) => number;
 }): number {
     // Matches [proc,script2449] (2449): league_type 3 -> 14, else 12.
-    const leagueType = player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+    const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
     return leagueType === 3 ? 14 : 12;
 }
 
@@ -633,13 +633,13 @@ export function normalizeSideJournalLeagueState(
     incomingStateVarp?: number,
 ): { tab: number; stateVarp: number } {
     // Keep packed varp 1141 and varbit 8168 aligned, but preserve the selected tab.
-    const prevStateVarp = player.getVarpValue(VARP_SIDE_JOURNAL_STATE);
+    const prevStateVarp = player.varps.getVarpValue(VARP_SIDE_JOURNAL_STATE);
     const baseStateVarp = incomingStateVarp ?? prevStateVarp;
     const decodedTab = decodeSideJournalTabFromStateVarp(baseStateVarp);
     const tab = decodedTab >= 0 && decodedTab <= 4 ? decodedTab : 0;
     const stateVarp = encodeSideJournalTabInStateVarp(baseStateVarp, tab);
-    player.setVarpValue(VARP_SIDE_JOURNAL_STATE, stateVarp);
-    player.setVarbitValue(VARBIT_SIDE_JOURNAL_TAB, tab);
+    player.varps.setVarpValue(VARP_SIDE_JOURNAL_STATE, stateVarp);
+    player.varps.setVarbitValue(VARBIT_SIDE_JOURNAL_TAB, tab);
     return { tab, stateVarp };
 }
 
@@ -666,7 +666,7 @@ export function queueSideJournalLeagueOnlyUi(
 ): void {
     const playerId = player.id;
     const { tab } = normalizeSideJournalLeagueState(player);
-    const leagueType = player.getVarbitValue(VARBIT_LEAGUE_TYPE);
+    const leagueType = player.varps.getVarbitValue(VARBIT_LEAGUE_TYPE);
     const contentGroup =
         tab === 4
             ? getSideJournalLeaguesContentGroupId(leagueType)
@@ -710,10 +710,10 @@ export function applyLeagueTutorialStepFiveUi(
     bridge: Pick<LeagueWsUiBridge, "queueWidgetEvent" | "isWidgetGroupOpenInLedger">,
 ): void {
     const playerId = player.id;
-    const tutorial = player.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
+    const tutorial = player.varps.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
     if (tutorial !== 5) return;
 
-    const leagueType = player.getVarbitValue(VARBIT_LEAGUE_TYPE);
+    const leagueType = player.varps.getVarbitValue(VARBIT_LEAGUE_TYPE);
     const completeStep = leagueType === 3 ? 14 : 12;
     if (tutorial >= completeStep) return;
 
@@ -750,8 +750,8 @@ export function applyLeagueTutorialStepNineUi(
     bridge: Pick<LeagueWsUiBridge, "queueWidgetEvent" | "isWidgetGroupOpenInLedger">,
 ): void {
     const playerId = player.id;
-    const tutorial = player.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
-    const leagueType = player.getVarbitValue(VARBIT_LEAGUE_TYPE);
+    const tutorial = player.varps.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
+    const leagueType = player.varps.getVarbitValue(VARBIT_LEAGUE_TYPE);
     const completeStep = leagueType === 3 ? 14 : 12;
     if (leagueType === 3 || tutorial !== 9 || tutorial >= completeStep) return;
 
@@ -802,15 +802,15 @@ export function queueLeagueTutorialOverlayUi(
     opts?: { queueFlashsideVarbitOnStep3?: boolean },
 ): void {
     const playerId = player.id;
-    const leagueType = player.getVarbitValue(VARBIT_LEAGUE_TYPE);
+    const leagueType = player.varps.getVarbitValue(VARBIT_LEAGUE_TYPE);
     const sideJournalState = normalizeSideJournalLeagueState(player);
-    let flashside = player.getVarbitValue(VARBIT_FLASHSIDE);
+    let flashside = player.varps.getVarbitValue(VARBIT_FLASHSIDE);
 
     if (tutorialStep === 3 && flashside === 0) {
         bridge.queueVarp(playerId, VARP_SIDE_JOURNAL_STATE, sideJournalState.stateVarp);
         bridge.queueVarbit(playerId, VARBIT_SIDE_JOURNAL_TAB, sideJournalState.tab);
         flashside = 3;
-        player.setVarbitValue(VARBIT_FLASHSIDE, flashside);
+        player.varps.setVarbitValue(VARBIT_FLASHSIDE, flashside);
         if (opts?.queueFlashsideVarbitOnStep3) {
             bridge.queueVarbit(playerId, VARBIT_FLASHSIDE, flashside);
         }
@@ -823,7 +823,7 @@ export function queueLeagueTutorialOverlayUi(
         type: 1,
         varps: {
             [VARP_MAP_FLAGS_CACHED]: MAP_FLAGS_LEAGUE_WORLD,
-            [VARP_LEAGUE_GENERAL]: player.getVarpValue(VARP_LEAGUE_GENERAL),
+            [VARP_LEAGUE_GENERAL]: player.varps.getVarpValue(VARP_LEAGUE_GENERAL),
         },
         varbits: {
             [VARBIT_LEAGUE_TYPE]: leagueType,
@@ -841,8 +841,8 @@ export function handleLeagueAreasTutorialCloseViaWidgetClose(
     player: LeagueWsUiPlayer,
     bridge: LeagueWsUiBridge,
 ): void {
-    const tutorial = player.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
-    const leagueType = player.getVarbitValue(VARBIT_LEAGUE_TYPE);
+    const tutorial = player.varps.getVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED);
+    const leagueType = player.varps.getVarbitValue(VARBIT_LEAGUE_TYPE);
     const tutorialCompleteStep = leagueType === 3 ? 14 : 12;
     if (
         leagueType === 3 ||
@@ -853,13 +853,13 @@ export function handleLeagueAreasTutorialCloseViaWidgetClose(
     }
 
     const karamjaUnlocked = AREA_SELECTION_VARBITS.some(
-        (varbitId) => player.getVarbitValue(varbitId) === 2,
+        (varbitId) => player.varps.getVarbitValue(varbitId) === 2,
     );
     const shouldPromoteToRelicStage = tutorial === 7 && karamjaUnlocked;
     const overlayTutorial = shouldPromoteToRelicStage ? 9 : tutorial;
 
     if (shouldPromoteToRelicStage) {
-        player.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, overlayTutorial);
+        player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, overlayTutorial);
         const { value: leagueGeneral } = syncLeagueGeneralVarp(player);
         bridge.queueVarp(player.id, VARP_LEAGUE_GENERAL, leagueGeneral);
         bridge.queueVarbit(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, overlayTutorial);
@@ -873,12 +873,12 @@ export function handleLeagueAreasTutorialCloseViaWidgetClose(
         type: 1,
         varps: {
             [VARP_MAP_FLAGS_CACHED]: MAP_FLAGS_LEAGUE_WORLD,
-            [VARP_LEAGUE_GENERAL]: player.getVarpValue(VARP_LEAGUE_GENERAL),
+            [VARP_LEAGUE_GENERAL]: player.varps.getVarpValue(VARP_LEAGUE_GENERAL),
         },
         varbits: {
             [VARBIT_LEAGUE_TYPE]: leagueType,
             [VARBIT_LEAGUE_TUTORIAL_COMPLETED]: overlayTutorial,
-            [VARBIT_FLASHSIDE]: player.getVarbitValue(VARBIT_FLASHSIDE),
+            [VARBIT_FLASHSIDE]: player.varps.getVarbitValue(VARBIT_FLASHSIDE),
         },
     });
 
@@ -953,7 +953,7 @@ function getLeagueAreaButtonState(
 
     // During the tutorial, Karamja is free - allow unlock regardless of task requirements.
     // Karamja is the first area players actively choose during the tutorial.
-    const tutorialStep = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+    const tutorialStep = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
     const tutorialComplete = getLeagueTutorialCompleteStep(player);
     const inTutorial = tutorialStep < tutorialComplete;
     if (inTutorial && regionId === 2) {
@@ -985,7 +985,7 @@ function tryUnlockLeagueArea(
     if (isLeagueAreaUnlocked(player, regionId)) return { ok: false, reason: "already_unlocked" };
 
     // During the tutorial, Karamja is free - allow unlock regardless of task requirements.
-    const tutorialStep = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+    const tutorialStep = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
     const tutorialComplete = getLeagueTutorialCompleteStep(player);
     const inTutorial = tutorialStep < tutorialComplete;
     const isTutorialKaramja = inTutorial && regionId === 2;
@@ -997,7 +997,7 @@ function tryUnlockLeagueArea(
         if (isTutorialKaramja) {
             // Karamja goes into slot 1 (the second area slot after Misthalin)
             const slotVarbitId = AREA_SELECTION_VARBITS[1];
-            player.setVarbitValue(slotVarbitId, regionId);
+            player.varps.setVarbitValue(slotVarbitId, regionId);
             services.queueVarbit?.(player.id, slotVarbitId, regionId);
             return { ok: true };
         }
@@ -1013,7 +1013,7 @@ function tryUnlockLeagueArea(
         return { ok: false, reason: "not_enough_tasks" };
     }
 
-    player.setVarbitValue(stage.slotVarbitId, regionId);
+    player.varps.setVarbitValue(stage.slotVarbitId, regionId);
     services.queueVarbit?.(player.id, stage.slotVarbitId, regionId);
     return { ok: true };
 }
@@ -1026,50 +1026,50 @@ export function getLeagueVarbits(player: {
 }): Record<number, number> {
     const varbits: Record<number, number> = {
         // These must be present for many league interfaces to initialize (enum_2670 lookup).
-        [VARBIT_LEAGUE_TYPE]: player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0,
+        [VARBIT_LEAGUE_TYPE]: player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0,
         [VARBIT_LEAGUE_TUTORIAL_COMPLETED]:
-            player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0,
+            player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0,
 
         // League Areas UI depends on these.
         [VARBIT_LEAGUE_AREA_LAST_VIEWED]:
-            player.getVarbitValue?.(VARBIT_LEAGUE_AREA_LAST_VIEWED) ?? 0,
+            player.varps.getVarbitValue?.(VARBIT_LEAGUE_AREA_LAST_VIEWED) ?? 0,
         [VARBIT_LEAGUE_AREA_SELECTION_0]:
-            player.getVarbitValue?.(VARBIT_LEAGUE_AREA_SELECTION_0) ?? 0,
+            player.varps.getVarbitValue?.(VARBIT_LEAGUE_AREA_SELECTION_0) ?? 0,
         [VARBIT_LEAGUE_AREA_SELECTION_1]:
-            player.getVarbitValue?.(VARBIT_LEAGUE_AREA_SELECTION_1) ?? 0,
+            player.varps.getVarbitValue?.(VARBIT_LEAGUE_AREA_SELECTION_1) ?? 0,
         [VARBIT_LEAGUE_AREA_SELECTION_2]:
-            player.getVarbitValue?.(VARBIT_LEAGUE_AREA_SELECTION_2) ?? 0,
+            player.varps.getVarbitValue?.(VARBIT_LEAGUE_AREA_SELECTION_2) ?? 0,
         [VARBIT_LEAGUE_AREA_SELECTION_3]:
-            player.getVarbitValue?.(VARBIT_LEAGUE_AREA_SELECTION_3) ?? 0,
+            player.varps.getVarbitValue?.(VARBIT_LEAGUE_AREA_SELECTION_3) ?? 0,
         [VARBIT_LEAGUE_AREA_SELECTION_4]:
-            player.getVarbitValue?.(VARBIT_LEAGUE_AREA_SELECTION_4) ?? 0,
+            player.varps.getVarbitValue?.(VARBIT_LEAGUE_AREA_SELECTION_4) ?? 0,
         [VARBIT_LEAGUE_AREA_SELECTION_5]:
-            player.getVarbitValue?.(VARBIT_LEAGUE_AREA_SELECTION_5) ?? 0,
+            player.varps.getVarbitValue?.(VARBIT_LEAGUE_AREA_SELECTION_5) ?? 0,
         [VARBIT_LEAGUE_TOTAL_TASKS_COMPLETED]:
-            player.getVarbitValue?.(VARBIT_LEAGUE_TOTAL_TASKS_COMPLETED) ?? 0,
+            player.varps.getVarbitValue?.(VARBIT_LEAGUE_TOTAL_TASKS_COMPLETED) ?? 0,
 
         // League Relics UI depends on these selections.
-        [VARBIT_LEAGUE_RELIC_1]: player.getVarbitValue?.(VARBIT_LEAGUE_RELIC_1) ?? 0,
-        [VARBIT_LEAGUE_RELIC_2]: player.getVarbitValue?.(VARBIT_LEAGUE_RELIC_2) ?? 0,
-        [VARBIT_LEAGUE_RELIC_3]: player.getVarbitValue?.(VARBIT_LEAGUE_RELIC_3) ?? 0,
-        [VARBIT_LEAGUE_RELIC_4]: player.getVarbitValue?.(VARBIT_LEAGUE_RELIC_4) ?? 0,
-        [VARBIT_LEAGUE_RELIC_5]: player.getVarbitValue?.(VARBIT_LEAGUE_RELIC_5) ?? 0,
-        [VARBIT_LEAGUE_RELIC_6]: player.getVarbitValue?.(VARBIT_LEAGUE_RELIC_6) ?? 0,
-        [VARBIT_LEAGUE_RELIC_7]: player.getVarbitValue?.(VARBIT_LEAGUE_RELIC_7) ?? 0,
-        [VARBIT_LEAGUE_RELIC_8]: player.getVarbitValue?.(VARBIT_LEAGUE_RELIC_8) ?? 0,
+        [VARBIT_LEAGUE_RELIC_1]: player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_1) ?? 0,
+        [VARBIT_LEAGUE_RELIC_2]: player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_2) ?? 0,
+        [VARBIT_LEAGUE_RELIC_3]: player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_3) ?? 0,
+        [VARBIT_LEAGUE_RELIC_4]: player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_4) ?? 0,
+        [VARBIT_LEAGUE_RELIC_5]: player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_5) ?? 0,
+        [VARBIT_LEAGUE_RELIC_6]: player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_6) ?? 0,
+        [VARBIT_LEAGUE_RELIC_7]: player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_7) ?? 0,
+        [VARBIT_LEAGUE_RELIC_8]: player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_8) ?? 0,
 
         // Combat mastery UIs and the buff bar both read these directly.
-        [VARBIT_LEAGUE_MELEE_MASTERY]: player.getVarbitValue?.(VARBIT_LEAGUE_MELEE_MASTERY) ?? 0,
-        [VARBIT_LEAGUE_RANGED_MASTERY]: player.getVarbitValue?.(VARBIT_LEAGUE_RANGED_MASTERY) ?? 0,
-        [VARBIT_LEAGUE_MAGIC_MASTERY]: player.getVarbitValue?.(VARBIT_LEAGUE_MAGIC_MASTERY) ?? 0,
+        [VARBIT_LEAGUE_MELEE_MASTERY]: player.varps.getVarbitValue?.(VARBIT_LEAGUE_MELEE_MASTERY) ?? 0,
+        [VARBIT_LEAGUE_RANGED_MASTERY]: player.varps.getVarbitValue?.(VARBIT_LEAGUE_RANGED_MASTERY) ?? 0,
+        [VARBIT_LEAGUE_MAGIC_MASTERY]: player.varps.getVarbitValue?.(VARBIT_LEAGUE_MAGIC_MASTERY) ?? 0,
         [VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND]:
-            player.getVarbitValue?.(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND) ?? 0,
+            player.varps.getVarbitValue?.(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND) ?? 0,
         [VARBIT_LEAGUE_MASTERY_POINTS_EARNED]:
-            player.getVarbitValue?.(VARBIT_LEAGUE_MASTERY_POINTS_EARNED) ?? 0,
+            player.varps.getVarbitValue?.(VARBIT_LEAGUE_MASTERY_POINTS_EARNED) ?? 0,
     };
 
     for (const varbitId of LEAGUE_MASTERY_POINT_UNLOCK_VARBITS) {
-        varbits[varbitId] = player.getVarbitValue?.(varbitId) ?? 0;
+        varbits[varbitId] = player.varps.getVarbitValue?.(varbitId) ?? 0;
     }
 
     return varbits;
@@ -1078,11 +1078,11 @@ export function getLeagueVarbits(player: {
 function getLeagueVarpsForPlayer(player: any): Record<number, number> {
     return {
         [VARP_MAP_FLAGS_CACHED]: MAP_FLAGS_LEAGUE_WORLD,
-        [VARP_LEAGUE_GENERAL]: player?.getVarpValue?.(VARP_LEAGUE_GENERAL) ?? 0,
-        [VARP_LEAGUE_POINTS_CLAIMED]: player?.getVarpValue?.(VARP_LEAGUE_POINTS_CLAIMED) ?? 0,
-        [VARP_LEAGUE_POINTS_COMPLETED]: player?.getVarpValue?.(VARP_LEAGUE_POINTS_COMPLETED) ?? 0,
-        [VARP_LEAGUE_POINTS_CURRENCY]: player?.getVarpValue?.(VARP_LEAGUE_POINTS_CURRENCY) ?? 0,
-        [VARP_LEAGUE_TASK_COUNT]: player?.getVarpValue?.(VARP_LEAGUE_TASK_COUNT) ?? 0,
+        [VARP_LEAGUE_GENERAL]: player?.varps.getVarpValue?.(VARP_LEAGUE_GENERAL) ?? 0,
+        [VARP_LEAGUE_POINTS_CLAIMED]: player?.varps.getVarpValue?.(VARP_LEAGUE_POINTS_CLAIMED) ?? 0,
+        [VARP_LEAGUE_POINTS_COMPLETED]: player?.varps.getVarpValue?.(VARP_LEAGUE_POINTS_COMPLETED) ?? 0,
+        [VARP_LEAGUE_POINTS_CURRENCY]: player?.varps.getVarpValue?.(VARP_LEAGUE_POINTS_CURRENCY) ?? 0,
+        [VARP_LEAGUE_TASK_COUNT]: player?.varps.getVarpValue?.(VARP_LEAGUE_TASK_COUNT) ?? 0,
         ...getLeaguePackedVarpsForPlayer(player),
     };
 }
@@ -1099,7 +1099,7 @@ function refreshLeagueSidePanelProgress(
     // Refresh the Leagues side panel (inside the Quest tab) so the "tasks/points until next unlock" messaging
     // updates immediately after unlock actions.
     // the side panel uses league_*_side_panel_update_bar to update both the bar and text.
-    const leagueType = opts?.leagueType ?? player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+    const leagueType = opts?.leagueType ?? player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
     const isL3 = leagueType === 3;
     const panelGroupId = isL3 ? 736 : 656;
     const fillChildId = isL3 ? 10 : 23; // league_3_side_panel:fill / league_side_panel:fill
@@ -1160,16 +1160,16 @@ function queueWidgetFlagsRange(
 
 function ensureLeagueBasicsInitialized(player: any, services: any): void {
     // League interfaces depend on these varbits being set; initialize on demand for older saves.
-    const leagueType = player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+    const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
     if (leagueType <= 0) {
-        player.setVarbitValue(VARBIT_LEAGUE_TYPE, 5);
+        player.varps.setVarbitValue(VARBIT_LEAGUE_TYPE, 5);
         syncLeagueGeneralVarpAndQueue(player, services);
         services.queueVarbit?.(player.id, VARBIT_LEAGUE_TYPE, 5);
     }
 }
 
 function ensureLeagueAreaSelectionsInitialized(player: any, services: any): void {
-    const raw = AREA_SELECTION_VARBITS.map((id) => player.getVarbitValue?.(id) ?? 0);
+    const raw = AREA_SELECTION_VARBITS.map((id) => player.varps.getVarbitValue?.(id) ?? 0);
     const values = raw.map((v) => normalizeLeagueAreaSelectionValue(v));
 
     // Data hygiene for dev servers: fix corrupted/duplicate values from prior bugs so CS2 gating
@@ -1205,8 +1205,8 @@ function ensureLeagueAreaSelectionsInitialized(player: any, services: any): void
         for (let i = 0; i < AREA_SELECTION_VARBITS.length; i++) {
             const varbitId = AREA_SELECTION_VARBITS[i];
             const next = sanitized[i];
-            if ((player.getVarbitValue?.(varbitId) ?? 0) !== next) {
-                player.setVarbitValue(varbitId, next);
+            if ((player.varps.getVarbitValue?.(varbitId) ?? 0) !== next) {
+                player.varps.setVarbitValue(varbitId, next);
                 services.queueVarbit?.(player.id, varbitId, next);
             }
         }
@@ -1226,17 +1226,17 @@ function ensureLeagueAreaSelectionsInitialized(player: any, services: any): void
         for (let i = 0; i < AREA_SELECTION_VARBITS.length; i++) {
             const varbitId = AREA_SELECTION_VARBITS[i];
             const next = desired[i];
-            if ((player.getVarbitValue?.(varbitId) ?? 0) !== next) {
-                player.setVarbitValue(varbitId, next);
+            if ((player.varps.getVarbitValue?.(varbitId) ?? 0) !== next) {
+                player.varps.setVarbitValue(varbitId, next);
                 services.queueVarbit?.(player.id, varbitId, next);
             }
         }
     }
 
     // Also ensure the "last viewed" area varbit is valid so scripts always have a real region id.
-    const lastViewedRaw = player.getVarbitValue?.(VARBIT_LEAGUE_AREA_LAST_VIEWED) ?? 0;
+    const lastViewedRaw = player.varps.getVarbitValue?.(VARBIT_LEAGUE_AREA_LAST_VIEWED) ?? 0;
     if (lastViewedRaw <= 0) {
-        player.setVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED, 1);
+        player.varps.setVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED, 1);
         services.queueVarbit?.(player.id, VARBIT_LEAGUE_AREA_LAST_VIEWED, 1);
     }
 }
@@ -1309,7 +1309,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         const player = event.player;
         console.log(`[league] L5 View Tasks clicked`);
         ensureLeagueBasicsInitialized(player, services);
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
 
         // Close the tutorial modal while Tasks is open during tutorial step 5
         // It will reopen when Tasks closes (via onInterfaceClose hook)
@@ -1355,8 +1355,8 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     const interfaceService = services.getInterfaceService?.();
     if (interfaceService) {
         interfaceService.onInterfaceClose(LEAGUE_TASKS_GROUP_ID, (player) => {
-            const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
-            const leagueType = player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+            const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+            const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
 
             if (tutorial === 5) {
                 // Clear the tasks close button highlight
@@ -1371,7 +1371,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
                 if (leagueType === 3) {
                     // L3 tutorial: Tasks (5) -> Unlocks (8)
-                    player.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 8);
+                    player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 8);
                     syncLeagueGeneralVarpAndQueue(player, services);
                     services.queueVarbit?.(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 8);
 
@@ -1404,7 +1404,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                     );
                 } else {
                     // L5 tutorial: Tasks (5) -> Areas (7)
-                    player.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 7);
+                    player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 7);
                     syncLeagueGeneralVarpAndQueue(player, services);
                     services.queueVarbit?.(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 7);
 
@@ -1446,11 +1446,11 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
         // Register onClose hook for relics interface - tutorial progression happens when modal closes
         interfaceService.onInterfaceClose(LEAGUE_RELICS_GROUP_ID, (player) => {
-            const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+            const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
 
             // Tutorial step 9 -> 11 when closing relics
             if (tutorial === 9) {
-                player.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 11);
+                player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 11);
                 syncLeagueGeneralVarpAndQueue(player, services);
                 services.queueVarbit?.(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 11);
 
@@ -1497,7 +1497,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         try {
             player.gamemodeState.delete("leagueRelicPendingSelection");
         } catch {}
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (tutorial === 9) {
             // Close the tutorial modal while Relics is open
             // It will reopen when Relics closes (via close button handler or onInterfaceClose hook)
@@ -1531,7 +1531,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         // IMPORTANT: Flags must be sent AFTER openSubInterface because openSubInterface
         // internally calls closeSubInterface which clears all flags for the group.
         {
-            const leagueType = event.player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+            const leagueType = event.player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
             const indexMap =
                 leagueType === 3 ? null : getLeagueRelicIndexMap(services, leagueType);
             const maxIndex = indexMap ? indexMap.length : 256;
@@ -1571,7 +1571,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             const relicClickzonesUid =
                 ((LEAGUE_RELICS_GROUP_ID & 0xffff) << 16) |
                 (L5_RELIC_CLICKZONES_CHILD & 0xffff);
-            const leagueType = player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+            const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
             const indexMap = getLeagueRelicIndexMap(services, leagueType);
             if (indexMap) {
                 // Find all tier 0 relics and highlight each one
@@ -1606,7 +1606,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         ensureLeagueAreaSelectionsInitialized(player, services);
 
         // Calculate tutorial state BEFORE opening interface to determine if highlights are needed.
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         const karamjaUnlocked = isLeagueAreaUnlocked(player, 2);
         const needsKaramjaHighlight = tutorial === 7 && !karamjaUnlocked;
         const needsAreasCloseHighlight = tutorial === 7 && karamjaUnlocked;
@@ -1713,7 +1713,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             console.log(`[league] Area clicked: ${area.name} (regionId=${area.regionId})`);
 
             // Allow viewing all areas - they'll show the appropriate button state (Locked/Unlock/Teleport).
-            const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+            const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
             // while %league_tutorial_completed < 9 and Karamja isn't unlocked yet,
             // clicking any non-Karamja area plays the "wrong" sound and does nothing (see proc3662).
             // We must not force-open the detailed view from the server in that case.
@@ -1726,7 +1726,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 return;
             }
 
-            player.setVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED, area.regionId);
+            player.varps.setVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED, area.regionId);
             services.queueVarbit?.(player.id, VARBIT_LEAGUE_AREA_LAST_VIEWED, area.regionId);
 
             const buttonState = getLeagueAreaButtonState(player, services, area.regionId);
@@ -1826,7 +1826,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     // Select/Unlock button - unlock the area if valid
     registry.onButton(LEAGUE_AREAS_GROUP_ID, COMP_SELECT_BUTTON, (event) => {
         const player = event.player;
-        const currentRegionRaw = player.getVarbitValue?.(VARBIT_LEAGUE_AREA_LAST_VIEWED) ?? -1;
+        const currentRegionRaw = player.varps.getVarbitValue?.(VARBIT_LEAGUE_AREA_LAST_VIEWED) ?? -1;
         const currentRegion = normalizeLeagueAreaSelectionValue(currentRegionRaw);
         const unlocked = isLeagueAreaUnlocked(player, currentRegion);
         console.log(
@@ -1840,7 +1840,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
         if (unlocked) {
             // Teleport to the area teleport coord from region_data.
-            const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+            const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
             if (tutorial < getLeagueTutorialCompleteStep(player)) {
                 // Client shows a disabled button during the Leagues tutorial; server enforces too.
                 return;
@@ -1906,7 +1906,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
         // Tutorial: after pressing Unlock, guide the player to the Confirm button.
         // (The confirm overlay is made visible by the local onOp handler: [clientscript,league_area_confirm] 3674.)
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (tutorial === 7 && currentRegion === 2 && state === 2) {
             services.queueWidgetEvent?.(player.id, {
                 action: "run_script",
@@ -1929,7 +1929,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     // This is where OSRS performs the irreversible unlock, not on the initial Unlock click.
     registry.onButton(LEAGUE_AREAS_GROUP_ID, COMP_AREAS_CONFIRM_BUTTON, (event) => {
         const player = event.player;
-        const currentRegionRaw = player.getVarbitValue?.(VARBIT_LEAGUE_AREA_LAST_VIEWED) ?? -1;
+        const currentRegionRaw = player.varps.getVarbitValue?.(VARBIT_LEAGUE_AREA_LAST_VIEWED) ?? -1;
         const currentRegion = normalizeLeagueAreaSelectionValue(currentRegionRaw);
         console.log(`[league] Confirm unlock clicked: regionId=${currentRegion}`);
 
@@ -1952,9 +1952,9 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
             // Leagues tutorial progression: unlocking Karamja promotes to step 9 immediately
             // so reconnects recover directly to relic-stage guidance.
-            const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+            const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
             if (currentRegion === 2 && tutorial === 7) {
-                player.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 9);
+                player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 9);
                 syncLeagueGeneralVarpAndQueue(player, services);
                 services.queueVarbit?.(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 9);
 
@@ -2042,8 +2042,8 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     // Cancel button in unlock confirm overlay (hide overlay, remain on detailed view)
     registry.onButton(LEAGUE_AREAS_GROUP_ID, COMP_AREAS_CANCEL_BUTTON, (event) => {
         const player = event.player;
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
-        const currentRegionRaw = player.getVarbitValue?.(VARBIT_LEAGUE_AREA_LAST_VIEWED) ?? -1;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const currentRegionRaw = player.varps.getVarbitValue?.(VARBIT_LEAGUE_AREA_LAST_VIEWED) ?? -1;
         const currentRegion = normalizeLeagueAreaSelectionValue(currentRegionRaw);
 
         if (tutorial === 7 && currentRegion === 2 && !isLeagueAreaUnlocked(player, 2)) {
@@ -2071,7 +2071,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     // Back button - CS2 handles returning to map view
     registry.onButton(LEAGUE_AREAS_GROUP_ID, COMP_SELECT_BACK, (event) => {
         const player = event.player;
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         console.log(`[league] Back button clicked`);
 
         // CS2 onop handler manages the UI transition.
@@ -2102,7 +2102,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     // transmitted we must still enforce tutorial gating server-side.
     registry.onButton(LEAGUE_AREAS_GROUP_ID, COMP_AREAS_CLOSE_BUTTON, (event) => {
         const player = event.player;
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         const tutorialComplete = getLeagueTutorialCompleteStep(player);
 
         // During the area unlock gate, do not allow closing until Karamja is unlocked.
@@ -2130,7 +2130,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     const onRelicClickzoneView = (event: WidgetActionEvent): void => {
         // Dynamic clickzones: widgetId is 655:22, and the dynamic child index is carried in `slot`.
         const player = event.player;
-        const leagueType = player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+        const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
         console.log(
             `[league] onRelicClickzoneView: widgetId=${event.widgetId} slot=${event.slot} childId=${event.childId} leagueType=${leagueType}`,
         );
@@ -2142,7 +2142,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         }
 
         // Tutorial: Clear all tier 0 relic highlights when any relic is clicked
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (tutorial === 9) {
             // Clear highlights for all tier 0 relics (typically 3)
             for (let i = 0; i < 10; i++) {
@@ -2190,8 +2190,8 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         const tierVarbitId = getRelicSelectionVarbitIdForTier(entry.tierIndex);
         if (!tierVarbitId) return;
 
-        const points = player.getVarpValue?.(VARP_LEAGUE_POINTS_CLAIMED) ?? 0;
-        const selected = player.getVarbitValue?.(tierVarbitId) ?? 0;
+        const points = player.varps.getVarpValue?.(VARP_LEAGUE_POINTS_CLAIMED) ?? 0;
+        const selected = player.varps.getVarbitValue?.(tierVarbitId) ?? 0;
 
         // league_relic_not_available (3194) expects:
         // 0 = not enough points, 1 = already unlocked this relic, 3 = previous tier first, 4 = tier already selected, 2 = available
@@ -2199,7 +2199,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         if (entry.tierIndex > 0) {
             const prevVarbitId = getRelicSelectionVarbitIdForTier(entry.tierIndex - 1);
             if (prevVarbitId) {
-                const prev = player.getVarbitValue?.(prevVarbitId) ?? 0;
+                const prev = player.varps.getVarbitValue?.(prevVarbitId) ?? 0;
                 if (prev === 0) availability = 3;
             }
         }
@@ -2278,7 +2278,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             return;
         }
 
-        const leagueType = player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+        const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
         if (leagueType !== pending.leagueType || leagueType === 3) {
             console.log(
                 `[league] Relic confirm rejected: leagueType mismatch (${leagueType} vs ${pending.leagueType})`,
@@ -2299,7 +2299,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 console.log(`[league] Relic confirm rejected: invalid prev tier varbit`);
                 return;
             }
-            const prev = player.getVarbitValue?.(prevVarbitId) ?? 0;
+            const prev = player.varps.getVarbitValue?.(prevVarbitId) ?? 0;
             if (prev === 0) {
                 console.log(`[league] Relic confirm rejected: previous tier not selected`);
                 return;
@@ -2307,14 +2307,14 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         }
 
         // Tier must not already be selected.
-        const existing = player.getVarbitValue?.(tierVarbitId) ?? 0;
+        const existing = player.varps.getVarbitValue?.(tierVarbitId) ?? 0;
         if (existing !== 0) {
             console.log(`[league] Relic confirm rejected: tier already selected (${existing})`);
             return;
         }
 
         // Points gate.
-        const points = player.getVarpValue?.(VARP_LEAGUE_POINTS_CLAIMED) ?? 0;
+        const points = player.varps.getVarpValue?.(VARP_LEAGUE_POINTS_CLAIMED) ?? 0;
         if (points < pending.tierPointsRequired) {
             console.log(
                 `[league] Relic confirm rejected: not enough points (${points} < ${pending.tierPointsRequired})`,
@@ -2338,7 +2338,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 }
             }
 
-            player.setVarbitValue(tierVarbitId, pending.relicKey);
+            player.varps.setVarbitValue(tierVarbitId, pending.relicKey);
             const packedVarpUpdates = syncLeaguePackedVarps(player);
             queueLeaguePackedVarpUpdates(services, player.id, packedVarpUpdates);
 
@@ -2400,7 +2400,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         });
 
         // Tutorial: show close button highlight after unlocking a relic
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (tutorial === 9) {
             services.queueWidgetEvent?.(player.id, {
                 action: "run_script",
@@ -2628,9 +2628,9 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                     ? VARBIT_LEAGUE_MAGIC_MASTERY
                     : 0;
 
-            const currentLevel = player.getVarbitValue?.(masteryVarbitId) ?? 0;
+            const currentLevel = player.varps.getVarbitValue?.(masteryVarbitId) ?? 0;
             const pointsToSpend =
-                player.getVarbitValue?.(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND) ?? 0;
+                player.varps.getVarbitValue?.(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND) ?? 0;
 
             // Validate: must select tiers in order
             if (pending.tier !== currentLevel + 1) {
@@ -2652,8 +2652,8 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
             // Apply the selection
             const newLevel = currentLevel + 1;
-            player.setVarbitValue(masteryVarbitId, newLevel);
-            player.setVarbitValue(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND, pointsToSpend - 1);
+            player.varps.setVarbitValue(masteryVarbitId, newLevel);
+            player.varps.setVarbitValue(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND, pointsToSpend - 1);
             const packedVarpUpdates = syncLeaguePackedVarps(player);
             queueLeaguePackedVarpUpdates(services, player.id, packedVarpUpdates);
 
@@ -2760,9 +2760,9 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 return;
             }
 
-            const currentLevel = player.getVarbitValue?.(masteryVarbitId) ?? 0;
+            const currentLevel = player.varps.getVarbitValue?.(masteryVarbitId) ?? 0;
             const pointsToSpend =
-                player.getVarbitValue?.(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND) ?? 0;
+                player.varps.getVarbitValue?.(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND) ?? 0;
 
             // Validate: must select tiers in order
             if (pending.tier !== currentLevel + 1) {
@@ -2784,8 +2784,8 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
             // Apply the selection
             const newLevel = currentLevel + 1;
-            player.setVarbitValue(masteryVarbitId, newLevel);
-            player.setVarbitValue(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND, pointsToSpend - 1);
+            player.varps.setVarbitValue(masteryVarbitId, newLevel);
+            player.varps.setVarbitValue(VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND, pointsToSpend - 1);
             const packedVarpUpdates = syncLeaguePackedVarps(player);
             queueLeaguePackedVarpUpdates(services, player.id, packedVarpUpdates);
 
@@ -2858,7 +2858,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         const mainmodalUid = getMainmodalUid(event.player.displayMode);
         const player = event.player;
         ensureLeagueBasicsInitialized(player, services);
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
 
         // Close the tutorial modal while Tasks is open during tutorial step 5
         // It will reopen when Tasks closes (via onInterfaceClose hook)
@@ -2903,7 +2903,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     registry.onButton(LEAGUE_SIDE_PANEL_L3_GROUP_ID, L3_COMP_VIEW_FRAGMENTS, (event) => {
         const mainmodalUid = getMainmodalUid(event.player.displayMode);
         ensureLeagueBasicsInitialized(event.player, services);
-        const tutorial = event.player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = event.player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (tutorial === 10) {
             // L3 tutorial: Fragments -> Finishing (completeStep-1)
             services.queueWidgetEvent?.(event.player.id, {
@@ -2913,7 +2913,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             });
 
             const finishingStep = Math.max(0, getLeagueTutorialCompleteStep(event.player) - 1);
-            event.player.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, finishingStep);
+            event.player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, finishingStep);
             syncLeagueGeneralVarpAndQueue(event.player, services);
             services.queueVarbit?.(
                 event.player.id,
@@ -2936,7 +2936,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     registry.onButton(LEAGUE_SIDE_PANEL_L3_GROUP_ID, L3_COMP_VIEW_UNLOCKS, (event) => {
         const mainmodalUid = getMainmodalUid(event.player.displayMode);
         ensureLeagueBasicsInitialized(event.player, services);
-        const tutorial = event.player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = event.player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (tutorial === 8) {
             // L3 tutorial: Unlocks -> Fragments
             services.queueWidgetEvent?.(event.player.id, {
@@ -2945,7 +2945,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_UNLOCK_BUTTON],
             });
 
-            event.player.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 10);
+            event.player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 10);
             syncLeagueGeneralVarpAndQueue(event.player, services);
             services.queueVarbit?.(event.player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 10);
 
@@ -2989,7 +2989,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     registry.onButton(LEAGUE_TASKS_GROUP_ID, COMP_VIEW_RELICS, (event) => {
         const mainmodalUid = getMainmodalUid(event.player.displayMode);
         const player = event.player;
-        const leagueType = player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+        const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
         const groupId = leagueType === 3 ? LEAGUE_3_FRAGMENTS_GROUP_ID : LEAGUE_RELICS_GROUP_ID;
 
         // Clear any stale pending selection since Tasks can also route into Relics.
@@ -3000,7 +3000,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         // Check tutorial state before opening interface
         const tutorial =
             leagueType !== 3
-                ? player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0
+                ? player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0
                 : 0;
 
         if (tutorial === 9) {

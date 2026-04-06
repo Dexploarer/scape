@@ -56,10 +56,10 @@ export function registerMinimapWidgetHandlers(registry: IScriptRegistry, service
             }
             lastToggleTickByPlayerId.set(pid, currentTick);
 
-            const current = player.getVarbitValue(VARBIT_XPDROPS_ENABLED);
+            const current = player.varps.getVarbitValue(VARBIT_XPDROPS_ENABLED);
             const next = current === 1 ? 0 : 1;
 
-            player.setVarbitValue(VARBIT_XPDROPS_ENABLED, next);
+            player.varps.setVarbitValue(VARBIT_XPDROPS_ENABLED, next);
 
             services.queueWidgetEvent?.(player.id, {
                 action: "set_hidden",

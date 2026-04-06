@@ -422,12 +422,12 @@ export class LoginHandshakeService {
                     }
                     try {
                         if (!this.server.playerPersistence.hasKey(saveKey)) {
-                            p.accountStage = 0;
-                        } else if (!Number.isFinite(p.accountStage)) {
-                            p.accountStage = 1;
+                            p.account.accountStage = 0;
+                        } else if (!Number.isFinite(p.account.accountStage)) {
+                            p.account.accountStage = 1;
                         }
                     } catch {
-                        if (!Number.isFinite(p.accountStage)) p.accountStage = 1;
+                        if (!Number.isFinite(p.account.accountStage)) p.account.accountStage = 1;
                     }
                     try {
                         this.server.gamemode.resolveAccountStage?.(p);
@@ -660,7 +660,7 @@ export class LoginHandshakeService {
                     [7932, 1],
                 ];
                 for (const [varbitId, value] of DIARY_VARBITS) {
-                    p.setVarbitValue(varbitId, value);
+                    p.varps.setVarbitValue(varbitId, value);
                 }
 
                 const handshakeAppearance = p.appearance;
@@ -685,7 +685,7 @@ export class LoginHandshakeService {
                 );
                 this.server.appearanceService.sendAnimUpdate(p);
                 this.server.inventoryService.sendInventorySnapshotImmediate(ws, p);
-                p.requestFullSkillSync();
+                p.skillSystem.requestFullSkillSync();
                 this.server.skillService.sendSkillsSnapshotImmediate(ws, p);
                 this.server.sendCombatState(ws, p);
                 this.server.movementService.sendRunEnergyState(ws, p);
@@ -800,7 +800,7 @@ export class LoginHandshakeService {
 
                     p.displayMode = displayMode;
 
-                    const accountStage = p.accountStage;
+                    const accountStage = p.account.accountStage;
                     const tutorialActive = this.server.gamemode.isTutorialActive(p);
                     const tutorialMode = accountStage >= 1 && tutorialActive;
                     const charCreationMode = accountStage === 0;
@@ -812,7 +812,7 @@ export class LoginHandshakeService {
                     const filteredInterfaces = preStartMode
                         ? interfaces.filter((i: { groupId: number }) => i.groupId !== 629)
                         : interfaces;
-                    const xpDropsEnabled = p.getVarbitValue(VARBIT_XPDROPS_ENABLED) === 1;
+                    const xpDropsEnabled = p.varps.getVarbitValue(VARBIT_XPDROPS_ENABLED) === 1;
                     for (const intf of filteredInterfaces) {
                         const questVarps: Record<number, number> = {};
                         const questVarbits: Record<number, number> = {};
@@ -866,7 +866,7 @@ export class LoginHandshakeService {
                     if (tutorialMode && !preStartMode) {
                         this.server.queueActivateQuestSideTab(p.id);
                     }
-                    if (p.accountStage >= 1 && this.server.gamemode.isTutorialActive(p)) {
+                    if (p.account.accountStage >= 1 && this.server.gamemode.isTutorialActive(p)) {
                         this.server.gamemodeUi?.queueTutorialOverlay(p);
                     }
 
@@ -934,7 +934,7 @@ export class LoginHandshakeService {
                     });
                 }
 
-                if (p.accountStage === 0) {
+                if (p.account.accountStage === 0) {
                     try {
                         const { getMainmodalUid } = require("../widgets/WidgetManager");
                         const targetUid = getMainmodalUid(p.displayMode);
@@ -945,7 +945,7 @@ export class LoginHandshakeService {
                 }
 
                 try {
-                    if (p.accountStage >= 1 && this.server.gamemode.isTutorialActive(p)) {
+                    if (p.account.accountStage >= 1 && this.server.gamemode.isTutorialActive(p)) {
                         const spawn = this.server.gamemode.getSpawnLocation(p);
                         p.teleport(spawn.x, spawn.y, spawn.level);
                     }
@@ -1067,7 +1067,7 @@ export class LoginHandshakeService {
                             p.markAppearanceDirty();
                             this.server.playerAppearanceManager.queueAppearanceSnapshot(p);
 
-                            p.accountStage = 1;
+                            p.account.accountStage = 1;
                             try {
                                 const key = p.__saveKey;
                                 if (key && key.length > 0) {
@@ -1109,7 +1109,7 @@ export class LoginHandshakeService {
                             if (this.server.gamemode.isTutorialActive(p)) {
                                 this.server.gamemodeUi?.queueTutorialOverlay(p, { queueFlashsideVarbitOnStep3: true });
                             } else {
-                                p.accountStage = 2;
+                                p.account.accountStage = 2;
                                 const displayMode = p.displayMode ?? 1;
                                 const { getDefaultInterfaces: getDefIntf } = require("../widgets/WidgetManager");
                                 const allInterfaces = getDefIntf(displayMode);

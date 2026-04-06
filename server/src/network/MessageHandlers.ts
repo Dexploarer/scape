@@ -473,8 +473,8 @@ export function registerMessageHandlers(
         }
 
         // Derive run state from server toggle and input flags
-        const effectiveRun = ctx.player.resolveRequestedRun(
-            resolveRunWithModifier(ctx.player.wantsToRun(), modifierFlags),
+        const effectiveRun = ctx.player.energy.resolveRequestedRun(
+            resolveRunWithModifier(ctx.player.energy.wantsToRun(), modifierFlags),
         );
 
         const nowTick = services.currentTick();
@@ -767,8 +767,8 @@ export function registerMessageHandlers(
                                 Array.isArray(res.waypoints) &&
                                 res.waypoints.length > 0
                             ) {
-                                const run = player.resolveRequestedRun(
-                                    resolveRunWithModifier(player.wantsToRun(), modifierFlags),
+                                const run = player.energy.resolveRequestedRun(
+                                    resolveRunWithModifier(player.energy.wantsToRun(), modifierFlags),
                                 );
                                 services.routePlayer(
                                     ctx.ws,
@@ -975,14 +975,14 @@ export function registerMessageHandlers(
                 if (payload.varbit !== undefined) {
                     const varbitId = payload.varbit;
                     if (varbitId >= 0) {
-                        target.setVarbitValue(varbitId, value);
+                        target.varps.setVarbitValue(varbitId, value);
                         changed = true;
                     }
                 }
                 if (payload.varp !== undefined) {
                     const varpId = payload.varp;
                     if (varpId >= 0) {
-                        target.setVarpValue(varpId, value);
+                        target.varps.setVarpValue(varpId, value);
                         changed = true;
                     }
                 }
@@ -1006,7 +1006,7 @@ export function registerMessageHandlers(
 
 function pickRandomUnownedCollectionLogItemId(player: PlayerState): number | null {
     const candidates = Array.from(getCollectionLogItems()).filter(
-        (itemId) => !player.hasCollectionItem(itemId),
+        (itemId) => !player.collectionLog.hasItem(itemId),
     );
     if (candidates.length <= 0) {
         return null;
@@ -1187,14 +1187,14 @@ function handleQuestCommand(
 
     // Set varp if applicable
     if (quest.varpId >= 0) {
-        sender.setVarpValue(quest.varpId, quest.completionValue);
+        sender.varps.setVarpValue(quest.varpId, quest.completionValue);
         services.queueVarp(sender.id, quest.varpId, quest.completionValue);
     }
 
     // Set varbits if applicable
     if (quest.varbitEntries) {
         for (const { varbitId, value } of quest.varbitEntries) {
-            sender.setVarbitValue(varbitId, value);
+            sender.varps.setVarbitValue(varbitId, value);
             services.queueVarbit(sender.id, varbitId, value);
         }
     }
@@ -1329,8 +1329,8 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     }
 
                     const targetLevel = Math.min(MAX_REAL_LEVEL, Math.max(1, Math.floor(levelArg)));
-                    const previousLevel = sender.getSkill(SkillId.Smithing).baseLevel;
-                    sender.setSkillXp(SkillId.Smithing, getXpForLevel(targetLevel));
+                    const previousLevel = sender.skillSystem.getSkill(SkillId.Smithing).baseLevel;
+                    sender.skillSystem.setSkillXp(SkillId.Smithing, getXpForLevel(targetLevel));
 
                     if (targetLevel > previousLevel) {
                         services.enqueueLevelUpPopup(sender, {
@@ -1381,9 +1381,9 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                         added.push({ itemId: grant.itemId, quantity: grant.quantity });
                     }
 
-                    const beforeMagic = sender.getSkill(SkillId.Magic).baseLevel;
+                    const beforeMagic = sender.skillSystem.getSkill(SkillId.Magic).baseLevel;
                     if (beforeMagic < 49) {
-                        sender.setSkillXp(SkillId.Magic, getXpForLevel(49));
+                        sender.skillSystem.setSkillXp(SkillId.Magic, getXpForLevel(49));
                     }
 
                     services.queueChatMessage({
@@ -1456,12 +1456,12 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                         22, 23,
                     ];
                     const randomSkill = skillIds[Math.floor(Math.random() * skillIds.length)];
-                    const skill = sender.getSkill(randomSkill as SkillId);
+                    const skill = sender.skillSystem.getSkill(randomSkill as SkillId);
                     const currentLevel = skill.baseLevel;
                     const newLevel = Math.min(99, currentLevel + 1);
-                    if (newLevel > currentLevel && sender.setSkillXp) {
+                    if (newLevel > currentLevel && sender.skillSystem.setSkillXp) {
                         const newXp = getXpForLevel(newLevel);
-                        sender.setSkillXp(randomSkill, newXp);
+                        sender.skillSystem.setSkillXp(randomSkill, newXp);
                         services.enqueueLevelUpPopup(sender, {
                             kind: "skill",
                             skillId: randomSkill,
@@ -1498,7 +1498,7 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     }
                 } else if (cmd === "kill") {
                     logger.info(`[cmd] ::kill - Player ${sender.id} killed themselves`);
-                    sender.setHitpointsCurrent(0);
+                    sender.skillSystem.setHitpointsCurrent(0);
                 } else if (
                     root === "standard" ||
                     root === "ancient" ||
@@ -1518,7 +1518,7 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     };
                     const value = SPELLBOOK_VALUES[root]!;
                     // Update server-side state
-                    sender.setVarbitValue(VARBIT_ACTIVE_SPELLBOOK, value);
+                    sender.varps.setVarbitValue(VARBIT_ACTIVE_SPELLBOOK, value);
                     // Transmit varbit to client
                     services.queueVarbit(sender.id, VARBIT_ACTIVE_SPELLBOOK, value);
 

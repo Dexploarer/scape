@@ -30,7 +30,7 @@ function getLeagueTutorialCompleteStep(player: {
     getVarbitValue?: (id: number) => number;
 }): number {
     // Matches [proc,script2449] (2449): league_type 3 -> 14, else 12.
-    const leagueType = player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+    const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
     return leagueType === 3 ? 14 : 12;
 }
 
@@ -54,12 +54,12 @@ export function registerLeagueTutorialWidgetHandlers(registry: IScriptRegistry, 
         }
     };
     const syncSideJournalLeagueStateAndQueue = (player: any): void => {
-        const prevStateVarp = player.getVarpValue?.(VARP_SIDE_JOURNAL_STATE) ?? 0;
+        const prevStateVarp = player.varps.getVarpValue?.(VARP_SIDE_JOURNAL_STATE) ?? 0;
         const decodedTab = decodeSideJournalTabFromStateVarp(prevStateVarp);
         const tab = decodedTab >= 0 && decodedTab <= 4 ? decodedTab : 0;
         const nextStateVarp = encodeSideJournalTabInStateVarp(prevStateVarp, tab);
-        player.setVarpValue?.(VARP_SIDE_JOURNAL_STATE, nextStateVarp);
-        player.setVarbitValue(VARBIT_SIDE_JOURNAL_TAB, tab);
+        player.varps.setVarpValue?.(VARP_SIDE_JOURNAL_STATE, nextStateVarp);
+        player.varps.setVarbitValue(VARBIT_SIDE_JOURNAL_TAB, tab);
         services.queueVarp?.(player.id, VARP_SIDE_JOURNAL_STATE, nextStateVarp);
         services.queueVarbit?.(player.id, VARBIT_SIDE_JOURNAL_TAB, tab);
     };
@@ -67,7 +67,7 @@ export function registerLeagueTutorialWidgetHandlers(registry: IScriptRegistry, 
     // "Exit Leagues" (left) / "Get Started" (right)
     registry.onButton(LEAGUE_TUTORIAL_MAIN_GROUP_ID, COMP_TUTORIAL_BUTTON_LEFT, (event) => {
         const player = event.player;
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (tutorial === TUTORIAL_STEP_WELCOME) {
             // Exit Leagues (OSRS: logs out / leaves league world).
             services.logoutPlayer?.(player, "exit_leagues");
@@ -83,9 +83,9 @@ export function registerLeagueTutorialWidgetHandlers(registry: IScriptRegistry, 
             );
 
             const completeStep = getLeagueTutorialCompleteStep(player);
-            player.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, completeStep);
-            player.setVarbitValue(VARBIT_FLASHSIDE, 0);
-            player.accountStage = 2;
+            player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, completeStep);
+            player.varps.setVarbitValue(VARBIT_FLASHSIDE, 0);
+            player.account.accountStage = 2;
             // Tutorial finished: teleport player to Lumbridge (post-tutorial start area)
             services.teleportPlayer?.(player, 3222, 3218, 0, true);
             // Don't sync VARP_LEAGUE_GENERAL here - it packs the tutorial step and would
@@ -119,7 +119,7 @@ export function registerLeagueTutorialWidgetHandlers(registry: IScriptRegistry, 
 
     registry.onButton(LEAGUE_TUTORIAL_MAIN_GROUP_ID, COMP_TUTORIAL_BUTTON_RIGHT, (event) => {
         const player = event.player;
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (tutorial !== TUTORIAL_STEP_WELCOME) return;
 
         const SIDE_JOURNAL_GROUP_ID = 629;
@@ -131,7 +131,7 @@ export function registerLeagueTutorialWidgetHandlers(registry: IScriptRegistry, 
             : TUTORIAL_STEP_OPEN_JOURNAL;
 
         // Update the varbit BEFORE opening any interfaces
-        player.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, nextStep);
+        player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, nextStep);
         syncLeagueGeneralVarpAndQueue(player);
         services.queueVarbit?.(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, nextStep);
         // Keep packed side-journal state (varp 1141 / varbit 8168) synchronized.
@@ -162,7 +162,7 @@ export function registerLeagueTutorialWidgetHandlers(registry: IScriptRegistry, 
             return;
         } else {
             // Flash the Quest (journal) tab icon to guide the player.
-            player.setVarbitValue(VARBIT_FLASHSIDE, FLASHSIDE_QUEST_TAB);
+            player.varps.setVarbitValue(VARBIT_FLASHSIDE, FLASHSIDE_QUEST_TAB);
             services.queueVarbit?.(player.id, VARBIT_FLASHSIDE, FLASHSIDE_QUEST_TAB);
 
             // Open the Quest tab
@@ -170,7 +170,7 @@ export function registerLeagueTutorialWidgetHandlers(registry: IScriptRegistry, 
             const dm = player.displayMode ?? DisplayMode.RESIZABLE_NORMAL;
             const rootId = getRootInterfaceId(dm);
             const questTabUid = (rootId << 16) | 78; // Quest tab uses childId 78
-            const sideJournalTab = player.getVarbitValue?.(VARBIT_SIDE_JOURNAL_TAB) ?? 0;
+            const sideJournalTab = player.varps.getVarbitValue?.(VARBIT_SIDE_JOURNAL_TAB) ?? 0;
 
             // Register with widget manager for tracking.
             // Include varbits so client's onVarTransmit handlers fire and color the tab.
@@ -188,20 +188,20 @@ export function registerLeagueTutorialWidgetHandlers(registry: IScriptRegistry, 
     registry.onButton(TOPLEVEL_RESIZABLE_GROUP_ID, RESIZABLE_QUESTS_TAB_COMPONENT, (event) => {
         const player = event.player;
         if (player.displayMode === 4) return; // mobile uses a different toplevel
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (
             tutorial !== TUTORIAL_STEP_OPEN_JOURNAL &&
             tutorial !== TUTORIAL_STEP_OPEN_LEAGUES_SUBTAB
         ) {
             return;
         }
-        player.setVarbitValue(
+        player.varps.setVarbitValue(
             VARBIT_LEAGUE_TUTORIAL_COMPLETED,
             TUTORIAL_STEP_OPEN_LEAGUES_SUBTAB,
         );
         syncLeagueGeneralVarpAndQueue(player);
         // Stop flashing the Quest tab now that the journal is open.
-        player.setVarbitValue(VARBIT_FLASHSIDE, 0);
+        player.varps.setVarbitValue(VARBIT_FLASHSIDE, 0);
         services.queueVarbit?.(
             player.id,
             VARBIT_LEAGUE_TUTORIAL_COMPLETED,
@@ -214,19 +214,19 @@ export function registerLeagueTutorialWidgetHandlers(registry: IScriptRegistry, 
     registry.onButton(TOPLEVEL_FIXED_GROUP_ID, FIXED_QUESTS_TAB_COMPONENT, (event) => {
         const player = event.player;
         if (player.displayMode === 4) return; // mobile uses a different toplevel
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (
             tutorial !== TUTORIAL_STEP_OPEN_JOURNAL &&
             tutorial !== TUTORIAL_STEP_OPEN_LEAGUES_SUBTAB
         ) {
             return;
         }
-        player.setVarbitValue(
+        player.varps.setVarbitValue(
             VARBIT_LEAGUE_TUTORIAL_COMPLETED,
             TUTORIAL_STEP_OPEN_LEAGUES_SUBTAB,
         );
         syncLeagueGeneralVarpAndQueue(player);
-        player.setVarbitValue(VARBIT_FLASHSIDE, 0);
+        player.varps.setVarbitValue(VARBIT_FLASHSIDE, 0);
         services.queueVarbit?.(
             player.id,
             VARBIT_LEAGUE_TUTORIAL_COMPLETED,
@@ -239,19 +239,19 @@ export function registerLeagueTutorialWidgetHandlers(registry: IScriptRegistry, 
     registry.onButton(601, 118, (event) => {
         const player = event.player;
         if (player.displayMode !== 4) return;
-        const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (
             tutorial !== TUTORIAL_STEP_OPEN_JOURNAL &&
             tutorial !== TUTORIAL_STEP_OPEN_LEAGUES_SUBTAB
         ) {
             return;
         }
-        player.setVarbitValue(
+        player.varps.setVarbitValue(
             VARBIT_LEAGUE_TUTORIAL_COMPLETED,
             TUTORIAL_STEP_OPEN_LEAGUES_SUBTAB,
         );
         syncLeagueGeneralVarpAndQueue(player);
-        player.setVarbitValue(VARBIT_FLASHSIDE, 0);
+        player.varps.setVarbitValue(VARBIT_FLASHSIDE, 0);
         services.queueVarbit?.(
             player.id,
             VARBIT_LEAGUE_TUTORIAL_COMPLETED,

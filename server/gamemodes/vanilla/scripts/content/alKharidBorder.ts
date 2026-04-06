@@ -574,8 +574,8 @@ export function registerAlKharidBorderHandlers(registry: IScriptRegistry, servic
                 return { ok: false, reason: "position" };
             }
 
-            const wantsRun = event.player.wantsToRun();
-            const shouldRun = event.player.resolveRequestedRun(wantsRun);
+            const wantsRun = event.player.energy.wantsToRun();
+            const shouldRun = event.player.energy.resolveRequestedRun(wantsRun);
             event.player.setWalkDestination(
                 { x: desiredApproachTile.x, y: desiredApproachTile.y },
                 wantsRun,

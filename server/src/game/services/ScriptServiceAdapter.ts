@@ -147,7 +147,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             try { deps.skillService.awardSkillXp(player, skillId as SkillId, Number.isFinite(xp) ? xp : 0); } catch (err) { logger.warn("Failed to award skill XP", err); }
         },
         getSkill: (player, skillId) => {
-            const skill = player.getSkill(skillId);
+            const skill = player.skillSystem.getSkill(skillId);
             return { baseLevel: skill.baseLevel, boost: skill.boost, xp: skill.xp };
         },
 

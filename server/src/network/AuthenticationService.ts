@@ -90,10 +90,10 @@ export class AuthenticationService {
         player: PlayerState,
         sendFn: (varbitId: number, value: number) => void,
     ): void {
-        const raw = player.getVarbitValue(VARBIT_ACCOUNT_TYPE);
+        const raw = player.varps.getVarbitValue(VARBIT_ACCOUNT_TYPE);
         const accountType = this.normalizeAccountType(raw);
         if (accountType !== raw) {
-            player.setVarbitValue(VARBIT_ACCOUNT_TYPE, accountType);
+            player.varps.setVarbitValue(VARBIT_ACCOUNT_TYPE, accountType);
         }
         sendFn(VARBIT_ACCOUNT_TYPE, accountType);
     }

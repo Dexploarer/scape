@@ -79,7 +79,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                 markCooldown(lastPrayTickByPlayer, pid, tick);
                 return;
             }
-            player.setSkillBoost(SkillId.Prayer, baseLevel);
+            player.skillSystem.setSkillBoost(SkillId.Prayer, baseLevel);
             player.resetPrayerDrainAccumulator();
             services.sendGameMessage(player, "You recharge your Prayer points.");
             markCooldown(lastPrayTickByPlayer, pid, tick);

@@ -54,7 +54,7 @@ export class SpellCaster {
         }
 
         // Check magic level requirement
-        const magicSkill = ctx.player.getSkill(SkillId.Magic);
+        const magicSkill = ctx.player.skillSystem.getSkill(SkillId.Magic);
         const baseLevel = magicSkill.baseLevel;
         const boost = magicSkill.boost;
         const magicLevel = Math.max(1, baseLevel + boost);

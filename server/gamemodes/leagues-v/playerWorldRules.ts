@@ -15,12 +15,12 @@ export interface PlayerMovementCapabilities {
 
 export function getActiveLeagueType(player: PlayerWorldRulesState | undefined): number {
     if (!player) return 0;
-    return player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+    return player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
 }
 
 export function isLeagueWorld(player: PlayerWorldRulesState | undefined): boolean {
     if (!player) return false;
-    const mapFlags = player.getVarpValue(VARP_MAP_FLAGS_CACHED);
+    const mapFlags = player.varps.getVarpValue(VARP_MAP_FLAGS_CACHED);
     return (mapFlags & MAP_FLAGS_LEAGUE_WORLD) === MAP_FLAGS_LEAGUE_WORLD;
 }
 

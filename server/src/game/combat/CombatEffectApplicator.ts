@@ -329,8 +329,8 @@ export class CombatEffectApplicator {
     ): HitsplatResult {
         const effect = resolveHitEffect(styleRaw);
         const amount = normalizeHitsplatAmount(amountRaw);
-        const current = player.getHitpointsCurrent();
-        const max = player.getHitpointsMax();
+        const current = player.skillSystem.getHitpointsCurrent();
+        const max = player.skillSystem.getHitpointsMax();
 
         switch (effect.type) {
             case HitEffectType.Block:
@@ -342,8 +342,8 @@ export class CombatEffectApplicator {
                 if (healAmount <= 0) {
                     return { style: HITMARK_HEAL, amount: 0, hpCurrent: current, hpMax: max };
                 }
-                player.applyHitpointsHeal(healAmount);
-                const newCurrent = player.getHitpointsCurrent();
+                player.skillSystem.applyHitpointsHeal(healAmount);
+                const newCurrent = player.skillSystem.getHitpointsCurrent();
                 const healed = Math.max(0, newCurrent - current);
                 return {
                     style: HITMARK_HEAL,
@@ -359,8 +359,8 @@ export class CombatEffectApplicator {
                 if (amount <= 0) {
                     return { style: HITMARK_BLOCK, amount: 0, hpCurrent: current, hpMax: max };
                 }
-                player.applyHitpointsDamage(amount);
-                const newCurrent = player.getHitpointsCurrent();
+                player.skillSystem.applyHitpointsDamage(amount);
+                const newCurrent = player.skillSystem.getHitpointsCurrent();
                 const dealt = Math.max(0, current - newCurrent);
                 if (dealt <= 0) {
                     return {
@@ -425,18 +425,18 @@ export class CombatEffectApplicator {
         combatLevelUp?: { oldLevel: number; newLevel: number };
     } {
         const levelUps: Array<{ skillId: SkillId; oldLevel: number; newLevel: number }> = [];
-        const oldCombatLevel = player.combatLevel;
+        const oldCombatLevel = player.skillSystem.combatLevel;
         const MAX_XP = 200_000_000;
 
         for (const award of awards) {
-            const skill = player.getSkill(award.skillId);
+            const skill = player.skillSystem.getSkill(award.skillId);
             const currentXp = skill.xp;
             const newXp = Math.min(MAX_XP, currentXp + award.xp);
 
             if (newXp > currentXp) {
                 const oldLevel = skill.baseLevel;
-                player.setSkillXp(award.skillId, newXp);
-                const newLevel = player.getSkill(award.skillId).baseLevel;
+                player.skillSystem.setSkillXp(award.skillId, newXp);
+                const newLevel = player.skillSystem.getSkill(award.skillId).baseLevel;
 
                 if (newLevel > oldLevel) {
                     levelUps.push({ skillId: award.skillId, oldLevel, newLevel });
@@ -444,7 +444,7 @@ export class CombatEffectApplicator {
             }
         }
 
-        const newCombatLevel = player.combatLevel;
+        const newCombatLevel = player.skillSystem.combatLevel;
         const combatLevelUp =
             newCombatLevel > oldCombatLevel
                 ? { oldLevel: oldCombatLevel, newLevel: newCombatLevel }
@@ -489,7 +489,7 @@ export class CombatEffectApplicator {
                 if (healFraction > 0) {
                     const healAmount = Math.floor(damageDealt * healFraction);
                     if (healAmount > 0) {
-                        attacker.applyHitpointsHeal(healAmount);
+                        attacker.skillSystem.applyHitpointsHeal(healAmount);
                     }
                 }
             }
@@ -501,9 +501,9 @@ export class CombatEffectApplicator {
                     const restore = Math.floor(damageDealt * prayerFraction);
                     if (restore > 0) {
                         const current = attacker.getPrayerLevel();
-                        const base = attacker.getSkill(SkillId.Prayer).baseLevel;
+                        const base = attacker.skillSystem.getSkill(SkillId.Prayer).baseLevel;
                         const target = Math.min(base, current + restore);
-                        attacker.setSkillBoost(SkillId.Prayer, target);
+                        attacker.skillSystem.setSkillBoost(SkillId.Prayer, target);
                     }
                 }
             }

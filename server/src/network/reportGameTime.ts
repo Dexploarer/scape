@@ -42,7 +42,7 @@ export class ReportGameTimeTracker {
             return;
         }
 
-        const text = formatReportGameTime(player.getSessionPlayTimeSeconds(nowMs));
+        const text = formatReportGameTime(player.account.getSessionPlayTimeSeconds(nowMs));
         if (!force && this.lastTextByPlayer.get(playerId) === text) {
             return;
         }

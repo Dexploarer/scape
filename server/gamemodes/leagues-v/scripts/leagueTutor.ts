@@ -15,7 +15,7 @@ const PARAM_LEAGUE_RELIC_REWARD_OBJ = 2049;
 const ECHO_TOOL_ITEM_IDS = new Set([25110, 25112, 25114, 25115, 25367, 25368, 25373, 25374]);
 
 function getTutorialCompleteStep(player: { getVarbitValue?: (id: number) => number }): number {
-    const leagueType = player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+    const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
     return leagueType === 3 ? 14 : 12;
 }
 
@@ -73,10 +73,10 @@ function findEnumIntValue(enumType: any, key: number): number | undefined {
 }
 
 function resolveTierOneRelicRewardItemId(player: any, services: any): number | undefined {
-    const selectedRelicKey = player.getVarbitValue?.(VARBIT_LEAGUE_RELIC_1) ?? 0;
+    const selectedRelicKey = player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_1) ?? 0;
     if (!(selectedRelicKey > 0)) return undefined;
 
-    const leagueType = player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+    const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
     const enumLoader = services?.getEnumTypeLoader?.() ?? services?.enumTypeLoader;
     const structLoader = services?.getStructTypeLoader?.() ?? services?.structTypeLoader;
     if (!enumLoader?.load || !structLoader?.load) return undefined;
@@ -112,7 +112,7 @@ function resolveTierOneRelicRewardItemId(player: any, services: any): number | u
 }
 
 function reclaimLostEchoTool(player: any, services: any): string[] {
-    const selectedRelicKey = player.getVarbitValue?.(VARBIT_LEAGUE_RELIC_1) ?? 0;
+    const selectedRelicKey = player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_1) ?? 0;
     if (!(selectedRelicKey > 0)) {
         return [
             "You haven't unlocked a tier-1 relic yet.",
@@ -166,7 +166,7 @@ export function registerLeagueTutorHandlers(registry: IScriptRegistry, services:
         if (activeConvos.has(pid)) return;
         activeConvos.add(pid);
 
-        const tutorialStep = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorialStep = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         const completeStep = getTutorialCompleteStep(player);
         const tutorialActive = tutorialStep < completeStep;
 

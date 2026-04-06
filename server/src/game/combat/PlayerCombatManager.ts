@@ -1422,14 +1422,14 @@ export class PlayerCombatManager {
             interaction?.kind === "npcCombat" && interaction.npcId === npcId
                 ? interaction.modifierFlags ?? 0
                 : 0;
-        let run = player.wantsToRun();
+        let run = player.energy.wantsToRun();
         if ((modifierFlags & 1) !== 0) {
             run = !run;
         }
         if (modifierFlags === 3) {
             run = true;
         }
-        return player.resolveRequestedRun(run);
+        return player.energy.resolveRequestedRun(run);
     }
 
     private applyPathSteps(player: PlayerState, steps: { x: number; y: number }[], run: boolean): boolean {

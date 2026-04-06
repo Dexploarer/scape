@@ -382,8 +382,8 @@ export class SoundManager {
         const resolvedTrackName = resolvedTrack?.trackName ?? trackName;
         const currentTrackRowId = resolvedTrack?.rowId ?? -1;
 
-        player.setLastPlayedMusicTrackId(trackId);
-        player.setVarpValue(this.services.getVarpMusicCurrentTrack(), currentTrackRowId);
+        player.varps.setLastPlayedMusicTrackId(trackId);
+        player.varps.setVarpValue(this.services.getVarpMusicCurrentTrack(), currentTrackRowId);
 
         const msg = this.services.encodeMessage({
             type: "play_song",
@@ -458,13 +458,13 @@ export class SoundManager {
             return;
         }
 
-        if (player.getVarpValue(this.services.getVarpMusicPlay()) === 0) {
+        if (player.varps.getVarpValue(this.services.getVarpMusicPlay()) === 0) {
             this.playCurrentAreaTrackForPlayer(player);
         }
     }
 
     skipTrackForPlayer(player: PlayerState): boolean {
-        if (player.getVarpValue(this.services.getVarpMusicPlay()) !== 1) {
+        if (player.varps.getVarpValue(this.services.getVarpMusicPlay()) !== 1) {
             return false;
         }
 
@@ -482,8 +482,8 @@ export class SoundManager {
 
         const currentTrack = this.resolveCurrentMusicTrack(player);
         if (!currentTrack) {
-            player.setVarpValue(this.services.getVarpMusicCurrentTrack(), -1);
-            if (player.getVarpValue(this.services.getVarpMusicPlay()) === 0) {
+            player.varps.setVarpValue(this.services.getVarpMusicCurrentTrack(), -1);
+            if (player.varps.getVarpValue(this.services.getVarpMusicPlay()) === 0) {
                 this.playCurrentAreaTrackForPlayer(player);
                 return;
             }
@@ -491,7 +491,7 @@ export class SoundManager {
             return;
         }
 
-        player.setVarpValue(this.services.getVarpMusicCurrentTrack(), currentTrack.rowId);
+        player.varps.setVarpValue(this.services.getVarpMusicCurrentTrack(), currentTrack.rowId);
         this.syncCurrentMusicUi(player, currentTrack.rowId, currentTrack.trackName);
     }
 
@@ -506,10 +506,10 @@ export class SoundManager {
         players.forEach((sock, player) => {
             try {
                 const currentRegionId = this.getRegionId(player.tileX, player.tileY);
-                const lastRegionId = player.getLastMusicRegionId();
+                const lastRegionId = player.varps.getLastMusicRegionId();
 
                 if (currentRegionId !== lastRegionId) {
-                    player.setLastMusicRegionId(currentRegionId);
+                    player.varps.setLastMusicRegionId(currentRegionId);
 
                     const trackInfo = musicRegionService.getMusicForRegion(currentRegionId);
 
@@ -535,7 +535,7 @@ export class SoundManager {
                         }
 
                         // Only auto-play if in Area mode (varp = 0)
-                        const musicMode = player.getVarpValue(this.services.getVarpMusicPlay());
+                        const musicMode = player.varps.getVarpValue(this.services.getVarpMusicPlay());
                         if (musicMode === 0) {
                             this.playCurrentAreaTrackForPlayer(player, trackInfo);
                         }
@@ -553,7 +553,7 @@ export class SoundManager {
     syncMusicUnlockVarps(player: PlayerState, trackId: number): void {
         const varpId = this.services.getMusicUnlockService()?.getUnlockVarpId(trackId);
         if (varpId !== undefined) {
-            const value = player.getVarpValue(varpId);
+            const value = player.varps.getVarpValue(varpId);
             this.services.queueVarp(player.id, varpId, value);
         }
     }
@@ -575,7 +575,7 @@ export class SoundManager {
         const nextTrack =
             trackInfo ??
             musicRegionService.getMusicForRegion(this.getRegionId(player.tileX, player.tileY));
-        if (!nextTrack || nextTrack.trackId === player.getLastPlayedMusicTrackId()) {
+        if (!nextTrack || nextTrack.trackId === player.varps.getLastPlayedMusicTrackId()) {
             return;
         }
 
@@ -588,7 +588,7 @@ export class SoundManager {
             return undefined;
         }
 
-        const currentTrackRowId = player.getVarpValue(this.services.getVarpMusicCurrentTrack());
+        const currentTrackRowId = player.varps.getVarpValue(this.services.getVarpMusicCurrentTrack());
         if (currentTrackRowId >= 0) {
             const trackByRow = musicCatalog.getTrackByRowId(currentTrackRowId);
             if (trackByRow) {
@@ -596,7 +596,7 @@ export class SoundManager {
             }
         }
 
-        const lastTrackId = player.getLastPlayedMusicTrackId();
+        const lastTrackId = player.varps.getLastPlayedMusicTrackId();
         if (lastTrackId >= 0) {
             return musicCatalog.getTrackByMidiId(lastTrackId);
         }
@@ -626,7 +626,7 @@ export class SoundManager {
         }
 
         const unlockService = this.services.getMusicUnlockService();
-        const currentTrackId = player.getLastPlayedMusicTrackId();
+        const currentTrackId = player.varps.getLastPlayedMusicTrackId();
         const unlockedTracks: MusicCatalogTrackRef[] = [];
 
         for (let slot = 0; slot < musicCatalog.getBaseTrackCount(); slot++) {

@@ -170,9 +170,9 @@ export function registerShopInteractionHandlers(registry: IScriptRegistry, servi
         const auburyHandler = ({ player, services }: any) => {
             const auburyDialogNpcId = 2886; // actual Aubury head model for dialog
             const hasVoucher = player.hasItem(COMBAT_PATH_VOUCHER_ITEM_ID);
-            const claims = player.getVarpValue(COMBAT_PATH_REWARD_VARP);
+            const claims = player.varps.getVarpValue(COMBAT_PATH_REWARD_VARP);
             const claimedCombatRewards = claims >= 1;
-            const hasRuneMysteries = player.getVarpValue(RUNE_MYSTERIES_VARP) >= RUNE_MYSTERIES_COMPLETE_VALUE;
+            const hasRuneMysteries = player.varps.getVarpValue(RUNE_MYSTERIES_VARP) >= RUNE_MYSTERIES_COMPLETE_VALUE;
             const isMembersWorld = false; // TODO: adapt to world type if available
 
             const continueToStandard = () =>
@@ -192,7 +192,7 @@ export function registerShopInteractionHandlers(registry: IScriptRegistry, servi
                         if (airResult.completed < 200 || mindResult.completed < 200) {
                             services.sendGameMessage(player, "Not enough inventory space for the reward items.");
                         }
-                        player.setVarpValue(COMBAT_PATH_REWARD_VARP, 1);
+                        player.varps.setVarpValue(COMBAT_PATH_REWARD_VARP, 1);
 
                         if (!isMembersWorld) {
                             openNpcDialog(

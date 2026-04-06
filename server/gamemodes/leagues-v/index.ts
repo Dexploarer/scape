@@ -16,6 +16,8 @@ import {
     VARP_LEAGUE_POINTS_COMPLETED,
     VARP_LEAGUE_POINTS_CURRENCY,
     VARP_MAP_FLAGS_CACHED,
+    VARP_FEATURE_FLAGS_CACHED,
+    FEATURE_FLAG_LEAGUES,
     VARP_SIDE_JOURNAL_STATE,
 } from "../../../src/shared/vars";
 import type { PlayerState } from "../../src/game/player";
@@ -175,6 +177,12 @@ export class LeaguesVGamemode extends VanillaGamemode {
         // Set map_flags_cached to indicate league world (bit 30 set)
         player.varps.setVarpValue(VARP_MAP_FLAGS_CACHED, MAP_FLAGS_LEAGUE_WORLD);
         bridge.sendVarp(VARP_MAP_FLAGS_CACHED, MAP_FLAGS_LEAGUE_WORLD);
+
+        // Set feature_flags_cached (varp 4920) with bit 1 (leagues) so
+        // CS2 proc feature_flag(1) returns true. Required by
+        // league_combat_mastery_active, league_combat_mastery_passive_active, etc.
+        player.varps.setVarpValue(VARP_FEATURE_FLAGS_CACHED, FEATURE_FLAG_LEAGUES);
+        bridge.sendVarp(VARP_FEATURE_FLAGS_CACHED, FEATURE_FLAG_LEAGUES);
 
         // Set league type and packed league general state
         const leagueType = 5;

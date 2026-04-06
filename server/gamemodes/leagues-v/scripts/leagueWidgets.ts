@@ -46,6 +46,8 @@ import {
     VARP_LEAGUE_POINTS_COMPLETED,
     VARP_LEAGUE_POINTS_CURRENCY,
     VARP_MAP_FLAGS_CACHED,
+    VARP_FEATURE_FLAGS_CACHED,
+    FEATURE_FLAG_LEAGUES,
     VARP_SIDE_JOURNAL_STATE,
 } from "../../../../src/shared/vars";
 import type { WidgetAction } from "../../../src/widgets/WidgetManager";
@@ -1079,6 +1081,7 @@ export function getLeagueVarbits(player: {
 function getLeagueVarpsForPlayer(player: PlayerState): Record<number, number> {
     return {
         [VARP_MAP_FLAGS_CACHED]: MAP_FLAGS_LEAGUE_WORLD,
+        [VARP_FEATURE_FLAGS_CACHED]: FEATURE_FLAG_LEAGUES,
         [VARP_LEAGUE_GENERAL]: player?.varps.getVarpValue?.(VARP_LEAGUE_GENERAL) ?? 0,
         [VARP_LEAGUE_POINTS_CLAIMED]: player?.varps.getVarpValue?.(VARP_LEAGUE_POINTS_CLAIMED) ?? 0,
         [VARP_LEAGUE_POINTS_COMPLETED]: player?.varps.getVarpValue?.(VARP_LEAGUE_POINTS_COMPLETED) ?? 0,
@@ -2672,19 +2675,17 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 } points remaining`,
             );
 
-            const uidForMastery = (childId: number): number =>
-                ((LEAGUE_COMBAT_MASTERY_GROUP_ID & 0xffff) << 16) | (childId & 0xffff);
-
-            // Run the back script to return to mastery list view
+            // OSRS parity: Script 7673 is a tab-switching proc that calls
+            // league_combat_mastery_draw_content (7662) which deletes all dynamic
+            // CCs and recreates them based on current varbits.
+            // Args: (int $tab, int $flag) — matching cc_setonop("script7673(0, 1)")
+            // from league_combat_mastery_tabs_draw.
             services.queueWidgetEvent?.(player.id, {
                 action: "run_script",
-                scriptId: 7673, // league_mastery_back
+                scriptId: 7673,
                 args: [
-                    uidForMastery(8), // view_all
-                    uidForMastery(9), // view_all_scrollbar
-                    uidForMastery(11), // view_one
-                    uidForMastery(10), // loading
-                    uidForMastery(76), // close button
+                    0, // tab 0 = Masteries
+                    1, // redraw flag
                 ],
                 varps: getLeagueVarpsForPlayer(player),
                 varbits: getLeagueVarbits(player),
@@ -2814,17 +2815,17 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 hidden: true,
             });
 
-            // Run the back script to return to mastery list view
-            // Script 7673 = league_mastery_back - closes expanded view and returns to list
+            // OSRS parity: Script 7673 is a tab-switching proc that calls
+            // league_combat_mastery_draw_content (7662) which deletes all dynamic
+            // CCs and recreates them based on current varbits.
+            // This also hides the confirm overlay via draw_content's
+            // if_sethide(true, $confirm).
             services.queueWidgetEvent?.(player.id, {
                 action: "run_script",
-                scriptId: 7673, // league_mastery_back
+                scriptId: 7673,
                 args: [
-                    uidForMastery(8), // view_all
-                    uidForMastery(9), // view_all_scrollbar
-                    uidForMastery(11), // view_one
-                    uidForMastery(10), // loading
-                    uidForMastery(76), // close button
+                    0, // tab 0 = Masteries
+                    1, // redraw flag
                 ],
                 varps: getLeagueVarpsForPlayer(player),
                 varbits: getLeagueVarbits(player),

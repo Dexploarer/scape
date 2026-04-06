@@ -15,7 +15,7 @@ export type NpcMovementUpdate = MovementUpdate & {
     mapBaseX: number;
     mapBaseY: number;
     /**
-     * Mirrors RSNPC.method3656 near-range updates: queue one absolute walk target (class311.field3806)
+     * Near-range updates: queue one absolute walk target
      * when the update carries a destination but no packed direction deltas.
      */
     queueAbsoluteWalk?: boolean;
@@ -81,7 +81,7 @@ export class NpcMovementSync {
         update.subX = resolvedSubX | 0;
         update.subY = resolvedSubY | 0;
 
-        // OSRS parity: `pathX/pathY` are in tile coords (south-west tile for size>1).
+        // `pathX/pathY` are in tile coords (south-west tile for size>1).
         // `subX/subY` include a center offset (size*64) so `sub >> 7` is NOT the same tile for size>1.
         const tileX =
             typeof resolvedTileX === "number"
@@ -118,8 +118,7 @@ export class NpcMovementSync {
             const chebyshev = Math.max(Math.abs(dx), Math.abs(dy)) | 0;
             const queueAbsoluteWalk = update.queueAbsoluteWalk === true;
             if (!forcedTeleport && queueAbsoluteWalk && chebyshev > 0) {
-                // OSRS parity: RSNPC.method3656 near-range add/update uses method2907 with class311.field3806
-                // (one queued walk target to absolute destination).
+                // near-range add/update queues one walk target to absolute destination.
                 const direction = deltaToDirection(Math.sign(dx), Math.sign(dy));
                 if (direction !== undefined) {
                     path = new MovementPath(
@@ -139,7 +138,7 @@ export class NpcMovementSync {
                     path = new MovementPath(effectiveFromTile, toTile, [], true);
                 }
             } else {
-                // OSRS parity: direction-less NPC corrections/resetPath updates do not synthesize routes.
+                // direction-less NPC corrections/resetPath updates do not synthesize routes.
                 // They snap to authoritative coordinates (teleport/reset-path semantics).
                 path = new MovementPath(
                     effectiveFromTile,
@@ -188,20 +187,20 @@ export class NpcMovementSync {
             this.npcEcs.clearStepQueue(ecsIndex);
             this.npcEcs.setWalking(ecsIndex, false);
         } else {
-            // OSRS parity: do not discard in-flight steps; client can be a little behind server and
+            // do not discard in-flight steps; client can be a little behind server and
             // will consume the oldest pending step first (Actor.pathX[pathLength-1]).
             if (path.stepCount > 0) {
                 const baseX = update.mapBaseX | 0;
                 const baseY = update.mapBaseY | 0;
-                // OSRS parity: Center offset depends on NPC size (field1175 = size * 64).
-                // Reference: ClientPacket.java:635 - var2.x = (var2.pathX[0] << 7) + (var2.transformedSize() << 6)
+                // Center offset depends on NPC size (size * 64).
+                // x = (pathX[0] << 7) + (transformedSize() << 6)
                 // Size 1 NPC: offset = 64, Size 2: offset = 128, etc.
                 const npcSize = Math.max(1, this.npcEcs.getSize(ecsIndex) | 0);
                 const centerOffset = (npcSize << 6) | 0; // size * 64
                 for (const step of path.steps) {
                     const worldX = ((step.tile.x | 0) << 7) + centerOffset;
                     const worldY = ((step.tile.y | 0) << 7) + centerOffset;
-                    // OSRS parity: local coords are relative to the current scene base and can exceed a single
+                    // local coords are relative to the current scene base and can exceed a single
                     // 64x64 map-square range while still being in the viewport; clamping here causes desync.
                     const localX = (worldX - baseX) | 0;
                     const localY = (worldY - baseY) | 0;
@@ -244,7 +243,7 @@ export class NpcMovementSync {
         );
 
         if (orientation !== undefined) {
-            // OSRS parity: do not switch desired facing to an upcoming movement segment the
+            // do not switch desired facing to an upcoming movement segment the
             // moment the packet arrives. Normal walking updates let the active segment take
             // over facing as movement begins; forcing targetRot early makes retreating NPCs
             // instantly snap away from their last combat-facing yaw.

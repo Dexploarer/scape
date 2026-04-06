@@ -166,13 +166,12 @@ export class HitsplatOverlay implements Overlay {
             centerWorld[1] = anchorY;
             centerWorld[2] = worldZ;
 
-            // OSRS Parity: Get definition for this hitsplat style to calculate animation
+            // Get definition for this hitsplat style to calculate animation
             const entryType =
                 typeof entry.style === "number" ? this.resolveDefinition(entry.style) : undefined;
             const useType = entryType ?? this.type;
 
-            // OSRS Parity: Secondary hitsplat type (e.g., poison icon with damage)
-            // Reference: class386.java lines 425-431, 525-569, 649-676
+            // Secondary hitsplat type (e.g., poison icon with damage)
             const type2 = (entry.type2 ?? -1) | 0;
             const damage2 = (entry.damage2 ?? 0) | 0;
             const type2Def = type2 >= 0 ? this.resolveDefinition(type2) : undefined;
@@ -186,7 +185,7 @@ export class HitsplatOverlay implements Overlay {
                 }
             } catch {}
 
-            // OSRS Parity: Build secondary text if type2 is valid
+            // Build secondary text if type2 is valid
             let numberText2: string | undefined;
             if (type2Def) {
                 numberText2 = damage2.toString();
@@ -202,18 +201,16 @@ export class HitsplatOverlay implements Overlay {
             if (!Number.isFinite(resolvedScale) || resolvedScale <= 0) continue;
 
             const count = Math.max(1, Math.min(4, (entry.count ?? this.count ?? 1) | 0));
-            // OSRS Parity: Base screen Y offset is -12 pixels (class386.java line 682)
+            // Base screen Y offset is -12 pixels
             const baseTop = -12 * resolvedScale;
             const variantRaw = entry.variant ?? 0;
             const variant = ((variantRaw % order.length) + order.length) % order.length;
 
             const col = (entry.color ?? useType?.textColor ?? 0xffffff) >>> 0;
-            // OSRS Parity: textOffsetY (field2086) is an additional Y offset for text
-            // Reference: class386.java line 685: var69 = var66 + var95.field2086 + 15
+            // textOffsetY is an additional Y offset for text
             const textOffsetY = (useType?.textOffsetY ?? 0) | 0;
 
-            // OSRS Parity: Calculate animation offsets and alpha from animProgress
-            // Reference: class386.drawActor2d lines 678-714
+            // Calculate animation offsets and alpha from animProgress
             // Fade alpha calculated when fadeStartCycle >= 0
             const animProgress = entry.animProgress ?? 0;
             const defXOffset = (useType?.xOffset ?? 0) | 0;
@@ -221,20 +218,13 @@ export class HitsplatOverlay implements Overlay {
             const fadeStartCycle = (useType?.fadeStartCycle ?? -1) | 0;
             const displayCycles = (useType?.displayCycles ?? 70) | 0;
 
-            // OSRS (class386.java lines 679-680):
-            // var63 = field2081 - remainingCycles * field2081 / field2069
-            //       = xOffset * animProgress (starts at 0, ends at xOffset)
-            // var64 = remainingCycles * field2089 / field2069 - field2089
-            //       = yOffset * (1 - animProgress) - yOffset = -yOffset * animProgress
-            //       BUT this means: starts at -yOffset (when progress=0), ends at 0 (when progress=1)
-            // So hitsplat starts BELOW center and rises UP to center position
+            // xOffset lerps from 0 to defXOffset over animation progress.
+            // yOffset starts BELOW center and rises UP to center position.
             const animXOffset = (defXOffset * animProgress) | 0;
             const animYOffset = (-defYOffset * (1 - animProgress)) | 0;
 
-            // OSRS Parity: Calculate fade alpha
-            // Reference: class386.java lines 712-715
-            // var73 = (remainingCycles << 8) / (displayCycles - fadeStartCycle)
-            // remainingCycles = displayCycles * (1 - animProgress)
+            // Calculate fade alpha
+            // Alpha goes from full to 0 as remaining cycles decrease past fadeStartCycle
             let animAlpha = 1.0;
             if (fadeStartCycle >= 0 && displayCycles > fadeStartCycle) {
                 const remainingCycles = displayCycles * (1 - animProgress);
@@ -259,7 +249,7 @@ export class HitsplatOverlay implements Overlay {
 
             for (let i = 0; i < count; i++) {
                 const pIdx = order[(variant + i) % order.length];
-                // OSRS parity: slot offsets and animated x/y offsets are applied in screen
+                // slot offsets and animated x/y offsets are applied in screen
                 // space before the hitsplat box is laid out from its top edge.
                 const cx = ((stackDxBase[pIdx] * resolvedScale) | 0) + animXOffset;
                 const topY = ((stackDyBase[pIdx] * resolvedScale) | 0) + baseTop + animYOffset;
@@ -268,8 +258,8 @@ export class HitsplatOverlay implements Overlay {
                     const lw = (primaryBgParts.left.w * resolvedScale) | 0;
                     const lh = (primaryBgParts.left.h * resolvedScale) | 0;
                     const rw = (primaryBgParts.right.w * resolvedScale) | 0;
-                    // OSRS Parity: Calculate actual total width from sprites, not hardcoded
-                    // Reference: class386.java calculates var51 = left + middle*n + right
+                    // Calculate actual total width from sprites, not hardcoded
+                    // Total width = left + middle*n + right
                     const middleWidth =
                         ((primaryBaseWidth - primaryBgParts.left.w - primaryBgParts.right.w) *
                             resolvedScale) | 0;
@@ -288,7 +278,7 @@ export class HitsplatOverlay implements Overlay {
                     quadVerts[9] = ly + lh;
                     quadVerts[10] = lx + lw;
                     quadVerts[11] = ly;
-                    // OSRS Parity: Apply fade alpha
+                    // Apply fade alpha
                     this.tint[0] = 1.0;
                     this.tint[1] = 1.0;
                     this.tint[2] = 1.0;
@@ -319,7 +309,7 @@ export class HitsplatOverlay implements Overlay {
                         quadVerts[9] = ly + mh;
                         quadVerts[10] = x + w;
                         quadVerts[11] = ly;
-                        // OSRS Parity: Apply fade alpha
+                        // Apply fade alpha
                         this.tint[0] = this.tint[1] = this.tint[2] = 1.0;
                         this.tint[3] = animAlpha;
                         this.positions!.data(quadVerts);
@@ -343,7 +333,7 @@ export class HitsplatOverlay implements Overlay {
                     quadVerts[9] = ly + rh;
                     quadVerts[10] = rx + rw;
                     quadVerts[11] = ly;
-                    // OSRS Parity: Apply fade alpha
+                    // Apply fade alpha
                     this.tint[0] = this.tint[1] = this.tint[2] = 1.0;
                     this.tint[3] = animAlpha;
                     this.positions!.data(quadVerts);
@@ -370,7 +360,7 @@ export class HitsplatOverlay implements Overlay {
                     quadVerts[9] = y + hq;
                     quadVerts[10] = x + w;
                     quadVerts[11] = y;
-                    // OSRS Parity: Apply fade alpha
+                    // Apply fade alpha
                     this.tint[0] = 1.0;
                     this.tint[1] = 1.0;
                     this.tint[2] = 1.0;
@@ -386,7 +376,7 @@ export class HitsplatOverlay implements Overlay {
                     const tw = textInfo.w * resolvedScale;
                     const th = textInfo.h * resolvedScale;
                     const gx = cx - (tw >> 1);
-                    // OSRS parity: text draw Y is a baseline at (top + textOffsetY + 15).
+                    // text draw Y is a baseline at (top + textOffsetY + 15).
                     // The cached texture is built with its baseline at `ascent`.
                     const gy = topY + (15 + textOffsetY - textInfo.ascent) * resolvedScale;
                     quadVerts[0] = gx;
@@ -402,7 +392,7 @@ export class HitsplatOverlay implements Overlay {
                     quadVerts[10] = gx + tw;
                     quadVerts[11] = gy;
                     this.positions!.data(quadVerts);
-                    // OSRS Parity: Apply fade alpha to text as well
+                    // Apply fade alpha to text as well
                     this.tint[0] = this.tint[1] = this.tint[2] = 1.0;
                     this.tint[3] = animAlpha;
                     this.drawCall!.uniform("u_screenSize", this.screenSize)
@@ -411,8 +401,7 @@ export class HitsplatOverlay implements Overlay {
                         .draw();
                 }
 
-                // OSRS Parity: Secondary hitsplat rendering (type2)
-                // Reference: class386.java lines 649-676, 737-757, 778-798
+                // Secondary hitsplat rendering (type2)
                 // Secondary hitsplat renders to the right of primary with 2px gap
                 if (type2Def && numberText2 !== undefined) {
                     // Calculate position: right of primary hitsplat with 2px gap

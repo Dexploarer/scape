@@ -388,7 +388,7 @@ export class MovementService {
         try {
             this.teleportPlayer(player, x, y, level, data.forceRebuild);
 
-            // OSRS parity: teleportPlayer() unconditionally queues a stop
+            // teleportPlayer() unconditionally queues a stop
             // animation (-1).  When preserveAnimation is set (e.g. climbing),
             // the animation was already sent on a previous tick and should
             // continue playing at the new position — clear the -1 so no

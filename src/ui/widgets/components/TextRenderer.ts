@@ -528,13 +528,13 @@ export function drawTextGL(
     const segments = useMarkup ? parseOsrsMarkup(text, color) : [defaultSegment];
     const totalWidth = measureSegmentsWidth(font, segments, inlineImageResolver);
 
-    // OSRS parity: text alignment can overflow widget width (used by runmode 116:30)
+    // text alignment can overflow widget width (used by runmode 116:30)
     // so we expand the cached texture bounds instead of clipping to widget width.
     let txRaw = 0;
-    // OSRS parity: Java integer division truncates toward zero.
+    // Java integer division truncates toward zero.
     if (xAlign === 1) txRaw = ((logicalW - totalWidth) / 2) | 0;
     else if (xAlign === 2) txRaw = logicalW - totalWidth;
-    // OSRS parity: AbstractFont.drawLines vertical alignment (single-line case).
+    // AbstractFont.drawLines vertical alignment (single-line case).
     // Java integer division truncates toward zero — replicate with `| 0`.
     const ascent = (font.maxAscent || font.ascent || 0) | 0;
     const descent = (font.maxDescent || 0) | 0;
@@ -569,7 +569,7 @@ export function wrapTextToWidth(
     for (const para of paragraphs) {
         const p = para;
         const words = p.split(/\s+/);
-        // OSRS parity: whitespace-only paragraphs (e.g. from "Public<br> ")
+        // whitespace-only paragraphs (e.g. from "Public<br> ")
         // must still produce a line so the line count is preserved for centering.
         if (!p.trim()) {
             out.push("");
@@ -580,7 +580,7 @@ export function wrapTextToWidth(
             const w = words[i];
             if (!w) continue;
             if (!cur) {
-                // OSRS parity: single words that don't fit are NOT broken character-by-character.
+                // single words that don't fit are NOT broken character-by-character.
                 // They are kept intact and allowed to overflow/clip. This prevents stat levels
                 // like "99" from being broken into "9" + "9" on separate lines.
                 cur = w;
@@ -660,7 +660,7 @@ export function drawWrappedTextGL(
     const maxAscent = (font.maxAscent ?? font.ascent ?? resolvedLineHeight) | 0;
     const maxDescent = (font.maxDescent ?? 0) | 0;
     const autoWrap = shouldAutoWrapText(logicalH, resolvedLineHeight, maxAscent, maxDescent);
-    // OSRS parity: short text widgets disable automatic wrapping and only honor explicit <br>.
+    // short text widgets disable automatic wrapping and only honor explicit <br>.
     const lines = autoWrap
         ? wrapTextToWidth(text, Math.max(1, logicalW), measure)
         : splitExplicitLineBreaks(text);
@@ -688,17 +688,17 @@ export function drawWrappedTextGL(
         }
     }
 
-    // OSRS parity: x alignment can overflow widget width (e.g. runmode percent text in 116:30).
+    // x alignment can overflow widget width (e.g. runmode percent text in 116:30).
     const lineOffsetsRaw: number[] = new Array(lines.length);
     for (let i = 0; i < lines.length; i++) {
         const tw = lineWidths[i] ?? 0;
         let txRaw = 0;
-        // OSRS parity: Java integer division truncates toward zero.
+        // Java integer division truncates toward zero.
         if (xAlign === 1) txRaw = ((logicalW - tw) / 2) | 0;
         else if (xAlign === 2) txRaw = logicalW - tw;
         lineOffsetsRaw[i] = txRaw;
     }
-    // OSRS parity: AbstractFont.drawLines vertical alignment (multiline).
+    // AbstractFont.drawLines vertical alignment (multiline).
     // Java integer division truncates toward zero — replicate with `| 0`.
     const ascent = (font.maxAscent || font.ascent || 0) | 0;
     const descent = (font.maxDescent ?? 0) | 0;
@@ -793,7 +793,7 @@ export function drawRichTextGL(
         parts.push({ text, color: defaultColor });
     }
 
-    // OSRS parity: AbstractFont.drawLines vertical alignment (single-line case).
+    // AbstractFont.drawLines vertical alignment (single-line case).
     const ascent = (font.maxAscent || font.ascent || 0) | 0;
     const descent = (font.maxDescent || 0) | 0;
     let by = ascent;

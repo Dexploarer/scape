@@ -1780,7 +1780,7 @@ function processServerMessage(msg: any): void {
 
             playerSyncContext.setBase(baseX, baseY);
             playerSyncContext.setLocalIndex(localIndex);
-            // OSRS parity: baseX/baseY are the scene base in *tiles* (8-aligned).
+            // baseX/baseY are the scene base in *tiles* (8-aligned).
             // Local coords are in 0..103 and world = base + local.
             ClientState.baseX = baseX | 0;
             ClientState.baseY = baseY | 0;
@@ -2366,7 +2366,7 @@ function processServerMessage(msg: any): void {
             console.warn("runClientScript handler error", err);
         }
     } else if (msg.type === "if_settext") {
-        // Server-pushed IF_SETTEXT - update widget text (OSRS parity)
+        // Server-pushed IF_SETTEXT - update widget text ()
         try {
             const g: any = (typeof window !== "undefined" ? window : globalThis) as any;
             const mv = g?.__osrsClient;
@@ -2670,10 +2670,10 @@ export function sendBankMove(
 }
 
 /**
- * OSRS parity: Send IF_BUTTOND binary packet for widget drag-to-widget operations.
+ * Send IF_BUTTOND binary packet for widget drag-to-widget operations.
  * Used for bank operations, item rearrangement, etc.
  *
- * Reference: Client.java line 6334 - onDragComplete sends field3250 packet
+ * onDragComplete sends the IF_BUTTOND packet.
  *
  * Packet format (16 bytes):
  * - targetWidgetId: IntLE (4 bytes)
@@ -2869,7 +2869,7 @@ function normalizeWidgetActionPayload(
 }
 
 /**
- * OSRS parity: Map opId (1-10) to IF_BUTTON packet IDs.
+ * Map opId (1-10) to IF_BUTTON packet IDs.
  * Op0 (targetVerb) uses IF_BUTTONT, handled separately.
  */
 const OP_TO_IF_BUTTON: Record<number, number> = {
@@ -2886,8 +2886,8 @@ const OP_TO_IF_BUTTON: Record<number, number> = {
 };
 
 /**
- * OSRS parity: Send widget action as binary IF_BUTTON packet.
- * Reference: class31.java menuAction method - sends IF_BUTTON1-10 packets for widget ops.
+ * Send widget action as binary IF_BUTTON packet.
+ * Sends IF_BUTTON1-10 packets for widget ops.
  *
  * Packet format (8 bytes):
  * - widgetId: int (4 bytes)
@@ -2899,7 +2899,7 @@ export function sendWidgetAction(payload: WidgetActionClientPayload): void {
     if (!normalized) {
         return;
     }
-    // OSRS parity: PlayerDesign (group 679) is client-only. Only the final APPEARANCE_SET packet is sent.
+    // PlayerDesign (group 679) is client-only. Only the final APPEARANCE_SET packet is sent.
     if ((((normalized.widgetId ?? 0) >>> 16) & 0xffff) === 679) {
         return;
     }
@@ -2916,7 +2916,7 @@ export function sendWidgetAction(payload: WidgetActionClientPayload): void {
 
     const pkt = createPacket(packetId);
     pkt.packetBuffer.writeInt(normalized.widgetId);
-    // OSRS parity: For IF_BUTTON packets, slot is 65535 when unused.
+    // For IF_BUTTON packets, slot is 65535 when unused.
     // Using 0 breaks server-side routing that distinguishes "no slot" (static component)
     // from "slot index" (inventory/dynamic child index).
     pkt.packetBuffer.writeShort(normalized.slot ?? 0xffff);
@@ -3001,7 +3001,7 @@ export function sendIfTriggerOpLocal(
 
 /**
  * PlayerDesign (679): send final appearance selection to server.
- * This mirrors OSRS behavior where the client mutates appearance locally while editing,
+ * The client mutates appearance locally while editing,
  * and only transmits the final selection on confirm.
  */
 export function sendPlayerDesignConfirm(appearance: {
@@ -3016,7 +3016,6 @@ export function sendPlayerDesignConfirm(appearance: {
     const { createPacket, queuePacket } = require("./packet");
     const { ClientPacketId } = require("../shared/network/ClientPacketId");
 
-    // OSRS parity: ClientPacket.field3200 (opcode 37, len 13)
     // Payload: gender (1), kits[7] (7, -1=0xff), colors[5] (5)
     const pkt = createPacket(ClientPacketId.APPEARANCE_SET);
     const gender = (appearance.gender | 0) === 1 ? 1 : 0;

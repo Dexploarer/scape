@@ -55,7 +55,7 @@ const PRAYER_FILTER_VARBIT_BY_SLOT = new Map<number, number>([
     [4, VARBIT_PRAYER_FILTER_BLOCK_LOCKED],
 ]);
 
-// OSRS parity: Prayer component ids are cache-driven (Obj param 1751 via script7823 enums),
+// Prayer component ids are cache-driven (Obj param 1751 via script7823 enums),
 // and are not sequential from 5. Prayer buttons are 541:9..37.
 const PRAYER_CHILD_ID_BY_NAME: Record<PrayerName, number> = {
     thick_skin: 9,

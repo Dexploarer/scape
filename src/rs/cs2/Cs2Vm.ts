@@ -214,7 +214,7 @@ export interface Cs2Context {
     requestLogout?: () => void;
     /**
      * Send IF_CLOSE packet to the server.
-     * OSRS parity: class47.method910() sends IF_CLOSE when deferred close executes.
+     * class47.method910() sends IF_CLOSE when deferred close executes.
      */
     sendIfClose?: () => void;
 
@@ -278,7 +278,7 @@ export interface Cs2Context {
     };
 
     // Audio playback (for SOUND_SONG, SOUND_JINGLE, SOUND_SYNTH opcodes)
-    // OSRS parity: SOUND_SONG takes 5 params (trackId, outDelay, outDur, inDelay, inDur)
+    // SOUND_SONG takes 5 params (trackId, outDelay, outDur, inDelay, inDur)
     playSong?: (
         songId: number,
         fadeOutDelay: number,
@@ -470,7 +470,7 @@ export class Cs2Vm {
     tradeChatMode: number = 0;
     messageFilter: string = "";
 
-    // Input dialog state (OSRS parity: Client.field798, Client.field673)
+    // Input dialog state (Client.field798, Client.field673)
     // Type 0 = no dialog active (all widgets can receive input)
     // Type 1 = default/reset state
     // Type 2 = interface-scoped (only widgets in inputDialogWidgetId interface)
@@ -1174,7 +1174,7 @@ export class Cs2Vm {
         objectArgs?: any[],
         maxOpcount: number = Cs2Vm.MAX_OPCOUNT,
     ): void {
-        // OSRS parity: For non-event top-level runs (no active widget context),
+        // For non-event top-level runs (no active widget context),
         // clear any previous event context so opcodes don't see stale event_* values.
         //
         // Event handlers set `activeWidget` (and populate eventContext) before calling into run().
@@ -1245,7 +1245,7 @@ export class Cs2Vm {
     }
 
     queueResize(widget: WidgetNode): void {
-        // OSRS parity: queueing resize from script depth 10+ throws.
+        // queueing resize from script depth 10+ throws.
         if (this.eventDepth >= 10) {
             throw new Error("RuntimeException");
         }
@@ -1345,7 +1345,7 @@ export class Cs2Vm {
         const childIndex = this.intStack[this.intStackSize - 1] | 0;
         this.intStackSize -= 3;
 
-        // OSRS parity (class366.method8291):
+        //  (class366.method8291):
         // - resolve parent by widget UID
         // - if childIndex != -1, resolve child from parent.children[childIndex]
         const groupId = (widgetUid >>> 16) & 0xffff;
@@ -1833,7 +1833,7 @@ export class Cs2Vm {
         // Pop script ID (it was pushed before args)
         const scriptId = this.intStack[--this.intStackSize];
 
-        // OSRS parity: scriptId == -1 means "clear listener" (store null).
+        // scriptId == -1 means "clear listener" (store null).
         if (scriptId === -1) {
             return { handler: null, argsArray: null, transmitTriggers, isClear: true };
         }
@@ -1901,7 +1901,7 @@ export class Cs2Vm {
             widget.eventHandlers = {};
         }
 
-        // OSRS parity: setting/clearing any listener marks the widget as having listeners
+        // setting/clearing any listener marks the widget as having listeners
         widget.hasListener = true;
 
         if (isClear) {
@@ -1944,7 +1944,7 @@ export class Cs2Vm {
         // Parse trigger args (pops signature, args, scriptId, and transmit triggers if 'Y' suffix)
         const parsed = this.parseTriggerArgs();
 
-        // OSRS parity (WidgetDefinition.method8293): UID lookup attempts group load first.
+        //  (WidgetDefinition.method8293): UID lookup attempts group load first.
         const groupId = (uid >>> 16) & 0xffff;
         this.context.widgetManager.getGroup(groupId);
         const widget = this.context.widgetManager.getWidgetByUid(uid);

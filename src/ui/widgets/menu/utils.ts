@@ -139,7 +139,7 @@ export function getWidgetTargetLabelForMenu(w: any): string {
     return "";
 }
 
-// OSRS parity: spell selection verb comes from Widget.spellActionName.
+// spell selection verb comes from Widget.spellActionName.
 // Runtime code may mirror this into targetVerb, but spellActionName is the canonical source.
 function getWidgetTargetVerb(w: any, targetMask: number): string | undefined {
     const targetVerb = sanitizeText(w?.targetVerb);
@@ -148,7 +148,7 @@ function getWidgetTargetVerb(w: any, targetMask: number): string | undefined {
     return sanitizeText(w?.spellActionName);
 }
 
-// OSRS parity: "pause button" widgets (e.g., "Click here to continue") are clickable even when they have
+// "pause button" widgets (e.g., "Click here to continue") are clickable even when they have
 // no explicit actions/handlers in the widget definition. In the official client these send RESUME_PAUSEBUTTON.
 // Reference: class304.method5978 - (flags & 1) != 0
 // Reference: WorldMapSprite.java line 128 - only checks flags, no text-based fallback
@@ -160,7 +160,7 @@ export function isPauseButtonWidget(
     _getWidgetByUid?: (uid: number) => any, // kept for API compatibility
 ): boolean {
     if (!w) return false;
-    // OSRS parity: Look up flags for this widget directly.
+    // Look up flags for this widget directly.
     // For static widgets: key = (uid << 32) | 0
     // For dynamic widgets: key = (parentUid << 32) | childIndex
     const flags =
@@ -170,7 +170,7 @@ export function isPauseButtonWidget(
 
 // Derive menu entries from widget actions[] and targetVerb.
 // If onlyBasic is true, only return Cancel (used when custom entries are provided)
-// OSRS parity: Menu options are only shown if:
+// Menu options are only shown if:
 // 1. The transmit flag for that action is set (bits 1-10), OR
 // 2. The widget has an onOp handler
 // Reference: HealthBarUpdate.java method2496
@@ -198,7 +198,7 @@ export function deriveMenuEntriesForWidget(
     // Check if widget has onOp handler (either new or old style)
     const hasOnOpHandler = !!(w?.onOp || w?.eventHandlers?.onOp);
 
-    // OSRS parity: inventory/container item menus treat targetVerb ("Use") as its own entry,
+    // inventory/container item menus treat targetVerb ("Use") as its own entry,
     // not as a placeholder that fills empty action slots. Filling null action slots causes
     // "Use" to appear above the primary item action (e.g., Staff of air: Use, Wield, ...),
     // which is incorrect (should be Wield, Use, ...).
@@ -212,7 +212,7 @@ export function deriveMenuEntriesForWidget(
         const ops: Array<{ text: string; index: number }> = [];
         for (let i = 0; i < actions.length; i++) {
             const p = sanitizeText(actions[i]);
-            // OSRS parity: Only include action if transmit flag is set OR widget has onOp handler
+            // Only include action if transmit flag is set OR widget has onOp handler
             // Reference: HealthBarUpdate.java method2496 - (flags >> (actionIndex + 1) & 1) != 0 || onOp != null
             if (p && shouldShowMenuOption(flags, i, hasOnOpHandler)) {
                 ops.push({ text: p, index: i });
@@ -238,13 +238,13 @@ export function deriveMenuEntriesForWidget(
         const ops: string[] = [];
         for (let i = 0; i < actions.length; i++) {
             const p = sanitizeText(actions[i]);
-            // OSRS parity: Only include action if transmit flag is set OR widget has onOp handler
+            // Only include action if transmit flag is set OR widget has onOp handler
             if (shouldShowMenuOption(flags, i, hasOnOpHandler)) {
                 if (p) ops.push(p);
                 else if (verb) ops.push(verb);
             }
         }
-        // OSRS parity: spell action (buttonType=2 / spellActionName) is an explicit menu entry,
+        // spell action (buttonType=2 / spellActionName) is an explicit menu entry,
         // not just a placeholder for empty op slots.
         if (ops.length === 0 && verb) {
             ops.push(verb);
@@ -253,9 +253,9 @@ export function deriveMenuEntriesForWidget(
     } else {
         if (verb) entries.push({ option: verb, target });
     }
-    // OSRS parity: widget menus use configured ops (actions + flags + handlers).
+    // widget menus use configured ops (actions + flags + handlers).
     // Do not synthesize fallback Examine options for item widgets here.
-    // OSRS parity: Pause button widgets (flags & 1) show "Continue" with empty target
+    // Pause button widgets (flags & 1) show "Continue" with empty target
     // Reference: WorldMapSprite.java line 128-129
     // This is added after ops are checked, only if no other actionable entries exist
     const hasActionableEntry = entries.some(
@@ -444,7 +444,7 @@ export function findDropTarget(
         if (inRect(x, y, width, height) && inClip(clip)) {
             const flags = getWidgetFlags(w) | 0;
             const canReceiveDrop = isDropTarget(flags);
-            // OSRS parity: Multiple mechanisms make a widget a valid drop target:
+            // Multiple mechanisms make a widget a valid drop target:
             // 1. Bit 20 of flags set (explicit drop capability)
             // 2. onTargetEnter/onTargetLeave/onDragComplete handlers (receives drag events)
             // 3. isDraggable widgets (can both drag and receive drops from similar widgets)
@@ -495,9 +495,9 @@ export function findDropTarget(
 
 // Collect widgets under a point, returning from bottom to top (last is topmost)
 // Also stores _absX and _absY on each hit widget for event coordinate calculation
-// OSRS parity: getStaticChildren callback for parentUid filtering
-// OSRS parity: noClickThrough flag blocks widgets behind from receiving click events
-// OSRS parity: getInterfaceParentRoots callback for traversing InterfaceParent mounted sub-interfaces
+// getStaticChildren callback for parentUid filtering
+// noClickThrough flag blocks widgets behind from receiving click events
+// getInterfaceParentRoots callback for traversing InterfaceParent mounted sub-interfaces
 // Reference: WorldMapRegion.java lines 1451-1468
 export function collectWidgetsAtPoint(
     root: any,
@@ -582,7 +582,7 @@ export function collectWidgetsAtPoint(
             const cx = x - ((w.scrollX as number) || 0);
             const cy = y - ((w.scrollY as number) || 0);
 
-            // OSRS parity: traverse static children (via parentUid filtering)
+            // traverse static children (via parentUid filtering)
             if (getStaticChildren) {
                 const staticChildren = getStaticChildren(uid);
                 for (const c of staticChildren) visit(c, cx, cy, childClip);
@@ -803,7 +803,7 @@ export function shouldBlockScrollThrough(
 // Collect ALL visible widgets with onKey handlers from a tree
 // OSRS dispatches key events to all widgets with onKey handlers, not just mouse-hovered ones
 // Also stores _absX and _absY on each widget for event coordinate calculation
-// OSRS parity: getStaticChildren callback for parentUid filtering
+// getStaticChildren callback for parentUid filtering
 export function collectWidgetsWithKeyHandlers(
     root: any,
     visible: Map<number, boolean>,
@@ -826,7 +826,7 @@ export function collectWidgetsWithKeyHandlers(
         }
         const cx = x - ((w.scrollX as number) || 0);
         const cy = y - ((w.scrollY as number) || 0);
-        // OSRS parity: traverse static children (via parentUid filtering)
+        // traverse static children (via parentUid filtering)
         if (getStaticChildren) {
             const staticChildren = getStaticChildren(uid);
             for (const c of staticChildren) visit(c, cx, cy);

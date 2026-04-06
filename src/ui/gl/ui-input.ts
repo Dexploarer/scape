@@ -85,7 +85,7 @@ export class UIInputBridge {
             }
         }
 
-        // OSRS parity: release is tracked by clickMode2 (held state), not clickMode3 (pulse).
+        // release is tracked by clickMode2 (held state), not clickMode3 (pulse).
         // clickMode3 returns to NONE the frame after mousedown even while held.
         if (this.lastClickMode2 === ClickMode.LEFT && clickMode2 === ClickMode.NONE) {
             if (!this.suppressUpUntilRelease) {

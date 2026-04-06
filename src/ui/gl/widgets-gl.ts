@@ -446,7 +446,7 @@ type CachedClickTarget = {
     hoverText?: string;
     primaryOption?: { option: string; target?: string };
     /**
-     * OSRS parity: number of minimenu options for this hover target (including Cancel).
+     * number of minimenu options for this hover target (including Cancel).
      * Used by CS2 minimenu_* opcodes via ClientOps snapshot logic.
      */
     menuOptionsCount?: number;
@@ -1041,11 +1041,11 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         input.setMenuHandler((x: number, y: number) => {
             const canvas = glr.canvas as HTMLCanvasElement & { __ui?: any };
             const ui = (canvas.__ui = canvas.__ui || {});
-            // OSRS parity: callback for static children lookup
+            // callback for static children lookup
             const getStaticChildren = osrsClientRef?.widgetManager
                 ? (uid: number) => osrsClientRef.widgetManager.getStaticChildrenByParentUid(uid)
                 : undefined;
-            // OSRS parity: callback for InterfaceParent traversal (mounted sub-interfaces).
+            // callback for InterfaceParent traversal (mounted sub-interfaces).
             // Mounted interfaces are separate widget trees rendered at the container's (x,y)
             // and clipped to the container bounds. They do NOT scroll with the container.
             const getInterfaceParentRoots = osrsClientRef?.widgetManager
@@ -1067,8 +1067,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 typeof osrsClientRef.widgetManager.getWidgetByUid === "function"
                     ? (uid: number) => osrsClientRef.widgetManager.getWidgetByUid(uid)
                     : undefined;
-            // OSRS parity: callback for widget flags lookup with IF_SETEVENTS overrides applied.
-            // Reference: class405.getWidgetFlags uses (childIndex + (id << 32)) as key to Client.widgetFlags.
+            // callback for widget flags lookup with IF_SETEVENTS overrides applied.
             // Without this callback, menu option visibility checks would only use base flags from cache,
             // missing runtime flag overrides from IF_SETEVENTS (e.g., equipment Remove action transmit flags).
             const getWidgetFlags =
@@ -1221,7 +1220,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                         }
 
                         const itemTarget = itemName ? `<col=ff9040>${itemName}` : "";
-                        // OSRS parity: spell-on-item entry uses selectedSpellActionName as the option
+                        // spell-on-item entry uses selectedSpellActionName as the option
                         // and "selectedSpellName -> <col=ff9040>item" as target text.
                         const spellAction = ClientState.selectedSpellActionName || "Cast";
                         const spellName = ClientState.selectedSpellName || "";
@@ -1358,7 +1357,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
     // Helpers
     function findWidgetLocal(w: Widget, gid: number, fid: number): Widget | undefined {
         if (w.groupId === gid && w.fileId === fid) return w;
-        // Check static children (via parentUid filtering - OSRS parity)
+        // Check static children (via parentUid filtering - )
         const staticChildren = widgetManager?.getStaticChildrenByParentUid(w.uid) ?? [];
         for (const c of staticChildren) {
             if (c != null) {
@@ -1551,7 +1550,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         debugRects.length = 0; // Clear without reallocating
     }
 
-    // OSRS parity: dragged widgets are rendered last (on top of other UI elements).
+    // dragged widgets are rendered last (on top of other UI elements).
     // PERF: Cache deferredDragged array on canvas instead of creating new one each frame
     type DeferredDraggedEntry = {
         w: Widget;
@@ -1786,7 +1785,6 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
 
     /**
      * OSRS PARITY: Check if widget is hidden.
-     * Reference: class59.isComponentHidden - just returns var0.isHidden
      *
      * Note: Parent visibility propagates naturally through the recursive rendering -
      * if a parent is hidden, drawNode returns early and children are never visited.
@@ -1794,7 +1792,6 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
      */
     function isComponentHidden(w: Widget): boolean {
         // OSRS PARITY: Only check this widget's visibility, not parents
-        // Reference: class59.java line 828: return var0.isHidden
         if (opts.visible.get(w.uid) === false) return true;
         if (w.hidden) return true;
 
@@ -1832,7 +1829,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         try {
             const ct = ((w.contentType ?? 0) | 0) as number;
             if (ct === 324 || ct === 325) {
-                // OSRS parity: gender toggle sprites depend on Client.playerAppearance.gender.
+                // gender toggle sprites depend on Client.playerAppearance.gender.
                 // Reference: class326.method6261 for contentType 324/325.
                 // PlayerDesign can be shown before a world player exists; use the CS2 varbit mirror.
                 // varbit 14021 (player_design_bodytype) is set to gender (0/1) by the client.
@@ -1854,7 +1851,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     gender = 0;
                 }
 
-                // Cache the original sprite IDs once (like Client.field736/field787).
+                // Cache the original sprite IDs once.
                 const anyClient = osrsClient as any;
                 if (anyClient) {
                     if (
@@ -1903,7 +1900,6 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         const isIf3 = w.isIf3 !== false;
 
         // OSRS PARITY: Check widget visibility
-        // Reference: UserComparator5.java line 88: if (!var10.isIf3 || !class59.isComponentHidden(var10))
         // IF1 widgets: Always enter the render block (visibility checked later for containers)
         // IF3 widgets: Skip if hidden
         const prepVisibilityStartMs = profileWidgetRender ? performance.now() : 0;
@@ -2022,7 +2018,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             boundsMs += performance.now() - boundsStartMs;
         }
 
-        // OSRS parity: draw dragged widget last so it appears above everything else.
+        // draw dragged widget last so it appears above everything else.
         // Preserve clip/offset so it still respects the same scissor bounds.
         // IMPORTANT: Scrollbar widgets (dragRenderBehaviour=1) should NOT be deferred.
         // They must render inline to maintain proper z-order with sibling sprites
@@ -2103,7 +2099,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 menuDeriveWidgets++;
             }
 
-            // OSRS parity: Use widgetManager.getWidgetFlags for IF_SETEVENTS override lookup.
+            // Use widgetManager.getWidgetFlags for IF_SETEVENTS override lookup.
             // Without this, equipment slots won't show "Remove" if flags are only set via IF_SETEVENTS.
             const getWidgetFlagsLocal = widgetManager ? getCachedWidgetFlags : undefined;
             const clickDeriveStartMs = profileWidgetRender ? performance.now() : 0;
@@ -2174,8 +2170,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     }
                 }
 
-                // OSRS parity: Pause button widgets show "Continue" with empty target
-                // Reference: WorldMapSprite.java line 128-129
+                // Pause button widgets show "Continue" with empty target
                 if (interaction.isPauseButtonWidget && !primaryOptionText) {
                     primaryOptionText = "Continue";
                     primaryTarget = undefined;
@@ -2252,7 +2247,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     target.rect.w = width;
                     target.rect.h = height;
                     target.hoverText = primaryOptionText;
-                    // OSRS parity: left-click primary actions are handled by OsrsClient.handleUiInput,
+                    // left-click primary actions are handled by OsrsClient.handleUiInput,
                     // not by the GL click registry. Ensure any previously-set handlers are cleared.
                     target.onDown = undefined;
                     target.onClick = undefined;
@@ -2745,7 +2740,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     clicks.register({
                         id: `minimap:click-to-walk`,
                         rect: { x, y, w: width, h: height },
-                        // OSRS parity: minimap click-to-walk should not steal clicks from widgets
+                        // minimap click-to-walk should not steal clicks from widgets
                         // rendered on top of the minimap (orbs, buttons). Keep below widget targets.
                         priority: 90,
                         persist: false,
@@ -3087,7 +3082,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             if (renderItemSprite) {
                 const qty = (w.itemQuantity ?? 1) | 0;
                 const qtyMode = (w.itemQuantityMode ?? 2) | 0;
-                // OSRS parity: selected items render with outline=2 (white).
+                // selected items render with outline=2 (white).
                 const itemOutline =
                     (isSelectedHere ? Math.max(2, borderType | 0) : borderType | 0) | 0;
                 const itemTex = tc.getItemIconById(itemId, qty, itemOutline, spriteShadow, qtyMode);
@@ -3129,7 +3124,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 ? glr.getPerfCounters().textureDrawCalls
                 : 0;
             modelWidgets++;
-            // OSRS parity: IF1 widgets use CS1 to choose model/sequence secondary fields.
+            // IF1 widgets use CS1 to choose model/sequence secondary fields.
             const cs1Result = runCs1(w, widgetManager);
             const modelId = ((cs1Result ? w.modelId2 : w.modelId) ?? -1) | 0;
             let rx = (w.rotationX ?? 0) | 0; // 0..2047
@@ -3138,7 +3133,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             const rawSeqId = (cs1Result ? w.sequenceId2 : w.sequenceId) ?? -1;
             let sequenceId =
                 typeof rawSeqId === "number" && rawSeqId >= 0 ? rawSeqId | 0 : undefined;
-            // OSRS parity: contentType=328 (modelType=5, modelId=1) renders via
+            // contentType=328 (modelType=5, modelId=1) renders via
             // localPlayer.getModelInternal() which bakes in the live idle animation.
             // Inject the local player's movement sequence so the widget model animates.
             let liveMovementFrame: number | undefined;
@@ -3190,7 +3185,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 const itemId = w.itemId;
                 if (typeof itemId === "number" && itemId >= 0) {
                     const zUnitsX = (w as any).modelZoomWidthUnits | 0 || 0;
-                    // OSRS parity: only width-based units are used; fallback is rawWidth
+                    // only width-based units are used; fallback is rawWidth
                     if (zUnitsX > 0) zoom = Math.max(1, Math.floor((zoom * 32) / zUnitsX));
                     else if ((w.rawWidth ?? 0) > 0)
                         zoom = Math.max(1, Math.floor((zoom * 32) / (w.rawWidth ?? 1)));
@@ -3200,7 +3195,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             // Only cache static models (no animation)
             const isAnimated = sequenceId !== undefined && sequenceId >= 0;
             const appearanceKey = (() => {
-                // OSRS parity: modelType=7 widgets render a PlayerComposition clone; cache must vary by appearance.
+                // modelType=7 widgets render a PlayerComposition clone; cache must vary by appearance.
                 try {
                     const isPlayerModel =
                         ((w.contentType ?? 0) | 0) === 328 ||
@@ -3219,7 +3214,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     const localAppearance =
                         idx !== undefined ? playerEcs?.getAppearance?.(idx) : undefined;
 
-                    // OSRS parity: contentType=328 is the local-player model. Prefer ECS appearance
+                    // contentType=328 is the local-player model. Prefer ECS appearance
                     // so server-driven appearance changes reflect even if widget has stale snapshot.
                     let app: any;
                     if (((w.contentType ?? 0) | 0) === 328) {
@@ -3374,9 +3369,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         } else if (w.type === 9) {
             const lineStartMs = profileWidgetRender ? performance.now() : 0;
             // OSRS PARITY: Type 9 = Line widget
-            // Reference: UserComparator5.java lines 547-564
+            // Type 9 = Line widget
             // Lines are defined by start point (x, y) and end point (x+width, y+height)
-            // lineDirection (field3735): determines diagonal direction
+            // lineDirection determines diagonal direction:
             //   true = line from (x, y+height) to (x+width, y) (bottom-left to top-right)
             //   false = line from (x, y) to (x+width, y+height) (top-left to bottom-right)
             // lineWid: thickness of the line (1 = single pixel, >1 uses thick line drawing)
@@ -3392,16 +3387,16 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             const b = (lineColor & 0xff) / 255;
             const a = 1; // Lines are fully opaque
 
-            // Calculate line endpoints based on lineDirection (field3735)
+            // Calculate line endpoints based on lineDirection
             let x1: number, y1: number, x2: number, y2: number;
             if (lineDir) {
-                // field3735 = true: bottom-left to top-right diagonal
+                // lineDirection = true: bottom-left to top-right diagonal
                 x1 = x;
                 y1 = y + height;
                 x2 = x + width;
                 y2 = y;
             } else {
-                // field3735 = false: top-left to bottom-right diagonal
+                // lineDirection = false: top-left to bottom-right diagonal
                 x1 = x;
                 y1 = y;
                 x2 = x + width;
@@ -3463,7 +3458,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 if (typeof w.mouseOverColor === "number") effectiveColor = w.mouseOverColor;
             }
 
-            // OSRS parity: Show "Please wait..." for the continue button being processed
+            // Show "Please wait..." for the continue button being processed
             // Reference: UserComparator5.java line 341-343
             if (widgetManager?.meslayerContinueWidget === w) {
                 effectiveText = "Please wait...";
@@ -3500,7 +3495,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 textMs += performance.now() - textStartMs;
             }
         } else if (w.type === 2) {
-            // OSRS parity: no placeholder slot grid rendering for type-2 inventory widgets.
+            // no placeholder slot grid rendering for type-2 inventory widgets.
             // Visible cells/items are rendered by real widget content and scripts.
         }
 

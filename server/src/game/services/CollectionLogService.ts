@@ -6,6 +6,7 @@ import {
     type CollectionLogServices,
     buildCollectionOverviewOpenState,
     populateCollectionLogCategories,
+    syncCollectionDisplayVarps,
     trackCollectionLogItem,
 } from "../collectionlog";
 import { encodeMessage } from "../../network/messages";
@@ -111,5 +112,28 @@ export class CollectionLogService {
 
     trackCollectionLogItem(player: PlayerState, itemId: number): void {
         trackCollectionLogItem(player, itemId, this.getCollectionLogServices());
+    }
+
+    /**
+     * Send collection-log display varps on login/reconnect so summary/account UIs have the same
+     * state they would get after opening the collection log itself.
+     */
+    sendCollectionLogDisplayVarps(sock: WebSocket, player: PlayerState): void {
+        const displayVarps = syncCollectionDisplayVarps(player);
+        for (const [varpIdRaw, valueRaw] of Object.entries(displayVarps)) {
+            this.deps.networkLayer.withDirectSendBypass("varp", () =>
+                this.deps.networkLayer.sendWithGuard(
+                    sock,
+                    encodeMessage({
+                        type: "varp",
+                        payload: {
+                            varpId: Number(varpIdRaw),
+                            value: valueRaw | 0,
+                        },
+                    }),
+                    "varp",
+                ),
+            );
+        }
     }
 }

@@ -122,7 +122,7 @@ export class SailingInstanceManager {
             return;
         }
 
-        // OSRS parity: collision maps start as FLOOR_BLOCKED (0x200000) and
+        // collision maps start as FLOOR_BLOCKED (0x200000) and
         // terrain decode clears walkable tiles.  Our CollisionMap.reset() starts
         // at 0 (walkable), so ocean/empty tiles have no blocking.  Fix this by
         // flooding the deck plane with FLOOR_BLOCKED, then carving out walkable

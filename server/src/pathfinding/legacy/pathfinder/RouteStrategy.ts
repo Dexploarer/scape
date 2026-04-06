@@ -81,7 +81,7 @@ const WALL_WEST = 0x80;
 // Matches OSRS Interaction logic.
 // OSRS does NOT allow diagonal interactions with objects.
 // You must be cardinally adjacent (N/S/E/W) to interact.
-// OSRS parity: Also checks that no wall blocks the interaction edge.
+// Also checks that no wall blocks the interaction edge.
 export class RectAdjacentRouteStrategy extends RouteStrategy {
     private collisionGetter?: CollisionFlagGetter;
     private plane: number = 0;
@@ -103,7 +103,7 @@ export class RectAdjacentRouteStrategy extends RouteStrategy {
     }
 
     /**
-     * OSRS parity: Set a collision flag getter to enable wall checking.
+     * Set a collision flag getter to enable wall checking.
      * When set, hasArrived() will also verify no wall blocks the interaction edge.
      */
     setCollisionGetter(getter: CollisionFlagGetter, plane: number): void {
@@ -137,7 +137,7 @@ export class RectAdjacentRouteStrategy extends RouteStrategy {
         const isDiagonal = dx > 0 && dy > 0;
         if (isDiagonal && !this.allowLargeDiagonal) return false;
 
-        // OSRS parity: Check that no wall blocks the interaction edge
+        // Check that no wall blocks the interaction edge
         if (this.collisionGetter) {
             if (this.isWallBlocked(tileX, tileY, minX, minY, maxX, maxY)) {
                 return false;
@@ -192,7 +192,7 @@ export class RectAdjacentRouteStrategy extends RouteStrategy {
 }
 
 // For walls, doors, or specific directional interactions.
-// OSRS parity: Also checks that no wall blocks the interaction edge.
+// Also checks that no wall blocks the interaction edge.
 export class CardinalAdjacentRouteStrategy extends RouteStrategy {
     private readonly rectX: number;
     private readonly rectY: number;
@@ -233,7 +233,7 @@ export class CardinalAdjacentRouteStrategy extends RouteStrategy {
     }
 
     /**
-     * OSRS parity: Set a collision flag getter to enable wall checking.
+     * Set a collision flag getter to enable wall checking.
      */
     setCollisionGetter(getter: CollisionFlagGetter, plane: number): void {
         this.collisionGetter = getter;
@@ -265,7 +265,7 @@ export class CardinalAdjacentRouteStrategy extends RouteStrategy {
             return false;
         }
 
-        // OSRS parity: Check that no wall blocks the interaction edge
+        // Check that no wall blocks the interaction edge
         if (this.collisionGetter) {
             if (this.isWallBlocked(tileX, tileY, minX, minY, maxX, maxY)) {
                 return false;

@@ -468,8 +468,8 @@ export class SoundEffectSystem {
         const now = typeof performance !== "undefined" ? performance.now() : Date.now();
         for (const effect of effects) {
             const radiusTiles = typeof effect.location === "number" ? effect.location : 0;
-            // OSRS parity: animation frame sound loops field uses 1-indexed semantics (client.java:5544
-            // does setNumLoopsInternal(loops - 1)). loops=1 means play once, loops=2 means play twice.
+            // animation frame sound loops field uses 1-indexed semantics.
+            // loops=1 means play once, loops=2 means play twice.
             // Subtract 1 to convert to our internal semantics (0=play once, n>0=play n+1 times, -1=infinite).
             const loops = (typeof effect.loops === "number" ? effect.loops : 1) - 1;
 

@@ -55,7 +55,7 @@ export class PlayerModelLoader {
                             md.retexture(kit.retextureFrom[r], kit.retextureTo[r]);
                         }
                     }
-                    // OSRS parity: Apply PlayerComposition body color recolors (hair/torso/legs/feet/skin).
+                    // Apply PlayerComposition body color recolors (hair/torso/legs/feet/skin).
                     // Reference: PlayerComposition.getModel recolor loops.
                     for (let c = 0; c < 5; c++) {
                         const idx = (colors[c] ?? 0) | 0;
@@ -127,7 +127,7 @@ export class PlayerModelLoader {
 
         const merged = ModelData.merge(modelDatas, modelDatas.length);
         const model = merged.light(this.textureLoader, 64, 850, -30, -50, -30);
-        // OSRS parity: do not baseline-align the merged player model (PlayerComposition.getModel
+        // do not baseline-align the merged player model (PlayerComposition.getModel
         // returns the lit model without translating it to force bottomY=0). Widget modelOffsetY
         // and modelZoom handle framing for UI renders.
         return model;

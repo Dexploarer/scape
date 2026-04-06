@@ -143,7 +143,7 @@ export class InventoryMessageService {
                 } catch (err) { logger.warn("[inventory] drop log failed", err); }
             };
 
-            // OSRS parity: Total value = per-item value * quantity (for stackable items like coins)
+            // Total value = per-item value * quantity (for stackable items like coins)
             // Special case: Coins (995) have value=0 in item definitions, but each coin is worth 1 GP
             const COINS_ITEM_ID = 995;
             const perItemValue =
@@ -154,7 +154,7 @@ export class InventoryMessageService {
                     : 0;
             const totalValue = perItemValue * slotEntry.quantity;
             if (totalValue >= 30000) {
-                // OSRS parity: Show sprite dialog with item first, then options dialog
+                // Show sprite dialog with item first, then options dialog
                 // See CS2 flow: interface 193 (sprite dialog) -> interface 219 (options dialog)
                 this.deps.openDialog(p, {
                     kind: "sprite",
@@ -190,7 +190,7 @@ export class InventoryMessageService {
             const hasItemEquipped = equip[equipSlot] === payload.itemId;
             if (!hasItemInInventory && !hasItemEquipped) return;
 
-            // OSRS parity: Queue equip action to be processed during tick cycle
+            // Queue equip action to be processed during tick cycle
             // Equipment changes happen in "Process queued actions" phase, tick-aligned but instant (delayTicks: 0)
             const res = this.deps.requestAction(
                 p.id,
@@ -254,7 +254,7 @@ export class InventoryMessageService {
 
         const nowTick = this.deps.getCurrentTick();
 
-        // OSRS parity: Queue move action to be processed during tick cycle
+        // Queue move action to be processed during tick cycle
         // Ensures consistency with other inventory operations (equip/unequip)
         const res = this.deps.requestAction(
             p.id,

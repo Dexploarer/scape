@@ -244,17 +244,15 @@ export class OverheadPrayerOverlay implements Overlay {
             center[1] = height - headOffset;
             center[2] = entry.worldZ;
 
-            // OSRS draws the sprite centered at x - 12, y - var9
-            // var9 is accumulated (25 per icon above actor head)
-            // Reference: class386.java lines 345-356
+            // OSRS draws the sprite centered above the actor head
+            // offset is accumulated (25 per icon above actor head)
             // Position relative to head with sprite centered horizontally
             const spriteW = sprite.w;
             const spriteH = sprite.h;
 
             // Position: centered horizontally, offset above head
-            // In OSRS: drawTransBgAt(var2 + Client.viewportTempX - 12, var3 + Client.viewportTempY - var9)
-            // var9 = 25 for first icon (prayer), so drawn at y - 25
-            // The -12 centers a 24px wide icon, we center dynamically based on actual sprite width
+            // Icon is centered horizontally and drawn 25px above the actor anchor point.
+            // We center dynamically based on actual sprite width.
             const x = -Math.floor(spriteW / 2);
             const y = -25; // Match OSRS offset of 25 pixels above the anchor
 

@@ -164,8 +164,7 @@ export function registerClientOps(handlers: HandlerMap): void {
     // COORD returns the local player's current packed coordinate
     // Does NOT pop from stack - returns player position directly
     handlers.set(Opcodes.COORD, (ctx) => {
-        // OSRS parity: return the local player's packed world coordinate.
-        // Reference uses `baseX * 64 + (localPlayer.x >> 7)` because its base/local units differ.
+        // return the local player's packed world coordinate.
         // In this client, ctx.getPlayerLocalX/Y already return world tile coords.
         const plane = ctx.getPlayerPlane?.() ?? 0;
         const localX = ctx.getPlayerLocalX?.() ?? 0;
@@ -426,7 +425,7 @@ export function registerClientOps(handlers: HandlerMap): void {
     // osm_simulate varbit (6352) allows desktop clients to simulate mobile mode
     const OSM_SIMULATE_VARBIT = 6352;
     handlers.set(Opcodes.ON_MOBILE, (ctx) => {
-        // OSRS parity: [proc,on_mobile] checks:
+        // [proc,on_mobile] checks:
         // 1. %osm_simulate = 1 (desktop mobile simulation)
         // 2. clienttype = 7 (mobile client type)
         // 3. on_mobile opcode (touch device check)
@@ -456,7 +455,7 @@ export function registerClientOps(handlers: HandlerMap): void {
         // 7 = mobile (generic - used by ~on_mobile proc)
         // 10 = steam/enhanced variant
         // Return 2 (android) for mobile interface or touch devices, 10 otherwise.
-        // OSRS parity: [proc,on_mobile] checks `clienttype = 7` as one condition.
+        // [proc,on_mobile] checks `clienttype = 7` as one condition.
         const wm = ctx.widgetManager as any;
         const isMobileInterface = wm?.rootInterface === 601;
         const result = isMobileInterface || isTouchDevice ? 2 : 10;
@@ -618,7 +617,7 @@ export function registerClientOps(handlers: HandlerMap): void {
         ctx.intStackSize--; // pop enabled
     });
 
-    // Key input mode control opcodes (OSRS parity)
+    // Key input mode control opcodes ()
     // These opcodes control the key input state for chatbox dialogs
     // Type 0 = no dialog active (all widgets can receive input)
     // Type 1 = default/reset state
@@ -705,7 +704,7 @@ export function registerClientOps(handlers: HandlerMap): void {
     });
 
     // === Mouse position ===
-    // OSRS parity: returns mouse position in widget-logical coordinates.
+    // returns mouse position in widget-logical coordinates.
     // InputManager coordinates are in canvas-buffer space; divide by the UI
     // render scale so CS2 scripts see positions matching the widget layout.
     handlers.set(Opcodes.MOUSE_GETX, (ctx) => {
@@ -921,7 +920,6 @@ export function registerClientOps(handlers: HandlerMap): void {
         }
         if (!worldTop) worldTop = worldEntries[0];
 
-        // OSRS parity (class149.method3291):
         // when no actionable minimenu entries exist, selected item/spell still shows
         // "Use <item> ->" / "<spellAction> <spell> ->" hover text.
         if (worldNumOps <= 0) {
@@ -1251,8 +1249,7 @@ export function registerClientOps(handlers: HandlerMap): void {
         ctx.playSoundEffect?.(soundId, delay, loops);
     });
 
-    // OSRS parity: SOUND_SONG pops 5 params from stack
-    // Reference: UserComparator3.java:62-72 - Skills.method6928(trackIds, outDelay, outDur, inDelay, inDur)
+    // SOUND_SONG pops 5 params from stack
     handlers.set(Opcodes.SOUND_SONG, (ctx) => {
         const fadeInDuration = ctx.intStack[--ctx.intStackSize];
         const fadeInDelay = ctx.intStack[--ctx.intStackSize];
@@ -1262,24 +1259,21 @@ export function registerClientOps(handlers: HandlerMap): void {
         ctx.playSong?.(songId, fadeOutDelay, fadeOutDuration, fadeInDelay, fadeInDuration);
     });
 
-    // OSRS parity: SOUND_JINGLE pops jingleId and jingleDelay, then plays the jingle.
-    // Reference: GameObject.java:269-273
+    // SOUND_JINGLE pops jingleId and jingleDelay, then plays the jingle.
     handlers.set(Opcodes.SOUND_JINGLE, (ctx) => {
         const delay = ctx.intStack[--ctx.intStackSize];
         const jingleId = ctx.intStack[--ctx.intStackSize]; // Jingle track ID
         ctx.playJingle?.(jingleId, delay);
     });
 
-    // OSRS parity: MUSIC_STOP (3220) - Stop/fade current music
-    // Reference: UserComparator3.java:107-112 - Actor.method2488(outDelay, outDur)
+    // MUSIC_STOP (3220) - Stop/fade current music
     handlers.set(Opcodes.MUSIC_STOP, (ctx) => {
         const fadeOutDuration = ctx.intStack[--ctx.intStackSize];
         const fadeOutDelay = ctx.intStack[--ctx.intStackSize];
         ctx.stopMusic?.(fadeOutDelay, fadeOutDuration);
     });
 
-    // OSRS parity: MUSIC_DUAL (3221) - Preload two tracks for crossfade
-    // Reference: UserComparator3.java:113-125 - Skills.method6928([track1, track2], outDelay, outDur, inDelay, inDur)
+    // MUSIC_DUAL (3221) - Preload two tracks for crossfade
     handlers.set(Opcodes.MUSIC_DUAL, (ctx) => {
         const fadeInDuration = ctx.intStack[--ctx.intStackSize];
         const fadeInDelay = ctx.intStack[--ctx.intStackSize];
@@ -1297,8 +1291,7 @@ export function registerClientOps(handlers: HandlerMap): void {
         );
     });
 
-    // OSRS parity: MUSIC_CROSSFADE (3222) - Crossfade between the two loaded tracks
-    // Reference: UserComparator3.java:126-133 - FriendSystem.method1927(outDelay, outDur, inDelay, inDur)
+    // MUSIC_CROSSFADE (3222) - Crossfade between the two loaded tracks
     handlers.set(Opcodes.MUSIC_CROSSFADE, (ctx) => {
         const fadeInDuration = ctx.intStack[--ctx.intStackSize];
         const fadeInDelay = ctx.intStack[--ctx.intStackSize];
@@ -1323,19 +1316,18 @@ export function registerClientOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_CLOSE, (ctx) => {
-        // OSRS parity: defer close until script return.
+        // defer close until script return.
         ctx.deferIfClose();
     });
 
     // RESUME_COUNTDIALOG (3104): Completes a numeric input dialog
-    // OSRS parity: Pops string from stack, converts to int, sends to server
-    // Reference: class93.java - Login.isNumber() check, then HealthBar.method2644() to parse
+    // Pops string from stack, converts to int, sends to server
     handlers.set(Opcodes.RESUME_COUNTDIALOG, (ctx) => {
         const inputString = ctx.stringStack[--ctx.stringStackSize] ?? "";
         const trimmed = inputString.trim();
         let value = 0;
 
-        // OSRS parity: Only parse if string is a valid number
+        // Only parse if string is a valid number
         if (/^-?\d+$/.test(trimmed)) {
             value = parseInt(trimmed, 10);
             if (!Number.isFinite(value)) value = 0;
@@ -1355,7 +1347,7 @@ export function registerClientOps(handlers: HandlerMap): void {
     });
 
     // RESUME_NAMEDIALOG (3105): Completes a name/string input dialog
-    // OSRS parity: Pops string from stack, sends to server as-is
+    // Pops string from stack, sends to server as-is
     handlers.set(Opcodes.RESUME_NAMEDIALOG, (ctx) => {
         const inputString = ctx.stringStack[--ctx.stringStackSize] ?? "";
 
@@ -1371,7 +1363,7 @@ export function registerClientOps(handlers: HandlerMap): void {
     });
 
     // RESUME_STRINGDIALOG (3106): Completes a string input dialog
-    // OSRS parity: Same as name dialog but different packet
+    // Same as name dialog but different packet
     handlers.set(Opcodes.RESUME_STRINGDIALOG, (ctx) => {
         const inputString = ctx.stringStack[--ctx.stringStackSize] ?? "";
 

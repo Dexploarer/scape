@@ -203,7 +203,7 @@ export interface CollectionLogUnlockEntry {
     sequence: number;
 }
 
-// OSRS parity: modern OSRS bank starts at 800 slots (varp BANK_LOCKED_SLOTS is based on 1410 max slots).
+// modern OSRS bank starts at 800 slots (varp BANK_LOCKED_SLOTS is based on 1410 max slots).
 export const DEFAULT_BANK_CAPACITY = 800;
 export const INVENTORY_SLOT_COUNT = 28;
 
@@ -267,7 +267,7 @@ const SPECIAL_ENERGY_REGEN_CHUNK = 10;
 const SPECIAL_ENERGY_REGEN_INTERVAL_TICKS = 50;
 const DEFAULT_SPECIAL_ACCURACY_MULTIPLIER = 1.1;
 const DEFAULT_STAMINA_DRAIN_MULTIPLIER = 0.3;
-// OSRS parity: Stamina effect max duration is 8000 ticks (40 doses * 200 ticks each)
+// Stamina effect max duration is 8000 ticks (40 doses * 200 ticks each)
 // Reference: docs/run-energy.md
 const MAX_STAMINA_DURATION_TICKS = 8000;
 
@@ -284,7 +284,7 @@ const COMBAT_SKILL_IDS = new Set<SkillId>([
 const DEFAULT_MAX_COMBAT_STYLE_SLOT = 3;
 /**
  * Max combat style slot per weapon category.
- * OSRS parity: Most weapons use slots 0-3, but some have only 3 buttons
+ * Most weapons use slots 0-3, but some have only 3 buttons
  * that map to slots 0, 1, 3 (skipping slot 2). The max slot must allow slot 3.
  * Only unarmed (0) and basic melee staves (18) use consecutive slots 0,1,2.
  */
@@ -822,7 +822,7 @@ export class PlayerState extends Actor {
 
         // Delegate gamemode-specific player initialization
         PlayerState.gamemodeRef?.initializePlayer(this);
-        // OSRS parity: XP drops are enabled by default until the player explicitly hides them.
+        // XP drops are enabled by default until the player explicitly hides them.
         if (!this.varbitValues.has(VARBIT_XPDROPS_ENABLED)) {
             this.setVarbitValue(VARBIT_XPDROPS_ENABLED, DEFAULT_XPDROPS_ENABLED);
         }
@@ -1096,7 +1096,7 @@ export class PlayerState extends Actor {
         let normalizedSlot = Math.max(0, Math.min(maxSlot, desiredSlot ?? 0));
         if (this.combat.attackTypes && this.combat.attackTypes.length > 0) {
             normalizedSlot = Math.min(this.combat.attackTypes.length - 1, normalizedSlot);
-            // OSRS parity: Validate the slot is actually defined (sparse arrays have gaps).
+            // Validate the slot is actually defined (sparse arrays have gaps).
             // Weapons like bows have slots 0,1,3 but not 2 - if slot 2 was selected, find nearest valid.
             if (this.combat.attackTypes[normalizedSlot] === undefined) {
                 // Find the nearest valid slot (prefer lower slots first, then check higher)
@@ -1134,7 +1134,7 @@ export class PlayerState extends Actor {
             if (this.combatStyleSlot > maxSlot) {
                 this.combatStyleSlot = maxSlot;
             }
-            // OSRS parity: Ensure slot is valid (sparse arrays have gaps, e.g., bows skip slot 2)
+            // Ensure slot is valid (sparse arrays have gaps, e.g., bows skip slot 2)
             if (this.combat.attackTypes[this.combatStyleSlot] === undefined) {
                 // Find nearest valid slot
                 let foundSlot: number | undefined;
@@ -1327,7 +1327,7 @@ export class PlayerState extends Actor {
         const now = Math.max(0, currentTick);
         const duration = Math.max(1, durationTicks);
         const baseline = this.staminaEffectExpiryTick > now ? this.staminaEffectExpiryTick : now;
-        // OSRS parity: Cap stamina duration at MAX_STAMINA_DURATION_TICKS (8000 ticks = 40 doses)
+        // Cap stamina duration at MAX_STAMINA_DURATION_TICKS (8000 ticks = 40 doses)
         // Reference: docs/run-energy.md
         this.staminaEffectExpiryTick = Math.min(
             baseline + duration,
@@ -1534,7 +1534,7 @@ export class PlayerState extends Actor {
     }
 
     setBankCapacity(capacity: number): void {
-        // OSRS parity: CS2 bank scripts use a 1410-slot addressing space (0..1409).
+        // CS2 bank scripts use a 1410-slot addressing space (0..1409).
         // Allow up to 1410 without runaway allocations.
         const normalized = Math.max(1, Math.min(1410, Math.floor(capacity)));
         if (normalized === this.items.bankCapacity && this.items.bank.length === normalized) {
@@ -3514,7 +3514,7 @@ export class PlayerManager implements PlayerRepository {
     }
 
     /**
-     * OSRS parity: Set callback for interrupting skill actions.
+     * Set callback for interrupting skill actions.
      * Called when player walks, starts new interaction, teleports, etc.
      */
     setInterruptSkillActionsCallback(callback: (playerId: number) => void): void {

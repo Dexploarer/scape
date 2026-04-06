@@ -182,7 +182,7 @@ export class NpcManager {
     // Boss scripts for NPCs with complex combat behaviors
     private readonly bossScripts = new Map<number, BossScript>();
 
-    // OSRS parity: NPC indices are 16-bit (0..65534, with 65535 reserved as a sentinel).
+    // NPC indices are 16-bit (0..65534, with 65535 reserved as a sentinel).
     private nextId = 1;
 
     private lifecycleHooks?: {
@@ -271,7 +271,7 @@ export class NpcManager {
         const id = this.allocateNpcId();
         const maxHitpoints = this.deriveMaxHitpoints(npcType);
         const combatLevel = npcType.combatLevel ?? -1;
-        // OSRS parity: Attack speed is stored in cache param 14
+        // Attack speed is stored in cache param 14
         const attackSpeed = this.deriveAttackSpeed(npcType);
         const npcCombatStats = getNpcCombatStats(npcType.id);
         // Prefer server-authored combat stats for aggression metadata when present.
@@ -406,7 +406,7 @@ export class NpcManager {
 
     /**
      * Derive whether an NPC is aggressive from cache definition.
-     * OSRS parity: NPCs with combat level > 0 and an "Attack" action are considered aggressive.
+     * NPCs with combat level > 0 and an "Attack" action are considered aggressive.
      * This is a simplification; actual OSRS uses specific flags and hardcoded lists.
      */
     private deriveIsAggressive(
@@ -778,14 +778,14 @@ export class NpcManager {
         const aggressionEvents: NpcAggressionEvent[] = [];
         const roamBudget = { remaining: 24 };
 
-        // OSRS parity: NPCs must be processed in NPC ID order (ascending)
+        // NPCs must be processed in NPC ID order (ascending)
         // Reference: docs/tick-cycle-order.md
         const iterNpcs = (function* (
             npcs: Map<number, NpcState>,
             ids: ReadonlySet<number> | undefined,
         ): IterableIterator<NpcState> {
             if (!ids) {
-                // Sort all NPCs by ID for OSRS parity
+                // Sort all NPCs by ID for 
                 const sortedNpcs = Array.from(npcs.values()).sort((a, b) => a.id - b.id);
                 yield* sortedNpcs;
                 return;
@@ -800,7 +800,7 @@ export class NpcManager {
 
         for (const npc of iterNpcs) {
             try {
-                // OSRS parity: NPC tick order is Timers → Queue → Movement → Combat
+                // NPC tick order is Timers → Queue → Movement → Combat
                 // Reference: docs/game-engine.md lines 19-29, docs/tick-cycle-order.md
 
                 // 1. Process status effects/timers FIRST (before movement)
@@ -921,7 +921,7 @@ export class NpcManager {
                                 !inMultiCombat && playerInCombat && !fightingThisNpc;
 
                             if (blockedBySingleWay) {
-                                // OSRS parity: if an aggro swing fails because the player is
+                                // if an aggro swing fails because the player is
                                 // already occupied in single combat, the NPC drops the chase
                                 // instead of shadowing the player until they become free.
                                 npc.disengageCombat();
@@ -976,7 +976,7 @@ export class NpcManager {
                     npc.recordBlocked();
                 }
 
-                // OSRS parity: walking NPCs should head back toward spawn when lured out,
+                // walking NPCs should head back toward spawn when lured out,
                 // not hard-teleport immediately. Reserve hard resets for genuinely stuck NPCs.
                 if (!npc.isPlayerFollower() && npc.shouldResetDueToStuck()) {
                     npc.resetToSpawn();
@@ -1027,7 +1027,7 @@ export class NpcManager {
                 this.pendingUpdates.push(delta);
                 npc.clearTeleportFlag();
                 npc.consumeInteractionDirty();
-                // Note: Status effects already processed at start of NPC tick (OSRS parity)
+                // Note: Status effects already processed at start of NPC tick ()
             } catch (err) {
                 logger.warn(`[NpcManager] npc tick error`, err);
             }
@@ -1205,7 +1205,7 @@ export class NpcManager {
         let currentY = npc.tileY;
         const plane = npc.level;
 
-        // OSRS parity: NPCs use a naive step-by-step chase path and do not
+        // NPCs use a naive step-by-step chase path and do not
         // solve around obstacles, which preserves safespot behavior.
         for (let i = 0; i < maxPathCalcSteps && steps.length < maxQueuedSteps; i++) {
             if (currentX === target.x && currentY === target.y) {

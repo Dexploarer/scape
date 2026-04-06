@@ -194,7 +194,7 @@ export function getRequiredIndexIds(info: CacheInfo): number[] {
         IndexType.DAT2.maps,
         IndexType.DAT2.animations,
         IndexType.DAT2.skeletons,
-        // OSRS parity: public chat uses the Huffman table stored in the binary index (idx10).
+        // public chat uses the Huffman table stored in the binary index (idx10).
         IndexType.DAT2.binary,
         IndexType.DAT2.soundEffects, // For audio playback
         IndexType.DAT2.musicTracks, // Required for MusicSystem + RealtimeMidiSynth

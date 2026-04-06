@@ -256,7 +256,7 @@ export type SpellCastModifiers = {
 };
 
 export type SpellCastPayloadBase = {
-    // OSRS parity: Use widget references instead of hardcoded spell ID
+    // Use widget references instead of hardcoded spell ID
     spellbookGroupId?: number;
     widgetChildId?: number;
     selectedSpellWidgetId?: number;
@@ -274,7 +274,7 @@ export type SpellCastPlayerPayload = SpellCastPayloadBase & { playerId: number }
 export type SpellCastLocPayload = SpellCastPayloadBase & { locId: number };
 export type SpellCastObjPayload = SpellCastPayloadBase & { objId: number };
 export type SpellCastItemPayload = {
-    // OSRS parity: Use widget references instead of hardcoded spell ID
+    // Use widget references instead of hardcoded spell ID
     spellbookGroupId?: number;
     widgetChildId?: number;
     selectedSpellWidgetId?: number;
@@ -539,7 +539,6 @@ export type ClientToServer =
               run?: boolean;
               /**
                * Modifier key flags for walk command.
-               * Reference: player-movement.md (Client.java:94)
                * - 0: Normal (no modifiers)
                * - 1: Control pressed (force run)
                * - 2: Control + Shift (debug/staff teleport to minimap)

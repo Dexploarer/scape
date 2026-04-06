@@ -19,7 +19,7 @@ export type WidgetLike = {
     xPositionMode?: number;
     yPositionMode?: number;
     // structure
-    // OSRS parity: children can be null (not just undefined) - matches Widget.java
+    // children can be null (not just undefined)
     children?: (WidgetLike | null)[] | null;
     // type info
     isIf3?: boolean;
@@ -42,7 +42,7 @@ export function alignSize(w: WidgetLike, parentW: number, parentH: number) {
     if (((w.widthMode ?? 0) | 0) === 0) {
         w.width = (w.rawWidth as number) | 0;
     } else if (((w.widthMode ?? 0) | 0) === 1) {
-        // OSRS parity: setsize_minus -> parent - raw
+        // setsize_minus -> parent - raw
         w.width = (parentW | 0) - ((w.rawWidth as number) | 0);
     } else if (((w.widthMode ?? 0) | 0) === 2) {
         w.width = (((w.rawWidth as number) | 0) * (parentW | 0)) >> 14;
@@ -59,7 +59,7 @@ export function alignSize(w: WidgetLike, parentW: number, parentH: number) {
     if (((w.heightMode ?? 0) | 0) === 0) {
         w.height = (w.rawHeight as number) | 0;
     } else if (((w.heightMode ?? 0) | 0) === 1) {
-        // OSRS parity: setsize_minus -> parent - raw
+        // setsize_minus -> parent - raw
         w.height = (parentH | 0) - ((w.rawHeight as number) | 0);
     } else if (((w.heightMode ?? 0) | 0) === 2) {
         w.height = (((w.rawHeight as number) | 0) * (parentH | 0)) >> 14;
@@ -157,7 +157,7 @@ export function layoutSingleWidget(w: WidgetLike, parentW: number, parentH: numb
  * @param root The root widget to layout
  * @param hostW Host/parent width
  * @param hostH Host/parent height
- * @param getStaticChildren Optional callback to get static children by parentUid (for OSRS parity)
+ * @param getStaticChildren Optional callback to get static children by parentUid (for )
  */
 export function layoutWidgets(
     root: WidgetLike,
@@ -175,13 +175,13 @@ export function layoutWidgets(
         const baseChildW = (w.width as number) | 0;
         const baseChildH = (w.height as number) | 0;
         // OSRS PARITY: Children of scroll containers are aligned relative to the scroll area,
-        // not just the visible viewport. See RestClientThreadFactory.revalidateWidgetScroll().
+        // not just the visible viewport.
         const sw = ((w.scrollWidth as number) ?? 0) | 0;
         const sh = ((w.scrollHeight as number) ?? 0) | 0;
         const childW = sw !== 0 ? sw : baseChildW;
         const childH = sh !== 0 ? sh : baseChildH;
 
-        // Layout static children (from parentUid filtering - OSRS parity)
+        // Layout static children (from parentUid filtering - )
         if (getStaticChildren && typeof (w as any).uid === "number") {
             const staticChildren = getStaticChildren((w as any).uid);
             for (const c of staticChildren) {

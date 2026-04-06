@@ -80,7 +80,7 @@ export class DoorStateManager {
     // Per-tile door state tracking
     private stateByTile: Map<string, DoorTileState> = new Map();
 
-    // OSRS parity: Track open doors for auto-close after 300 seconds (500 ticks)
+    // Track open doors for auto-close after 300 seconds (500 ticks)
     private openDoors: Map<string, OpenDoorEntry> = new Map();
 
     constructor(
@@ -620,7 +620,7 @@ export class DoorStateManager {
             ? this.findTrackedOpenDoorEntry(x, y, level, currentId)
             : undefined;
 
-        // OSRS parity: doors can swing clockwise (default) or counter-clockwise.
+        // doors can swing clockwise (default) or counter-clockwise.
         const openCw = singleDef.openDir !== "ccw";
         const newRotation = isClosed
             ? openCw ? (rotation + 1) & 3 : (rotation - 1 + 4) & 3
@@ -1632,7 +1632,7 @@ export class DoorStateManager {
     }
 
     /**
-     * OSRS parity: Process auto-close for doors that have been open for 300 seconds (500 ticks).
+     * Process auto-close for doors that have been open for 300 seconds (500 ticks).
      * Returns list of doors that were auto-closed (for broadcasting loc updates).
      */
     tick(currentTick: number): Array<{

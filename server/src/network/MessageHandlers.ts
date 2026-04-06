@@ -651,7 +651,7 @@ export function registerMessageHandlers(
                 },${player?.level ?? "?"})`,
             );
 
-            // OSRS parity: "Attack" is encoded as a regular NPC option packet (OPNPC*),
+            // "Attack" is encoded as a regular NPC option packet (OPNPC*),
             // not a dedicated attack message, so route it through combat here.
             if (optNorm === "attack") {
                 const tick = services.currentTick();
@@ -1522,7 +1522,7 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     // Transmit varbit to client
                     services.queueVarbit(sender.id, VARBIT_ACTIVE_SPELLBOOK, value);
 
-                    // OSRS parity: Clear autocast when switching to a spellbook
+                    // Clear autocast when switching to a spellbook
                     // that doesn't contain the current autocast spell.
                     if (sender.autocastEnabled && sender.combatSpellId > 0) {
                         const autocastSpellData = getSpellData(sender.combatSpellId);

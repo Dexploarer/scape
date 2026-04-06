@@ -18,7 +18,7 @@ export const VARP_SPECIAL_ENERGY = 300;
 
 /**
  * Auto-retaliate setting (varp 172 = "option_nodef").
- * OSRS parity: 0 = auto-retaliate ON (player WILL defend), 1 = OFF (player WON'T defend).
+ * 0 = auto-retaliate ON (player WILL defend), 1 = OFF (player WON'T defend).
  * The CS2 script checks %option_nodef=0 to display "Auto Retaliate (On)".
  */
 export const VARP_AUTO_RETALIATE = 172;

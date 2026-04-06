@@ -33,7 +33,7 @@ function toTileCoord(subCoord: number): number {
  * steps are pushed directly to the ECS ring buffer, matching the OSRS client's
  * `appendPathStep` / `setPathPosition` model.
  *
- * Reference: Actor.java — setPathPosition, appendPathStep, interpolateActor, updateMovement.
+ * Matches the setPathPosition / appendPathStep / interpolateActor / updateMovement model.
  */
 export class PlayerMovementSync {
     private readonly states = new Map<number, MovementState>();
@@ -171,7 +171,7 @@ export class PlayerMovementSync {
 
         // Run reconstruction: when the server sends a 2-tile displacement without
         // explicit directions, reconstruct the intermediate step using client-side
-        // collision (mirrors GraphicsObject.method2132 / class232).
+        // collision.
         const wantsRunReconstruct =
             !forcedTeleport &&
             isRunStep &&
@@ -300,7 +300,7 @@ export class PlayerMovementSync {
         }
 
         // ── Movement steps ──────────────────────────────────────────────
-        // OSRS parity: appendPathStep is purely additive — the client never
+        // appendPathStep is purely additive — the client never
         // clears the path queue on normal movement.  interpolateActor
         // finishes the current tile, then moves to the next.  The ECS ring
         // buffer (cap 8) drops oldest on overflow, bounding any backlog.
@@ -462,7 +462,7 @@ export class PlayerMovementSync {
 
     /**
      * Reconstruct the intermediate tile for a 2-tile run displacement using
-     * client-side collision (mirrors class232 / GraphicsObject.method2132).
+     * client-side collision.
      */
     private buildRunReconstructPath(
         from: { x: number; y: number },

@@ -4,7 +4,7 @@
  * This module extracts pure logic from WebGLOsrsRenderer._ecsUpdateNpcClient
  * for better testability and maintainability.
  *
- * OSRS Parity: NPCs are updated each client tick (20ms) with:
+ * NPCs are updated each client tick (20ms) with:
  * - Position interpolation toward target
  * - Rotation interpolation toward target orientation
  * - Combat facing toward interaction target
@@ -150,8 +150,8 @@ export function advanceAnimation(
     const frameLen = frameLengths?.[fi];
     const currLen = (typeof frameLen === "number" ? frameLen : 0) | 0;
 
-    // OSRS parity: sequenceFrameCycle > frameLengths[sequenceFrame] (uses >, not >=)
-    // and resets to 1, not 0. Reference: ParamComposition.java:327-328
+    // sequenceFrameCycle > frameLengths[sequenceFrame] (uses >, not >=)
+    // and resets to 1, not 0.
     if (tick > currLen) {
         return {
             newFrameIndex: (fi + 1) % safeFrameCount,

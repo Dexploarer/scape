@@ -550,7 +550,7 @@ export class WebGLMapSquare {
                 .indexBuffer(npcIndexBuffer);
         }
 
-        // OSRS parity: DynamicObject/loc animations are driven by Client.cycle (20ms).
+        // DynamicObject/loc animations are driven by Client.cycle (20ms).
         const cycle = clientCycle | 0;
 
         const locsAnimated: LocAnimated[] = [];

@@ -268,7 +268,7 @@ function cloneWidgetForCopy(src: any): any {
         dst.eventHandlers = { ...src.eventHandlers };
     }
 
-    // OSRS parity: clone widget params map (don't share references between copies).
+    // clone widget params map (don't share references between copies).
     if (src.params instanceof Map) {
         dst.params = new Map(src.params);
     }
@@ -351,7 +351,7 @@ function getCurrentWidgetGroupId(ctx: HandlerContext): number {
 
 export function registerWidgetOps(handlers: HandlerMap): void {
     // === Find/Create/Delete ===
-    // Reference: class28.java - 2 args read as array
+    // 2 args read as array
     handlers.set(Opcodes.CC_FIND, (ctx, intOp) => {
         ctx.intStackSize -= 2;
         const uid = ctx.intStack[ctx.intStackSize];
@@ -369,7 +369,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             }
         }
 
-        // OSRS parity (class28): only update scriptActiveWidget/scriptDotWidget on success.
+        //  (class28): only update scriptActiveWidget/scriptDotWidget on success.
         // On miss, push 0 and keep the previous target widget unchanged.
         if (w) {
             setTargetWidget(ctx, intOp, w);
@@ -380,7 +380,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.IF_FIND, (ctx, intOp) => {
         const uid = ctx.intStack[--ctx.intStackSize];
         const w = ctx.widgetManager.getWidgetByUid(uid);
-        // OSRS parity (class28): do not clear target widget when lookup fails.
+        //  (class28): do not clear target widget when lookup fails.
         if (w) {
             setTargetWidget(ctx, intOp, w);
         }
@@ -498,8 +498,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         }
     });
 
-    // CC_CREATE: Reference: class28.java lines 103-107
-    // When intOp=1 (dot variant .cc_create), sets dotWidget instead of activeWidget
+    // CC_CREATE: When intOp=1 (dot variant .cc_create), sets dotWidget instead of activeWidget
     //
     // PARITY: Argument count depends on client revision, NOT stack contents.
     // - Older revisions (< 200): 3 args [parentUid, type, childIndex]
@@ -558,8 +557,8 @@ export function registerWidgetOps(handlers: HandlerMap): void {
                 : ((groupId & 0xffff) << 16) | ((0x8000 + (childIndex & 0x7fff)) & 0xffff);
         const child: any = {
             uid: newUid,
-            // OSRS parity: Dynamic children created via CC_CREATE inherit the parent's `id` and
-            // use `childIndex` to distinguish children (see class28.java).
+            // Dynamic children created via CC_CREATE inherit the parent's `id` and
+            // use `childIndex` to distinguish children.
             id: parentUid,
             parentUid: parentUid,
             groupId: parent.groupId,
@@ -608,7 +607,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             // OSRS PARITY: Type 5 (sprite) defaults
             spriteId: -1,
             spriteId2: -1,
-            // OSRS parity: params hash table (IterableNodeHashTable).
+            // params hash table (IterableNodeHashTable).
             params: new Map(),
         };
         // Place at the specified index - this matches OSRS behavior
@@ -616,7 +615,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         ctx.widgetManager.invalidateDynamicChildrenCache(parent);
         ctx.widgetManager.registerWidget(child);
         setTargetWidget(ctx, intOp, child);
-        // OSRS parity: Creating/removing children invalidates the parent for redraw.
+        // Creating/removing children invalidates the parent for redraw.
         // Reference: FaceNormal.invalidateWidget(var6) in CC_CREATE.
         invalidateWidgetRender(ctx, parent);
     });
@@ -664,7 +663,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
 
         const copy: any = cloneWidgetForCopy(src as any);
         copy.uid = newUid;
-        // OSRS parity: dynamic copies are still dynamic children of the parent id.
+        // dynamic copies are still dynamic children of the parent id.
         copy.id = parentUid;
         copy.parentUid = parentUid;
         copy.groupId = (parent as any).groupId ?? groupId;
@@ -704,7 +703,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // CC_DELETEALL: Delete all dynamic children from a widget
-    // OSRS reference (class28.java): widget.children = null
+    // Sets widget.children = null
     // The children array is ONLY for dynamically created widgets via CC_CREATE
     handlers.set(Opcodes.CC_DELETEALL, (ctx) => {
         const uid = ctx.intStack[--ctx.intStackSize];
@@ -718,10 +717,10 @@ export function registerWidgetOps(handlers: HandlerMap): void {
                     }
                 }
             }
-            // OSRS parity: set children to null, don't preserve the array
+            // set children to null, don't preserve the array
             w.children = null;
             ctx.widgetManager.invalidateDynamicChildrenCache(w);
-            // OSRS parity: invalidate parent widget for redraw.
+            // invalidate parent widget for redraw.
             // Reference: FaceNormal.invalidateWidget(var3) in CC_DELETEALL.
             ctx.widgetManager.invalidateWidgetRender(w);
         }
@@ -755,7 +754,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
 
         const child: any = {
             uid: newUid,
-            // OSRS parity: dynamic children identify by (parent id, childIndex).
+            // dynamic children identify by (parent id, childIndex).
             id: parentUid,
             parentUid: parentUid,
             groupId: parent.groupId,
@@ -846,7 +845,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
 
         const sibling: any = {
             uid: newUid,
-            // OSRS parity: dynamic children identify by (parent id, childIndex).
+            // dynamic children identify by (parent id, childIndex).
             id: parentUid,
             parentUid: parentUid,
             groupId: parent.groupId,
@@ -1015,7 +1014,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // === Position and Size ===
-    // Reference: FadeInTask.java - 4 args read as array
+    // 4 args read as array
     handlers.set(Opcodes.CC_SETPOSITION, (ctx, intOp) => {
         ctx.intStackSize -= 4;
         const x = ctx.intStack[ctx.intStackSize];
@@ -1042,7 +1041,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_SETPOSITION, (ctx) => {
-        // Reference: FadeInTask.java - uid is popped first, then 4 args are read as array
+        // uid is popped first, then 4 args are read as array
         // Stack (bottom to top): [x, y, xMode, yMode, uid]
         const uid = ctx.intStack[--ctx.intStackSize];
         ctx.intStackSize -= 4;
@@ -1069,7 +1068,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         }
     });
 
-    // Reference: FadeInTask.java - 4 args read as array
+    // 4 args read as array
     handlers.set(Opcodes.CC_SETSIZE, (ctx, intOp) => {
         ctx.intStackSize -= 4;
         const width = ctx.intStack[ctx.intStackSize];
@@ -1095,7 +1094,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_SETSIZE, (ctx) => {
-        // Reference: FadeInTask.java - uid is popped first, then 4 args are read as array
+        // uid is popped first, then 4 args are read as array
         // Stack (bottom to top): [width, height, widthMode, heightMode, uid]
         const uid = ctx.intStack[--ctx.intStackSize];
         ctx.intStackSize -= 4;
@@ -1134,7 +1133,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             if (hidden) invalidateWidgetRender(ctx, w);
             else {
                 invalidateWidgetLayout(ctx, w);
-                // OSRS parity: Widgets that were hidden can have pending transmit handlers
+                // Widgets that were hidden can have pending transmit handlers
                 // (var/inv/stat) that need to run once they become visible again.
                 markWidgetsLoaded();
             }
@@ -1153,7 +1152,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             if (hidden) invalidateWidgetRender(ctx, w);
             else {
                 invalidateWidgetLayout(ctx, w);
-                // OSRS parity: Ensure pending transmit handlers can run after unhide.
+                // Ensure pending transmit handlers can run after unhide.
                 markWidgetsLoaded();
             }
         }
@@ -1177,7 +1176,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.CC_GETX, (ctx, intOp) => {
         const w = getTargetWidget(ctx, intOp);
         if (w) ensureWidgetLayout(ctx, w);
-        // OSRS parity: cc_getx always returns the widget's layout-computed x position,
+        // cc_getx always returns the widget's layout-computed x position,
         // even during drag. The drag visual position is separate from the stored position.
         let x = w?.x ?? 0;
         // OSRS PARITY: When running scripts for a mounted (InterfaceParent) sub-interface,
@@ -1201,7 +1200,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.IF_GETX, (ctx) => {
         const w = getWidgetFromStack(ctx);
         if (w) ensureWidgetLayout(ctx, w);
-        // OSRS parity: if_getx always returns the widget's layout-computed x position.
+        // if_getx always returns the widget's layout-computed x position.
         let x = w?.x ?? 0;
         const currentGroupId = getCurrentWidgetGroupId(ctx);
         const mount = w ? ctx.widgetManager.interfaceParents.get(w.uid) : undefined;
@@ -1214,7 +1213,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.CC_GETY, (ctx, intOp) => {
         const w = getTargetWidget(ctx, intOp);
         if (w) ensureWidgetLayout(ctx, w);
-        // OSRS parity: cc_gety always returns the widget's layout-computed y position,
+        // cc_gety always returns the widget's layout-computed y position,
         // even during drag. The drag visual position is separate from the widget's stored
         // position. CS2 scrollbar scripts use event_mousey (not cc_gety) to track drag.
         let y = w?.y ?? 0;
@@ -1229,7 +1228,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.IF_GETY, (ctx) => {
         const w = getWidgetFromStack(ctx);
         if (w) ensureWidgetLayout(ctx, w);
-        // OSRS parity: if_gety always returns the widget's layout-computed y position.
+        // if_gety always returns the widget's layout-computed y position.
         let y = w?.y ?? 0;
         const currentGroupId = getCurrentWidgetGroupId(ctx);
         const mount = w ? ctx.widgetManager.interfaceParents.get(w.uid) : undefined;
@@ -1269,7 +1268,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const w = getTargetWidget(ctx, intOp);
         let parentUid = w?.parentUid ?? -1;
         if (w && typeof parentUid === "number" && parentUid !== -1) {
-            // OSRS parity: mounted interface roots have parentId=-1 in their own widget arrays,
+            // mounted interface roots have parentId=-1 in their own widget arrays,
             // even though they are drawn within a mount container (InterfaceParent).
             //
             // Keep the internal parent link for layout/render, but hide it from scripts running
@@ -1344,7 +1343,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const w = getWidgetFromStack(ctx);
         let parentUid = w?.parentUid ?? -1;
         if (w && typeof parentUid === "number" && parentUid !== -1) {
-            // OSRS parity: mounted interface roots have parentId=-1 from the script's POV.
+            // mounted interface roots have parentId=-1 from the script's POV.
             // Only hide the mount container link for scripts executing inside that mounted group.
             const currentGroupId = getCurrentWidgetGroupId(ctx);
             const mount = ctx.widgetManager.interfaceParents.get(parentUid);
@@ -1421,7 +1420,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.CC_SETTEXTALIGN, (ctx, intOp) => {
-        // Reference: class131.java - 3 args read as array
+        // 3 args read as array
         ctx.intStackSize -= 3;
         const xAlign = ctx.intStack[ctx.intStackSize];
         const yAlign = ctx.intStack[ctx.intStackSize + 1];
@@ -1441,7 +1440,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_SETTEXTALIGN, (ctx) => {
-        // Reference: class131.java - uid is popped first, then 3 args are read as array
+        // uid is popped first, then 3 args are read as array
         // Stack (bottom to top): [xAlign, yAlign, lineHeight, uid]
         const uid = ctx.intStack[--ctx.intStackSize];
         ctx.intStackSize -= 3;
@@ -1486,7 +1485,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const color = ctx.intStack[--ctx.intStackSize];
         const w = getTargetWidget(ctx, intOp);
         if (w && w.color !== color) {
-            // OSRS parity: Widget.color is used for both text and rectangle widgets.
+            // Widget.color is used for both text and rectangle widgets.
             // We keep `textColor` for legacy naming but mirror into `color` too.
             w.textColor = color;
             w.color = color;
@@ -1519,7 +1518,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const color = ctx.intStack[--ctx.intStackSize];
         const w = getTargetWidget(ctx, intOp);
         if (w) {
-            // OSRS parity: CC_SETFILLCOLOUR sets Widget.color2 (secondary color).
+            // CC_SETFILLCOLOUR sets Widget.color2 (secondary color).
             w.color2 = color;
             // Legacy alias (unused by renderer, but keep in sync just in case).
             (w as any).fillColor = color;
@@ -1578,7 +1577,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         if (w) {
             if (w.transparency !== trans) {
                 w.transparency = trans;
-                // OSRS parity: repaint only (no layout invalidation).
+                // repaint only (no layout invalidation).
                 invalidateWidgetRender(ctx, w);
             }
         }
@@ -1823,7 +1822,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         if (w) {
             w.modelType = 1;
             w.modelId = modelId;
-            // OSRS parity: invalidate on model change
+            // invalidate on model change
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -1835,7 +1834,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         if (w) {
             w.modelType = 1;
             w.modelId = modelId;
-            // OSRS parity: invalidate on model change
+            // invalidate on model change
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -1851,7 +1850,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const zoom = ctx.intStack[ctx.intStackSize + 5];
         const w = getTargetWidget(ctx, intOp);
         if (w) {
-            // OSRS parity: these are the IF3 model offsets + angles.
+            // these are the IF3 model offsets + angles.
             w.modelOffsetX = offsetX;
             w.modelOffsetY = offsetY;
             // Keep both naming conventions in sync.
@@ -1862,7 +1861,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             w.rotationY = angleY;
             w.rotationZ = angleZ;
             w.modelZoom = zoom;
-            // OSRS parity: invalidate on model angle change
+            // invalidate on model angle change
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -1889,7 +1888,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             w.rotationY = angleY;
             w.rotationZ = angleZ;
             w.modelZoom = zoom;
-            // OSRS parity: invalidate on model angle change
+            // invalidate on model angle change
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -1898,7 +1897,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const seq = ctx.intStack[--ctx.intStackSize];
         const w = getTargetWidget(ctx, intOp);
         if (w) {
-            // OSRS parity: Only invalidate if sequence actually changed
+            // Only invalidate if sequence actually changed
             // Reference: class131.java lines 342-349 - checks var16 != var3.sequenceId
             if (seq !== w.sequenceId) {
                 w.sequenceId = seq;
@@ -1914,7 +1913,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const w = getWidgetFromStack(ctx);
         const seq = ctx.intStack[--ctx.intStackSize];
         if (w) {
-            // OSRS parity: Only invalidate if sequence actually changed
+            // Only invalidate if sequence actually changed
             if (seq !== w.sequenceId) {
                 w.sequenceId = seq;
                 w.modelFrame = 0;
@@ -1929,7 +1928,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const w = getTargetWidget(ctx, intOp);
         if (w) {
             w.modelOrthog = orthog;
-            // OSRS parity: invalidate on orthog change
+            // invalidate on orthog change
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -1940,7 +1939,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const orthog = ctx.intStack[--ctx.intStackSize] === 1;
         if (w) {
             w.modelOrthog = orthog;
-            // OSRS parity: invalidate on orthog change
+            // invalidate on orthog change
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -2017,7 +2016,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         if (w) {
             w.modelType = 2;
             w.modelId = npcId;
-            // OSRS parity: invalidate on model change
+            // invalidate on model change
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -2029,7 +2028,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         if (w) {
             w.modelType = 2;
             w.modelId = npcId;
-            // OSRS parity: invalidate on model change
+            // invalidate on model change
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -2039,7 +2038,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         if (w) {
             w.modelType = 3;
             w.modelId = -1;
-            // OSRS parity: invalidate on model change
+            // invalidate on model change
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -2049,7 +2048,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         if (w) {
             w.modelType = 3;
             w.modelId = -1;
-            // OSRS parity: invalidate on model change
+            // invalidate on model change
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -2127,13 +2126,13 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const scrollY = ctx.intStack[ctx.intStackSize + 1];
         const w = getTargetWidget(ctx, intOp);
         if (w) {
-            // OSRS parity: scroll clamping uses the widget's current computed width/height.
+            // scroll clamping uses the widget's current computed width/height.
             ensureWidgetLayout(ctx, w);
             const maxX = Math.max(0, (w.scrollWidth ?? 0) - (w.width ?? 0));
             const maxY = Math.max(0, (w.scrollHeight ?? 0) - (w.height ?? 0));
             w.scrollX = Math.min(Math.max(0, scrollX), maxX);
             w.scrollY = Math.min(Math.max(0, scrollY), maxY);
-            // OSRS parity: invalidateWidget (render) only; scroll does not change layout dimensions.
+            // invalidateWidget (render) only; scroll does not change layout dimensions.
             ctx.widgetManager.invalidateScroll(w);
         }
     });
@@ -2147,7 +2146,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const scrollY = ctx.intStack[ctx.intStackSize + 1];
         const w = ctx.widgetManager.getWidgetByUid(uid);
         if (w) {
-            // OSRS parity: scroll clamping uses the widget's current computed width/height.
+            // scroll clamping uses the widget's current computed width/height.
             ensureWidgetLayout(ctx, w);
             const maxX = Math.max(0, (w.scrollWidth ?? 0) - (w.width ?? 0));
             const maxY = Math.max(0, (w.scrollHeight ?? 0) - (w.height ?? 0));
@@ -2169,7 +2168,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
                 w.scrollWidth = width;
                 w.scrollHeight = height;
             }
-            // OSRS parity: revalidateWidgetScroll clamps scroll positions after scroll size changes.
+            // revalidateWidgetScroll clamps scroll positions after scroll size changes.
             const prevScrollX = w.scrollX ?? 0;
             const prevScrollY = w.scrollY ?? 0;
             const maxX = Math.max(0, (w.scrollWidth ?? 0) - (w.width ?? 0));
@@ -2196,7 +2195,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
                 w.scrollWidth = width;
                 w.scrollHeight = height;
             }
-            // OSRS parity: revalidateWidgetScroll clamps scroll positions after scroll size changes.
+            // revalidateWidgetScroll clamps scroll positions after scroll size changes.
             const prevScrollX = w.scrollX ?? 0;
             const prevScrollY = w.scrollY ?? 0;
             const maxX = Math.max(0, (w.scrollWidth ?? 0) - (w.width ?? 0));
@@ -3154,7 +3153,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
 
     handlers.set(Opcodes.CC_RESUME_PAUSEBUTTON, (ctx) => {
         // Resume paused button - signals that a dialog continue button was clicked.
-        // OSRS parity: Uses activeWidget.id (parent UID), not activeWidget.uid.
+        // Uses activeWidget.id (parent UID), not activeWidget.uid.
         // Reference: class131.java -> resumePauseWidget(var3.id, var3.childIndex)
         const w = ctx.activeWidget;
         if (w && ctx.sendResumePauseButton) {
@@ -3167,7 +3166,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
 
     handlers.set(Opcodes.IF_RESUME_PAUSEBUTTON, (ctx) => {
         // Resume paused button for a specific widget UID from the stack.
-        // OSRS parity: Pops widget UID and sends RESUME_PAUSEBUTTON packet.
+        // Pops widget UID and sends RESUME_PAUSEBUTTON packet.
         const uid = ctx.intStack[--ctx.intStackSize];
         if (ctx.sendResumePauseButton) {
             ctx.sendResumePauseButton(uid, -1);
@@ -3175,7 +3174,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_SETCLICKMASK, (ctx) => {
-        // OSRS parity: sets a runtime widget flags override stored in Client.widgetFlags.
+        // sets a runtime widget flags override stored in Client.widgetFlags.
         // Reference: class405.getWidgetFlags (lookup) and server packets that populate widgetFlags ranges.
         const w = getWidgetFromStack(ctx);
         const mask = ctx.intStack[--ctx.intStackSize];

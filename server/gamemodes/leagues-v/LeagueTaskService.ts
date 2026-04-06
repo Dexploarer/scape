@@ -68,7 +68,7 @@ function getLeagueTaskBitfield(taskId: number): { varpId: number; mask: number }
     const bit = tid & 31;
     const group = tid >> 5;
     const mappedVarpId = LEAGUE_TASK_COMPLETION_VARPS[group];
-    // OSRS parity: cache tasks use a non-contiguous varp table (groups 0-61).
+    // cache tasks use a non-contiguous varp table (groups 0-61).
     // Project extension: allow custom task IDs outside the cache range to map to a dedicated
     // contiguous varp space via the standard formula (2616 + group).
     const varpId = mappedVarpId ?? 2616 + group;
@@ -88,7 +88,7 @@ export class LeagueTaskService {
     }
 
     /**
-     * OSRS parity: League task completion is driven by the server.
+     * League task completion is driven by the server.
      * This applies completion bitfields + point varps and emits a toast notification once.
      */
     static completeTask(

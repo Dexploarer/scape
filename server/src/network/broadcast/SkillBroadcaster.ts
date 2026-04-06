@@ -5,7 +5,7 @@ import type { BroadcastContext, BroadcastDomain } from "./BroadcastDomain";
 /**
  * Broadcasts skill/stat snapshot packets to individual players.
  *
- * OSRS parity: skill/stat packets must arrive before combat visuals and actor sync
+ * skill/stat packets must arrive before combat visuals and actor sync
  * so CS2 stat-transmit XP drops fire ahead of attack sequences and hitsplats.
  */
 export class SkillBroadcaster implements BroadcastDomain {

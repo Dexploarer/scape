@@ -332,7 +332,7 @@ export class SpellActionHandler {
         if (!player.autocastEnabled) return true;
         if (player.lastSpellCastTick >= tick) return true;
 
-        // OSRS parity: Autocast only works with a compatible magic weapon equipped.
+        // Autocast only works with a compatible magic weapon equipped.
         const weaponItemId = player.combatWeaponItemId;
         const weaponCompatibility = this.services.canWeaponAutocastSpell(weaponItemId, spellId);
         if (!weaponCompatibility.compatible) {
@@ -902,7 +902,7 @@ export class SpellActionHandler {
             }
         } catch (err) { logger.warn("[spell] failed to clear interactions after manual cast", err); }
 
-        // OSRS parity: combat spells cast on NPCs enter the normal combat loop so the NPC can
+        // combat spells cast on NPCs enter the normal combat loop so the NPC can
         // retaliate on-hit, but manual spellbook casts remain one-shot and must not auto-repeat.
         if (targetNpc && !isAutocast) {
             this.beginManualNpcSpellCombat(player, targetNpc, tick);

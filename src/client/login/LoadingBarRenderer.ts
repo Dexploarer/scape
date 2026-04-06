@@ -1,6 +1,6 @@
 /**
  * OSRS-style Loading Bar Renderer
- * Matches GameEngine.java drawInitial()
+ * Matches OSRS loading bar rendering.
  *
  * Used during cache download before LoginRenderer is available.
  * Also used by LoginRenderer during asset loading phase.

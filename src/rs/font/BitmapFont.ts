@@ -277,7 +277,7 @@ export class BitmapFont {
     }
 
     /**
-     * OSRS parity: AbstractFont.drawRandomAlphaAndSpacing
+     * AbstractFont.drawRandomAlphaAndSpacing
      *
      * Uses a deterministic Java RNG seeded by `seed` to generate:
      * - A global alpha value in [192, 223] (out of 256)
@@ -326,7 +326,7 @@ export class BitmapFont {
     /**
      * Draw OSRS-markup text with optional per-character x offsets.
      *
-     * OSRS parity: Mirrors the client AbstractFont.method7780 behavior for <col>/<shad>/<lt>/<gt>
+     * Mirrors the client AbstractFont.method7780 behavior for <col>/<shad>/<lt>/<gt>
      * as used by drawRandomAlphaAndSpacing (top-left hover text) and menu rendering.
      *
      * Notes:
@@ -601,7 +601,7 @@ export class BitmapFont {
             }
 
             // Draw cached glyph using fast ctx.drawImage
-            // OSRS parity: AbstractFont.draw0 uses (y - ascent) before applying topBearings.
+            // AbstractFont.draw0 uses (y - ascent) before applying topBearings.
             // y is a baseline coordinate (e.g., widget text uses y = top + maxAscent).
             const baseY = Math.round(y - this.ascent);
             const dstX = Math.round(penX + lb);

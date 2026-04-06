@@ -75,7 +75,7 @@ export function registerConfigOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.OC_PLACEHOLDER, (ctx) => {
         const itemId = ctx.intStack[--ctx.intStackSize];
         const obj = ctx.objTypeLoader?.load(itemId);
-        // OSRS parity (see ScriptOpcodes.OC_PLACEHOLDER):
+        //  (see ScriptOpcodes.OC_PLACEHOLDER):
         // If this item has a placeholder defined (placeholder >= 0) and is NOT itself a placeholder
         // (placeholderTemplate == -1), return the placeholder item id; else return the input id.
         if (obj && (obj.placeholderTemplate | 0) === -1 && (obj.placeholder | 0) >= 0) {
@@ -88,7 +88,7 @@ export function registerConfigOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.OC_UNPLACEHOLDER, (ctx) => {
         const itemId = ctx.intStack[--ctx.intStackSize];
         const obj = ctx.objTypeLoader?.load(itemId);
-        // OSRS parity (see ScriptOpcodes.OC_UNPLACEHOLDER):
+        //  (see ScriptOpcodes.OC_UNPLACEHOLDER):
         // If this item IS a placeholder (placeholderTemplate >= 0 && placeholder >= 0), return the
         // original/underlying item id stored in placeholder; else return the input id.
         if (obj && (obj.placeholderTemplate | 0) >= 0 && (obj.placeholder | 0) >= 0) {

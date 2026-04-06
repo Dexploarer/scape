@@ -1,4 +1,4 @@
-import type { WebSocket } from "ws";
+import { WebSocket } from "ws";
 
 import { faceAngleRs } from "../../../../src/rs/utils/rotation";
 import { encodeMessage } from "../../network/messages";
@@ -38,6 +38,9 @@ export interface LocationServiceDeps {
     broadcast: (msg: string | Uint8Array, context: string) => void;
     locTypeLoader?: { load(id: number): any };
     pathService?: { getCollisionFlagAt(x: number, y: number, level: number): number | undefined };
+    playerSyncSessions?: Map<WebSocket, any>;
+    playerDynamicLocSceneKeys?: Map<number, string>;
+    withDirectSendBypass?: (context: string, fn: () => void) => void;
 }
 
 /**
@@ -272,5 +275,87 @@ export class LocationService {
             sizeX: Math.max(1, maxX - minX + 1),
             sizeY: Math.max(1, maxY - minY + 1),
         };
+    }
+
+    resolveSceneBaseCoordinate(currentBase: number, playerTile: number): number {
+        const centeredBase = Math.max(0, (playerTile - 48) & ~7);
+        if (currentBase < 0) {
+            return centeredBase;
+        }
+        const local = playerTile - currentBase;
+        if (local < 16 || local >= 88) {
+            return centeredBase;
+        }
+        return currentBase;
+    }
+
+    getDynamicLocSceneKey(
+        ws: WebSocket | undefined,
+        player: PlayerState,
+    ): { key: string; baseX: number; baseY: number } {
+        const session = ws ? this.deps.playerSyncSessions?.get(ws) : undefined;
+        const baseX = this.resolveSceneBaseCoordinate(session?.baseTileX ?? -1, player.tileX);
+        const baseY = this.resolveSceneBaseCoordinate(session?.baseTileY ?? -1, player.tileY);
+        return {
+            key: `${player.level}:${baseX}:${baseY}`,
+            baseX,
+            baseY,
+        };
+    }
+
+    maybeReplayDynamicLocState(
+        ws: WebSocket,
+        player: PlayerState,
+        force: boolean = false,
+    ): void {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            return;
+        }
+
+        const playerId = player.id;
+        if (!(playerId >= 0)) {
+            return;
+        }
+
+        const sceneKeys = this.deps.playerDynamicLocSceneKeys;
+        const scene = this.getDynamicLocSceneKey(ws, player);
+        const lastSceneKey = sceneKeys?.get(playerId);
+        if (!force && lastSceneKey === scene.key) {
+            return;
+        }
+
+        const visibleStates = this.deps.dynamicLocState.queryScene(
+            scene.baseX,
+            scene.baseY,
+            player.level,
+        );
+        const doSend = () => {
+            for (const state of visibleStates) {
+                this.deps.networkLayer.sendWithGuard(
+                    ws,
+                    encodeMessage({
+                        type: "loc_change",
+                        payload: {
+                            oldId: state.oldId,
+                            newId: state.newId,
+                            tile: { x: state.oldTile.x, y: state.oldTile.y },
+                            level: state.level,
+                            oldTile: { x: state.oldTile.x, y: state.oldTile.y },
+                            newTile: { x: state.newTile.x, y: state.newTile.y },
+                            oldRotation: state.oldRotation,
+                            newRotation: state.newRotation,
+                        },
+                    }),
+                    "loc_change_replay",
+                );
+            }
+        };
+        if (this.deps.withDirectSendBypass) {
+            this.deps.withDirectSendBypass("loc_change_replay", doSend);
+        } else {
+            doSend();
+        }
+
+        sceneKeys?.set(playerId, scene.key);
     }
 }

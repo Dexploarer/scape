@@ -1,7 +1,7 @@
 export type CombatStyleSlot = 0 | 1 | 2 | 3;
 
 /**
- * OSRS parity: Melee attack sequences depend on weapon category + combat style slot.
+ * Melee attack sequences depend on weapon category + combat style slot.
  *
  * These sequences are not exposed via DB table 78 (combat styles); that table describes UI buttons
  * (slot/label/tooltip/icon), XP mode, and bonus type inference.

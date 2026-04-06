@@ -41,7 +41,7 @@ export class OpcodeDb {
 
 export function loadOpcodeDbOsrs(_baseDir: string): OpcodeDb {
     const db = new OpcodeDb();
-    // This list is derived from the reference Instructions.java file
+    // This list is derived from the reference instructions list
     // It populates the OpcodeDb with all known OSRS opcodes and their names
 
     const add = (op: number, name: string) => db.add(op, name, 0, 0, 0, 0);

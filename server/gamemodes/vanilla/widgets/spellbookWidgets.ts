@@ -75,7 +75,7 @@ const MAGIC_SPELLBOOK_REDRAW_ARGS: (number | string)[] = [
 // Teleport animation timings
 const TELEPORT_DELAY_TICKS = 3; // Delay before actual teleport happens (for animation)
 
-// Home Teleport multi-phase animation sequence (OSRS parity, RSPROX verified)
+// Home Teleport multi-phase animation sequence (, RSPROX verified)
 // Sequence: click → +1t phase1 → +7t phase2 → +13t phase3 → +17t phase4 → +21t phase5 → +24t teleport
 const HOME_TELEPORT_SEQ_PHASE1 = 4847;
 const HOME_TELEPORT_SPOT_PHASE1 = 800;
@@ -167,7 +167,7 @@ function getCrossbowBoltEnchantmentsChildId(): number | undefined {
 }
 
 /**
- * OSRS parity data from CS2 [proc,skill_guide_data_magic].
+ *  data from CS2 [proc,skill_guide_data_magic].
  * Ordered highest -> lowest so auto-detection prefers the strongest applicable bolt type.
  */
 const BOLT_ENCHANT_RECIPES: BoltEnchantRecipe[] = [
@@ -489,7 +489,7 @@ function handleAutocast(
         return;
     }
 
-    // Validate staff-spell compatibility (OSRS parity)
+    // Validate staff-spell compatibility ()
     const equip = player.appearance?.equip;
     const weaponObjId = Array.isArray(equip) ? equip[EquipmentSlot.WEAPON] : 0;
     const compatibility = canWeaponAutocastSpell(weaponObjId, spellId);
@@ -1078,7 +1078,7 @@ function executeTeleport(
         return;
     }
 
-    // OSRS parity: Teleporting closes all interruptible interfaces
+    // Teleporting closes all interruptible interfaces
     services.closeInterruptibleInterfaces?.(player);
 
     const { destination, levelRequired, castAnimId, castSpotAnim, name, runeCosts } = spell;
@@ -1187,7 +1187,7 @@ function executeTeleport(
 
 /**
  * Execute the Home Teleport spell.
- * OSRS parity: 24-tick multi-phase animation sequence before teleporting.
+ * 24-tick multi-phase animation sequence before teleporting.
  * Moving cancels the teleport (QueueTask WEAK priority — interrupted by player input).
  * Sequence verified via RSPROX network log.
  */
@@ -1212,7 +1212,7 @@ function executeHomeTeleport(
     // Mark animation in progress for 25 ticks (full 24-tick sequence + 1 buffer)
     player.timers.set(HOME_TELEPORT_TIMER, 25);
 
-    // OSRS parity: closes interruptible interfaces (dialogs, modals) on cast
+    // closes interruptible interfaces (dialogs, modals) on cast
     services.closeInterruptibleInterfaces?.(player);
 
     // Helper to play a sound at the player's current position

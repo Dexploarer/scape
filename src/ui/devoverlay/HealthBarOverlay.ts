@@ -325,7 +325,7 @@ export class HealthBarOverlay implements Overlay {
                 const spriteWidth = Math.max(1, hasBothSprites ? frontSprite.w : totalWidth);
                 const usable = Math.max(0, spriteWidth - pad * 2);
                 let fillPixels = Math.floor(usable * ratio);
-                // OSRS parity: ensure at least 1px when the target is non-zero.
+                // ensure at least 1px when the target is non-zero.
                 if (fillPixels < 1) fillPixels = 1;
                 let widthClamped = fillPixels;
                 if (hasBothSprites) {

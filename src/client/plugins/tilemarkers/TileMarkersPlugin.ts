@@ -69,7 +69,7 @@ export class TileMarkersPlugin {
         input: Partial<TileMarkersPluginConfig> | undefined,
     ): TileMarkersPluginConfig {
         const src = input ? input : {};
-        // Migrate the previous hardcoded blue destination default to OSRS parity colour.
+        // Migrate the previous hardcoded blue destination default to  colour.
         const migrateLegacyDestinationColor =
             Number(src.destinationTileColor) === LEGACY_DESTINATION_TILE_COLOR &&
             (src.enabled === undefined || src.enabled === true) &&

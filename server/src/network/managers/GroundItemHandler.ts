@@ -95,8 +95,8 @@ export interface GroundItemHandlerServices {
     getPlayerGroundSerial(): Map<number, number>;
     /** Get player ground chunk map */
     getPlayerGroundChunk(): Map<number, number>;
-    /** Get ground chunk key for player */
-    getGroundChunkKey(player: PlayerState): number;
+    /** @deprecated Use GroundItemHandler.getGroundChunkKey instead */
+    getGroundChunkKey?(player: PlayerState): number;
     /** Add item to player inventory */
     addItemToInventory(player: PlayerState, itemId: number, quantity: number): InventoryAddResult;
     /** Get item definition */
@@ -142,6 +142,12 @@ export class GroundItemHandler {
     >();
 
     constructor(private readonly services: GroundItemHandlerServices) {}
+
+    static getGroundChunkKey(player: PlayerState): number {
+        const mapX = player.tileX >> 6;
+        const mapY = player.tileY >> 6;
+        return (mapX << 16) | (mapY & 0xffff);
+    }
 
     clearPlayerState(playerIdRaw: number): void {
         const playerId = playerIdRaw;
@@ -258,7 +264,7 @@ export class GroundItemHandler {
 
         const lastSerial = playerGroundSerial.get(playerId);
         // Include worldViewId in chunk key so switching views forces a snapshot
-        const baseChunkKey = this.services.getGroundChunkKey(player);
+        const baseChunkKey = GroundItemHandler.getGroundChunkKey(player);
         const chunkKey = baseChunkKey ^ ((player.worldViewId & 0xffff) << 16);
         const lastChunk = playerGroundChunk.get(playerId);
 

@@ -35,6 +35,22 @@ export interface InterfaceManagerDeps {
     showLevelUpPopup: (player: PlayerState, popup: LevelUpPopup) => boolean;
     closeChatboxModalOverlay: (playerId: number) => void;
     getPlayerById: (id: number) => PlayerState | undefined;
+    interfaceService?: {
+        triggerCloseHooksForEntries(player: PlayerState, entries: any[]): void;
+    };
+    widgetDialogHandler?: {
+        closeAllPlayerDialogs(player: PlayerState): void;
+    };
+    cs2ModalManager?: {
+        clearPlayerState(player: PlayerState): void;
+    };
+    accountSummary?: {
+        clearPlayer(playerId: number): void;
+    };
+    gamemode?: GamemodeDefinition;
+    reportGameTime?: {
+        clearPlayer(playerId: number): void;
+    };
 }
 
 /**
@@ -138,6 +154,36 @@ export class InterfaceManager {
 
     clearUiTrackingForPlayer(playerId: number): void {
         this.widgetOpenLedgerByPlayer.delete(playerId);
+        this.deps.accountSummary?.clearPlayer(playerId);
+        this.deps.gamemode?.onPlayerDisconnect?.(playerId);
+        this.deps.reportGameTime?.clearPlayer(playerId);
+    }
+
+    /**
+     * Close all interfaces that should be interrupted by damage or movement.
+     * Called when:
+     * - Player takes combat damage (NPC or PvP hits)
+     * - Player initiates movement (walk click)
+     * - Player starts a new interaction (NPC click, attack, etc.)
+     * - Player teleports
+     *
+     * NOTE: Passive damage (poison, venom, disease) does NOT close interfaces.
+     * Those effects are processed in PlayerState.processPoison/processVenom/processDisease
+     * and intentionally bypass this method to match OSRS behavior.
+     */
+    closeInterruptibleInterfaces(player: PlayerState): void {
+        const playerId = player.id;
+
+        const closedEntries = player.widgets.closeModalInterfaces();
+
+        if (this.deps.interfaceService && closedEntries.length > 0) {
+            this.deps.interfaceService.triggerCloseHooksForEntries(player, closedEntries);
+        }
+
+        this.dismissLevelUpPopupQueue(playerId);
+
+        this.deps.widgetDialogHandler?.closeAllPlayerDialogs(player);
+        this.deps.cs2ModalManager?.clearPlayerState(player);
     }
 
     // --- Client Script Queuing ---

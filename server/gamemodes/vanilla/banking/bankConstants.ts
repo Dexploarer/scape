@@ -1,5 +1,5 @@
 /**
- * Bank interface constants - OSRS parity.
+ * Bank interface constants - .
  *
  * Child ids here are confirmed against the current cache revision's bank CS2:
  * - script 274: [clientscript,bankmain_init]

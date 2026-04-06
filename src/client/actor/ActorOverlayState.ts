@@ -1,11 +1,11 @@
 /**
  * ActorOverlayState - Type definitions and factory functions for actor overlay state.
  *
- * OSRS Parity: In Actor.java, each actor has:
+ * Each actor has:
  * - hitSplatCount: byte (0-4)
  * - hitSplatTypes[4], hitSplatValues[4], hitSplatCycles[4]: int[]
  * - hitSplatTypes2[4], hitSplatValues2[4]: int[] (secondary splat info)
- * - healthBars: IterableNodeDeque (linked list of HealthBar)
+ * - healthBars: linked list of HealthBar
  * - overheadText: String, overheadTextCyclesRemaining: int
  */
 
@@ -13,9 +13,9 @@
 export const MAX_HITSPLAT_SLOTS = 4;
 
 /**
- * Per-actor hitsplat state matching OSRS Actor.java
+ * Per-actor hitsplat state
  *
- * OSRS Parity:
+ *
  * - hitSplatCycles stores the END cycle in CLIENT CYCLES (20ms each)
  * - Start visibility is calculated at render time: hitSplatCycles - displayCycles
  * - displayCycles is loaded from HitSplatDefinition at render time
@@ -48,7 +48,7 @@ export interface HealthBarDefinitionState {
     int1: number;
     int2: number;
     int3: number;
-    field1885: number;
+    stepIncrement: number;
     int5: number;
     width: number;
     widthPadding: number;
@@ -71,9 +71,9 @@ export interface ActorHealthBarsState {
 
 /**
  * Create a new empty hitsplat state for an actor.
- * Arrays are initialized to match OSRS Actor.java defaults.
+ * Arrays are initialized to match OSRS defaults.
  *
- * OSRS Parity:
+ *
  * - hitSplatCount initialized to 0 (byte)
  * - hitSplatTypes/Values/Cycles are int[4] initialized to 0
  * - Types are stored as-is; negative type means empty/unused in rendering

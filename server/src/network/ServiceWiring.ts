@@ -25,6 +25,7 @@ import {
     SIDE_JOURNAL_TAB_CONTAINER_UID,
 } from "../../../src/shared/ui/sideJournal";
 import { encodeMessage } from "./messages";
+import { encodeCp1252Bytes } from "./encoding/Cp1252";
 import { NpcPacketEncoder, PlayerPacketEncoder } from "./encoding";
 import {
     NpcSyncManager,
@@ -48,6 +49,11 @@ import { PlayerDeathService } from "../game/death/PlayerDeathService";
 import { CombatEngine } from "../game/systems/combat/CombatEngine";
 import { RectAdjacentRouteStrategy } from "../pathfinding/legacy/pathfinder/RouteStrategy";
 import { registerAllHandlers } from "./handlers";
+import {
+    resolveNpcOptionByOpNum,
+    resolveLocActionByOpNum,
+    resolveGroundItemOptionByOpNum,
+} from "./handlers/examineHandler";
 import { calculateAmmoConsumption } from "../game/combat/AmmoSystem";
 import { canWeaponAutocastSpell, getAutocastCompatibilityMessage, getSpellData, getSpellDataByWidget } from "../data/spells";
 import { ensureEquipQtyArrayOn, consumeEquippedAmmoApply, pickEquipSound, unequipItemApply } from "../game/equipment";
@@ -121,7 +127,7 @@ export function createPlayerPacketEncoder(server: any): PlayerPacketEncoder {
             }
         },
         encodeHuffmanChat: (text) => {
-            const raw = server.encodeCp1252(text);
+            const raw = encodeCp1252Bytes(text);
             if (!huffman) {
                 return raw;
             }
@@ -276,7 +282,7 @@ export function createCombatActionHandler(server: any): CombatActionHandler {
             server.combatEffectService.applyProtectionPrayers(target, damage, attackType, sourceType),
         applySmite: (attacker, target, damage) => server.combatEffectService.applySmite(attacker, target, damage),
         tryActivateRedemption: (player) => server.combatEffectService.tryActivateRedemption(player),
-        closeInterruptibleInterfaces: (player) => server.closeInterruptibleInterfaces(player),
+        closeInterruptibleInterfaces: (player) => server.interfaceManager.closeInterruptibleInterfaces(player),
         applyMultiTargetSpellDamage: (params) => server.combatEffectService.applyMultiTargetSpellDamage(params),
 
         // --- XP Awards ---
@@ -548,8 +554,8 @@ export function createInventoryActionHandler(server: any): InventoryActionHandle
         equipItem: (player, slotIndex, itemId, equipSlot, options) =>
             server.equipmentService.equipItem(player, slotIndex, itemId, equipSlot, options),
         unequipItem: (player, equipSlot) => {
-            // OSRS parity: Unequipping closes interruptible interfaces (modals, dialogs)
-            server.closeInterruptibleInterfaces(player);
+            // Unequipping closes interruptible interfaces (modals, dialogs)
+            server.interfaceManager.closeInterruptibleInterfaces(player);
 
             const appearance = server.appearanceService.getOrCreateAppearance(player);
             return unequipItemApply({
@@ -843,7 +849,7 @@ export function createGroundItemHandler(server: any): GroundItemHandler {
         getCurrentTick: () => server.options.ticker.currentTick(),
         getPlayerGroundSerial: () => server.playerGroundSerial,
         getPlayerGroundChunk: () => server.playerGroundChunk,
-        getGroundChunkKey: (player) => server.getGroundChunkKey(player),
+        getGroundChunkKey: (player) => GroundItemHandler.getGroundChunkKey(player),
         addItemToInventory: (player, itemId, quantity) =>
             server.inventoryService.addItemToInventory(player, itemId, quantity),
         getItemDefinition: (itemId) => server.dataLoaderService.getObjType(itemId) ?? getItemDefinition(itemId),
@@ -973,7 +979,7 @@ export function createEquipmentHandler(server: any): EquipmentHandler {
         getObjType: (itemId) => server.dataLoaderService.getObjType(itemId),
         addItemToInventory: (player, itemId, quantity) =>
             server.inventoryService.addItemToInventory(player, itemId, quantity),
-        closeInterruptibleInterfaces: (player) => server.closeInterruptibleInterfaces(player),
+        closeInterruptibleInterfaces: (player) => server.interfaceManager.closeInterruptibleInterfaces(player),
         refreshCombatWeaponCategory: (player) => server.equipmentService.refreshCombatWeaponCategory(player),
         refreshAppearanceKits: (player) => server.appearanceService.refreshAppearanceKits(player),
         resetAutocast: (player) => server.equipmentService.resetAutocast(player),
@@ -1038,9 +1044,9 @@ export function registerMessageHandlers(server: any, router: MessageRouter): voi
         teleportToInstance: (player, x, y, level, templateChunks, extraLocs) =>
             server.movementService.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
         teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
-            server.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
+            server.worldEntityService.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
         sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode) =>
-            server.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode),
+            server.worldEntityService.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode),
         spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
             server.locationService.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
         spawnNpc: (config: any) => server.npcManager?.spawnTransientNpc(config),
@@ -1065,9 +1071,10 @@ export function registerMessageHandlers(server: any, router: MessageRouter): voi
         startCombat: (player, npc, tick, attackSpeed) =>
             server.playerCombatManager?.startCombat(player, npc, tick, attackSpeed),
         hasNpcOption: (npc, option) => server.npcManager?.hasNpcOption(npc, option) ?? false,
-        resolveNpcOption: (npc, opNum) => server.resolveNpcOptionByOpNum(npc, opNum),
+        resolveNpcOption: (npc, opNum) =>
+            resolveNpcOptionByOpNum((n) => server.npcTypeLoader?.load(n?.typeId ?? n), npc, opNum),
         resolveLocAction: (player, locId, opNum) =>
-            server.resolveLocActionByOpNum(locId, opNum, player),
+            resolveLocActionByOpNum(server.locTypeLoader, locId, opNum, player),
         routePlayer: (ws, to, run, tick) => server.players?.routePlayer(ws, to, run, tick),
         findPath: (opts) =>
             server.options.pathService?.findPath(opts) ?? {
@@ -1192,8 +1199,8 @@ export function registerMessageHandlers(server: any, router: MessageRouter): voi
         }),
 
         // --- Services for extracted handlers (logout, widget, varp_transmit, if_close) ---
-        completeLogout: (ws, player, source) => server.completeLogout(ws, player, source),
-        closeInterruptibleInterfaces: (player) => server.closeInterruptibleInterfaces(player),
+        completeLogout: (ws, player, source) => server.loginHandshakeService.completeLogout(ws, player, source),
+        closeInterruptibleInterfaces: (player) => server.interfaceManager.closeInterruptibleInterfaces(player),
         noteWidgetEventForLedger: (playerId, event) => server.interfaceManager.noteWidgetEventForLedger(playerId, event),
         normalizeSideJournalState: (player, value?) => server.normalizeSideJournalState(player, value),
         queueSideJournalGamemodeUi: (player) => server.queueSideJournalGamemodeUi(player),
@@ -1206,7 +1213,7 @@ export function registerMessageHandlers(server: any, router: MessageRouter): voi
 
         // --- Services for binary message handlers ---
         resolveGroundItemOptionByOpNum: (itemId, opNum) =>
-            server.resolveGroundItemOptionByOpNum(itemId, opNum),
+            resolveGroundItemOptionByOpNum((id) => server.objTypeLoader?.load(id), itemId, opNum),
         handleGroundItemAction: (ws, payload) => server.inventoryMessageService.handleGroundItemAction(ws, payload),
         getScriptRegistry: () => server.scriptRegistry,
         getScriptRuntime: () => server.scriptRuntime,

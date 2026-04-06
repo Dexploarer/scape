@@ -458,7 +458,7 @@ export class PlayerCombatManager {
         const attacksScheduled: Array<{ playerId: number; npcId: number; attackSpeed: number }> =
             [];
 
-        // OSRS parity: Process combat in PID order (ascending player ID)
+        // Process combat in PID order (ascending player ID)
         // Map iteration order is insertion order, not PID order
         // Reference: docs/tick-cycle-order.md
         const sortedStates = this.engagements.entriesSortedByPid();
@@ -597,7 +597,7 @@ export class PlayerCombatManager {
 
         // Handle auto-attack decay
         if (!state.engagement.playerAutoAttack) {
-            // OSRS parity: If autocast is still active with a valid spell, resume auto-attack.
+            // If autocast is still active with a valid spell, resume auto-attack.
             // This handles: manual cast interrupt, movement interrupt, etc.
             // Autocast should always resume as long as the configuration remains valid.
             if (player.autocastEnabled && player.combatSpellId > 0) {
@@ -671,7 +671,7 @@ export class PlayerCombatManager {
                         const shouldRepeat = ctx.shouldRepeatAttack?.(player) ?? true;
                         state.engagement.playerAutoAttack = shouldRepeat;
 
-                        // OSRS parity: Do NOT trigger retaliation when attack is scheduled.
+                        // Do NOT trigger retaliation when attack is scheduled.
                         // Call confirmHitLanded() when the hitsplat is applied.
                         // This handles projectile delays correctly for ranged/magic.
 
@@ -702,7 +702,7 @@ export class PlayerCombatManager {
 
     /**
      * Called when a player's hit on an NPC actually lands (hitsplat applied).
-     * OSRS parity: NPC retaliation should only start after the first hit LANDS,
+     * NPC retaliation should only start after the first hit LANDS,
      * not when the attack is scheduled. This handles projectile delays correctly.
      *
      * @param playerId - The attacking player's ID
@@ -742,7 +742,7 @@ export class PlayerCombatManager {
         if (!state.engagement.retaliationEngaged) {
             state.engagement.retaliationEngaged = true;
 
-            // OSRS parity: Only apply retaliation delay if NPC wasn't already in combat.
+            // Only apply retaliation delay if NPC wasn't already in combat.
             // If NPC is already fighting (same or different player), it uses its existing
             // attack timer rather than resetting. This creates natural variance - NPCs
             // mid-combat may retaliate faster or slower depending on their current timer.
@@ -808,7 +808,7 @@ export class PlayerCombatManager {
             state.timing.attackSpeed = attackSpeed;
             state.timing.pendingAttackTick = undefined;
 
-            // OSRS parity: Do NOT trigger retaliation here.
+            // Do NOT trigger retaliation here.
             // Wait for confirmHitLanded() when the hitsplat actually applies.
             // This correctly handles projectile delays for ranged/magic.
         }

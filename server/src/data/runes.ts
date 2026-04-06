@@ -73,7 +73,7 @@ export type StaffSubstitution = {
     negatesRune: number; // Rune ID that is negated when wielding this staff
 };
 
-// Staves and equipment that negate rune costs (OSRS parity).
+// Staves and equipment that negate rune costs ().
 // Each entry lists weapon item IDs that provide unlimited runes of a given type.
 export const STAFF_SUBSTITUTIONS: StaffSubstitution[] = [
     // ---- Air rune providers ----

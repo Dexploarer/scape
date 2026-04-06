@@ -58,11 +58,11 @@ export type WidgetAction =
     | { action: "set_player_head"; uid: number }
     | {
           /**
-           * OSRS parity: IF_SETEVENTS packet - set flags for a range of child indices.
+           * IF_SETEVENTS packet - set flags for a range of child indices.
            * Reference: player.setInterfaceEvents(interfaceId, component, from, to, setting)
            * Stores flags at keys (uid << 32) | childIndex for each childIndex in [fromSlot, toSlot].
            *
-           * Key insight from OSRS client (class405.getWidgetFlags):
+           * Key insight:
            * - Static widgets (loaded from cache) have childIndex=-1
            * - Dynamic children (CC_CREATE) have childIndex >= 0 (their slot index)
            *
@@ -78,7 +78,7 @@ export type WidgetAction =
       }
     | {
           /**
-           * OSRS parity: RUNCLIENTSCRIPT packet - run a CS2 script with arguments.
+           * RUNCLIENTSCRIPT packet - run a CS2 script with arguments.
            * Used for dynamic interface initialization (shops, collection log, etc.)
            * where the script needs runtime arguments from the server.
            */

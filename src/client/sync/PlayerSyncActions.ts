@@ -41,7 +41,7 @@ export interface PlayerSyncActions {
     appearances: Map<number, PlayerUpdateBlock["appearance"]>;
     chats: Map<number, PlayerUpdateBlock["chat"]>;
     forcedChats: Map<number, string>;
-    colorOverrides: Map<number, NonNullable<PlayerUpdateBlock["field512"]>>;
+    colorOverrides: Map<number, NonNullable<PlayerUpdateBlock["colorOverride"]>>;
 }
 
 function movementEventToUpdate(event: PlayerMovementEvent): MovementUpdate {
@@ -100,7 +100,7 @@ export function frameToActions(frame: PlayerSyncFrame): PlayerSyncActions {
     const appearances = new Map<number, PlayerUpdateBlock["appearance"]>();
     const chats = new Map<number, PlayerUpdateBlock["chat"]>();
     const forcedChats = new Map<number, string>();
-    const colorOverrides = new Map<number, NonNullable<PlayerUpdateBlock["field512"]>>();
+    const colorOverrides = new Map<number, NonNullable<PlayerUpdateBlock["colorOverride"]>>();
 
     for (const [index, block] of frame.updateBlocks) {
         if (block.animation) animations.set(index, block.animation);
@@ -131,7 +131,7 @@ export function frameToActions(frame: PlayerSyncFrame): PlayerSyncActions {
         if (block.chat) chats.set(index, block.chat);
         if (typeof block.forcedChat === "string" && block.forcedChat.length > 0)
             forcedChats.set(index, block.forcedChat);
-        if (block.field512) colorOverrides.set(index, block.field512);
+        if (block.colorOverride) colorOverrides.set(index, block.colorOverride);
     }
 
     return {

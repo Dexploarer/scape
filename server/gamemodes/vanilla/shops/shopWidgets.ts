@@ -10,7 +10,7 @@ const SHOP_STOCK_WIDGET_ID = (SHOP_INTERFACE_ID << 16) | SHOP_STOCK_COMPONENT;
 const SHOP_INVENTORY_WIDGET_ID = SHOP_INVENTORY_INTERFACE_ID << 16;
 
 /**
- * Shop button numbers (opId) - OSRS parity
+ * Shop button numbers (opId) - 
  *
  * Shop stock (300:16) and shop inventory (301:0) use the same layout:
  * - Button 1 (IF_BUTTON1) = Value

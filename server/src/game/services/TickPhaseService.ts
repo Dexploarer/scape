@@ -38,8 +38,17 @@ import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
 import type { BroadcastContext } from "../../network/broadcast/BroadcastDomain";
 import type { MovementService } from "./MovementService";
 import type { InventoryService } from "./InventoryService";
+import type { AppearanceService } from "./AppearanceService";
+import type { PlayerCombatService } from "./PlayerCombatService";
+import type { CombatDataService } from "./CombatDataService";
+import type { CombatEffectService } from "./CombatEffectService";
+import type { VariableService } from "./VariableService";
+import type { VarpSyncService } from "./VarpSyncService";
+import type { EquipmentStatsUiService } from "./EquipmentStatsUiService";
+import type { InterfaceManager } from "./InterfaceManager";
 import type { SoundManager } from "../../network/managers";
 import type { NpcSyncManager } from "../../network/managers";
+import type { PlayerAppearanceManager } from "../../network/managers/PlayerAppearanceManager";
 import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
 import type { PlayerPacketEncoder, PlayerTickFrameData } from "../../network/encoding";
 import type { NpcPacketEncoder } from "../../network/encoding";
@@ -164,25 +173,20 @@ export interface TickPhaseServiceDeps {
     tickMs: number;
     pathService: PathService;
 
-    // --- Helper methods delegated from wsServer ---
-    summarizeSteps: (player: PlayerState, steps: StepRecord[] | undefined) => StepSummary;
-    updateRunEnergy: (
-        player: PlayerState,
-        info: { ran: boolean; moved: boolean; runSteps: number },
-        tick: number,
-    ) => void;
-    pickAttackSpeed: (player: PlayerState) => number;
-    pickNpcHitDelay: (npc: NpcState, player: PlayerState, attackSpeed: number) => number;
-    getWeaponSpecialCostPercent: (weaponItemId: number) => number | undefined;
-    getPlayerAttackReach: (player: PlayerState) => number;
-    getAppearanceDisplayName: (player: PlayerState | undefined) => string;
-    buildAnimPayload: (player: PlayerState) => PlayerAnimSet | undefined;
-    getInventory: (player: PlayerState) => InventoryEntry[];
-    queueVarbit: (playerId: number, varbitId: number, value: number) => void;
-    queueVarp: (playerId: number, varpId: number, value: number) => void;
+    // --- Extracted services (accessed directly instead of via wsServer delegates) ---
+    appearanceService: AppearanceService;
+    playerCombatService: PlayerCombatService;
+    combatDataService: CombatDataService;
+    combatEffectService: CombatEffectService;
+    variableService: VariableService;
+    varpSyncService: VarpSyncService;
+    equipmentStatsUiService: EquipmentStatsUiService;
+    interfaceManager: InterfaceManager;
+    playerAppearanceManager: PlayerAppearanceManager;
+
+    // --- Remaining wsServer callbacks (have real logic beyond simple delegation) ---
     queueWidgetEvent: (playerId: number, action: WidgetAction) => void;
     queueClientScript: (playerId: number, scriptId: number, ...args: number[]) => void;
-    queueRunEnergySnapshot: (player: PlayerState | undefined) => void;
     queueCombatSnapshot: (
         playerId: number,
         weaponCategory: number,
@@ -192,27 +196,19 @@ export interface TickPhaseServiceDeps {
         activePrayers: string[],
         activeSpellId?: number,
     ) => void;
-    queueAppearanceSnapshot: (player: PlayerState) => void;
-    queueAnimSnapshot: (playerId: number, anim: PlayerAnimSet | undefined) => void;
-    queueEquipmentStatsWidgetTexts: (player: PlayerState) => void;
     queueDirectSend: (
         sock: WebSocket,
         msg: string | Uint8Array,
         context: string,
     ) => void;
-    handlePrayerDepleted: (player: PlayerState, opts?: { message?: string }) => void;
     withDirectSendBypass: <T>(context: string, fn: () => T) => T;
     sendSkillsMessage: (ws: WebSocket, player: PlayerState, update?: SkillSyncUpdate) => void;
     sendCombatState: (ws: WebSocket, player: PlayerState) => void;
     enqueueSpotAnimation: (event: PendingSpotAnimation) => void;
-    isWidgetGroupOpenInLedger: (playerId: number, groupId: number) => boolean;
     ensurePlayerSyncSession: (ws: WebSocket) => PlayerSyncSession;
     getOrCreateNpcSyncSession: (ws: WebSocket) => NpcSyncSession;
-    flushAllMessageBatches: () => void;
     maybeReplayDynamicLocState: (sock: WebSocket, player: PlayerState) => void;
     maybeSendGroundItemSnapshot: (sock: WebSocket, player: PlayerState) => void;
-    sendInventorySnapshotImmediate: (ws: WebSocket, player: PlayerState) => void;
-    syncCombatTargetPlayerVarp: (player: PlayerState) => void;
 
     /** The current active frame reference (mutable, set externally). */
     getActiveFrame: () => TickFrame | undefined;
@@ -463,7 +459,7 @@ export class TickPhaseService implements TickPhaseProvider {
             }
             const prayerTick = this.deps.prayerSystem.processPlayer(player);
             if (prayerTick?.prayerDepleted) {
-                this.deps.handlePrayerDepleted(player);
+                this.deps.combatEffectService.handlePrayerDepleted(player);
             }
         }
 
@@ -478,7 +474,7 @@ export class TickPhaseService implements TickPhaseProvider {
             if (steps && steps.length > 0) {
                 frame.playerSteps.set(player.id, steps);
             }
-            const summary = this.deps.summarizeSteps(player, steps);
+            const summary = this.deps.movementService.summarizeSteps(player, steps);
             const interactionState = players.getInteractionState(sock);
             const interactionIndex = deriveInteractionIndex({
                 player,
@@ -495,14 +491,14 @@ export class TickPhaseService implements TickPhaseProvider {
                 }
             }
 
-            this.deps.updateRunEnergy(
+            this.deps.movementService.updateRunEnergy(
                 player,
                 { ran: summary.ran, moved, runSteps: summary.runSteps },
                 frame.tick,
             );
 
             if (player.hasRunEnergyUpdate()) {
-                this.deps.queueRunEnergySnapshot(player);
+                this.deps.movementService.queueRunEnergySnapshot(player);
             }
 
             const tileX = player.x / 128;
@@ -524,13 +520,13 @@ export class TickPhaseService implements TickPhaseProvider {
                         groupId: PVP_INTERFACE_ID,
                         type: 1,
                     });
-                    this.deps.queueVarbit(player.id, VARBIT_IN_WILDERNESS, 1);
+                    this.deps.variableService.queueVarbit(player.id, VARBIT_IN_WILDERNESS, 1);
                 } else if (currentWildyLevel === 0 && previousWildyLevel > 0) {
                     this.deps.queueWidgetEvent(player.id, {
                         action: "close_sub",
                         targetUid: PVP_ICONS_CONTAINER_UID,
                     });
-                    this.deps.queueVarbit(player.id, VARBIT_IN_WILDERNESS, 0);
+                    this.deps.variableService.queueVarbit(player.id, VARBIT_IN_WILDERNESS, 0);
                 }
 
                 if (currentWildyLevel > 0) {
@@ -543,7 +539,7 @@ export class TickPhaseService implements TickPhaseProvider {
 
             if (currentInMulti !== previousInMulti) {
                 player._lastInMultiCombat = currentInMulti;
-                this.deps.queueVarbit(player.id, VARBIT_MULTICOMBAT_AREA, currentInMulti ? 1 : 0);
+                this.deps.variableService.queueVarbit(player.id, VARBIT_MULTICOMBAT_AREA, currentInMulti ? 1 : 0);
             }
 
             const currentInPvP = isInPvPArea(tileX, tileY, player.level);
@@ -551,7 +547,7 @@ export class TickPhaseService implements TickPhaseProvider {
 
             if (currentInPvP !== previousInPvP) {
                 player._lastInPvPArea = currentInPvP;
-                this.deps.queueVarbit(player.id, VARBIT_PVP_SPEC_ORB, currentInPvP ? 1 : 0);
+                this.deps.variableService.queueVarbit(player.id, VARBIT_PVP_SPEC_ORB, currentInPvP ? 1 : 0);
             }
 
             const currentInRaid = isInRaid(tileX, tileY, player.level);
@@ -559,9 +555,9 @@ export class TickPhaseService implements TickPhaseProvider {
 
             if (currentInRaid !== previousInRaid) {
                 player._lastInRaid = currentInRaid;
-                this.deps.queueVarbit(player.id, VARBIT_IN_RAID, currentInRaid ? 1 : 0);
+                this.deps.variableService.queueVarbit(player.id, VARBIT_IN_RAID, currentInRaid ? 1 : 0);
                 if (!currentInRaid) {
-                    this.deps.queueVarbit(player.id, VARBIT_RAID_STATE, 0);
+                    this.deps.variableService.queueVarbit(player.id, VARBIT_RAID_STATE, 0);
                 }
             }
 
@@ -570,7 +566,7 @@ export class TickPhaseService implements TickPhaseProvider {
 
             if (currentInLMS !== previousInLMS) {
                 player._lastInLMS = currentInLMS;
-                this.deps.queueVarbit(player.id, VARBIT_IN_LMS, currentInLMS ? 1 : 0);
+                this.deps.variableService.queueVarbit(player.id, VARBIT_IN_LMS, currentInLMS ? 1 : 0);
             }
 
             player.tickSkillRestoration(frame.tick);
@@ -605,7 +601,7 @@ export class TickPhaseService implements TickPhaseProvider {
                 rot: summary.finalRot,
                 orientation: summary.finalOrientation,
                 running: summary.ran,
-                name: this.deps.getAppearanceDisplayName(player),
+                name: this.deps.appearanceService.getAppearanceDisplayName(player),
                 appearance: player.appearance,
                 interactionIndex: interactionIndex >= 0 ? interactionIndex : undefined,
                 seq: summary.finalSeq,
@@ -614,7 +610,7 @@ export class TickPhaseService implements TickPhaseProvider {
                 snap,
                 directions: summary.directions.length > 0 ? summary.directions : undefined,
                 traversals: summary.traversals.length > 0 ? summary.traversals : undefined,
-                anim: this.deps.buildAnimPayload(player),
+                anim: this.deps.appearanceService.buildAnimPayload(player),
                 shouldSendPos: shouldSendMovement,
                 worldViewId: player.worldViewId >= 0 ? player.worldViewId : undefined,
             });
@@ -636,12 +632,12 @@ export class TickPhaseService implements TickPhaseProvider {
             if (botSteps && botSteps.length > 0) {
                 frame.playerSteps.set(bot.id, botSteps);
             }
-            const summary = this.deps.summarizeSteps(bot, botSteps);
+            const summary = this.deps.movementService.summarizeSteps(bot, botSteps);
             const snap = bot.wasTeleported() ?? false;
             const moved = bot.didMove() ?? false;
             const turned = bot.didTurn() ?? false;
             try {
-                this.deps.updateRunEnergy(
+                this.deps.movementService.updateRunEnergy(
                     bot,
                     { ran: summary.ran, moved, runSteps: summary.runSteps },
                     frame.tick,
@@ -655,7 +651,7 @@ export class TickPhaseService implements TickPhaseProvider {
                 rot: summary.finalRot,
                 orientation: summary.finalOrientation,
                 running: summary.ran,
-                name: this.deps.getAppearanceDisplayName(bot),
+                name: this.deps.appearanceService.getAppearanceDisplayName(bot),
                 appearance: bot.appearance,
                 seq: summary.finalSeq,
                 moved: moved || snap,
@@ -663,7 +659,7 @@ export class TickPhaseService implements TickPhaseProvider {
                 snap,
                 directions: summary.directions.length > 0 ? summary.directions : undefined,
                 traversals: summary.traversals.length > 0 ? summary.traversals : undefined,
-                anim: this.deps.buildAnimPayload(bot),
+                anim: this.deps.appearanceService.buildAnimPayload(bot),
                 shouldSendPos: false,
             });
             if (snap) {
@@ -684,12 +680,12 @@ export class TickPhaseService implements TickPhaseProvider {
             tick: frame.tick,
             npcLookup: (npcId) => npcManager?.getById(npcId),
             pathService: this.deps.pathService,
-            pickAttackSpeed: (player) => this.deps.pickAttackSpeed(player),
+            pickAttackSpeed: (player) => this.deps.playerCombatService.pickAttackSpeed(player),
             pickNpcHitDelay: (npc, player, attackSpeed) =>
-                this.deps.pickNpcHitDelay(npc, player, attackSpeed),
+                this.deps.combatEffectService.pickNpcHitDelay(npc, player, attackSpeed),
             getWeaponSpecialCostPercent: (weaponItemId) =>
-                this.deps.getWeaponSpecialCostPercent(weaponItemId),
-            getAttackReach: (player) => this.deps.getPlayerAttackReach(player),
+                this.deps.combatDataService.getWeaponSpecialCostPercent(weaponItemId),
+            getAttackReach: (player) => this.deps.playerCombatService.getPlayerAttackReach(player),
             queueSpotAnimation: (event) => {
                 this.deps.enqueueSpotAnimation(event);
             },
@@ -733,7 +729,7 @@ export class TickPhaseService implements TickPhaseProvider {
         }
         this.deps.groundItems.tick(frame.tick);
         if (frame.actionEffects.length > 0) {
-            this.deps.effectDispatcher.dispatchActionEffects(frame.actionEffects, frame);
+            this.deps.effectDispatcher.dispatchActionEffects(frame.actionEffects, frame as any);
         }
         if (this.deps.players) {
             const nowMs = Date.now();
@@ -755,8 +751,8 @@ export class TickPhaseService implements TickPhaseProvider {
                         view.shouldSendPos = true;
                     }
                 }
-                this.deps.syncCombatTargetPlayerVarp(player);
-                player.attackDelay = this.deps.pickAttackSpeed(player);
+                this.deps.varpSyncService.syncCombatTargetPlayerVarp(player);
+                player.attackDelay = this.deps.playerCombatService.pickAttackSpeed(player);
             });
             this.deps.players.forEachBot((bot) => {
                 const seqData = bot.popPendingSeq() as { seqId: number; delay: number } | undefined;
@@ -820,7 +816,7 @@ export class TickPhaseService implements TickPhaseProvider {
             this.flushPerPlayerDirtyState(frame);
             this.flushAnimSnapshots(frame, ctx);
         } finally {
-            this.deps.flushAllMessageBatches();
+            this.deps.networkLayer.flushAllMessageBatches();
             this.deps.networkLayer.setBroadcastPhase(false);
             this.deps.networkLayer.flushDirectSendWarnings("broadcast");
         }
@@ -841,7 +837,7 @@ export class TickPhaseService implements TickPhaseProvider {
         if (player.hasInventoryUpdate()) {
             const snapshot = player.takeInventorySnapshot();
             if (snapshot) {
-                this.deps.sendInventorySnapshotImmediate(ws, player);
+                this.deps.inventoryService.sendInventorySnapshotImmediate(ws, player);
             }
         }
         if (player.hasAppearanceUpdate()) {
@@ -883,7 +879,7 @@ export class TickPhaseService implements TickPhaseProvider {
         );
 
         if (!result.ok) {
-            logger.log(
+            logger.info(
                 `[aggression] failed to schedule NPC attack (npc=${npcId}, player=${targetPlayerId}): ${result.reason}`,
             );
         }
@@ -997,7 +993,7 @@ export class TickPhaseService implements TickPhaseProvider {
             if (player.hasInventoryUpdate()) {
                 const snapshot = player.takeInventorySnapshot();
                 if (snapshot) {
-                    const inv = this.deps.getInventory(player);
+                    const inv = this.deps.inventoryService.getInventory(player);
                     const slots = inv.map((entry, idx) => ({
                         slot: idx,
                         itemId: entry.itemId,
@@ -1016,8 +1012,8 @@ export class TickPhaseService implements TickPhaseProvider {
             const appearanceDirty = player.hasAppearanceUpdate();
             if (appearanceDirty) {
                 player.takeAppearanceSnapshot();
-                this.deps.queueAppearanceSnapshot(player);
-                this.deps.queueAnimSnapshot(player.id, this.deps.buildAnimPayload(player));
+                this.deps.playerAppearanceManager.queueAppearanceSnapshot(player);
+                this.deps.appearanceService.queueAnimSnapshot(player.id, this.deps.appearanceService.buildAnimPayload(player));
             }
             const hasCombatUpdate = player.hasCombatStateUpdate();
             if (hasCombatUpdate) {
@@ -1057,9 +1053,9 @@ export class TickPhaseService implements TickPhaseProvider {
             }
             if (
                 (appearanceDirty || hasCombatUpdate) &&
-                this.deps.isWidgetGroupOpenInLedger(player.id, EQUIPMENT_STATS_GROUP_ID)
+                this.deps.interfaceManager.isWidgetGroupOpenInLedger(player.id, EQUIPMENT_STATS_GROUP_ID)
             ) {
-                this.deps.queueEquipmentStatsWidgetTexts(player);
+                this.deps.equipmentStatsUiService.queueEquipmentStatsWidgetTexts(player);
             }
         });
     }
@@ -1076,7 +1072,7 @@ export class TickPhaseService implements TickPhaseProvider {
         }
     }
 
-    private applyAppearanceSnapshotsToViews(frame: TickFrame): void {
+    applyAppearanceSnapshotsToViews(frame: TickFrame): void {
         if (!frame.appearanceSnapshots || frame.appearanceSnapshots.length === 0) return;
         for (const snapshot of frame.appearanceSnapshots) {
             const view = frame.playerViews.get(snapshot.playerId);
@@ -1101,7 +1097,7 @@ export class TickPhaseService implements TickPhaseProvider {
         }
     }
 
-    private buildAndSendActorSync(
+    buildAndSendActorSync(
         sock: WebSocket,
         player: PlayerState,
         frame: TickFrame,

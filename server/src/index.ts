@@ -26,7 +26,7 @@ async function main() {
     const cacheEnv = initCacheEnv("caches");
     logger.info(`Boot: cache ready (rev=${cacheEnv.info.revision}, name=${cacheEnv.info.name})`);
 
-    // Initialize spell-widget mappings from cache (OSRS parity)
+    // Initialize spell-widget mappings from cache ()
     logger.info("Boot: initializing spell-widget mappings from cache...");
     initSpellWidgetMapping(cacheEnv.info, cacheEnv.cacheSystem);
     logger.info("Boot: spell-widget mappings initialized");

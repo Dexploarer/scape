@@ -1,17 +1,17 @@
 export class PlayerSyncSession {
-    // OSRS parity: scene base (tile units, 8-tile aligned) is sticky per recipient and
+    // scene base (tile units, 8-tile aligned) is sticky per recipient and
     // only rebased when the local player approaches scene borders.
     baseTileX = -1;
     baseTileY = -1;
 
-    // OSRS parity: `Players.field1355` bit flags, used for 4-pass loop + skip-count compression.
-    field1355 = new Uint8Array(2048);
+    // Bit flags used for 4-pass loop + skip-count compression.
+    updateFlags = new Uint8Array(2048);
 
-    // OSRS parity: `Players.Players_indices` / `Players.Players_emptyIndices`.
+    // Active and empty player index lists for sync encoding.
     playersIndices: number[] = [];
     emptyIndices: number[] = [];
 
-    // OSRS parity: `Players.Players_regions` / `Players.Players_orientations` / `Players.Players_targetIndices`.
+    // Per-index region, orientation, and interaction target tracking.
     regions = new Int32Array(2048);
     orientations = new Int32Array(2048);
     targets = new Int32Array(2048);
@@ -29,14 +29,14 @@ export class PlayerSyncSession {
     lastHealthBarScaled = new Map<number, Map<number, number>>();
 
     constructor() {
-        // OSRS parity: target indices default to -1.
+        // Target indices default to -1 (no target).
         this.targets.fill(-1);
     }
 
     clear(): void {
         this.baseTileX = -1;
         this.baseTileY = -1;
-        this.field1355.fill(0);
+        this.updateFlags.fill(0);
         this.playersIndices = [];
         this.emptyIndices = [];
         this.regions.fill(0);

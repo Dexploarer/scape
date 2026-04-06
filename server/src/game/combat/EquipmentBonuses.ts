@@ -710,7 +710,7 @@ export function isTumekensShadow(weaponId: number): boolean {
 /**
  * Apply Tumeken's Shadow passive effect.
  *
- * OSRS Parity:
+ *
  * - Triples magic attack bonus AND magic damage % from equipped gear
  * - Quadruples both inside Tombs of Amascut
  * - Magic damage % is capped at 100% total (after tripling/quadrupling)
@@ -764,7 +764,7 @@ export function applyTumekenMagicAttackBonus(
  * Calculate the effective magic damage % with Tumeken's Shadow passive.
  * Call this when calculating magic max hit.
  *
- * OSRS Parity: The tripled/quadrupled magic damage % is capped at 100%.
+ * The tripled/quadrupled magic damage % is capped at 100%.
  *
  * @param baseMagicDamagePercent - The base magic damage % from equipment (e.g., 15 for 15%)
  * @param tumekenMultiplier - The multiplier from EquipmentBonusResult.tumekenMagicDamageMultiplier

@@ -20,7 +20,7 @@ export type ActorSyncCallback = (
 /**
  * Broadcasts player sync, NPC sync, and WorldEntity info packets.
  *
- * OSRS parity: player + NPC sync are sent before widget/dialog events
+ * player + NPC sync are sent before widget/dialog events
  * so UI handlers read up-to-date actor positions.
  */
 export class ActorSyncBroadcaster implements BroadcastDomain {

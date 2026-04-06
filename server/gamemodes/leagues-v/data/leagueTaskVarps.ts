@@ -1,7 +1,7 @@
 /**
  * League task completion bitfield varps.
  *
- * OSRS parity: CS2 uses `group = taskId / 32` and reads a varp that contains 32 completion bits.
+ * CS2 uses `group = taskId / 32` and reads a varp that contains 32 completion bits.
  * These varps are not contiguous in the cache and are split across several ranges.
  */
 export const LEAGUE_TASK_COMPLETION_VARPS: ReadonlyArray<number> = Object.freeze([

@@ -203,7 +203,7 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
     }
 
     // ============ AUTO-RETALIATE BUTTON (593:32) ============
-    // OSRS parity: varp 172 is "option_nodef" where 0 = ON, 1 = OFF
+    // varp 172 is "option_nodef" where 0 = ON, 1 = OFF
     registry.onButton(COMBAT_WIDGET_GROUP_ID, AUTO_RETALIATE_COMPONENT, (event) => {
         const player = event.player;
         const currentlyOn = !!player.autoRetaliate;
@@ -229,7 +229,7 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
     });
 
     // ============ SPECIAL ATTACK BUTTON (593:39) ============
-    // OSRS parity: varp 301 is special attack toggle (0 = off, 1 = on)
+    // varp 301 is special attack toggle (0 = off, 1 = on)
     registry.onButton(COMBAT_WIDGET_GROUP_ID, SPECIAL_ATTACK_BUTTON_COMPONENT, (event) => {
         const player = event.player;
         const currentlyActivated = player.isSpecialActivated?.() ?? false;
@@ -351,7 +351,7 @@ function openAutocastPopup(player: any, isDefensive: boolean, services: any): vo
         varps: { [VARP_AUTOCAST_SPELLPOS]: spellposSelector },
     });
 
-    // OSRS parity: IF_SETEVENTS for the autocast popup.
+    // IF_SETEVENTS for the autocast popup.
     // The CS2 autocast_setup script runs on widget 201's onLoad and creates dynamic
     // spell icon widgets via CC_CREATE under the spell grid layer (component 1).
     // Dynamic children have id=parentUid and childIndex=slot, so transmit flags must
@@ -399,7 +399,7 @@ function handleAutocastSpellSelection(player: any, spellIndex: number, services:
         return;
     }
 
-    // Validate staff-spell compatibility (OSRS parity)
+    // Validate staff-spell compatibility ()
     const equip = player.appearance?.equip;
     const weaponObjId = Array.isArray(equip) ? equip[EquipmentSlot.WEAPON] : 0;
     const compatibility = canWeaponAutocastSpell(weaponObjId, spellId);

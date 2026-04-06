@@ -85,10 +85,10 @@ export class MusicUnlockService {
      */
     shouldShowUnlockMessage(player: PlayerState): boolean {
         const value = player.getVarbitValue(VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE);
-        // Default to true if varbit not set (value = 0 treated as default ON for OSRS parity)
+        // Default to true if varbit not set (value = 0 treated as default ON for )
         // Actually in OSRS, 1 = enabled, 0 = disabled. Let's check the default behavior.
         // The varbit is stored in the save, so 0 could mean "never set" or "explicitly disabled".
-        // For OSRS parity: 0 = disabled, 1 = enabled. Default should be 1 (enabled).
+        // For 0 = disabled, 1 = enabled. Default should be 1 (enabled).
         // Since we want it enabled by default, we check if it's NOT explicitly set to 0.
         // However, new players will have 0 as the default varbit value.
         // To handle this properly, we should initialize the varbit to 1 on player creation.

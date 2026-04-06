@@ -5,7 +5,7 @@ import type { BroadcastContext, BroadcastDomain } from "./BroadcastDomain";
 /**
  * Broadcasts varp and varbit updates to individual players.
  *
- * OSRS parity: varps/varbits are sent BEFORE non-close widget events
+ * varps/varbits are sent BEFORE non-close widget events
  * so scripts have correct state when interfaces open.
  */
 export class VarBroadcaster implements BroadcastDomain {

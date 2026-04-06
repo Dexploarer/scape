@@ -303,9 +303,8 @@ export function drawChooseOptionMenu(
         opts.requestRender();
     };
 
-    // Colors (OSRS parity: Client.drawLoggedIn menu colors)
-    // Reference: Client.java drawLoggedIn() - menu fill color 6116423 (0x5D5447),
-    // title bg black, hover yellow, default white, option shadow black.
+    // Colors (menu fill color 0x5D5447,
+    // title bg black, hover yellow, default white, option shadow black)
     const COL_MENU_BG: [number, number, number, number] = [0x5d / 255, 0x54 / 255, 0x47 / 255, 1];
     const COL_BLACK: [number, number, number, number] = [0, 0, 0, 1];
     const COL_TITLE_TEXT = 0x5d5447;
@@ -341,8 +340,7 @@ export function drawChooseOptionMenu(
     const boxW = menuRect.w | 0;
     const boxH = menuRect.h | 0;
 
-    // OSRS parity: menu() auto-closes when the mouse moves outside the menu rect with a MENU_CLOSE_MARGIN_PX margin.
-    // Reference: Client.menu() lines 6086-6101.
+    // menu auto-closes when the mouse moves outside the menu rect with a margin.
     // Also: selecting an option happens on mousedown (lastPressedX/Y), not mouseup.
     if (!menu.follow && globalClient?.inputManager) {
         const inputManager: any = globalClient.inputManager;
@@ -454,7 +452,7 @@ export function drawChooseOptionMenu(
                     closeAllMenus();
                 }
             } else {
-                // Click anywhere closes menu (OSRS parity), no action.
+                // Click anywhere closes menu (), no action.
                 closeAllMenus();
             }
 
@@ -532,7 +530,7 @@ export function drawChooseOptionMenu(
         clicks?.register?.({
             id: "__menu_bg",
             rect: { x: 0, y: 0, w: glr.width, h: glr.height },
-            // OSRS parity: menu consumes clicks outside options (prevents pass-through).
+            // menu consumes clicks outside options (prevents pass-through).
             // Keep below menu option rows but above any widget targets.
             priority: MENU_BG_PRIORITY,
             persist: true,
@@ -542,7 +540,7 @@ export function drawChooseOptionMenu(
         });
     }
 
-    // Entries (OSRS parity: Client.drawLoggedIn menu entry layout)
+    // Entries (Client.drawLoggedIn menu entry layout)
     const optFont = opts.fontLoader(FONT_OPT);
     const optMaxAscent = (optFont?.maxAscent ?? optFont?.ascent ?? 0) | 0;
     const optH1 = optFont ? (optFont.maxAscent + optFont.maxDescent) | 0 : 16;

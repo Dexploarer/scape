@@ -33,7 +33,7 @@ export interface InterfaceParent {
     // - 1: click-through overlay
     // - 3: tab/sidemodal replacement (closed by IF_CLOSE)
     type: number;
-    isModal?: boolean; // field1053 in Java - true if this interface captures all input
+    isModal?: boolean; // true if this interface captures all input
 }
 
 export class WidgetManager {
@@ -48,9 +48,8 @@ export class WidgetManager {
     private dynamicUidNextByGroup: Map<number, number> = new Map();
 
     /**
-     * OSRS parity: widget flags overrides (Client.widgetFlags).
+     * widget flags overrides (Client.widgetFlags).
      * Key: (widget.id << 32) | (widget.childIndex & 0xffffffff)
-     * Reference: class405.getWidgetFlags in the Java client.
      */
     private widgetFlagsOverrides: Map<bigint, number> = new Map();
     private widgetFlagsVersion: number = 1;
@@ -74,7 +73,7 @@ export class WidgetManager {
     private dynamicChildrenByParent: Map<number, WidgetNode[]> = new Map();
 
     /**
-     * OSRS parity: Tracks which groups have been loaded (matches Skills.field3912 in Java client)
+     * Tracks which groups have been loaded
      * This prevents re-loading already loaded groups and allows explicit unloading
      */
     private loadedGroups: boolean[] = [];
@@ -90,7 +89,6 @@ export class WidgetManager {
 
     /**
      * OSRS PARITY: Sprite ID for the compass graphic from GraphicsDefaults.
-     * Reference: WallDecoration.compass loaded from GraphicsDefaults.field4779
      * Set this from GraphicsDefaults.compass when initializing the cache.
      */
     compassSpriteId: number = -1;
@@ -102,7 +100,7 @@ export class WidgetManager {
     scrollbarSpriteArchiveId: number = -1;
 
     /**
-     * OSRS parity: The widget currently waiting for server response after clicking "Continue".
+     * The widget currently waiting for server response after clicking "Continue".
      * Reference: Client.meslayerContinueWidget in Java client.
      * When set, the widget's text is rendered as "Please wait..." instead of its actual text.
      */
@@ -289,7 +287,6 @@ export class WidgetManager {
 
     /**
      * OSRS PARITY: Mark a widget's root region as needing redraw.
-     * Reference: FaceNormal.invalidateWidget() in OSRS client
      */
     invalidateWidgetRender(w: WidgetNode | null | undefined, source?: string): void {
         if (!w) return;
@@ -312,15 +309,14 @@ export class WidgetManager {
             this.dirtyRoots.add(idx); // PERF: O(1) dirty tracking
             return;
         }
-        // OSRS parity: FaceNormal.invalidateWidget only marks a root when the widget
+        // invalidateWidget only marks a root when the widget
         // resolves to a tracked root index. Unresolved widgets are ignored here.
     }
 
     /**
      * OSRS PARITY: Advance type-6 widget model animations (modelFrame/modelFrameCycle).
-     * Reference: PlayerCompositionColorTextureOverride.drawModelComponents.
      *
-     * This must run on the 20ms client tick (Client.cycle), not the render frame.
+     * This must run on the 20ms client tick, not the render frame.
      */
     tickModelAnimations(graphicsCycle: number, seqTypeLoader: SeqTypeLoader): void {
         const delta = Math.max(0, graphicsCycle | 0);
@@ -365,7 +361,7 @@ export class WidgetManager {
             let frame = (w.modelFrame ?? 0) | 0;
             let cycle = ((w.modelFrameCycle ?? 0) | 0) + delta;
 
-            // OSRS parity: advance while (cycle > frameLengths[frame]), subtracting the *current*
+            // advance while (cycle > frameLengths[frame]), subtracting the *current*
             // frame length then incrementing frame. Invalidate once per advancement.
             while (cycle > ((frameLengths[frame] ?? 0) | 0)) {
                 cycle = (cycle - ((frameLengths[frame] ?? 0) | 0)) | 0;
@@ -478,7 +474,7 @@ export class WidgetManager {
      */
     invalidateWidget(w: WidgetNode, source?: string): void {
         if (!w) return;
-        // OSRS parity: layout mutations must always trigger a redraw, even if the widget
+        // layout mutations must always trigger a redraw, even if the widget
         // is already marked dirty. This matters for timer-driven animations (e.g. XP drops)
         // where multiple CC_SETPOSITION calls can happen while layout remains invalid.
         if (w.isLayoutValid === false) {
@@ -535,9 +531,9 @@ export class WidgetManager {
                 }
             }
 
-            // OSRS parity: when a type-0 container changes layout, any mounted InterfaceParent
+            // when a type-0 container changes layout, any mounted InterfaceParent
             // group on that container must be revalidated against the new host size/position.
-            // Reference: RestClientThreadFactory.revalidateWidgetScroll() resizing mounted groups.
+            // When a type-0 container changes, mounted groups must be revalidated.
             const mounted = this.interfaceParents.get(w.uid);
             if (mounted) {
                 const mountedRoots = this.getAllGroupRoots(mounted.group | 0);
@@ -639,7 +635,7 @@ export class WidgetManager {
                 this.ensureLayout(parent);
                 // OSRS PARITY: When a parent has a scroll area, child alignment uses
                 // parent.scrollWidth/scrollHeight if non-zero, else parent.width/height.
-                // See RestClientThreadFactory.revalidateWidgetScroll().
+                // Child alignment uses scroll area when present.
                 const pw = parent.width || 0;
                 const ph = parent.height || 0;
                 const sw = parent.scrollWidth || 0;
@@ -652,8 +648,7 @@ export class WidgetManager {
             // (roots stay parentUid=-1), but are laid out relative to the mount container's
             // scroll area (scrollWidth/scrollHeight or width/height).
             //
-            // Reference: RestClientThreadFactory.revalidateWidgetScroll() calls resizeInterface
-            // on the mounted group with parentId=-1 and parent size = container size.
+            // Mounted groups are laid out relative to the mount container's size.
             const containerUid = this.groupToContainerUid.get(w.groupId);
             if (typeof containerUid === "number") {
                 const container = this.getWidgetByUid(containerUid);
@@ -1038,7 +1033,7 @@ export class WidgetManager {
     }
 
     /**
-     * OSRS parity: Clear ALL widget data. This is a full reset, NOT called during normal gameplay.
+     * Clear ALL widget data. This is a full reset, NOT called during normal gameplay.
      * In OSRS, widgets persist until explicitly unloaded via method6346.
      * Only use this for complete client reset (e.g., logout, reconnect).
      */
@@ -1098,7 +1093,7 @@ export class WidgetManager {
     }
 
     /**
-     * OSRS parity: Matches method6349() in WidgetDefinition.java
+     * Matches method6349() in WidgetDefinition.java
      * Clears resource caches (sprites, models, fonts) but NOT widget definitions.
      * This is safe to call without affecting loaded widgets.
      */
@@ -1108,11 +1103,11 @@ export class WidgetManager {
     }
 
     /**
-     * OSRS parity: Matches loadInterface(int var1) in WidgetDefinition.java
-     * Only loads if not already loaded (checks loadedGroups array like Skills.field3912)
+     * Matches loadInterface(int var1) in WidgetDefinition.java
+     * Only loads if not already loaded (checks loadedGroups array)
      */
     loadGroup(groupId: number): WidgetGroupInstance | undefined {
-        // OSRS parity: Check if already loaded (like Skills.field3912[var1] check)
+        // Check if already loaded
         if (this.loadedGroups[groupId]) {
             return this.groups.get(groupId);
         }
@@ -1124,7 +1119,7 @@ export class WidgetManager {
             }
             const instance = this.setGroupRoot(groupId, data);
 
-            // Mark as loaded (like Skills.field3912[var1] = true)
+            // Mark as loaded
             this.loadedGroups[groupId] = true;
 
             return instance;
@@ -1134,13 +1129,13 @@ export class WidgetManager {
     }
 
     /**
-     * OSRS parity: Matches method6346(int var1) in WidgetDefinition.java
+     * Matches method6346(int var1) in WidgetDefinition.java
      * Explicitly unloads a widget group from memory, allowing it to be reloaded later
      */
     unloadGroup(groupId: number): void {
         if (groupId === -1) return;
 
-        // OSRS parity: Only unload if actually loaded
+        // Only unload if actually loaded
         if (!this.loadedGroups[groupId]) return;
 
         // Clear the group from our maps
@@ -1148,7 +1143,7 @@ export class WidgetManager {
         this.groups.delete(groupId);
         this.clearWidgetFlagsOverridesForGroup(groupId);
 
-        // OSRS parity: Clear meslayerContinueWidget if it belongs to this group
+        // Clear meslayerContinueWidget if it belongs to this group
         if (this.meslayerContinueWidget) {
             const continueWidgetGroup = (this.meslayerContinueWidget.uid ?? 0) >> 16;
             if (continueWidgetGroup === groupId) {
@@ -1156,7 +1151,7 @@ export class WidgetManager {
             }
         }
 
-        // Mark as unloaded (like Skills.field3912[var1] = false)
+        // Mark as unloaded
         this.loadedGroups[groupId] = false;
     }
 
@@ -1168,8 +1163,7 @@ export class WidgetManager {
     }
 
     /**
-     * OSRS parity: Return widget flags with runtime overrides applied.
-     * Reference: class405.getWidgetFlags.
+     * Return widget flags with runtime overrides applied.
      *
      * Key calculation:
      * - Static widgets (from cache): id=uid, childIndex=-1 (from Widget constructor)
@@ -1182,9 +1176,8 @@ export class WidgetManager {
     getWidgetFlags(w: WidgetNode | null | undefined): number {
         if (!w) return 0;
         const id = ((w as any).id ?? w.uid) | 0;
-        // OSRS parity: Static widgets have childIndex=-1 (from Widget.java constructor).
+        // Static widgets have childIndex=-1.
         // Only dynamic children (CC_CREATE) have childIndex >= 0 from the script.
-        // Reference: Widget.java line 674: this.childIndex = -1;
         const childIndex =
             typeof (w as any).childIndex === "number" ? (w as any).childIndex | 0 : -1;
         const key = this.makeWidgetFlagsKey(id, childIndex);
@@ -1196,13 +1189,13 @@ export class WidgetManager {
     }
 
     /**
-     * OSRS parity: Set a widget flags override (Client.widgetFlags.put).
+     * Set a widget flags override (Client.widgetFlags.put).
      * This does not mutate `w.flags` (base flags from cache).
      */
     setWidgetFlagsOverride(w: WidgetNode, flags: number): void {
         if (!w) return;
         const id = ((w as any).id ?? w.uid) | 0;
-        // OSRS parity: Static widgets have childIndex=-1 (from Widget.java constructor).
+        // Static widgets have childIndex=-1.
         // Only dynamic children (CC_CREATE) have childIndex >= 0.
         const childIndex =
             typeof (w as any).childIndex === "number" ? (w as any).childIndex | 0 : -1;
@@ -1212,7 +1205,7 @@ export class WidgetManager {
     }
 
     /**
-     * OSRS parity: Set widget flags directly by (id, childIndex) key.
+     * Set widget flags directly by (id, childIndex) key.
      * Used by IF_SETEVENTS packet which sets flags for a range of child indices
      * without needing the actual widget objects to exist yet.
      * Reference: IF_SETEVENTS stores flags in Client.widgetFlags with key (id << 32) | childIndex
@@ -1224,7 +1217,7 @@ export class WidgetManager {
     }
 
     /**
-     * OSRS parity: Check if a widget has server-set transmit flags (from IF_SETEVENTS).
+     * Check if a widget has server-set transmit flags (from IF_SETEVENTS).
      *
      * This returns flags ONLY from widgetFlagsOverrides (set by the server via IF_SETEVENTS),
      * NOT from the base cache flags. This is used to determine whether an action should be
@@ -1236,8 +1229,7 @@ export class WidgetManager {
      * IF_SETEVENTS, so their actions should NOT be sent to the server even if the cache
      * has transmit-like bits set.
      *
-     * Reference: class405.getWidgetFlags returns override ?? cache, but for transmission
-     * we only care about explicitly server-set overrides.
+     * For transmission we only care about explicitly server-set overrides.
      */
     getServerSetFlags(w: WidgetNode | null | undefined): number | undefined {
         if (!w) return undefined;
@@ -1249,8 +1241,7 @@ export class WidgetManager {
     }
 
     /**
-     * OSRS parity: Remove all widget flag overrides for a given interface group.
-     * Reference: class47.method911 (checks key >> 48 == groupId).
+     * Remove all widget flag overrides for a given interface group.
      */
     clearWidgetFlagsOverridesForGroup(groupId: number): void {
         const g = BigInt((groupId | 0) & 0xffff);
@@ -1265,7 +1256,7 @@ export class WidgetManager {
 
     /**
      * Check if a group is currently loaded
-     * OSRS parity: Matches checking Skills.field3912[groupId]
+     * Checks the loadedGroups tracking array
      */
     isGroupLoaded(groupId: number): boolean {
         return this.loadedGroups[groupId] === true;
@@ -1324,7 +1315,7 @@ export class WidgetManager {
         // OSRS PARITY: Sort static children by fileId for correct layering
         // In OSRS, updateInterface iterates Widget[] by index (which IS the fileId).
         // Lower fileId = rendered first = background, Higher fileId = rendered later = foreground.
-        // Reference: WorldMapRegion.java updateInterface() line 1352-1355
+        // Lower fileId = rendered first = background, Higher fileId = rendered later = foreground.
         for (const siblings of this.staticChildrenByParent.values()) {
             siblings.sort((a, b) => (a.fileId ?? 0) - (b.fileId ?? 0));
         }
@@ -1363,10 +1354,10 @@ export class WidgetManager {
     /**
      * Set the root/top-level interface (like OSRS IF_OPENTOPLEVEL packet)
      * This loads the interface and triggers onLoad scripts.
-     * OSRS parity: Does NOT clear widget caches - loaded groups persist in memory
+     * Does NOT clear widget caches - loaded groups persist in memory
      */
     setRootInterface(groupId: number): WidgetGroupInstance | undefined {
-        // OSRS parity: Do NOT clear all caches here. Widgets stay loaded in memory.
+        // Do NOT clear all caches here. Widgets stay loaded in memory.
         // Only clear special widget references and interface parents for the new root.
 
         // Clear special widget references (will be re-discovered when loading)
@@ -1377,7 +1368,7 @@ export class WidgetManager {
         // Clear mounted sub-interfaces (they belong to the old root)
         this.interfaceParents.clear();
         this.groupToContainerUid.clear();
-        // OSRS parity: Clear runtime widget flags overrides on major interface changes.
+        // Clear runtime widget flags overrides on major interface changes.
         // Reference: Client.java reinitializes widgetFlags when interface parents are refreshed.
         this.widgetFlagsOverrides.clear();
         this.widgetFlagsVersion++;
@@ -1396,7 +1387,7 @@ export class WidgetManager {
         // OSRS interfaces can have multiple independent root widget trees
         if (this.canvasWidth > 0 && this.canvasHeight > 0) {
             const allRoots = this.getAllGroupRoots(groupId);
-            // Pass static children callback for OSRS parity
+            // Pass static children callback for 
             const getStaticChildren = (uid: number) => this.getStaticChildrenByParentUid(uid);
 
             // First pass: initial layout before onLoad scripts run
@@ -1440,8 +1431,7 @@ export class WidgetManager {
             return;
         }
 
-        // OSRS parity: Opening an interface clears meslayerContinueWidget.
-        // Reference: class155.openInterface()
+        // Opening an interface clears meslayerContinueWidget.
         if (this.meslayerContinueWidget) {
             this.invalidateWidgetRender(this.meslayerContinueWidget, "meslayer-clear");
             this.meslayerContinueWidget = null;
@@ -1479,8 +1469,7 @@ export class WidgetManager {
 
         // Layout dimensions to use for the sub-interface
         // OSRS PARITY: Use the container's scroll area when present, otherwise its visible size.
-        // Reference: RestClientThreadFactory.revalidateWidgetScroll() uses scrollWidth/scrollHeight
-        // (falling back to width/height) as the host size when resizing the mounted group.
+        // scrollWidth/scrollHeight (falling back to width/height) as the host size when resizing the mounted group.
         const targetHostW =
             (targetWidget.scrollWidth && targetWidget.scrollWidth > 0
                 ? targetWidget.scrollWidth
@@ -1492,7 +1481,7 @@ export class WidgetManager {
         const layoutWidth = targetHostW > 0 ? targetHostW : this.canvasWidth || 0;
         const layoutHeight = targetHostH > 0 ? targetHostH : this.canvasHeight || 0;
 
-        // Pass static children callback for OSRS parity
+        // Pass static children callback for 
         const getStaticChildren = (uid: number) => this.getStaticChildrenByParentUid(uid);
 
         for (const root of allRoots) {
@@ -1556,14 +1545,13 @@ export class WidgetManager {
         this.interfaceParents.delete(targetUid);
         // PERF: Maintain reverse lookup for O(1) visibility checks
         this.groupToContainerUid.delete(parent.group);
-        // OSRS parity: Clear any widget flag overrides for the closed interface group.
+        // Clear any widget flag overrides for the closed interface group.
         this.clearWidgetFlagsOverridesForGroup(parent.group);
 
         // Mark widgets dirty - sub-interface change requires redraw
         this.invalidateAll();
 
-        // OSRS parity: Clear meslayerContinueWidget if it belongs to the closed interface
-        // Reference: class155.java:277-279, class47.java:104-106
+        // Clear meslayerContinueWidget if it belongs to the closed interface
         if (this.meslayerContinueWidget) {
             const continueWidgetGroup = (this.meslayerContinueWidget.uid ?? 0) >> 16;
             if (continueWidgetGroup === parent.group) {
@@ -1686,7 +1674,7 @@ export class WidgetManager {
     /**
      * Trigger onLoad scripts for a widget tree.
      * Call this after manually mounting a widget group to initialize CS2 event handlers.
-     * OSRS parity: traverses both static children (via parentUid) and dynamic children (via children array)
+     * traverses both static children (via parentUid) and dynamic children (via children array)
      */
     triggerOnLoad(root: WidgetNode): void {
         // Need at least one of the listeners/invokers
@@ -1710,7 +1698,7 @@ export class WidgetManager {
                 }
             }
 
-            // OSRS parity: traverse static children (via parentUid filtering)
+            // traverse static children (via parentUid filtering)
             const staticChildren = this.getStaticChildrenByParentUid(node.uid);
             for (let i = staticChildren.length - 1; i >= 0; i--) {
                 stack.push(staticChildren[i]);
@@ -1749,7 +1737,7 @@ export class WidgetManager {
         const invokeResize = (node: WidgetNode) => this.invokeResize(node);
 
         // Handle multiple root widgets in the root interface
-        // OSRS parity: traverse both static children (via parentUid) and dynamic children
+        // traverse both static children (via parentUid) and dynamic children
         const allRootRoots = this.getAllGroupRoots(this.rootInterface);
         const stack: WidgetNode[] = [...allRootRoots];
         while (stack.length > 0) {
@@ -1758,7 +1746,7 @@ export class WidgetManager {
 
             invokeResize(node);
 
-            // OSRS parity: traverse static children (via parentUid filtering)
+            // traverse static children (via parentUid filtering)
             const staticChildren = this.getStaticChildrenByParentUid(node.uid);
             for (let i = staticChildren.length - 1; i >= 0; i--) {
                 stack.push(staticChildren[i]);
@@ -1782,7 +1770,7 @@ export class WidgetManager {
 
                 invokeResize(node);
 
-                // OSRS parity: traverse static children (via parentUid filtering)
+                // traverse static children (via parentUid filtering)
                 const staticChildren = this.getStaticChildrenByParentUid(node.uid);
                 for (let i = staticChildren.length - 1; i >= 0; i--) {
                     subStack.push(staticChildren[i]);
@@ -1848,7 +1836,6 @@ export class WidgetManager {
 
     /**
      * OSRS PARITY: Update the compass widget's spriteAngle based on camera yaw.
-     * Reference: class520.java method9265() draws compass with Client.camAngleY.
      * In OSRS, the compass is drawn natively using the camera yaw directly.
      * Here we update the widget's spriteAngle property before rendering.
      *

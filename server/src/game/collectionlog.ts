@@ -789,7 +789,7 @@ export function getTabItemsEnumId(tabIndex: number): number {
 
 /**
  * Draw a specific collection log category's items by calling script 2732.
- * OSRS parity: Script 2732 (collection_draw_log proc) takes (struct, enum, categoryIndex)
+ * Script 2732 (collection_draw_log proc) takes (struct, enum, categoryIndex)
  * and populates the item display area with the category's items.
  *
  * @param player - The player

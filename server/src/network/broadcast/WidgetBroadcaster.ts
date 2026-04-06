@@ -10,7 +10,7 @@ export interface WidgetBroadcasterServices {
 /**
  * Broadcasts widget open/close events to players.
  *
- * OSRS parity: close events are sent BEFORE varps/varbits to prevent
+ * close events are sent BEFORE varps/varbits to prevent
  * re-render flicker. Non-close events are sent AFTER varps/varbits
  * so scripts have correct state when interfaces open.
  *

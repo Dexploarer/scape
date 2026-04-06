@@ -477,7 +477,7 @@ export class Camera {
 
         viewportWidth = Math.max(1, viewportWidth | 0);
         viewportHeight = Math.max(1, viewportHeight | 0);
-        // OSRS parity: Client.viewportZoom is an integer (var3 * var6 / 334).
+        // Client.viewportZoom is an integer (var3 * var6 / 334).
         const viewportZoom = ((viewportHeight * fovScale) / 334) | 0;
 
         return {

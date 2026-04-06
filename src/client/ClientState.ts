@@ -174,7 +174,7 @@ export class ClientState {
     static menuOptionsCount: number = 0;
 
     // ========================================
-    // ATTACK OPTION SETTINGS (OSRS Parity)
+    // ATTACK OPTION SETTINGS ()
     // ========================================
 
     /**

@@ -1,5 +1,5 @@
 /**
- * Vorbis Codebook (port of VorbisCodebook.java).
+ * Vorbis Codebook.
  * Huffman codebook used for symbol decoding in Vorbis.
  */
 import { VorbisBitReader, sharedBitReader } from "./VorbisBitReader";

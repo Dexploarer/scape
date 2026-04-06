@@ -69,10 +69,10 @@ function it(name: string, fn: () => void): void {
 }
 
 // ============================================================================
-// 1. Rotation helpers — must match MapLoader.java lines 1189-1262
+// 1. Rotation helpers
 // ============================================================================
 
-describe("rotateChunkX (MapLoader.java:1189)", () => {
+describe("rotateChunkX", () => {
     it("rotation 0 returns x", () => {
         for (let x = 0; x < 8; x++) {
             for (let y = 0; y < 8; y++) {
@@ -107,7 +107,7 @@ describe("rotateChunkX (MapLoader.java:1189)", () => {
     });
 });
 
-describe("rotateChunkY (MapLoader.java:1200)", () => {
+describe("rotateChunkY", () => {
     it("rotation 0 returns y", () => {
         for (let x = 0; x < 8; x++) {
             for (let y = 0; y < 8; y++) {
@@ -138,7 +138,7 @@ describe("rotateChunkY (MapLoader.java:1200)", () => {
     });
 });
 
-describe("rotateObjectChunkX (MapLoader.java:1211)", () => {
+describe("rotateObjectChunkX", () => {
     it("orientation bit swaps sizeX/sizeY", () => {
         // orientation=0: no swap => rotation 2 uses sizeX
         assertEqual(rotateObjectChunkX(3, 4, 2, 2, 3, 0), 7 - 3 - (2 - 1), "no swap");
@@ -159,7 +159,7 @@ describe("rotateObjectChunkX (MapLoader.java:1211)", () => {
     });
 });
 
-describe("rotateObjectChunkY (MapLoader.java:1247)", () => {
+describe("rotateObjectChunkY", () => {
     it("rotation 0 returns y", () => {
         assertEqual(rotateObjectChunkY(5, 3, 0, 1, 1, 0), 3, "rot0");
     });
@@ -218,7 +218,7 @@ describe("4 successive 90° rotations return to origin", () => {
 });
 
 // ============================================================================
-// 3. Template chunk packing — must match bit layout from MapLoader.java
+// 3. Template chunk packing — must match bit layout from reference
 // ============================================================================
 
 describe("packTemplateChunk / unpackTemplateChunk (26-bit layout)", () => {
@@ -313,7 +313,7 @@ describe("deriveRegionsFromTemplates", () => {
 });
 
 // ============================================================================
-// 5b. deriveRegionsFromCenter (Js5Archive.java normal path lines 57-64)
+// 5b. deriveRegionsFromCenter (normal path)
 // ============================================================================
 
 describe("deriveRegionsFromCenter", () => {
@@ -377,7 +377,7 @@ describe("REBUILD_NORMAL packet", () => {
 // 8. Noise offset calculation parity
 // ============================================================================
 
-describe("Noise offset calculation (MapLoader.java:319-331)", () => {
+describe("Noise offset calculation", () => {
     it("matches reference: noiseXOffset = (sourceChunkX - targetCX) * 8", () => {
         // Reference:
         //   var92 = chunkX from unpack (e.g. 48)
@@ -409,7 +409,7 @@ describe("Noise offset calculation (MapLoader.java:319-331)", () => {
 // 9. Object orientation rotation parity
 // ============================================================================
 
-describe("Object orientation + chunk rotation (MapLoader.java:1030)", () => {
+describe("Object orientation + chunk rotation", () => {
     it("combined rotation = (objectOrientation + chunkRotation) & 3", () => {
         for (let orient = 0; orient < 4; orient++) {
             for (let rot = 0; rot < 4; rot++) {
@@ -425,7 +425,7 @@ describe("Object orientation + chunk rotation (MapLoader.java:1030)", () => {
 // 10. clearTerrainChunk: must NOT clear tileRenderFlags (reference parity)
 // ============================================================================
 
-describe("clearTerrainChunk parity (MapLoader.java:886-915)", () => {
+describe("clearTerrainChunk parity", () => {
     it("reference only clears tileHeights, not tileRenderFlags", () => {
         // This test validates the fix was applied by checking our understanding:
         // The reference MapLoader.clearTerrainChunk:
@@ -466,7 +466,7 @@ describe("clearTerrainChunk parity (MapLoader.java:886-915)", () => {
 // 11. fillMissingTerrain: must set tileLightOcclusions = 127 (reference parity)
 // ============================================================================
 
-describe("fillMissingTerrain parity (MapLoader.java:859-884)", () => {
+describe("fillMissingTerrain parity", () => {
     it("sets tileLightOcclusions[0] = 127 for empty chunks", () => {
         const fs = require("fs");
         const source = fs.readFileSync(
@@ -491,7 +491,7 @@ describe("fillMissingTerrain parity (MapLoader.java:859-884)", () => {
 // 12. Overlay ID read as signed (reference parity)
 // ============================================================================
 
-describe("Overlay ID reading parity (MapLoader.java:482)", () => {
+describe("Overlay ID reading parity", () => {
     it("decodeTerrainTile reads overlay as signed", () => {
         const fs = require("fs");
         const source = fs.readFileSync(
@@ -519,7 +519,7 @@ describe("Overlay ID reading parity (MapLoader.java:482)", () => {
 });
 
 // ============================================================================
-// 13. REBUILD_NORMAL client dispatch (OSRS parity: exit instance via normal region load)
+// 13. REBUILD_NORMAL client dispatch (exit instance via normal region load)
 // ============================================================================
 
 describe("REBUILD_NORMAL client dispatch", () => {

@@ -82,7 +82,7 @@ export function registerShopInterfaceHooks(interfaceService: InterfaceService): 
 
     // =============== ON SHOP CLOSE ===============
     interfaceService.onInterfaceClose(SHOP_INTERFACE_ID, (player, ctx) => {
-        // OSRS parity: Restore normal inventory when shop closes
+        // Restore normal inventory when shop closes
         // RSMod equivalent:
         //   player.closeInterface(interfaceId = INV_INTERFACE_ID)
         //   player.openInterface(dest = InterfaceDestination.INVENTORY)

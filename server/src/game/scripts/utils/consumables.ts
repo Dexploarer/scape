@@ -77,7 +77,7 @@ export function scheduleConsumableAction(options: ConsumableActionOptions): bool
         profile,
     } = options;
 
-    // OSRS parity: Eating/drinking closes interruptible interfaces (modals, dialogs)
+    // Eating/drinking closes interruptible interfaces (modals, dialogs)
     if (services.closeInterruptibleInterfaces) {
         services.closeInterruptibleInterfaces(player);
     }
@@ -102,7 +102,7 @@ export function scheduleConsumableAction(options: ConsumableActionOptions): bool
                 tick: resolvedTick,
                 services,
             });
-            // OSRS parity: Eating food/drinking potions adds attack delay
+            // Eating food/drinking potions adds attack delay
             // Standard food/potions: +3 ticks, combo food: +2 ticks
             const attackDelay = profile ? PROFILE_ATTACK_DELAY[profile] : 0;
             if (attackDelay > 0) {

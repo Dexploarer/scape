@@ -22,12 +22,12 @@ export type TargetLabelOptions = {
     localPlayerCombatLevel?: number;
 };
 
-// OSRS parity: class208.colorStartTag(int)
+// class208.colorStartTag(int)
 function colorStartTag(rgb: number): string {
     return `<col=${(rgb >>> 0).toString(16)}>`;
 }
 
-// OSRS parity: MusicPatchNode2.method6038(npcLevel, playerLevel)
+// MusicPatchNode2.method6038(npcLevel, playerLevel)
 function combatLevelColorTag(npcLevel: number, localPlayerLevel: number): string {
     const diff = (localPlayerLevel | 0) - (npcLevel | 0);
     if (diff < -9) return colorStartTag(16711680);
@@ -82,7 +82,7 @@ function formatNpcNameWithLevel(
  */
 export function osrsTargetLabel(e: OsrsMenuEntry, opts: TargetLabelOptions = {}): string {
     if (!e) return "";
-    // OSRS parity: opcode 23 (Walk here) can have a non-empty target (e.g., when hovering a player).
+    // opcode 23 (Walk here) can have a non-empty target (e.g., when hovering a player).
     // In that case, the target string already contains any necessary <col> tags.
     if (e.targetType === MenuTargetType.NONE) return String(e.targetName || "");
     const includeIds = !!opts.includeExamineIds;
@@ -275,7 +275,7 @@ export function widgetEntriesToSimple(
                 const hook = ui?.onWidgetAction;
                 if (typeof hook !== "function") return false;
                 try {
-                    // OSRS parity: widget ops on item containers need slot/itemId.
+                    // widget ops on item containers need slot/itemId.
                     // Dynamic CC_CREATE children store slot index in `childIndex`.
                     const fallbackSlot =
                         typeof chosenWidget?.childIndex === "number"

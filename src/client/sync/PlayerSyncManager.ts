@@ -24,7 +24,7 @@ import type {
 
 const OVERHEAD_CHAT_LINGER_TICKS = 150;
 
-// OSRS pattern palette (class554.field5330) used by extended public chat colours (13..20).
+// Pattern palette used by extended public chat colours (13..20).
 const CHAT_PATTERN_PALETTE_RGB = new Int32Array([
     16777215, 14942979, 16747520, 16772352, 32806, 2375822, 7547266, 16720268, 11884176, 5261772,
     10724259, 13970688, 15693351, 16577588, 494960, 2208255, 10178454, 16756679, 13722276, 8105443,
@@ -393,17 +393,16 @@ export class PlayerSyncManager {
             if (ecsIndex === undefined) return;
             this.playerEcs.setColorOverride(
                 ecsIndex,
-                override.field1234 | 0, // hue
-                override.field1193 | 0, // sat
-                override.field1204 | 0, // lum
-                override.field1237 | 0, // amount
-                override.field1180 | 0, // startCycle
-                override.field1233 | 0, // endCycle
+                override.hue | 0,
+                override.sat | 0,
+                override.lum | 0,
+                override.amount | 0,
+                override.startCycle | 0,
+                override.endCycle | 0,
             );
         });
 
-        // OSRS parity: apply deferred movement after update blocks are decoded.
-        // (SoundSystem.method877 final `if (field1124) ... method2429/resetPath`).
+        // Apply deferred movement after update blocks are decoded.
         for (const movement of actions.movementsPost) {
             const ecsIndex = this.ensurePlayer(movement.serverId, {
                 subX: movement.subX,
@@ -538,7 +537,7 @@ export class PlayerSyncManager {
         const ecsIndex = this.playerEcs.getIndexForServerId(serverId);
         if (ecsIndex === undefined) return;
 
-        // OSRS parity: `performPlayerAnimation` logic lives in the controller; it writes ECS state.
+        // `performPlayerAnimation` logic lives in the controller; it writes ECS state.
         this.animController?.handleServerSequence(serverId, context.seqId, {
             delay: context.delay | 0,
         });
@@ -577,10 +576,10 @@ export class PlayerSyncManager {
         const startCycle = Number.isFinite(update.startCycle)
             ? update.startCycle | 0
             : this.playerEcs.getClientCycle();
-        // OSRS parity: the server provides absolute start/end cycles; do not clamp.
+        // the server provides absolute start/end cycles; do not clamp.
         const endCycle = Number.isFinite(update.endCycle) ? update.endCycle | 0 : startCycle;
 
-        // OSRS parity: forced-move orientation comes from `field1173` (readUnsignedShortAddLE),
+        // forced-move orientation comes from `field1173` (readUnsignedShortAddLE),
         // which is already in RS rotation units (0..2047), not a 0..7 direction code.
         const orientation =
             typeof update.direction === "number" && Number.isFinite(update.direction)
@@ -597,7 +596,7 @@ export class PlayerSyncManager {
             endSubY,
             orientation,
         );
-        // OSRS parity: forced movement resets pathLength and field1215; clear any queued movement.
+        // forced movement resets pathLength and field1215; clear any queued movement.
         try {
             this.playerEcs.clearServerQueue(ecsIndex);
         } catch {}
@@ -647,7 +646,7 @@ export class PlayerSyncManager {
         if (!this.onAppearanceUpdate) return;
         if (appearance.payload.length === 0) return;
         try {
-            // OSRS parity: decode binary appearance block (like Player.read() in reference)
+            // decode binary appearance block (like Player.read() in reference)
             const decoded = decodeAppearanceBinary(appearance.payload);
             if (!decoded) return;
 

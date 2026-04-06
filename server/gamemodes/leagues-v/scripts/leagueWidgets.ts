@@ -90,7 +90,7 @@ function queueLeaguePackedVarpUpdates(
 }
 
 // =============================================================================
-// CS2-DRIVEN UI (OSRS parity)
+// CS2-DRIVEN UI ()
 // =============================================================================
 // The server ONLY:
 //   1) opens/closes interfaces
@@ -514,7 +514,7 @@ const LEAGUE_AREAS: ReadonlyArray<{
 ]);
 
 function normalizeLeagueAreaSelectionValue(regionId: number): number {
-    // OSRS parity: script3681 normalizes legacy region ids 9/10 -> 20 (Kourend).
+    // script3681 normalizes legacy region ids 9/10 -> 20 (Kourend).
     if (regionId === 9 || regionId === 10) return 20;
     return regionId;
 }
@@ -952,7 +952,7 @@ function getLeagueAreaButtonState(
     if (isLeagueAreaUnlocked(player, regionId)) return 1;
 
     // During the tutorial, Karamja is free - allow unlock regardless of task requirements.
-    // OSRS parity: Karamja is the first area players actively choose during the tutorial.
+    // Karamja is the first area players actively choose during the tutorial.
     const tutorialStep = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
     const tutorialComplete = getLeagueTutorialCompleteStep(player);
     const inTutorial = tutorialStep < tutorialComplete;
@@ -963,7 +963,7 @@ function getLeagueAreaButtonState(
     const stage = getCurrentLeagueAreaUnlockStage(player, services);
     if (!stage) return 4;
 
-    // OSRS parity: Karamja is forced as the 2nd area selection (stageIndex=1).
+    // Karamja is forced as the 2nd area selection (stageIndex=1).
     // This is represented in CS2 by "league_area_not_available(3)".
     if (stage.stageIndex === 1 && regionId !== 2) return 3;
 
@@ -1004,7 +1004,7 @@ function tryUnlockLeagueArea(
         return { ok: false, reason: "no_slots" };
     }
 
-    // OSRS parity: Karamja is forced as the 2nd area selection (stageIndex=1) outside of tutorial.
+    // Karamja is forced as the 2nd area selection (stageIndex=1) outside of tutorial.
     if (!isTutorialKaramja && stage.stageIndex === 1 && regionId !== 2)
         return { ok: false, reason: "karamja_second" };
 
@@ -1098,7 +1098,7 @@ function refreshLeagueSidePanelProgress(
 ): void {
     // Refresh the Leagues side panel (inside the Quest tab) so the "tasks/points until next unlock" messaging
     // updates immediately after unlock actions.
-    // OSRS parity: the side panel uses league_*_side_panel_update_bar to update both the bar and text.
+    // the side panel uses league_*_side_panel_update_bar to update both the bar and text.
     const leagueType = opts?.leagueType ?? player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
     const isL3 = leagueType === 3;
     const panelGroupId = isL3 ? 736 : 656;
@@ -1220,7 +1220,7 @@ function ensureLeagueAreaSelectionsInitialized(player: any, services: any): void
     const post = changed ? sanitized : values;
 
     const allZero = post.every((v) => v === 0);
-    // OSRS parity: participants start with Misthalin; Karamja is unlocked during the tutorial flow.
+    // participants start with Misthalin; Karamja is unlocked during the tutorial flow.
     if (allZero) {
         const desired = [1, 0, 0, 0, 0, 0];
         for (let i = 0; i < AREA_SELECTION_VARBITS.length; i++) {
@@ -1256,7 +1256,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             varbits: getLeagueVarbits(player),
         });
 
-        // OSRS parity: Enable clickzone transmit so clicking mastery nodes sends to server.
+        // Enable clickzone transmit so clicking mastery nodes sends to server.
         // The server must call script 7674 to show the mastery detail view.
         queueWidgetFlagsRange(
             player,
@@ -1523,7 +1523,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             varbits: getLeagueVarbits(event.player),
         });
 
-        // OSRS parity: Dynamic relic entries are CC_CREATE children under 655:22.
+        // Dynamic relic entries are CC_CREATE children under 655:22.
         // The server must send IF_SETEVENTS for the (id=655:22, childIndex=0..N) keyspace
         // so op1 ("View") is transmitted to the server. Otherwise the client only runs the
         // local onOp (league_relics_loading) and the expanded view never opens.
@@ -1601,7 +1601,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         console.log(`[league] L5 View Areas clicked`);
 
         ensureLeagueBasicsInitialized(player, services);
-        // OSRS parity + data hygiene: ensure area selection varbits are valid before opening,
+        //  + data hygiene: ensure area selection varbits are valid before opening,
         // otherwise CS2 draws incorrect state (e.g., showing 5/5 unlocked due to bad defaults).
         ensureLeagueAreaSelectionsInitialized(player, services);
 
@@ -1611,7 +1611,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         const needsKaramjaHighlight = tutorial === 7 && !karamjaUnlocked;
         const needsAreasCloseHighlight = tutorial === 7 && karamjaUnlocked;
 
-        // OSRS parity: Close the tutorial modal while the Areas interface is open during the
+        // Close the tutorial modal while the Areas interface is open during the
         // Karamja selection/close-gate steps. The modal will reopen when Areas closes.
         if (needsKaramjaHighlight || needsAreasCloseHighlight) {
             services.closeSubInterface?.(
@@ -1706,7 +1706,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     // ========== League Areas (512) ==========
 
     // Area click handlers (shield + label):
-    // OSRS parity: server persists + syncs %league_area_last_viewed AND triggers the detailed view clientscript.
+    // server persists + syncs %league_area_last_viewed AND triggers the detailed view clientscript.
     for (const area of LEAGUE_AREAS) {
         const onClick = (event: WidgetActionEvent) => {
             const player = event.player;
@@ -1714,7 +1714,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
             // Allow viewing all areas - they'll show the appropriate button state (Locked/Unlock/Teleport).
             const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
-            // OSRS parity: while %league_tutorial_completed < 9 and Karamja isn't unlocked yet,
+            // while %league_tutorial_completed < 9 and Karamja isn't unlocked yet,
             // clicking any non-Karamja area plays the "wrong" sound and does nothing (see proc3662).
             // We must not force-open the detailed view from the server in that case.
             if (
@@ -1782,7 +1782,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 varbits,
             });
 
-            // OSRS parity: Enable transmit on the Select/Unlock/Teleport button so clicks reach the server.
+            // Enable transmit on the Select/Unlock/Teleport button so clicks reach the server.
             queueWidgetFlagsRange(
                 player,
                 services,
@@ -1839,7 +1839,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         }
 
         if (unlocked) {
-            // OSRS parity: Teleport to the area teleport coord from region_data.
+            // Teleport to the area teleport coord from region_data.
             const tutorial = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
             if (tutorial < getLeagueTutorialCompleteStep(player)) {
                 // Client shows a disabled button during the Leagues tutorial; server enforces too.
@@ -1880,7 +1880,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             return;
         }
 
-        // OSRS parity: when locked, the client shows a confirm overlay first.
+        // when locked, the client shows a confirm overlay first.
         // The actual unlock is performed on the Confirm button (handled below).
         const state = getLeagueAreaButtonState(player, services, currentRegion);
         console.log(`[league] Awaiting confirm for unlock: regionId=${currentRegion}`);
@@ -1990,7 +1990,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 });
             }
 
-            // OSRS parity: Hide the confirm overlay after a successful unlock.
+            // Hide the confirm overlay after a successful unlock.
             // Client script 3680 does: if_sethide(true, confirm_layer)
             services.queueWidgetEvent?.(player.id, {
                 action: "run_script",
@@ -2259,7 +2259,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     registry.onButton(LEAGUE_RELICS_GROUP_ID, L5_RELIC_CLOSE_BUTTON_CHILD, (event) => {
         const player = event.player;
         clearPendingRelicSelection(player);
-        // OSRS parity: Close buttons run if_close clientside (leagues_closebutton_click),
+        // Close buttons run if_close clientside (leagues_closebutton_click),
         // but if the click is transmitted to the server (non-parity client paths), still close
         // the correct sub-interface rather than closing whatever mainmodal is active.
         const mainmodalUid = getMainmodalUid(player.displayMode);
@@ -2385,7 +2385,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         });
 
         // Redraw the relic list immediately so unlocked state is visible without reopening.
-        // OSRS parity: league_relics_init sets an onResize handler on league_relics:infinity that calls
+        // league_relics_init sets an onResize handler on league_relics:infinity that calls
         // league_relics_draw_selections with captured args. Calling script6110(infinity, -1) forces
         // proc2459 to call if_callonresize (since -1 != computed size bucket), which triggers that redraw.
         services.queueWidgetEvent?.(player.id, {
@@ -2971,7 +2971,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         });
     });
 
-    // OSRS parity: "Display Fragments" is a client-owned CS2 HUD toggle.
+    // "Display Fragments" is a client-owned CS2 HUD toggle.
     // league_3_side_panel_init wires it to league_side_panel_hudop / %buff_league_relics_hidden,
     // so the server must not try to persist or toggle any league varp/varbit here.
 

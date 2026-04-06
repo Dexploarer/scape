@@ -1057,7 +1057,7 @@ export class BankingManager implements BankingProvider {
             `[bank-tab] Moving clientSlot=${bankSlot} (serverSlot=${serverSlot}) from tab ${entry.tab} to tab ${tabIndex}`,
         );
 
-        // OSRS parity: moving an item onto a tab appends it to the end of that tab.
+        // moving an item onto a tab appends it to the end of that tab.
         // Because client ordering inside each tab is derived from server-array order,
         // we reposition the entry after the last existing entry in the target tab.
         const targetTab = tabIndex;
@@ -1351,7 +1351,7 @@ export class BankingManager implements BankingProvider {
             // Open bank modal - InterfaceService handles side panel via hooks.
             interfaceService.openModal(player, BANK_INTERFACE_ID, bankData, { varps, varbits });
 
-            // OSRS parity: CAPACITY (12:5) is server-authored text, not CS2-authored.
+            // CAPACITY (12:5) is server-authored text, not CS2-authored.
             this.services.queueWidgetEvent(player.id, {
                 action: "set_text",
                 uid: ((WidgetGroup.BANK_MAIN & 0xffff) << 16) | BankMainChild.CAPACITY,

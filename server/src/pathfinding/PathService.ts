@@ -96,7 +96,7 @@ export class PathService {
      * 3. If horizontal blocked, try vertical (dy direction)
      * 4. If all blocked, stay put (this enables safespots)
      *
-     * This is CRITICAL for OSRS parity - NPCs will NOT path around obstacles.
+     * This is CRITICAL for  - NPCs will NOT path around obstacles.
      * Reference: docs/npc-behavior.md, docs/pathfinding-details.md
      *
      * @returns The next step to take, or null if no movement possible
@@ -479,7 +479,7 @@ export class PathService {
             const size = normalizePathSize(req.size);
             const plane = clampPlane(from.plane);
 
-            // OSRS parity: For RectAdjacentRouteStrategy, set the collision getter
+            // For RectAdjacentRouteStrategy, set the collision getter
             // so hasArrived() can check for walls blocking the interaction edge.
             if (routeStrategy instanceof RectAdjacentRouteStrategy) {
                 routeStrategy.setCollisionGetter(

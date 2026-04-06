@@ -125,7 +125,7 @@ function aabbChebyshevDistance(a: AabbBounds, b: AabbBounds): number {
 /**
  * Find the nearest target tile within a rectangle that has clear projectile LoS.
  *
- * OSRS parity: when a player attacks a large NPC, LoS is satisfied by the nearest
+ * when a player attacks a large NPC, LoS is satisfied by the nearest
  * visible tile of that NPC's occupied footprint, not just the south-west tile.
  */
 export function findProjectileLineOfSightTileToRect(
@@ -544,7 +544,7 @@ export function canNpcAttackPlayerFromCurrentPosition(
  * For melee attacks, this uses CardinalAdjacentRouteStrategy to ensure
  * the path ends at a cardinal position (N/S/E/W), not diagonal.
  *
- * OSRS parity: NPCs use "dumb pathfinder" (naive diagonal-then-cardinal),
+ * NPCs use "dumb pathfinder" (naive diagonal-then-cardinal),
  * while players use BFS smart pathfinding. This is CRITICAL for safespots.
  * Reference: docs/npc-behavior.md, docs/pathfinding-details.md
  *
@@ -576,7 +576,7 @@ export function walkToAttackRange(
     const tz = target.tileY;
     const plane = pawn.level;
 
-    // OSRS parity: NPCs use dumb pathfinder, players use BFS
+    // NPCs use dumb pathfinder, players use BFS
     if (pawn instanceof NpcState) {
         // NPC: Use dumb pathfinder - generates steps one at a time toward target
         // NPCs will NOT path around obstacles (enables safespots)

@@ -2,7 +2,7 @@
  * ServerBinaryEncoder - Encode server messages to binary format
  *
  * Replaces JSON.stringify for server-to-client messages.
- * All encoding methods match OSRS Buffer.java patterns.
+ * Binary encoding helpers for server packets.
  */
 import {
     SERVER_PACKET_LENGTHS,
@@ -28,7 +28,7 @@ export class ServerPacketBuffer {
     }
 
     // ========================================
-    // WRITE METHODS (matching Buffer.java)
+    // WRITE METHODS
     // ========================================
 
     writeByte(value: number): void {
@@ -743,7 +743,7 @@ export class ServerBinaryEncoder {
     ): Uint8Array {
         this.buffer.reset();
         this.buffer.writeShort(trackId);
-        // OSRS parity default (see Coord.playSong -> WorldMapRectangle.method5019(0,100,100,0))
+        //  default (see Coord.playSong -> WorldMapRectangle.method5019(0,100,100,0))
         this.buffer.writeShort(fadeOutDelay ?? 0);
         this.buffer.writeShort(fadeOutDuration ?? 100);
         this.buffer.writeShort(fadeInDelay ?? 100);
@@ -987,7 +987,7 @@ export class ServerBinaryEncoder {
 
     /**
      * LOC_ADD_CHANGE — spawn or change a loc at a world tile.
-     * OSRS parity: zone-relative coords would use (x&7 << 4 | y&7),
+     * zone-relative coords would use (x&7 << 4 | y&7),
      * but we use absolute world coords for simplicity.
      */
     encodeLocAddChange(

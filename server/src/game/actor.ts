@@ -56,7 +56,7 @@ function encodeStepDirection(dx: number, dy: number): number | undefined {
 }
 
 /**
- * Traversal type flags mirroring class231 in Player.java.
+ * Traversal type flags.
  *
  * These flags distinguish between:
  * - SLOW: Half-speed step (var8 >>= 1)
@@ -135,8 +135,7 @@ export abstract class Actor {
     private teleportedFlag: boolean = false;
 
     /**
-     * Deferred movement flag (field1124 in Player.java).
-     * Reference: player-movement.md (readPlayerUpdate:333, 189-194)
+     * Deferred movement flag.
      *
      * When true, movement is stored but interpolation is deferred until
      * the update mask is processed. This ensures movement and appearance
@@ -150,7 +149,7 @@ export abstract class Actor {
     private interactionDirty: boolean = false;
     public pendingFaceTile?: { x: number; y: number };
 
-    // OSRS parity: Actor HSL color override (poison/freeze/venom tints)
+    // Actor HSL color override (poison/freeze/venom tints)
     private _colorOverride: {
         hue: number;
         sat: number;
@@ -160,7 +159,7 @@ export abstract class Actor {
     } | null = null;
     private _colorOverrideDirty: boolean = false;
 
-    // OSRS parity: run is off by default and is toggled via varp 173 / run orb.
+    // run is off by default and is toggled via varp 173 / run orb.
     runToggle: boolean = false;
     runEnergy: number = RUN_ENERGY_MAX;
 
@@ -252,8 +251,6 @@ export abstract class Actor {
 
     /**
      * Resets the path queue to a single tile position.
-     * Reference: player-movement.md (resetPath:43-52, Player.java)
-     *
      * @param tileX Target tile X coordinate
      * @param tileY Target tile Y coordinate
      */
@@ -297,8 +294,6 @@ export abstract class Actor {
 
     /**
      * Adds a step to the path queue by shifting existing steps and inserting at index 0.
-     * Reference: player-movement.md (method2415:59-73, Player.java)
-     *
      * @param tileX Step tile X coordinate
      * @param tileY Step tile Y coordinate
      * @param traversalType Walk/Run/ForcedRun flag
@@ -430,7 +425,7 @@ export abstract class Actor {
 
     /**
      * Apply a timed HSL color override to this actor.
-     * OSRS parity: Actor.colorOverride / HslOverride.
+     * Actor.colorOverride / HslOverride.
      * @param hue HSL hue component (-1 = no override, 0-63 packed range)
      * @param sat HSL saturation component (-1 = no override, 0-7 packed range)
      * @param lum HSL lightness component (-1 = no override, 0-127 packed range)
@@ -556,7 +551,7 @@ export abstract class Actor {
         this.turnedLastTick = false;
 
         // Pre-turn: face next queued tile while idle so the actor visually
-        // anticipates the movement direction (Actor.java updateMovement).
+        // anticipates the movement direction.
         if (this.pathLength > 0) {
             const idx = this.pathLength - 1;
             const preOr = orientTo(this.tileX, this.tileY, this.pathX[idx], this.pathY[idx], this.orientation);

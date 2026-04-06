@@ -66,14 +66,14 @@ export class MusicSystem {
     private realtimeSynth: RealtimeMidiSynth;
     private loadSequence: number = 0; // Guard against concurrent track loads
 
-    // Secondary track for dual playback (OSRS parity: layered music)
+    // Secondary track for dual playback (layered music)
     private secondarySynth: RealtimeMidiSynth;
     // Third synth to match OSRS midiplayer pool (client commonly has 3 MidiPcmStreams)
     private tertiarySynth: RealtimeMidiSynth;
     private secondaryTrackId: number = -1;
     private secondaryGainNode: GainNode | null = null;
 
-    // Jingle state - OSRS parity: jingles interrupt music, then music resumes
+    // Jingle state - jingles interrupt music, then music resumes
     private _playingJingle: boolean = false;
     private pendingAreaTrackId: number = -1; // Track to resume after jingle
     private pendingAreaTrackName: string | null = null;
@@ -87,7 +87,7 @@ export class MusicSystem {
     private readonly osrsRequests: OsrsMusicSong[] = [];
     private readonly osrsSongs: OsrsMusicSong[] = [];
     private readonly osrsTaskQueue: OsrsSongTask[] = [];
-    // OSRS parity: class319.field3466 (requested songs list, used for de-dupe)
+    // requested songs list, used for de-dupe
     private osrsRequestedTrackIds: number[] = [];
     private osrsQueuedAreaTracks: number[] | null = null;
     private osrsQueuedAreaFade: OsrsFadeParams | null = null;
@@ -110,7 +110,7 @@ export class MusicSystem {
     }
 
     /**
-     * OSRS parity: Returns true if a jingle is currently playing.
+     * Returns true if a jingle is currently playing.
      * When true, area music changes should be queued rather than immediate.
      */
     public get playingJingle(): boolean {
@@ -127,7 +127,7 @@ export class MusicSystem {
 
     /**
      * Store a pending track to play after jingle finishes.
-     * OSRS parity: area music is queued when playingJingle is true.
+     * area music is queued when playingJingle is true.
      */
     public queueAreaTrack(trackId: number, trackName?: string): void {
         this.pendingAreaTrackId = trackId;
@@ -176,7 +176,7 @@ export class MusicSystem {
 
     /**
      * Play login screen music ("Scape Main").
-     * OSRS parity: AuthenticationScheme.java plays "scape main" on the login screen.
+     * plays "scape main" on the login screen.
      *
      * @returns true if music started playing
      */
@@ -294,11 +294,11 @@ export class MusicSystem {
             this.secondaryGainNode.gain.setValueAtTime(this.volume, this.context.currentTime);
         }
 
-        // OSRS parity: musicTrackVolume is preference-driven; update active songs' targets.
+        // musicTrackVolume is preference-driven; update active songs' targets.
         const newMusicTrackVolumeInt = this.getMusicTrackVolumeInt();
         for (const song of this.osrsSongs) {
             song.musicTrackVolumeInt = newMusicTrackVolumeInt;
-            // OSRS parity: non-fading songs jump straight to the new preference volume,
+            // non-fading songs jump straight to the new preference volume,
             // while active fades keep their current stream volume and continue from there.
             song.pcmVolume = Math.max(0, Math.min(song.pcmVolume, newMusicTrackVolumeInt));
             if (!song.isFading) {
@@ -320,7 +320,7 @@ export class MusicSystem {
 
     /**
      * Stop/fade current music.
-     * OSRS parity: MUSIC_STOP (3220) -> Actor.method2488(delay, duration)
+     * MUSIC_STOP (3220) stops/fades current music with given delay and duration.
      */
     public stopMusic(fadeOutDelayTicks: number, fadeOutDurationTicks: number): void {
         this.clearQueuedAreaSongs();
@@ -365,7 +365,7 @@ export class MusicSystem {
 
     /**
      * Request one music track (SOUND_SONG 3201).
-     * OSRS parity: Skills.method6928([trackId], outDelay, outDur, inDelay, inDur)
+     * requests a single track with fade out/in parameters.
      */
     public playSong(
         trackId: number,
@@ -384,7 +384,7 @@ export class MusicSystem {
 
     /**
      * Request two music tracks (MUSIC_DUAL 3221) to preload track 2 for later crossfade.
-     * OSRS parity: Skills.method6928([track1, track2], outDelay, outDur, inDelay, inDur)
+     * requests two tracks with fade out/in parameters for crossfade preload.
      */
     public playDualTracks(
         track1: number,
@@ -443,7 +443,7 @@ export class MusicSystem {
 
     /**
      * Crossfade between two loaded music tracks.
-     * OSRS parity: FriendSystem.method1927(outDelay, outDur, inDelay, inDur)
+     * crossfades between two loaded tracks with fade out/in parameters.
      */
     public crossfadeTracks(
         fadeOutDelayTicks: number,
@@ -476,7 +476,7 @@ export class MusicSystem {
 
     /**
      * Play a jingle (short music fanfare).
-     * OSRS parity: Jingles are queued through the same song-task pipeline as music
+     * Jingles are queued through the same song-task pipeline as music
      * and temporarily suspend queued area music until the jingle queue drains.
      *
      * Jingles are MIDI format, stored in musicJingles index (index 11).
@@ -1094,7 +1094,7 @@ export class MusicSystem {
             .filter((id) => id >= 0);
         if (capped.length === 0) return;
 
-        // OSRS parity: de-dupe against queuedSongs' primary track, not the currently active jingle.
+        // de-dupe against queuedSongs' primary track, not the currently active jingle.
         const queuedPrimary =
             this.osrsQueuedAreaTracks && this.osrsQueuedAreaTracks.length > 0
                 ? this.osrsQueuedAreaTracks[0] | 0
@@ -1115,7 +1115,7 @@ export class MusicSystem {
         const pool = [this.realtimeSynth, this.secondarySynth, this.tertiarySynth];
         let chosen: RealtimeMidiSynth | null = null;
 
-        // OSRS parity: AddRequestTask.selectMidiPcmStream() selection heuristic.
+        // AddRequestTask.selectMidiPcmStream() selection heuristic.
         for (const candidate of pool) {
             if (!candidate) continue;
             if (!chosen) {
@@ -1135,7 +1135,7 @@ export class MusicSystem {
         const prev = this.getOsrsSynthRefCount(result);
         this.osrsSynthRefCount.set(result, prev + 1);
 
-        // OSRS parity: when taking a muted active stream, clear it before reuse.
+        // when taking a muted active stream, clear it before reuse.
         if (prev === 0 && this.isOsrsMutedActiveSynth(result)) {
             try {
                 result.stop();
@@ -1161,7 +1161,7 @@ export class MusicSystem {
     }
 
     private getMusicTrackVolumeInt(): number {
-        // OSRS parity: preferences.getMusicVolume() is 0..255.
+        // preferences.getMusicVolume() is 0..255.
         return Math.max(0, Math.min(255, Math.round(this.volume * 255)));
     }
 
@@ -1201,7 +1201,7 @@ export class MusicSystem {
         if (clearImmediately) {
             this.clearOsrsPlaybackImmediate();
         } else {
-            // OSRS parity: LoginScreenAnimation.method2528() marks existing songs for removal
+            // login screen animation marks existing songs for removal
             // and removes those already marked on subsequent calls. This prevents song buildup
             // when new music requests arrive rapidly.
             for (let i = 0; i < this.osrsSongs.length; i++) {
@@ -1492,7 +1492,7 @@ export class MusicSystem {
             }
 
             if (song.pcmVolume < maxVol) {
-                // OSRS parity (FadeInTask.java):
+                //  (fade in):
                 //   float step = (duration == 0 ? 0 : (float)maxVol / (float)duration);
                 //   pcm += (step == 0 ? maxVol : step);
                 const step = denom === 0 ? 0 : maxVol / denom;
@@ -1534,7 +1534,7 @@ export class MusicSystem {
             }
 
             if (song.pcmVolume > 0) {
-                // OSRS parity (FadeOutTask.java):
+                //  (fade out):
                 //   float step = (duration == 0 ? 0 : (float)maxVol / (float)duration);
                 //   pcm -= (step == 0 ? maxVol : step);
                 const step = denom === 0 ? 0 : maxVol / denom;

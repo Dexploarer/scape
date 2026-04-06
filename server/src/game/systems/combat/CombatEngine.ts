@@ -393,7 +393,7 @@ export class CombatEngine {
         const hitChance = forceHit
             ? 1
             : this.computeHitChance(attackProfile.attackRoll, defenceRoll);
-        // OSRS parity: Hit delays are now computed using authentic RSMod formulas
+        // Hit delays are now computed using authentic RSMod formulas
         // Melee: 0 ticks, Ranged: 1 + floor((3+dist)/6), Magic: 1 + floor((1+dist)/3)
         // CRITICAL: All player hits on NPCs get +1 tick delay because NPCs process before players.
         // Reference: docs/tick-cycle-order.md, docs/osrs-mechanics.md
@@ -659,7 +659,7 @@ export class CombatEngine {
      */
     private isThrownWeapon(weaponId: number | undefined): boolean {
         if (!weaponId || weaponId <= 0) return false;
-        // Complete list of thrown weapon IDs for OSRS parity
+        // Complete list of thrown weapon IDs for 
         const thrownWeapons = new Set([
             // Darts (bronze through amethyst)
             806, 807, 808, 809, 810, 811, 3093, 11230, 25849,
@@ -711,7 +711,7 @@ export class CombatEngine {
      * @deprecated Use computeHitDelay instead - this is kept for backwards compatibility
      */
     private pickHitDelay(_player: PlayerState, _npc?: NpcState): number {
-        // OSRS parity: melee hits have a 1 tick delay
+        // melee hits have a 1 tick delay
         return 1;
     }
 
@@ -1249,7 +1249,7 @@ export class CombatEngine {
         const mappedAttackType = player.getCurrentAttackType?.();
         const mappedMeleeBonusIndex = player.getCurrentMeleeBonusIndex?.();
 
-        // OSRS parity: Magic weapons (staves) have hybrid combat styles.
+        // Magic weapons (staves) have hybrid combat styles.
         // - Style 0 (Bash/Pound) = melee attack (crush)
         // - Style 1+ with autocast enabled = magic attack
         // If autocast is OFF, the melee styles should do melee attacks (punching).
@@ -1271,7 +1271,7 @@ export class CombatEngine {
             return { kind: "ranged", mode, bonusIndex: AttackBonusIndex.Ranged };
         }
         if (mappedAttackType === "melee") {
-            // OSRS parity: Autocast overrides melee style on staves.
+            // Autocast overrides melee style on staves.
             // When autocast is enabled with a valid spell, the attack is magic even if
             // the style slot maps to a melee attack type (e.g., "Bash" on style 0).
             if (autocastEnabled && hasCombatSpell) {
@@ -1459,7 +1459,7 @@ export class CombatEngine {
     }
 
     private computeMagicDefenceEffectiveLevel(defenceLevel: number, magicLevel: number): number {
-        // OSRS parity: Magic defence uses 70% magic, 30% defence (not reversed!)
+        // Magic defence uses 70% magic, 30% defence (not reversed!)
         // Formula: floor(magic * 0.7 + defence * 0.3) + 8
         // Reference: docs/combat-formulas.md
         return Math.max(1, Math.floor(magicLevel * 0.7 + defenceLevel * 0.3) + 8);
@@ -1510,7 +1510,7 @@ export class CombatEngine {
 
     /**
      * Compute player's defence roll against an NPC attack.
-     * OSRS parity: Magic defence uses 70% magic, 30% defence.
+     * Magic defence uses 70% magic, 30% defence.
      */
     private computePlayerDefenceRoll(
         defenceLevel: number,

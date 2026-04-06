@@ -59,12 +59,11 @@ export interface WidgetNode {
     buttonType?: number; // IF1: 0=none, 1=ok, 2=spell, 4=close, 5=toggle, 6=continue
     isIf3?: boolean; // true for IF3 format widgets
 
-    // OSRS PARITY: Runtime state fields from Widget.java
     rootIndex?: number; // Index in root interface array (-1 if not root)
     cycle?: number; // Animation cycle for timing (-1 = not animating)
 
     // Hierarchy
-    // OSRS parity: children starts as null/undefined, is only set for dynamic widgets via CC_CREATE
+    // children starts as null/undefined, is only set for dynamic widgets via CC_CREATE
     children?: (WidgetNode | null)[] | null;
 
     // Layout - Computed values
@@ -77,11 +76,9 @@ export interface WidgetNode {
     scrollWidth: number;
     scrollHeight: number;
 
-    // OSRS PARITY: Aspect ratio fields from Widget.java (field3718/field3710)
-    // Used for maintaining aspect ratio during layout calculations
-    // Default is 1:1, meaning no aspect ratio constraint
-    aspectWidth?: number; // field3718 - numerator (default 1)
-    aspectHeight?: number; // field3710 - denominator (default 1)
+    // Aspect ratio fields used for layout calculations (default 1:1 = no constraint)
+    aspectWidth?: number; // numerator (default 1)
+    aspectHeight?: number; // denominator (default 1)
 
     // Grid (IF1)
     gridColumns?: number;
@@ -157,9 +154,8 @@ export interface WidgetNode {
     itemQuantityMode?: number; // 0=never, 1=always, 2=if > 1
     itemShowQuantity?: boolean;
 
-    // OSRS PARITY: Inventory arrays for type 2 (inventory) widgets
+    // Inventory arrays for type 2 (inventory) widgets
     // These hold multiple items in a grid layout (e.g., bank, inventory, equipment)
-    // Reference: Widget.java itemIds[], itemQuantities[]
     itemIds?: number[];
     itemQuantities?: number[];
 
@@ -191,7 +187,7 @@ export interface WidgetNode {
     modelLightY?: number;
     modelLightZ?: number;
 
-    // OSRS PARITY: Animation frame tracking from Widget.java
+    // Animation frame tracking
     modelFrame?: number; // Current animation frame (0 = start)
     modelFrameCycle?: number; // Cycle count for frame timing
 
@@ -230,17 +226,16 @@ export interface WidgetNode {
     opKeyRates?: ({ rate: number; enabled: boolean; opIndex?: number } | null)[];
     opKeyIgnoreHeld?: boolean[];
 
-    // OSRS PARITY: Raw key binding arrays from Widget.java
-    // field3775: byte[][] - Key characters for each op (up to 11 ops, 5 keys each)
-    // field3796: byte[][] - Key codes for each op
-    // field3779: int[] - Key repeat rates per op
-    // field3787: int[] - Key timers per op
-    // field3776: boolean - True if any key binding is set
-    hasKeyBindings?: boolean; // field3776
-    keyChars?: (Int8Array | null)[]; // field3775
-    keyCodes?: (Int8Array | null)[]; // field3796
-    keyRepeatRates?: number[]; // field3779
-    keyTimers?: number[]; // field3787
+    // Raw key binding arrays
+    // Key characters for each op (up to 11 ops, 5 keys each)
+    // Key codes for each op
+    // Key repeat rates per op
+    // Key timers per op
+    hasKeyBindings?: boolean; // True if any key binding is set
+    keyChars?: (Int8Array | null)[];
+    keyCodes?: (Int8Array | null)[];
+    keyRepeatRates?: number[];
+    keyTimers?: number[];
 
     // Events
     eventHandlers?: Partial<Record<WidgetEventType, WidgetEventHandler>>;
@@ -281,14 +276,13 @@ export interface WidgetNode {
     onClanChannelTransmit?: any[];
     onMapPost?: any[];
 
-    // OSRS PARITY: Trigger arrays - var/inv/stat IDs that trigger corresponding handlers
-    // Reference: Widget.java varTransmitTriggers[], invTransmitTriggers[], statTransmitTriggers[]
+    // Trigger arrays - var/inv/stat IDs that trigger corresponding handlers
     varTransmitTriggers?: number[];
     invTransmitTriggers?: number[];
     statTransmitTriggers?: number[];
 
     /**
-     * OSRS parity: Widget parameters (IterableNodeHashTable in the client).
+     * Widget parameters (IterableNodeHashTable in the client).
      * Set/read by CS2 ops like `cc_setparam`, `cc_param`, `if_setparam`, `if_param`, and used by
      * systems like ui_highlights + tooltips.
      *
@@ -300,9 +294,8 @@ export interface WidgetNode {
     contentType?: number;
     flags?: number; // OSRS PARITY: Widget flags bitfield (targetMask is bits 11-16)
 
-    // OSRS PARITY: CS1 (ClientScript 1) fields for IF1 widgets
+    // CS1 (ClientScript 1) fields for IF1 widgets
     // Used for conditional display of color/text variants (e.g., skill level checks)
-    // Reference: class345.java runCs1() and SecureRandomCallable.java method2318()
     cs1Comparisons?: Int8Array; // Comparison operators: 0/1=eq, 2=lt, 3=gt, 4=neq
     cs1ComparisonValues?: Int32Array; // Target values to compare against
     cs1Instructions?: Int32Array[]; // Instructions that compute values for comparison
@@ -326,16 +319,14 @@ export interface WidgetNode {
     _dragPickupOffsetX?: number;
     _dragPickupOffsetY?: number;
 
-    // OSRS PARITY: Last transmit cycle - tracks when this widget's transmit handlers
+    // Last transmit cycle - tracks when this widget's transmit handlers
     // were last processed. Used by engine to gate transmit triggers.
-    // Reference: Widget.field3836 in OSRS client
     // Initial value is -1, set to cycleCntr after transmit handlers are processed.
     // Transmit handlers only fire when (eventCycle > lastTransmitCycle).
     lastTransmitCycle?: number;
 
-    // OSRS PARITY: Last changedVarpCount value when this widget's onVarTransmit handler
+    // Last changedVarpCount value when this widget's onVarTransmit handler
     // was processed. Used for counter-based var transmit tracking.
-    // Reference: Widget.field3842 in OSRS client
     // Initial value is 0 (or undefined), updated to changedVarpCount after onVarTransmit check.
     // onVarTransmit fires when (changedVarpCount > lastChangedVarpCount).
     lastChangedVarpCount?: number;

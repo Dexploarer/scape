@@ -389,7 +389,7 @@ export class SoundManager {
             type: "play_song",
             payload: {
                 trackId: trackId,
-                // OSRS parity default (see Coord.playSong -> WorldMapRectangle.method5019(0,100,100,0))
+                //  default (see Coord.playSong -> WorldMapRectangle.method5019(0,100,100,0))
                 fadeOutDelay: 0,
                 fadeOutDuration: 100,
                 fadeInDelay: 100,
@@ -769,7 +769,7 @@ export class SoundManager {
                     return hitSound;
                 }
             } else {
-                // OSRS parity: unarmed punch vs kick uses different sounds by style slot.
+                // unarmed punch vs kick uses different sounds by style slot.
                 return styleIndex === 1 ? UNARMED_KICK_SOUND : UNARMED_PUNCH_SOUND;
             }
         } catch {

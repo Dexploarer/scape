@@ -12,7 +12,7 @@ import { ObjType } from "./ObjType";
 export type ObjTypeLoader = TypeLoader<ObjType>;
 
 /**
- * OSRS parity: Item definitions are post-processed after decode:
+ * Item definitions are post-processed after decode:
  * - noteTemplate -> genCert(noteTemplate, note)
  * - notedId      -> genBought(notedId, unnotedId)
  * - placeholderTemplate -> genPlaceholder(placeholderTemplate, placeholder)

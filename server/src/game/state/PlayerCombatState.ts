@@ -15,7 +15,7 @@ export class PlayerCombatState {
     weaponItemId: number = -1;
     /**
      * Attack reach in tiles derived from equipped weapon (ObjType param 13 when present).
-     * OSRS parity: some melee weapons (e.g. halberds) have reach > 1.
+     * some melee weapons (e.g. halberds) have reach > 1.
      */
     weaponRange: number = 0;
     styleSlot: number = 0;

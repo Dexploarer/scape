@@ -1,5 +1,5 @@
 /**
- * TransmitCycles - OSRS parity for widget event transmit system.
+ * TransmitCycles -  for widget event transmit system.
  *
  * In OSRS, the engine gates transmit handlers (onChatTransmit, onStatTransmit, etc.)
  * at the engine level by comparing global "event cycles" to per-widget timestamps.
@@ -181,7 +181,7 @@ export interface TransmitCycles {
  * All event cycles start at -1 (no event yet), cycleCntr starts at 1.
  * This ensures transmit handlers don't fire until an actual event occurs.
  *
- * OSRS parity:
+ *
  * - Event cycles (chatCycle, etc.) start at -1 meaning "no event"
  * - Widget lastTransmitCycle starts at -1 meaning "never processed"
  * - Comparison: eventCycle > lastTransmitCycle

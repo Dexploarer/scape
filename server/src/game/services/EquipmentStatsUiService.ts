@@ -122,7 +122,7 @@ export class EquipmentStatsUiService {
             }
         }
 
-        // OSRS parity: Undead and Slayer multipliers do not stack.
+        // Undead and Slayer multipliers do not stack.
         if (undeadPercent > 0 && slayerPercent > 0) {
             slayerPercent = 0;
         }

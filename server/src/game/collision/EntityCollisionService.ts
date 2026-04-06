@@ -8,7 +8,7 @@ import { CollisionFlag } from "../../../../src/shared/CollisionFlag";
  *
  * Manages dynamic collision flags for entities (players and NPCs) as they move.
  *
- * OSRS Parity Notes:
+ *  Notes:
  * - Entity flags are set when an entity occupies a tile
  * - Flags are CLEARED when entity leaves, even if another entity is still present
  *   (This is the OSRS bug/feature that enables entity stacking)
@@ -147,7 +147,7 @@ function tileKey(x: number, y: number, level: number): string {
  *
  * OSRS quirk: When an entity leaves, its flag is removed regardless of
  * whether another entity is still present. This service tracks actual
- * occupation counts but clears flags per-entity for OSRS parity.
+ * occupation counts but clears flags per-entity for .
  */
 export class EntityCollisionService {
     // Track actual entity counts per tile (for debugging/validation)
@@ -263,7 +263,7 @@ export class EntityCollisionService {
                     }
                 }
 
-                // OSRS parity: ALWAYS clear flag when entity leaves
+                // ALWAYS clear flag when entity leaves
                 // This is intentional - enables entity stacking
                 if (!ignoreCollision && this.clearFlag) {
                     const flag =

@@ -41,7 +41,7 @@ export class CollisionMap {
                     // when terrain is decoded. Since we don't have that clear step, leave at 0.
                     this.setFlag(x, y, 0);
                 } else {
-                    // OSRS parity: Border tiles are fully blocked.
+                    // Border tiles are fully blocked.
                     this.setFlag(x, y, 0xffffff);
                 }
             }

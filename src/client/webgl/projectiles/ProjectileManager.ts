@@ -82,7 +82,7 @@ class ProjectileTargetSystem {
 
 /**
  * Manages active projectiles.
- * Refactored for strict OSRS parity and maintainability.
+ * Refactored for strict  and maintainability.
  */
 export class ProjectileManager implements IProjectileManager {
     private nextId = 1;
@@ -111,7 +111,7 @@ export class ProjectileManager implements IProjectileManager {
     // =========================================================================
 
     private getCurrentCycleFloat(): number {
-        // OSRS parity: projectile timing is driven by integer client cycles.
+        // projectile timing is driven by integer client cycles.
         return getClientCycle();
     }
 
@@ -130,7 +130,7 @@ export class ProjectileManager implements IProjectileManager {
             const r: any = this.renderer as any;
             const mm = r.mapManager;
             if (mm) {
-                // OSRS parity: projectile Z is solved against getTileHeight(..., Client_plane),
+                // projectile Z is solved against getTileHeight(..., Client_plane),
                 // i.e. height sampling uses the render/height plane (bridge-promoted), not the
                 // interaction/roof plane.
                 const sample = sampleBridgeHeightForWorldTile(

@@ -302,7 +302,7 @@ export class CombatEffectApplicator {
                         hpMax: next.max,
                     };
                 }
-                // OSRS parity: Record hit for flinch mechanics tracking
+                // Record hit for flinch mechanics tracking
                 // Reference: docs/npc-behavior.md, docs/combat-formulas.md
                 npc.recordHit(tick);
                 const style = resolveDamageStyle(styleRaw, dealt, maxHitRaw);

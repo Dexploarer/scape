@@ -1065,7 +1065,7 @@ const thrownCombatStyles = {
     },
 } as const;
 
-// Dark bow: Accurate, Longrange (NO rapid style - OSRS parity)
+// Dark bow: Accurate, Longrange (NO rapid style - )
 const darkBowCombatStyles = {
     0: {
         name: "Accurate",
@@ -1081,7 +1081,7 @@ const darkBowCombatStyles = {
     },
 } as const;
 
-// Heavy ballista: Accurate, Longrange (NO rapid style - OSRS parity)
+// Heavy ballista: Accurate, Longrange (NO rapid style - )
 const heavyBallistaCombatStyles = {
     0: {
         name: "Accurate",
@@ -4294,7 +4294,7 @@ export const weaponDataEntries: WeaponDataEntry[] = [
         hitSounds: dartHitSounds,
     },
 
-    // Knives - Attack Speed: 3 ticks (2 on rapid) - OSRS parity
+    // Knives - Attack Speed: 3 ticks (2 on rapid) - 
     {
         itemId: 864,
         name: "Bronze knife",
@@ -6711,7 +6711,7 @@ export function getHitSound(
         case "crush":
             return hitSounds.crush ?? hitSounds.slash ?? hitSounds.stab;
         case "ranged":
-            // OSRS parity: ranged weapons have dedicated attack sounds
+            // ranged weapons have dedicated attack sounds
             return hitSounds.ranged ?? hitSounds.crush ?? hitSounds.stab ?? hitSounds.slash;
         case "magic":
             // For magic, use crush as fallback (powered staves use crush)

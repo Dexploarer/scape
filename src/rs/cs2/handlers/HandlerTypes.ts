@@ -320,7 +320,7 @@ export interface HandlerContext {
     setEventHandler(widget: WidgetNode | null, eventType: WidgetEventType): void;
     setEventHandlerByUid(eventType: WidgetEventType): void;
 
-    // Deferred widget actions (OSRS parity: flushed on top-level return)
+    // Deferred widget actions (flushed on top-level return)
     queueResize(widget: WidgetNode): void;
     queueTriggerOp(widget: WidgetNode, opIndex: number): void;
     deferIfClose(): void;
@@ -362,7 +362,7 @@ export interface HandlerContext {
     writeConsole?: (text: string) => void;
 
     // Audio playback (for SOUND_SONG, SOUND_JINGLE, SOUND_SYNTH opcodes)
-    // OSRS parity: SOUND_SONG takes 5 params (trackId, outDelay, outDur, inDelay, inDur)
+    // SOUND_SONG takes 5 params (trackId, outDelay, outDur, inDelay, inDur)
     playSong?: (
         songId: number,
         fadeOutDelay: number,

@@ -266,7 +266,7 @@ export class NpcPacketEncoder {
                         id: hbDefId,
                         cycleOffset: 0,
                         delayCycles: 0,
-                        // OSRS parity: most HP updates are sent as immediate snaps (cycleOffset=0),
+                        // most HP updates are sent as immediate snaps (cycleOffset=0),
                         // meaning `health2` is omitted on the wire and treated as `health`.
                         health: scaled,
                         health2: scaled,
@@ -308,7 +308,7 @@ export class NpcPacketEncoder {
                 writer.writeBits(1, 1);
                 writer.writeBits(2, 3);
                 // Per-recipient caches must be cleared when an NPC leaves the local list.
-                // OSRS parity: ids are reused and actors are re-instantiated client-side.
+                // ids are reused and actors are re-instantiated client-side.
                 session.lastTargetIndex.delete(npcId);
                 player.lastNpcHealthBarScaled.delete(npcId);
                 continue;
@@ -471,7 +471,7 @@ export class NpcPacketEncoder {
         }
 
         // Keep per-recipient NPC healthbar history bounded.
-        // OSRS parity: NPC ids are reused for respawns, so stale baselines can otherwise
+        // NPC ids are reused for respawns, so stale baselines can otherwise
         // cause a full-health respawn to briefly show a "healing" health bar update.
         for (const id of Array.from(player.lastNpcHealthBarScaled.keys())) {
             if (!nextSet.has(id)) player.lastNpcHealthBarScaled.delete(id);
@@ -580,7 +580,7 @@ export class NpcPacketEncoder {
             const slot = evt.slot !== undefined ? evt.slot & 0xff : 0;
             const spotId = evt.spotId;
             if (spotId < -1) continue;
-            // OSRS parity: spot animation delays in update blocks are in client cycles (20ms units),
+            // spot animation delays in update blocks are in client cycles (20ms units),
             // but server events supply delays in server ticks.
             const delayServerTicks = evt.delay !== undefined ? Math.max(0, evt.delay) : 0;
             const delayCycles = Math.min(

@@ -62,7 +62,7 @@ export class EquipmentHandler {
         equipSlot: number,
         opts?: { playSound?: boolean },
     ): EquipResult {
-        // OSRS parity: Equipping closes interruptible interfaces
+        // Equipping closes interruptible interfaces
         this.services.closeInterruptibleInterfaces(player);
 
         const inv = this.services.getInventory(player);
@@ -108,7 +108,7 @@ export class EquipmentHandler {
             this.services.refreshCombatWeaponCategory(player);
         this.services.refreshAppearanceKits(player);
 
-        // OSRS parity: Reset autocast when weapon changes
+        // Reset autocast when weapon changes
         if (weaponItemChanged && player.autocastEnabled) {
             this.services.resetAutocast(player);
         }
@@ -120,7 +120,7 @@ export class EquipmentHandler {
      * Unequip an item from an equipment slot to inventory.
      */
     unequipItem(player: PlayerState, equipSlot: number): boolean {
-        // OSRS parity: Unequipping closes interruptible interfaces
+        // Unequipping closes interruptible interfaces
         this.services.closeInterruptibleInterfaces(player);
 
         const appearance = this.ensureAppearance(player);
@@ -138,7 +138,7 @@ export class EquipmentHandler {
             this.services.refreshCombatWeaponCategory(player);
             this.services.refreshAppearanceKits(player);
 
-            // OSRS parity: Unequipping the weapon clears autocast state
+            // Unequipping the weapon clears autocast state
             if (equipSlot === EquipmentSlot.WEAPON && player.autocastEnabled) {
                 this.services.resetAutocast(player);
             }

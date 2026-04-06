@@ -317,7 +317,7 @@ export class NpcModelLoader {
 
             const duration = Math.max(1, seqType.getSkeletalDuration() | 0);
             const localFrame = Math.max(0, frame | 0) % duration;
-            // OSRS parity: cached sequences use the local frame index (no start offset at render time).
+            // cached sequences use the local frame index (no start offset at render time).
             model.animateSkeletal(skeletalSeq, localFrame | 0);
         } else {
             if (!seqType.frameIds || seqType.frameIds.length === 0) {

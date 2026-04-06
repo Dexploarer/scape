@@ -604,7 +604,7 @@ export class CombatActionHandler {
                 return { ok: false, reason: "not_in_range" };
             }
         } else {
-            // OSRS parity: do not allow long-reach melee attacks through walls
+            // do not allow long-reach melee attacks through walls
             const isMelee = resolvePlayerAttackType(player) === "melee";
             if (isMelee && pathService) {
                 if (!this.services.hasDirectMeleePath(player, npc, pathService)) {
@@ -676,7 +676,7 @@ export class CombatActionHandler {
             }
         }
 
-        // Queue ranged attack spot animation (OSRS parity: only after ammo check passes)
+        // Queue ranged attack spot animation (only after ammo check passes)
         // This was moved from CombatSystem.ts to ensure animation doesn't play when out of ammo
         if (plannedAttackType === "ranged") {
             const scheduleTick = Number.isFinite(tick) ? tick : this.services.getCurrentTick();
@@ -1207,7 +1207,7 @@ export class CombatActionHandler {
 
         const effects: ActionEffect[] = [];
 
-        // OSRS parity: once the swing/cast action has executed and queued this delayed hit,
+        // once the swing/cast action has executed and queued this delayed hit,
         // movement no longer cancels it. The only hard stop here is that the target is dead.
         // Dead attackers are already handled by ActionScheduler.processTick(), which skips
         // executing further queued actions for players with 0 HP.
@@ -1216,7 +1216,7 @@ export class CombatActionHandler {
         );
         const isMagicAttack = attackTypeHint === "magic";
 
-        // OSRS parity: Once an attack is initiated (animation starts), the hit always lands
+        // Once an attack is initiated (animation starts), the hit always lands
         // regardless of whether the player switches targets or clicks away mid-attack.
         // The target NPC ID is baked into the delayed hit action, so we just apply damage.
         const sock = this.services.getPlayerSocket(player.id);
@@ -1246,7 +1246,7 @@ export class CombatActionHandler {
         const clientDelayTicks = Math.max(0, rawClientDelayTicks);
         const hitsplatTick = expectedHitTick > 0 ? expectedHitTick : tick;
 
-        // OSRS parity: A spell "lands" when the accuracy roll passes, regardless of damage.
+        // A spell "lands" when the accuracy roll passes, regardless of damage.
         // The landed flag should be set by CombatEngine based on accuracy, not damage.
         // Accept truthy values (not just strict boolean) to handle serialization edge cases.
         const hitLanded = this.resolveHitLanded(landed, style, damage);
@@ -1441,7 +1441,7 @@ export class CombatActionHandler {
 
         npc.engageCombat(player.id, tick);
 
-        // Player block animation - OSRS parity: only play block animation if no other
+        // Player block animation - only play block animation if no other
         // animation is pending. This prevents block animations from interrupting attack
         // animations when the player attacks and gets hit on the same or adjacent tick.
         // In OSRS, attack animations have effective priority over block animations due
@@ -1531,7 +1531,7 @@ export class CombatActionHandler {
 
         // ========================================================================
         // Degradable Weapon Handling (Crystal Bow, Bow of Faerdhinen, etc.)
-        // OSRS Parity: These weapons don't use ammo but degrade with each shot.
+        // These weapons don't use ammo but degrade with each shot.
         // Historical crystal bow: Item ID changes every 250 shots (4212→4214→...→4223→seed)
         // ========================================================================
         if (DegradationSystem.isDegradable(weaponItemId)) {
@@ -2146,7 +2146,7 @@ export class CombatActionHandler {
         // Here we play the NPC reaction sounds and ranged impact sounds when the hit lands
         const isHitForSound = landed && style === HITMARK_DAMAGE;
 
-        // OSRS parity: Play ranged projectile impact sound at target location
+        // Play ranged projectile impact sound at target location
         // This is the sound of arrows/bolts/darts hitting (separate from weapon fire sound)
         if (attackType === "ranged") {
             const impactSoundId = this.services.getRangedImpactSound?.(player);

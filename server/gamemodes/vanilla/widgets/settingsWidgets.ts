@@ -10,7 +10,7 @@ import { type IScriptRegistry, type ScriptServices, WidgetActionEvent } from "..
  * Settings widget handlers - handles button clicks on the settings tab (widget 116)
  * and the settings modal (widget 134)
  *
- * OSRS Parity: When the "All Settings" button is clicked, the server sends IF_OPENSUB
+ * When the "All Settings" button is clicked, the server sends IF_OPENSUB
  * to open the full settings modal (widget 134) in the mainmodal container.
  * When the close button is clicked, the server sends IF_CLOSESUB to close it.
  */
@@ -108,7 +108,7 @@ export function registerSettingsWidgetHandlers(registry: IScriptRegistry, servic
     });
 
     // Handle selecting a dropdown entry (OP1="Select") from the dynamic list.
-    // OSRS parity: the selection itself does not set the varp on the client; it expects the server
+    // the selection itself does not set the varp on the client; it expects the server
     // to update the backing varp (option_attackpriority / option_attackpriority_npc), which then
     // triggers onVarTransmit to resync the UI.
     const handleAttackOptionDropdownSelect = ({

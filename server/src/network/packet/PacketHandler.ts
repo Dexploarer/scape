@@ -329,7 +329,7 @@ export function decodePacket(opcode: number, data: Uint8Array): DecodedPacket {
         // NPC OPTIONS (9-13)
         // ========================================
 
-        // OPNPC1 (76) - OSRS field3208
+        // OPNPC1 (76)
         // Client: writeByte(ctrl), writeShortAddLE(identifier)
         case ClientPacketId.OPNPC1_ALT: {
             const ctrlHeld = buf.readByte() !== 0;
@@ -361,7 +361,7 @@ export function decodePacket(opcode: number, data: Uint8Array): DecodedPacket {
             return { type: "npc_op", opNum: 4, npcIndex, ctrlHeld };
         }
 
-        // OPNPC5 (57) - OSRS field3220
+        // OPNPC5 (57)
         // Note: this currently comes through ClientPacketId.OPNPC1 (legacy alias naming).
         // Client: writeByteAdd(ctrl), writeShortLE(identifier)
         case ClientPacketId.OPNPC1: {
@@ -1154,7 +1154,7 @@ function convertDecodedPacketToMessage(packet: DecodedPacket): ClientToServer | 
         // PLAYER INTERACTIONS
         // ========================================
         case "player_op":
-            // OSRS parity: OPPLAYER2 = Trade, OPPLAYER3 = Follow (see client MenuAction.ts).
+            // OPPLAYER2 = Trade, OPPLAYER3 = Follow (see client MenuAction.ts).
             if (packet.opNum === 2) {
                 return {
                     type: "interact",

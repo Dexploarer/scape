@@ -13,7 +13,7 @@ export interface PlayerMovementEvent {
     tile: PlayerTile;
     /** Optional movement directions (0-7), used to reconstruct stepwise traversal. */
     directions?: number[];
-    /** Optional traversal ordinals (mirrors OSRS `class231.rsOrdinal()`), aligned with `directions`. */
+    /** Optional traversal ordinals, aligned with `directions`. */
     traversals?: number[];
     /** Optional absolute subtile coordinate (tile * 128 + 64). */
     subX?: number;
@@ -30,7 +30,7 @@ export interface PlayerMovementEvent {
     /** Optional raw rotation value when provided (pre-turn smoothing). */
     rotation?: number;
     /**
-     * OSRS parity: some movement updates are only applied after update blocks are decoded
+     * some movement updates are only applied after update blocks are decoded
      * (see `Player.field1124` + `SoundSystem.method877`).
      */
     applyAfterBlocks?: boolean;
@@ -55,7 +55,7 @@ export interface ForcedMovementUpdate {
     endDeltaX: number;
     endDeltaY: number;
     /**
-     * OSRS parity: absolute tiles after applying the base tile adjustment
+     * absolute tiles after applying the base tile adjustment
      * (uses `tileX/tileY` when `field1124`, otherwise `pathX[0]/pathY[0]`).
      */
     startTileX?: number;
@@ -125,20 +125,20 @@ export interface PlayerUpdateBlock {
     appearance?: AppearanceUpdate;
     /** Optional extra player action strings (3 entries). */
     actions?: [string, string, string];
-    /** Movement mode / class231 ordinal (0x1000 block). */
+    /** Movement mode (0x1000 block). */
     movementType?: number;
     /** Move-mode override byte (0x2000 block). */
     movementFlag?: number;
-    /** Unknown 0x200 block (stored for parity). */
-    field512?: {
-        field1180: number;
-        field1233: number;
-        field1234: number;
-        field1193: number;
-        field1204: number;
-        field1237: number;
+    /** HSL color override for actor tinting (0x200 block). */
+    colorOverride?: {
+        startCycle: number;
+        endCycle: number;
+        hue: number;
+        sat: number;
+        lum: number;
+        amount: number;
     };
-    /** Raw hitsplat updates in packet order (SoundSystem.method877: 0x20). */
+    /** Raw hitsplat updates in packet order (0x20). */
     hitsplats?: HitsplatUpdate[];
     /** Legacy convenience: first 4 decoded hitsplats. */
     primaryHit?: HitsplatUpdate;
@@ -201,5 +201,5 @@ export const enum PlayerUpdateMask {
     MovementType = 0x1000,
     MovementFlag = 0x2000,
     SpotAnimation = 0x10000,
-    Field512 = 0x200,
+    ColorOverride = 0x200,
 }

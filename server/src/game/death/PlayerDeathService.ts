@@ -232,7 +232,7 @@ export class PlayerDeathService {
         // ========================================
         // Phase 6: Jingle, Message & Unlock
         // ========================================
-        // Play death jingle on respawn (OSRS parity: "You Are Dead!" jingle)
+        // Play death jingle on respawn ("You Are Dead!" jingle)
         this.services.playJingle?.(player, DEATH_JINGLE_ID);
 
         this.services.sendMessage(player, "Oh dear, you are dead!");

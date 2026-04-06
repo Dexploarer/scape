@@ -51,8 +51,8 @@ export class PlayerEcs {
     private rotation!: Uint16Array; // 0..2047
     private targetRot!: Uint16Array; // desired orientation from path step
     private stall!: Uint8Array; // consecutive ticks without movement toward target
-    private rotationCounter!: Uint8Array; // field1239: consecutive ticks rotating (for turn anim delay)
-    private movementDelayCounter!: Uint8Array; // field1245: accumulated movement delay from blocking sequences
+    private rotationCounter!: Uint8Array; // consecutive ticks rotating (for turn anim delay)
+    private movementDelayCounter!: Uint8Array; // accumulated movement delay from blocking sequences
 
     // Movement targets and speeds
     private targetX!: Int32Array; // sub-tile
@@ -64,8 +64,7 @@ export class PlayerEcs {
     private rotationAccel!: Uint8Array; // yaw acceleration per tick (default 8)
     private rotationVel!: Uint16Array; // current yaw speed (integrates toward max)
 
-    // PendingSpawn.method2449 (face tile / face direction). Cleared by Actor.method2460()
-    // when (pathLength==0 || field1245>0) is processed.
+    // Face tile / face direction. Cleared when pathLength==0 or movementDelay>0.
     private faceSubX!: Int32Array; // local fine x (>=0) or -1
     private faceSubY!: Int32Array; // local fine y (>=0) or -1
     private faceDir!: Int16Array; // 0..2047 or -1
@@ -88,7 +87,7 @@ export class PlayerEcs {
     private animPhaseBias!: Float32Array; // Phase bias for foot planting (0..1)
     private animDistTraveled!: Float32Array; // Total distance traveled in sub-tile units for phase calc
     private animSeqDelay!: Uint8Array; // sequenceDelay: Ticks before action sequence starts
-    private animLoopCounter!: Uint8Array; // field1220: Loop counter for action sequences
+    private animLoopCounter!: Uint8Array; // Loop counter for action sequences
 
     private animIdleSeq!: Int32Array;
     private animWalkSeq!: Int32Array;
@@ -99,10 +98,10 @@ export class PlayerEcs {
     private animRunBackSeq!: Int32Array;
     private animRunLeftSeq!: Int32Array;
     private animRunRightSeq!: Int32Array;
-    private animCrawlSeq!: Int32Array; // field1188 (crawl forward, speed <= 2)
-    private animCrawlBackSeq!: Int32Array; // field1178 (crawl backward)
-    private animCrawlLeftSeq!: Int32Array; // field1190 (crawl left)
-    private animCrawlRightSeq!: Int32Array; // field1191 (crawl right)
+    private animCrawlSeq!: Int32Array; // crawl forward (speed <= 2)
+    private animCrawlBackSeq!: Int32Array; // crawl backward
+    private animCrawlLeftSeq!: Int32Array; // crawl left
+    private animCrawlRightSeq!: Int32Array; // crawl right
     private animTurnLeftSeq!: Int32Array;
     private animTurnRightSeq!: Int32Array;
     private defaultAnimSet: PlayerAnimSet = {};
@@ -143,18 +142,17 @@ export class PlayerEcs {
     // Movement frame/cycle synchronization (OSRS behavior)
     // NOTE: OSRS `Actor.pathLength` is derived from the path buffers; we compute this
     // dynamically from the active segment + queued steps to match live behavior.
-    private forcedMovementCounter!: Uint8Array; // Forces speed to 8 when >0 (anInt1503 in original)
-    private forcedMovementSteps!: Uint8Array; // field1215: remaining pathLength at time sequence started (decremented as steps complete)
+    private forcedMovementCounter!: Uint8Array; // Forces speed to 8 when >0
+    private forcedMovementSteps!: Uint8Array; // remaining pathLength at time sequence started (decremented as steps complete)
 
     // OSRS Forced Movement System (teleports, knockback)
-    // Reference: player-animation.md lines 999-1048
-    private forcedMoveStartCycle!: Uint32Array; // spotAnimation: START cycle for forced movement
-    private forcedMoveEndCycle!: Uint32Array; // field1228: END cycle for forced movement
-    private forcedMoveStartX!: Int32Array; // field1223: Start X offset (fine units)
-    private forcedMoveStartY!: Int32Array; // field1225: Start Y offset (fine units)
-    private forcedMoveEndX!: Int32Array; // field1224: End X offset (fine units)
-    private forcedMoveEndY!: Int32Array; // field1226: End Y offset (fine units)
-    private forcedMoveTargetRot!: Uint16Array; // field1173: Target orientation after movement
+    private forcedMoveStartCycle!: Uint32Array; // START cycle for forced movement
+    private forcedMoveEndCycle!: Uint32Array; // END cycle for forced movement
+    private forcedMoveStartX!: Int32Array; // Start X offset (fine units)
+    private forcedMoveStartY!: Int32Array; // Start Y offset (fine units)
+    private forcedMoveEndX!: Int32Array; // End X offset (fine units)
+    private forcedMoveEndY!: Int32Array; // End Y offset (fine units)
+    private forcedMoveTargetRot!: Uint16Array; // Target orientation after movement
 
     // Server dictates movement; client interpolates between server steps
     private serverInterpEnabled: boolean = true;
@@ -213,12 +211,12 @@ export class PlayerEcs {
     private headIconPk!: Int8Array; // -1 = none, skull types
 
     // Color override (damage/poison/freeze tints)
-    private colorOverrideHue!: Uint8Array; // field1234: Override hue (0-127)
-    private colorOverrideSat!: Uint8Array; // field1193: Override saturation (0-127)
-    private colorOverrideLum!: Uint8Array; // field1204: Override luminance (0-127)
-    private colorOverrideAmount!: Uint8Array; // field1237: Override amount (0-255, 0=none, 255=full)
-    private colorOverrideStartCycle!: Int32Array; // field1180: Start cycle
-    private colorOverrideEndCycle!: Int32Array; // field1233: End cycle
+    private colorOverrideHue!: Uint8Array; // Override hue (0-127)
+    private colorOverrideSat!: Uint8Array; // Override saturation (0-127)
+    private colorOverrideLum!: Uint8Array; // Override luminance (0-127)
+    private colorOverrideAmount!: Uint8Array; // Override amount (0-255, 0=none, 255=full)
+    private colorOverrideStartCycle!: Int32Array; // Start cycle
+    private colorOverrideEndCycle!: Int32Array; // End cycle
 
     private seqTypeLoader?: SeqTypeLoader;
 
@@ -645,7 +643,7 @@ export class PlayerEcs {
         return this.targetRot[i] | 0;
     }
 
-    // Rotation counter (field1239): tracks consecutive ticks rotating for turn animation delay
+    // Rotation counter: tracks consecutive ticks rotating for turn animation delay
     getRotationCounter(i: number): number {
         return this.rotationCounter[i] | 0;
     }
@@ -656,7 +654,7 @@ export class PlayerEcs {
         this.rotationCounter[i] = 0;
     }
 
-    // Movement delay counter (field1245): accumulated delay from blocking sequences
+    // Movement delay counter: accumulated delay from blocking sequences
     getMovementDelayCounter(i: number): number {
         return this.movementDelayCounter[i] | 0;
     }
@@ -685,7 +683,7 @@ export class PlayerEcs {
         }
     }
 
-    // Animation loop counter (field1220): tracks loops for action sequences
+    // Animation loop counter: tracks loops for action sequences
     getAnimLoopCounter(i: number): number {
         return (this.animLoopCounter?.[i] ?? 0) | 0;
     }
@@ -701,7 +699,7 @@ export class PlayerEcs {
         if (this.animLoopCounter) this.animLoopCounter[i] = 0;
     }
 
-    // Forced movement steps (field1215): remaining forced movement steps
+    // Forced movement steps: remaining forced movement steps
     getForcedMovementSteps(i: number): number {
         return (this.forcedMovementSteps?.[i] ?? 0) | 0;
     }
@@ -715,7 +713,6 @@ export class PlayerEcs {
     }
 
     // OSRS Forced Movement System - Accessor methods
-    // Reference: player-animation.md lines 999-1048
     startForcedMovement(
         i: number,
         startCycle: number,
@@ -799,7 +796,6 @@ export class PlayerEcs {
 
     /**
      * Apply color override from ECS to a model object, checking cycle timing.
-     * Reference: player-animation.md lines 1158-1166
      *
      * @param i Player ECS index
      * @param model Model to apply override to
@@ -837,8 +833,7 @@ export class PlayerEcs {
         this.animSeqId[i] = next;
         // Keep the action-channel mirror in sync; rendering uses action+movement layering.
         if (this.animActionSeqId) this.animActionSeqId[i] = next;
-        // OSRS parity: when assigning an action sequence, snapshot current pathLength into field1215.
-        // Reference: Client.java (NPC sequence update sets field1215 = pathLength).
+        // when assigning an action sequence, snapshot current pathLength.
         if (next >= 0) {
             const idleSeq = this.animIdleSeq[i] | 0;
             const walkSeq = this.animWalkSeq[i] | 0;
@@ -868,7 +863,7 @@ export class PlayerEcs {
                 next === crawlLeftSeq ||
                 next === crawlRightSeq;
             if (!isMovementSeq) {
-                // OSRS parity: Reset animTick when a new action sequence starts.
+                // Reset animTick when a new action sequence starts.
                 // This ensures animations always start from frame 0, preventing
                 // "partial playback" where animations appear to start mid-way.
                 this.animTick[i] = 0;
@@ -1075,7 +1070,6 @@ export class PlayerEcs {
     }
 
     // Head icon (prayer/pk overhead) getters and setters
-    // Reference: Player.java lines 26-33, 171-172, 202-203
     getHeadIconPrayer(index: number): number {
         // First check appearance headIcons (synced from server appearance updates)
         const appearance = this.appearances[index];
@@ -1756,7 +1750,7 @@ export class PlayerEcs {
         const seqType: any = this.seqTypeLoader?.load?.(currentSeq);
         if (!seqType) return false;
 
-        const movingSnapshot = (this.forcedMovementSteps?.[i] ?? 0) | 0; // field1215
+        const movingSnapshot = (this.forcedMovementSteps?.[i] ?? 0) | 0;
         const precedenceAnimating = (seqType.precedenceAnimating ?? -1) | 0;
         const priority = (seqType.priority ?? -1) | 0;
         return (
@@ -1789,23 +1783,21 @@ export class PlayerEcs {
             }
 
             for (let i = 0; i < this.count; i++) {
-                // OSRS parity: movementSequence resets to idleSequence each client cycle before
-                // `GraphicsObject.method2141` / `PendingSpawn.method2449` selects walk/run/turn.
+                // movementSequence resets to idleSequence each client cycle before
+                // the movement update selects walk/run/turn.
                 try {
                     const idle = this.animIdleSeq[i] | 0;
                     if (idle >= 0) this.animMovementSeqId[i] = idle | 0;
                 } catch {}
-                // OSRS parity: `sequenceDelay` is decremented by the action-sequence controller
+                // `sequenceDelay` is decremented by the action-sequence controller
                 // after sequence stepping (see `PlayerAnimController.tick`).
 
-                // OSRS Forced Movement Interpolation (teleports, knockback)
-                // Reference: player-animation.md lines 1024-1041
-                // This BYPASSES normal pathfinding and directly sets position via interpolation
-                // matching `ParamComposition.updateActorSequence` (forced-move branch).
+                // OSRS Forced Movement Interpolation (teleports, knockback).
+                // This BYPASSES normal pathfinding and directly sets position via interpolation.
                 let forcedHandled = false;
                 if (this.isForcedMovementActive(i, this.clientCycle)) {
-                    const startCycle = this.forcedMoveStartCycle[i] >>> 0; // spotAnimation
-                    const endCycle = this.forcedMoveEndCycle[i] >>> 0; // field1228
+                    const startCycle = this.forcedMoveStartCycle[i] >>> 0;
+                    const endCycle = this.forcedMoveEndCycle[i] >>> 0;
                     const currentCycle = this.clientCycle >>> 0;
 
                     if (currentCycle <= endCycle) {
@@ -1816,10 +1808,10 @@ export class PlayerEcs {
                         const endX = this.forcedMoveEndX[i] | 0;
                         const endY = this.forcedMoveEndY[i] | 0;
 
-                        // OSRS parity: forced movement resets movement delay counter (field1245).
+                        // forced movement resets movement delay counter.
                         this.movementDelayCounter[i] = 0;
 
-                        // OSRS parity: forced movement sets `orientation = field1173`.
+                        // forced movement sets orientation to forcedMoveTargetRot.
                         const targetRot = this.forcedMoveTargetRot[i] | 0;
                         this.targetRot[i] = targetRot & 2047;
 
@@ -1847,7 +1839,7 @@ export class PlayerEcs {
                                         const frame = this.animSeqFrame[i] | 0;
                                         const cycle = this.animSeqFrameCycle[i] | 0;
                                         const len = (seqType.frameLengths?.[frame] ?? 0) | 0;
-                                        // Reference: `sequenceFrameCycle + 1 > frameLengths[sequenceFrame]`.
+                                        // sequenceFrameCycle + 1 > frameLengths[sequenceFrame]
                                         shouldUpdate = ((cycle + 1) | 0) > len;
                                     } else {
                                         // Cached sequences (or missing) update every tick.
@@ -1920,7 +1912,7 @@ export class PlayerEcs {
                     }
                 }
                 // Promote the next queued segment at the start of the client cycle so rotation updates
-                // can follow `GraphicsObject.method2141` (movement-facing) unless blocked by an action seq.
+                // can follow the movement update (movement-facing) unless blocked by an action seq.
                 try {
                     const tVal = (this.srvT?.[i] as number) ?? 1.0;
                     if (!(tVal < 1.0)) {
@@ -1930,7 +1922,7 @@ export class PlayerEcs {
                         }
                     }
                 } catch {}
-                // GraphicsObject.method2141: when there is no remaining path, field1245 resets to 0.
+                // When there is no remaining path, movement delay counter resets to 0.
                 // Keep this in sync with our derived "pathLength" (active segment + queued steps).
                 try {
                     const pathLengthLike =
@@ -1965,8 +1957,7 @@ export class PlayerEcs {
                                 4.0,
                                 this.srvOverrun[i] + this.srvStepPerClientTick,
                             );
-                            // OSRS parity: when pathLength==0, field1245 resets to 0.
-                            // Reference: GraphicsObject.method2141 (lines 160-163).
+                            // when pathLength==0, movement delay counter resets to 0.
                             this.movementDelayCounter[i] = 0;
                             // If there are no pending steps, drop the moving hold immediately so
                             // idle can engage as soon as we land on the final tile.
@@ -1978,7 +1969,7 @@ export class PlayerEcs {
                     const segT = (this.srvT?.[i] as number) ?? 1.0;
                     const hasSegment = segT < 1.0;
                     if (hasSegment) {
-                        // Per-cycle movement stepping (OSRS `GraphicsObject.method2141`)
+                        // Per-cycle movement stepping
                         if (this.srvOverrun) {
                             // Decay overrun slower to smooth out jitter
                             this.srvOverrun[i] = Math.max(0, (this.srvOverrun[i] as number) - 0.1);
@@ -1987,7 +1978,7 @@ export class PlayerEcs {
                         const nx = this.srvNextX[i] | 0;
                         const ny = this.srvNextY[i] | 0;
 
-                        // OSRS parity: action sequences can block movement (GraphicsObject.method2141 early return).
+                        // action sequences can block movement.
                         let movementBlockedThisTick = false;
                         try {
                             const pathLengthLike =
@@ -2000,19 +1991,18 @@ export class PlayerEcs {
                         if (movementBlockedThisTick) {
                             this.incrementMovementDelay(i);
                         } else {
-                            // Strict OSRS parity: speed and movementSequence selection follow
-                            // GraphicsObject.method2141 (Java client).
+                            // Strict speed and movementSequence selection.
                             //
                             // - movement orientation is derived from current->destination
                             // - turning penalty applies only when not interacting
                             // - pathLength thresholds use total remaining steps (including current)
-                            // - traversal flags (class231) shift speed after base selection
+                            // - traversal flags shift speed after base selection
 
                             const currX0 = this.x[i] | 0;
                             const currY0 = this.y[i] | 0;
 
                             // If the actor is more than 2 tiles away from the destination, the client
-                            // snaps instantly to the target step (GraphicsObject.method2141 "else" branch)
+                            // snaps instantly to the target step
                             // and does NOT switch movementSequence away from idleSequence.
                             const deltaX0 = (nx | 0) - (currX0 | 0);
                             const deltaY0 = (ny | 0) - (currY0 | 0);
@@ -2058,7 +2048,7 @@ export class PlayerEcs {
                                 this.targetRot[i] = movementOrientation & 2047;
                             }
 
-                            // Axis-wise stepping to match GraphicsObject.java: increment X and Y independently.
+                            // Axis-wise stepping: increment X and Y independently.
                             let cx2 = this.x[i] | 0;
                             let cy2 = this.y[i] | 0;
                             if (within256) {
@@ -2079,7 +2069,7 @@ export class PlayerEcs {
                                 const crawlRightSeq = this.animCrawlRightSeq[i] | 0;
 
                                 let movementSeq = walkBackSeq;
-                                // Exact boundary parity with `GraphicsObject.method2141`:
+                                // Exact boundary parity for movement sequence selection:
                                 // - right strafe when 256 <= yaw < 768
                                 // - left  strafe when -768 <= yaw <= -256
                                 // (yaw==768 falls back to walkBack)
@@ -2089,7 +2079,7 @@ export class PlayerEcs {
                                 if (movementSeq === -1) movementSeq = walkSeq;
 
                                 // pathLength: total remaining steps (including current), derived from the queue.
-                                // Allows dynamic speed scaling per OSRS GraphicsObject.method2141 thresholds.
+                                // Allows dynamic speed scaling per OSRS movement thresholds.
                                 const pathLength =
                                     ((this.srvT?.[i] as number) ?? 1.0) < 1.0
                                         ? 1 + (this._queueLen(i) | 0)
@@ -2109,7 +2099,7 @@ export class PlayerEcs {
                                     this.decrementMovementDelay(i);
                                 }
 
-                                // Apply traversal (class231): 2 doubles, 0 halves (post base selection).
+                                // Apply traversal: 2 doubles, 0 halves (post base selection).
                                 const traversal = segFactor >= 1.5 ? 2 : segFactor <= 0.5 ? 0 : 1;
                                 if (traversal === 2) var8 = var8 << 1;
                                 else if (traversal === 0) var8 = var8 >> 1;
@@ -2139,7 +2129,7 @@ export class PlayerEcs {
                                 // even while an action animation is playing.
                                 if (movementSeq >= 0) this.animMovementSeqId[i] = movementSeq | 0;
 
-                                // GraphicsObject.method2141 uses fixed per-cycle steps (var8).
+                                // Fixed per-cycle steps (var8).
                                 const pixelStep = Math.max(1, var8 | 0);
 
                                 if (cx2 !== (nx | 0) || cy2 !== (ny | 0)) {
@@ -2172,7 +2162,7 @@ export class PlayerEcs {
                             // Handle post-arrival. Avoid freezing the animation by accumulating overrun when
                             // no pending next segment has arrived yet.
                             if (reached) {
-                                // OSRS parity: decrement field1215 when a path step completes (GraphicsObject.method2141 end-of-step).
+                                // decrement forcedMovementSteps when a path step completes.
                                 if ((this.forcedMovementSteps?.[i] ?? 0) > 0) {
                                     this.forcedMovementSteps[i] =
                                         ((this.forcedMovementSteps[i] | 0) - 1) & 0xff;
@@ -2244,7 +2234,7 @@ export class PlayerEcs {
                     } // end hasSegment
                 }
 
-                // PendingSpawn.method2449: apply face tile/direction, update rotation,
+                // Apply face tile/direction, update rotation,
                 // and optionally swap movementSequence to turn-left/right.
                 try {
                     const pathLengthLike =
@@ -2252,7 +2242,6 @@ export class PlayerEcs {
                         (this._queueLen(i) | 0);
 
                     // When idle or movement-delayed, apply face tile/direction once and clear.
-                    // Reference: Actor.method2460 (called by PendingSpawn.method2449).
                     if (pathLengthLike === 0 || (this.movementDelayCounter[i] | 0) > 0) {
                         let faceOrientation = -1;
                         const fsx = this.faceSubX[i] | 0;
@@ -2283,7 +2272,7 @@ export class PlayerEcs {
                     if (diff !== 0) {
                         this.incrementRotationCounter(i);
                         const dir = diff > 1024 ? -1 : 1; // var4
-                        const turnStep = (this.rotationSpeed[i] | 0) & 2047; // field1240
+                        const turnStep = (this.rotationSpeed[i] | 0) & 2047;
 
                         let rot = rot0;
                         if (turnStep !== 0) {
@@ -2356,7 +2345,7 @@ export class PlayerEcs {
     setServerPos(i: number, x: number, y: number, factor: number = 1, rotation?: number): void {
         this._queuePush(i, x | 0, y | 0, factor, rotation);
         // Segment promotion is handled in `updateClient` so movement blocking can suppress
-        // target-rotation updates exactly like `GraphicsObject.method2141` early returns.
+        // target-rotation updates exactly like the OSRS movement update early returns.
     }
 
     // Toggle movement debug telemetry. When enabled, a JSON row is emitted per entity per client tick.

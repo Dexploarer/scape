@@ -431,7 +431,7 @@ export class WidgetDialogHandler {
         // - Script 2868: creates continue button with blue text
         if (request.kind === "sprite") {
             // Set item on component 1 (RSMod: setComponentItem(193, 1, item, amountOrZoom))
-            // OSRS parity: The amountOrZoom value determines both the displayed quantity
+            // The amountOrZoom value determines both the displayed quantity
             // and the model used (via getCountObj). For sprite dialogs, OSRS uses a capped
             // value to show a reasonable-sized model (RSMod example uses 400).
             if (payload.itemId != null && payload.itemId >= 0) {

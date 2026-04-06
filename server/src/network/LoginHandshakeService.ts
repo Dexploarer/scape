@@ -42,7 +42,6 @@ interface HandshakeAppearance {
  */
 export interface LoginHandshakeServer {
     // --- Network helpers ---
-    getSocketRemoteAddress(ws: WebSocket): string | undefined;
     withDirectSendBypass(context: string, fn: () => void): void;
     sendWithGuard(ws: WebSocket, msg: string | Uint8Array, context: string): void;
 
@@ -53,13 +52,64 @@ export interface LoginHandshakeServer {
     readonly playerSyncSessions: Map<WebSocket, any>;
     readonly npcSyncSessions: Map<WebSocket, any>;
 
-    // --- Movement ---
-    readonly movementService: { getPendingWalkCommands(): Map<WebSocket, any> };
+    // --- Extracted services (accessed directly instead of via wsServer delegates) ---
+    readonly appearanceService: {
+        createDefaultAppearance(): PlayerAppearanceState;
+        refreshAppearanceKits(p: PlayerState): void;
+        getAppearanceDisplayName(player: PlayerState | undefined): string;
+        getOrCreateAppearance(player: PlayerState): PlayerAppearanceState;
+        sendAnimUpdate(p: PlayerState): void;
+    };
+    readonly equipmentService: {
+        ensureEquipArray(p: PlayerState): number[];
+        refreshCombatWeaponCategory(p: PlayerState): any;
+    };
+    readonly playerCombatService: {
+        pickAttackSpeed(player: PlayerState): number;
+    };
+    readonly authService: {
+        checkLoginRateLimit(clientIp: string): boolean;
+        isWorldFull(): boolean;
+        isPlayerAlreadyLoggedIn(username: string): boolean;
+        isAdminPlayer(player: PlayerState | undefined): boolean;
+    };
+    readonly inventoryService: {
+        sendInventorySnapshotImmediate(ws: WebSocket, p: PlayerState): void;
+    };
+    readonly skillService: {
+        sendSkillsSnapshotImmediate(ws: WebSocket, p: PlayerState): void;
+    };
+    readonly movementService: {
+        getPendingWalkCommands(): Map<WebSocket, any>;
+        sendRunEnergyState(sock: WebSocket, player: PlayerState): void;
+        teleportPlayer(player: PlayerState, x: number, y: number, level: number): void;
+    };
+    readonly varpSyncService: {
+        sendSavedTransmitVarps(sock: WebSocket, player: PlayerState): void;
+        sendSavedAutocastTransmitVarbits(sock: WebSocket, player: PlayerState): void;
+        syncAccountTypeVarbit(sock: WebSocket, player: PlayerState): void;
+    };
+    readonly collectionLogService: {
+        sendCollectionLogDisplayVarps(sock: WebSocket, player: PlayerState): void;
+    };
+    readonly variableService: {
+        queueVarp(playerId: number, varpId: number, value: number): void;
+        queueVarbit(playerId: number, varbitId: number, value: number): void;
+    };
+    readonly messagingService: {
+        queueNotification(playerId: number, payload: any): void;
+        queueChatMessage(message: { messageType: string; text: string; targetPlayerIds: number[] }): void;
+    };
+    readonly playerAppearanceManager: {
+        queueAppearanceSnapshot(player: PlayerState, opts?: any): void;
+        sanitizeHandshakeAppearance(raw: HandshakeAppearance): PlayerAppearanceState;
+    };
+    readonly interfaceManager: {
+        dismissLevelUpPopupQueue(playerId: number): boolean;
+        clearUiTrackingForPlayer(playerId: number): void;
+    };
 
     // --- Login validation ---
-    checkLoginRateLimit(clientIp: string): boolean;
-    isWorldFull(): boolean;
-    isPlayerAlreadyLoggedIn(username: string): boolean;
     readonly maintenanceMode: boolean;
     readonly cacheEnv: { info?: { revision?: number } } | undefined;
 
@@ -112,39 +162,17 @@ export interface LoginHandshakeServer {
     } | undefined;
     readonly followerCombatManager: { resetPlayer(playerId: number): void } | undefined;
 
-    // --- Appearance helpers ---
-    sanitizeHandshakeAppearance(raw: HandshakeAppearance): PlayerAppearanceState;
-    createDefaultAppearance(): PlayerAppearanceState;
-    ensureEquipArray(p: PlayerState): number[];
-    refreshAppearanceKits(p: PlayerState): void;
-    refreshCombatWeaponCategory(p: PlayerState): any;
-    pickAttackSpeed(player: PlayerState): number;
+    // --- Remaining wsServer methods (have real logic beyond delegation) ---
     getPlayerSaveKey(name: string | undefined, id: number): string;
-    getAppearanceDisplayName(player: PlayerState | undefined): string;
-    isAdminPlayer(player: PlayerState | undefined): boolean;
-    getOrCreateAppearance(player: PlayerState): PlayerAppearanceState;
-
-    // --- Sync / broadcast helpers ---
-    sendAnimUpdate(ws: WebSocket, p: PlayerState): void;
-    sendInventorySnapshotImmediate(ws: WebSocket, p: PlayerState): void;
-    sendSkillsSnapshotImmediate(ws: WebSocket, p: PlayerState): void;
     sendCombatState(ws: WebSocket, player: PlayerState): void;
-    sendRunEnergyState(sock: WebSocket, player: PlayerState): void;
-    sendSavedTransmitVarps(sock: WebSocket, player: PlayerState): void;
-    sendCollectionLogDisplayVarps(sock: WebSocket, player: PlayerState): void;
-    sendSavedAutocastTransmitVarbits(sock: WebSocket, player: PlayerState): void;
-    syncAccountTypeVarbit(sock: WebSocket, player: PlayerState): void;
     normalizeSideJournalState(player: PlayerState): { stateVarp: number; tab: number };
-
-    // --- Queue helpers ---
     queueWidgetEvent(playerId: number, action: WidgetAction): void;
-    queueVarp(playerId: number, varpId: number, value: number): void;
-    queueVarbit(playerId: number, varbitId: number, value: number): void;
-    queueNotification(playerId: number, payload: any): void;
-    queueAppearanceSnapshot(player: PlayerState, opts?: any): void;
-    queueChatMessage(message: { messageType: string; text: string; targetPlayerIds: number[] }): void;
     queueSideJournalGamemodeUi(player: PlayerState): void;
     queueActivateQuestSideTab(playerId: number): void;
+    handleExaminePacket(ws: WebSocket, packet: DecodedPacket): boolean;
+    readonly locationService: {
+        maybeReplayDynamicLocState(ws: WebSocket, player: PlayerState, force: boolean): void;
+    };
 
     // --- NPC ---
     readonly npcManager: {
@@ -158,13 +186,8 @@ export interface LoginHandshakeServer {
     // --- Ground items ---
     readonly groundItemHandler: { clearPlayerState(playerId: number): void } | undefined;
 
-    // --- Dynamic loc replay ---
-    maybeReplayDynamicLocState(ws: WebSocket, player: PlayerState, full: boolean): void;
-
     // --- Misc cleanup ---
     readonly playerDynamicLocSceneKeys: { delete(playerId: number): void };
-    dismissLevelUpPopupQueue(playerId: number): boolean;
-    clearUiTrackingForPlayer(playerId: number): void;
     readonly tradeManager: {
         handlePlayerLogout(player: PlayerState, reason: string): void;
     } | undefined;
@@ -174,12 +197,6 @@ export interface LoginHandshakeServer {
     readonly interfaceService: { onPlayerDisconnect(player: PlayerState): void } | undefined;
     readonly sailingInstanceManager: { disposeInstance(player: PlayerState): void } | undefined;
     readonly worldEntityInfoEncoder: { removePlayer(playerId: number): void };
-
-    // --- Teleport ---
-    teleportPlayer(player: PlayerState, x: number, y: number, level: number): void;
-
-    // --- Binary packet helpers (used in onConnection message handler) ---
-    handleExaminePacket(ws: WebSocket, packet: DecodedPacket): boolean;
 }
 
 /**
@@ -204,6 +221,44 @@ export class LoginHandshakeService {
         return name;
     }
 
+    getSocketRemoteAddress(ws: WebSocket): string | undefined {
+        const transport = Reflect.get(ws, "_socket") as { remoteAddress?: string } | undefined;
+        const remoteAddress = transport?.remoteAddress;
+        return remoteAddress && remoteAddress.length > 0 ? remoteAddress : undefined;
+    }
+
+    completeLogout(ws: WebSocket, player?: PlayerState, source?: string): void {
+        const normalizedSource = source?.trim().slice(0, 64) ?? "";
+        const sourceSuffix =
+            normalizedSource.length > 0 && normalizedSource !== "logout"
+                ? ` source=${normalizedSource}`
+                : "";
+
+        if (player) {
+            logger.info(`[logout] Player ${player.id} logout approved${sourceSuffix}`);
+
+            try {
+                const response = encodeMessage({
+                    type: "logout_response",
+                    payload: { success: true },
+                });
+                ws.send(response);
+            } catch (err) { logger.warn("[logout] send logout response failed", err); }
+
+            try {
+                const saveKey = player.__saveKey ?? this.server.getPlayerSaveKey(player.name, player.id);
+                this.server.playerPersistence.saveSnapshot(saveKey, player);
+                logger.info(`[logout] Saved player state for key: ${saveKey}${sourceSuffix}`);
+            } catch (err) {
+                logger.warn(`[logout] Failed to save player state${sourceSuffix}:`, err);
+            }
+        }
+
+        try {
+            ws.close(1000, "logout");
+        } catch (err) { logger.warn("[logout] ws close failed", err); }
+    }
+
     handleLoginMessage(ws: WebSocket, payload: any): void {
         const { username, password, revision } = payload;
         const normalizedUsername = (username || "").trim().toLowerCase();
@@ -222,7 +277,7 @@ export class LoginHandshakeService {
             logger.info(`Login failed (code ${errorCode}): ${username} - ${error}`);
         };
 
-        const clientIp = this.server.getSocketRemoteAddress(ws) ?? "ws-unknown";
+        const clientIp = this.getSocketRemoteAddress(ws) ?? "ws-unknown";
         logger.info(`Login attempt from: ${username} (${clientIp})`);
 
         // 0. Check client revision matches server
@@ -233,7 +288,7 @@ export class LoginHandshakeService {
         }
 
         // 1. Check rate limiting first
-        if (this.server.checkLoginRateLimit(clientIp)) {
+        if (this.server.authService.checkLoginRateLimit(clientIp)) {
             sendLoginError(9, "Login limit exceeded. Please wait a minute.");
             return;
         }
@@ -245,7 +300,7 @@ export class LoginHandshakeService {
         }
 
         // 3. Check world capacity
-        if (this.server.isWorldFull()) {
+        if (this.server.authService.isWorldFull()) {
             sendLoginError(2, "This world is full. Please use a different world.");
             return;
         }
@@ -257,7 +312,7 @@ export class LoginHandshakeService {
         }
 
         // 5. Check if already logged in
-        if (this.server.isPlayerAlreadyLoggedIn(normalizedUsername)) {
+        if (this.server.authService.isPlayerAlreadyLoggedIn(normalizedUsername)) {
             sendLoginError(
                 5,
                 "Your account is already logged in. Try again in 60 seconds.",
@@ -342,16 +397,16 @@ export class LoginHandshakeService {
 
                 const appearance =
                     parsed.payload.appearance !== undefined
-                        ? this.server.sanitizeHandshakeAppearance(parsed.payload.appearance)
-                        : this.server.createDefaultAppearance();
+                        ? this.server.playerAppearanceManager.sanitizeHandshakeAppearance(parsed.payload.appearance)
+                        : this.server.appearanceService.createDefaultAppearance();
 
                 if (!isReconnect) {
                     p.name = name ?? "";
                     p.appearance = appearance;
-                    this.server.ensureEquipArray(p);
-                    this.server.refreshAppearanceKits(p);
-                    this.server.refreshCombatWeaponCategory(p);
-                    p.attackDelay = this.server.pickAttackSpeed(p);
+                    this.server.equipmentService.ensureEquipArray(p);
+                    this.server.appearanceService.refreshAppearanceKits(p);
+                    this.server.equipmentService.refreshCombatWeaponCategory(p);
+                    p.attackDelay = this.server.playerCombatService.pickAttackSpeed(p);
                     const saveKey = this.server.getPlayerSaveKey(name, p.id);
                     p.__saveKey = saveKey;
                     try {
@@ -375,8 +430,8 @@ export class LoginHandshakeService {
                     }
                     p.setRunToggle(true);
                     try {
-                        this.server.refreshAppearanceKits(p);
-                        this.server.refreshCombatWeaponCategory(p);
+                        this.server.appearanceService.refreshAppearanceKits(p);
+                        this.server.equipmentService.refreshCombatWeaponCategory(p);
                     } catch (err) {
                         logger.warn(
                             "[player] failed to refresh appearance after persist",
@@ -603,8 +658,8 @@ export class LoginHandshakeService {
                 }
 
                 const handshakeAppearance = p.appearance;
-                const handshakeName = this.server.getAppearanceDisplayName(p) || name;
-                const handshakeChatIcons = this.server.isAdminPlayer(p)
+                const handshakeName = this.server.appearanceService.getAppearanceDisplayName(p) || name;
+                const handshakeChatIcons = this.server.authService.isAdminPlayer(p)
                     ? [ADMIN_CROWN_ICON]
                     : undefined;
                 this.server.withDirectSendBypass("handshake_ack", () =>
@@ -622,16 +677,16 @@ export class LoginHandshakeService {
                         "handshake_ack",
                     ),
                 );
-                this.server.sendAnimUpdate(ws, p);
-                this.server.sendInventorySnapshotImmediate(ws, p);
+                this.server.appearanceService.sendAnimUpdate(p);
+                this.server.inventoryService.sendInventorySnapshotImmediate(ws, p);
                 p.requestFullSkillSync();
-                this.server.sendSkillsSnapshotImmediate(ws, p);
+                this.server.skillService.sendSkillsSnapshotImmediate(ws, p);
                 this.server.sendCombatState(ws, p);
-                this.server.sendRunEnergyState(ws, p);
-                this.server.sendSavedTransmitVarps(ws, p);
-                this.server.sendCollectionLogDisplayVarps(ws, p);
-                this.server.sendSavedAutocastTransmitVarbits(ws, p);
-                this.server.syncAccountTypeVarbit(ws, p);
+                this.server.movementService.sendRunEnergyState(ws, p);
+                this.server.varpSyncService.sendSavedTransmitVarps(ws, p);
+                this.server.collectionLogService.sendCollectionLogDisplayVarps(ws, p);
+                this.server.varpSyncService.sendSavedAutocastTransmitVarbits(ws, p);
+                this.server.varpSyncService.syncAccountTypeVarbit(ws, p);
                 const sideJournalState = this.server.normalizeSideJournalState(p);
                 this.server.withDirectSendBypass("varp", () =>
                     this.server.sendWithGuard(
@@ -696,11 +751,11 @@ export class LoginHandshakeService {
                             }), "varbit"),
                         ),
                     queueVarp: (playerId, varpId, value) =>
-                        this.server.queueVarp(playerId, varpId, value),
+                        this.server.variableService.queueVarp(playerId, varpId, value),
                     queueVarbit: (playerId, varbitId, value) =>
-                        this.server.queueVarbit(playerId, varbitId, value),
+                        this.server.variableService.queueVarbit(playerId, varbitId, value),
                     queueNotification: (playerId, notification) =>
-                        this.server.queueNotification(playerId, notification),
+                        this.server.messagingService.queueNotification(playerId, notification),
                 });
 
                 const clientType = parsed.payload.clientType;
@@ -809,7 +864,7 @@ export class LoginHandshakeService {
                         this.server.gamemodeUi?.queueTutorialOverlay(p);
                     }
 
-                    // OSRS Parity: IF_SETEVENTS for inventory widget slots
+                    // IF_SETEVENTS for inventory widget slots
                     const INVENTORY_GROUP_ID = 149;
                     const INVENTORY_CONTAINER_COMPONENT = 0;
                     const INVENTORY_SLOT_COUNT = 28;
@@ -823,7 +878,7 @@ export class LoginHandshakeService {
                         flags: INVENTORY_FLAGS,
                     });
 
-                    // OSRS Parity: IF_SETEVENTS for prayer filter dynamic rows
+                    // IF_SETEVENTS for prayer filter dynamic rows
                     const PRAYER_GROUP_ID = 541;
                     const PRAYER_FILTER_COMPONENT = 42;
                     const PRAYER_FILTER_SLOT_START = 0;
@@ -838,7 +893,7 @@ export class LoginHandshakeService {
                         flags: PRAYER_FILTER_FLAGS,
                     });
 
-                    // OSRS Parity: IF_SETEVENTS for equipment widget slots
+                    // IF_SETEVENTS for equipment widget slots
                     const EQUIPMENT_GROUP_ID = 387;
                     const EQUIPMENT_SLOT_START = 15;
                     const EQUIPMENT_SLOT_END = 25;
@@ -858,7 +913,7 @@ export class LoginHandshakeService {
                         });
                     }
 
-                    // OSRS Parity: IF_SETEVENTS for quest list dynamic children
+                    // IF_SETEVENTS for quest list dynamic children
                     const QUEST_LIST_GROUP_ID = 399;
                     const QUEST_LIST_COMPONENT = 7;
                     const QUEST_LIST_MAX_SLOT = 199;
@@ -901,7 +956,7 @@ export class LoginHandshakeService {
                     `Handshake ok id=${p.id} spawn=(${startTileX},${startTileY},L${startLevel})`,
                 );
                 const appearanceSnapshot = p.appearance;
-                this.server.queueAppearanceSnapshot(p, {
+                this.server.playerAppearanceManager.queueAppearanceSnapshot(p, {
                     x: (startTileX << 7) + 64,
                     y: (startTileY << 7) + 64,
                     level: startLevel,
@@ -916,7 +971,7 @@ export class LoginHandshakeService {
                 });
                 p.markSent();
 
-                this.server.queueChatMessage({
+                this.server.messagingService.queueChatMessage({
                     messageType: "server",
                     text: "Welcome to Old School Runescape!",
                     targetPlayerIds: [p.id],
@@ -947,7 +1002,7 @@ export class LoginHandshakeService {
                     }
                 }
 
-                this.server.maybeReplayDynamicLocState(ws, p, true);
+                this.server.locationService.maybeReplayDynamicLocState(ws, p, true);
             }
         } catch (err) {
             logger.warn("[handshake] handleHandshakeMessage error:", err);
@@ -991,7 +1046,7 @@ export class LoginHandshakeService {
                             if (!p) continue;
                             const ap = packet as AppearanceSetPacket;
 
-                            const appearance = this.server.getOrCreateAppearance(p);
+                            const appearance = this.server.appearanceService.getOrCreateAppearance(p);
                             appearance.gender = ap.gender === 1 ? 1 : 0;
                             appearance.kits = new Array<number>(7).fill(-1);
                             appearance.colors = new Array<number>(5).fill(0);
@@ -1002,9 +1057,9 @@ export class LoginHandshakeService {
                                 appearance.colors[i] = ap.colors[i];
                             }
 
-                            this.server.refreshAppearanceKits(p);
+                            this.server.appearanceService.refreshAppearanceKits(p);
                             p.markAppearanceDirty();
-                            this.server.queueAppearanceSnapshot(p);
+                            this.server.playerAppearanceManager.queueAppearanceSnapshot(p);
 
                             p.accountStage = 1;
                             try {
@@ -1025,10 +1080,10 @@ export class LoginHandshakeService {
                             try {
                                 this.server.gamemode.onPostDesignComplete?.(p);
                                 const spawn = this.server.gamemode.getSpawnLocation(p);
-                                this.server.teleportPlayer(p, spawn.x, spawn.y, spawn.level);
+                                this.server.movementService.teleportPlayer(p, spawn.x, spawn.y, spawn.level);
                                 const name = p.name;
                                 const appearanceSnapshot = p.appearance;
-                                this.server.queueAppearanceSnapshot(p, {
+                                this.server.playerAppearanceManager.queueAppearanceSnapshot(p, {
                                     x: (spawn.x << 7) + 64,
                                     y: (spawn.y << 7) + 64,
                                     level: spawn.level,
@@ -1113,8 +1168,8 @@ export class LoginHandshakeService {
                         this.server.groundItemHandler?.clearPlayerState(id);
                         this.server.playerDynamicLocSceneKeys.delete(id);
                     }
-                    this.server.dismissLevelUpPopupQueue(player.id);
-                    this.server.clearUiTrackingForPlayer(player.id);
+                    this.server.interfaceManager.dismissLevelUpPopupQueue(player.id);
+                    this.server.interfaceManager.clearUiTrackingForPlayer(player.id);
                     this.server.tradeManager?.handlePlayerLogout(
                         player,
                         "The other player has declined the trade.",

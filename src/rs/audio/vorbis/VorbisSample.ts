@@ -1,5 +1,5 @@
 /**
- * OSRS Vorbis Sample Decoder (port of VorbisSample.java).
+ * OSRS Vorbis Sample Decoder.
  * Faithful port of the OSRS custom Vorbis decoder.
  */
 import { ByteBuffer } from "../../io/ByteBuffer";
@@ -165,15 +165,15 @@ export class VorbisSample {
     looped: boolean;
     packets: Uint8Array[];
 
-    // Decoding state (instance fields from Java)
-    private pcmBuffer: Float32Array; // field374 - current frame
-    private prevPcmBuffer: Float32Array; // field386 - previous frame
-    private prevBlockSize: number = 0; // field387
-    private prevRightLen: number = 0; // field388
-    private prevNoFloor: boolean = false; // field382
-    private outputSamples: Int8Array | null = null; // samples
-    private outputPos: number = 0; // field400
-    private packetIndex: number = 0; // field401
+    // Decoding state
+    private pcmBuffer: Float32Array; // current frame
+    private prevPcmBuffer: Float32Array; // previous frame
+    private prevBlockSize: number = 0;
+    private prevRightLen: number = 0;
+    private prevNoFloor: boolean = false;
+    private outputSamples: Int8Array | null = null;
+    private outputPos: number = 0;
+    private packetIndex: number = 0;
 
     constructor(data: Uint8Array) {
         const buf = new ByteBuffer(data);

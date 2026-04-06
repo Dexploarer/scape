@@ -11,13 +11,13 @@ export interface PlayerSyncState {
     rotation: number;
     hasKnownPosition: boolean;
     /**
-     * OSRS parity: per-player traversal / movement type (Players.field1348[index]).
-     * Mirrors `class231.rsOrdinal()` values: -1, 0, 1, 2 (default is 1 = field2458).
+     * per-player traversal / movement type (Players.field1348[index]).
+     * Movement type values: -1, 0, 1, 2 (default is 1 = walk).
      */
     movementType: number;
 
     /**
-     * OSRS parity: deferred movement application when update blocks are present.
+     * deferred movement application when update blocks are present.
      * Mirrors `Player.field1124` + `Player.tileX/tileY` target storage.
      */
     pendingMove?: {
@@ -60,14 +60,12 @@ export class PlayerSyncContext {
     readonly maxPlayers: number;
     readonly states: PlayerSyncState[];
     /**
-     * OSRS parity: `Players.field1355` bitset (per-index), used to drive the 4-pass update loop
-     * and skip-count compression (`class388.updatePlayers`).
+     * Per-index bitset used to drive the 4-pass update loop and skip-count compression.
      */
     readonly flags: Uint8Array;
 
     /**
-     * OSRS parity: `Players.Players_indices` and `Players.Players_emptyIndices`.
-     * These are rebuilt after every updatePlayers decode pass.
+     * Active and empty player index lists, rebuilt after every decode pass.
      */
     readonly playersIndices: number[] = [];
     readonly emptyIndices: number[] = [];
@@ -231,7 +229,7 @@ export class PlayerSyncContext {
             const s = this.stateFor(local);
             s.active = true;
         }
-        // OSRS parity: player indices use slots 1..2047 (slot 0 is unused).
+        // player indices use slots 1..2047 (slot 0 is unused).
         for (let i = 1; i < this.maxPlayers; i++) {
             if (i === local) this.playersIndices.push(i);
             else this.emptyIndices.push(i);
@@ -239,11 +237,11 @@ export class PlayerSyncContext {
     }
 
     /**
-     * Mirrors the end of `class388.updatePlayers`: shift flags and rebuild the indices lists based
+     * Shift flags and rebuild the indices lists based
      * on whether a player object exists at each slot (here: {@link PlayerSyncState.active}).
      */
     endUpdatePlayersCycle(): void {
-        // OSRS parity: slots 1..2047 are used for players; slot 0 remains unused.
+        // slots 1..2047 are used for players; slot 0 remains unused.
         for (let i = 1; i < this.maxPlayers; i++) {
             this.flags[i] = (this.flags[i] >>> 1) & 0xff;
         }

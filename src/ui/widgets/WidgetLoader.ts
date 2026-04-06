@@ -156,11 +156,9 @@ export class WidgetLoader {
 
         const w: any = {
             uid,
-            // OSRS parity: Widget.id is the packed (groupId<<16)|fileId identifier.
-            // Widget.childIndex is -1 for static widgets loaded from cache (from Widget constructor).
+            // id is the packed (groupId<<16)|fileId identifier.
+            // childIndex is -1 for static widgets loaded from cache.
             // Only dynamic widgets (CC_CREATE) have childIndex set to their slot index (>= 0).
-            // Reference: class405.getWidgetFlags uses (childIndex + (id << 32)) as key.
-            // Reference: Widget.java constructor sets this.childIndex = -1;
             id: uid,
             childIndex: -1,
             groupId,
@@ -264,7 +262,7 @@ export class WidgetLoader {
 
         if (type === 1 || type === 3 || type === 4) {
             w.textColor = buf.readInt();
-            // OSRS parity: this is Widget.color (used for both text and rectangle widgets)
+            // this is Widget.color (used for both text and rectangle widgets)
             w.color = w.textColor;
         }
 
@@ -358,11 +356,9 @@ export class WidgetLoader {
 
         const w: any = {
             uid,
-            // OSRS parity: Widget.id is the packed (groupId<<16)|fileId identifier.
-            // Widget.childIndex is -1 for static widgets loaded from cache (from Widget constructor).
+            // id is the packed (groupId<<16)|fileId identifier.
+            // childIndex is -1 for static widgets loaded from cache.
             // Only dynamic widgets (CC_CREATE) have childIndex set to their slot index (>= 0).
-            // Reference: class405.getWidgetFlags uses (childIndex + (id << 32)) as key.
-            // Reference: Widget.java constructor sets this.childIndex = -1;
             id: uid,
             childIndex: -1,
             groupId,
@@ -434,7 +430,7 @@ export class WidgetLoader {
             w.modelOrthog = buf.readUnsignedByte() === 1;
             buf.readUnsignedShort(); // unknown
             if (widthMode !== 0) {
-                buf.readUnsignedShort(); // field3785
+                buf.readUnsignedShort(); // unused
             }
             if (heightMode !== 0) {
                 buf.readUnsignedShort(); // unknown
@@ -651,7 +647,7 @@ export class WidgetLoader {
             }
 
             // Children order comes from cache structure and CC_CREATE at runtime
-            // No sorting needed - the natural order should be correct for OSRS parity
+            // No sorting needed - the natural order should be correct for 
             // (Previously sorted by fileId which caused background to render on top of foreground)
 
             // Find root widget (parentUid === -1)

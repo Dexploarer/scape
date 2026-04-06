@@ -1061,7 +1061,7 @@ export function getSpellData(spellId: number): SpellDataEntry | undefined {
 }
 
 /**
- * Look up spell data by widget reference (OSRS parity - spells are identified by widget, not hardcoded ID)
+ * Look up spell data by widget reference ( - spells are identified by widget, not hardcoded ID)
  * @param spellbookGroupId Widget group ID of the spellbook (218=standard, 12=ancient, etc.)
  * @param widgetChildId Widget child index within the spellbook
  */
@@ -1340,7 +1340,7 @@ export type AutocastCompatibilityResult = {
 
 /**
  * Check if a weapon can autocast a specific spell.
- * OSRS parity: certain spells require specific weapons to autocast.
+ * certain spells require specific weapons to autocast.
  *
  * @param weaponItemId - The equipped weapon item ID (0 or negative = no weapon)
  * @param spellId - The spell ID to check
@@ -1657,7 +1657,7 @@ export function hasPoweredStaffSpellData(weaponId: number): boolean {
 
 /**
  * Calculate powered staff max hit based on magic level and formula type.
- * OSRS Parity: Each powered staff has a unique base damage formula.
+ * Each powered staff has a unique base damage formula.
  *
  * @param magicLevel - Current (boosted) magic level
  * @param formula - The max hit formula type

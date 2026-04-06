@@ -189,7 +189,7 @@ export function registerMathOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.INTERPOLATE, (ctx) => {
-        // OSRS parity: ScriptOpcodes.INTERPOLATE (4006)
+        // ScriptOpcodes.INTERPOLATE (4006)
         // Stack order (bottom -> top): a, b, c, d, e
         // Java: a + (b - a) * (e - c) / (d - c)
         ctx.intStackSize -= 5;

@@ -586,13 +586,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     // Settings
     maxLevel: number = Scene.MAX_LEVELS - 1;
 
-    skyColor: vec4 = vec4.fromValues(0, 0, 0, 1); // Black (OSRS parity — vanilla has no skybox)
+    skyColor: vec4 = vec4.fromValues(0, 0, 0, 1); // Black ( — vanilla has no skybox)
     fogDepth: number = 24; // Fog starts at 24 tiles (OSRS fog is subtle until near max distance)
     autoFogDepth: boolean = true;
     autoFogDepthFactor: number = 0.7;
 
-    // Scene-level HSL override matching OSRS Scene.Scene_cameraY / HslOverride.
-    // Reference: HslOverride.java, Scene.java beginDraw, AbstractRasterizer.applyHslOverride
+    // Scene-level HSL override for tinting all rendered geometry.
     // Values: [hue (-1=no override, 0-63), sat (-1=no override, 0-7),
     //          lum (-1=no override, 0-127), amount (0-255, 0=disabled)]
     sceneHslOverride: vec4 = vec4.fromValues(-1, -1, -1, 0);
@@ -609,7 +608,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     loadObjs: boolean = true;
     loadNpcs: boolean = true;
-    // RuneLite-style animation smoothing (non-OSRS parity) is applied to the local player only.
+    // RuneLite-style animation smoothing (non-) is applied to the local player only.
 
     // State
     lastClientTick: number = 0;
@@ -685,7 +684,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     // ECS is authoritative for actors (NPCs and Players migrated)
     actorRenderCount: number = 0;
     actorRenderData: Uint16Array = new Uint16Array(16 * 8);
-    // OSRS parity: mirror sceneDrawCycleMarker/tileDrawCycleMarkers submission dedupe
+    // mirror sceneDrawCycleMarker/tileDrawCycleMarkers submission dedupe
     // for tile-centered single-tile actors.
     private frameActorTileSelectionId: number = -1;
     private frameActorTileSelectionBuilt: boolean = false;
@@ -736,7 +735,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     private followCamFocalZSub: number = 0;
     private followCamFocalLastClientCycle: number = -1;
     private followCamFocalInitialized: boolean = false;
-    // OSRS field600-equivalent: terrain-driven minimum pitch pressure (scaled by 256).
+    // Terrain-driven minimum pitch pressure (scaled by 256).
     private cameraTerrainPitchPressure: number = 0;
 
     // OSRS camera shake slots (0:X, 1:Y, 2:Z, 3:Yaw, 4:Pitch).
@@ -1632,8 +1631,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     /**
      * Get NPC defaultHeight in OSRS units by computing actual model bounding cylinder.
-     * OSRS Parity: Actor.defaultHeight is set from model.height after calculateBoundsCylinder().
-     * Reference: NPC.java line 94: super.defaultHeight = var3.height;
+     * Actor.defaultHeight is set from model.height after calculateBoundsCylinder().
      */
     private getNpcDefaultHeight(npcTypeId: number): number {
         // Check cache first
@@ -1841,7 +1839,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     /**
-     * OSRS Parity:
+     *
      * - All cycle values are in CLIENT CYCLES (20ms each), NOT server ticks
      * - hitSplatCycles stores: currentCycle + displayCycles + delayCycles (the END cycle)
      * - Start visibility is calculated at render time: hitSplatCycles - displayCycles
@@ -1871,8 +1869,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
 
         let slot = -1; // var9
-        let compareType = -1; // var10 (HitSplatDefinition.field2071)
-        let displayCycles = 0; // var11 (HitSplatDefinition.field2069)
+        let compareType = -1;
+        let displayCycles = 0;
         if ((type | 0) >= 0) {
             const def = this.hitsplatOverlay?.getDefinition?.(type | 0);
             if (def) {
@@ -1943,7 +1941,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     /**
      * Check if a hitsplat slot is visible and calculate its animation progress.
      *
-     * OSRS Parity (class386.drawActor2d):
+     *
      * - Visibility: hitSplatCycles - displayCycles <= currentCycle < hitSplatCycles
      * - Animation progress: (displayCycles - remainingCycles) / displayCycles
      *
@@ -2024,7 +2022,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             int1: (def?.int1 ?? 255) | 0,
             int2: (def?.int2 ?? 255) | 0,
             int3: (def?.int3 ?? -1) | 0,
-            field1885: (def?.field1885 ?? 1) | 0,
+            stepIncrement: (def?.stepIncrement ?? 1) | 0,
             int5: (def?.int5 ?? 70) | 0,
             width: Math.max(1, Math.min(255, def?.width ?? 30)) | 0,
             widthPadding: Math.max(0, def?.widthPadding ?? 0) | 0,
@@ -2060,7 +2058,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             }
         }
         bar.updates.splice(insert, 0, update);
-        // OSRS parity: keep at most 4 updates; drop the oldest.
+        // keep at most 4 updates; drop the oldest.
         if (bar.updates.length > 4) bar.updates.shift();
     }
 
@@ -2077,7 +2075,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
         const current = bar.updates[0];
         const def = bar.def;
-        // OSRS parity: HealthBarDefinition timings are defined in client cycles (20ms).
+        // HealthBarDefinition timings are defined in client cycles (20ms).
         if ((def.int5 | 0) + (current.cycleOffset | 0) + (current.cycle | 0) <= now) {
             bar.updates.shift();
             return undefined;
@@ -2101,7 +2099,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         const def = this.resolveHealthBarDefinition(defId);
         const existingCount = bars.length | 0;
-        // OSRS parity: only add a 5th bar if we can evict an existing bar with int2 > new.int2
+        // only add a 5th bar if we can evict an existing bar with int2 > new.int2
         // (Actor.addHealthBar).
         let removable: HealthBarBarState | undefined = undefined;
         let maxInt2 = def.int2 | 0;
@@ -2207,22 +2205,22 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const cycleOffset = Math.max(0, update.cycleOffset | 0);
         const int5 = Math.max(0, def.int5 | 0);
         const int3 = def.int3 | 0;
-        const stepCycles = def.field1885 | 0;
+        const stepCycles = def.stepIncrement | 0;
         if (int5 + cycleOffset + cycle <= now) return undefined;
 
         let value = end;
         let alpha = 1;
         if (cycleOffset > elapsed) {
-            // Mirror class386: quantize interpolation to multiples of field1885.
+            // Quantize interpolation to multiples of stepIncrement.
             const step = stepCycles === 0 ? 0 : stepCycles * Math.floor(elapsed / stepCycles);
-            // OSRS parity: integer division truncates toward zero (Java semantics).
+            // integer division truncates toward zero (Java semantics).
             value = (start + Math.trunc((step * (end - start)) / cycleOffset)) | 0;
         } else {
             value = end;
             const remaining = int5 + cycleOffset - elapsed;
             if (int3 >= 0) {
                 const denom = Math.max(1, int5 - int3);
-                // OSRS parity: alpha is computed via integer division, then treated as either
+                // alpha is computed via integer division, then treated as either
                 // fully opaque (>= 255) or a 0..254 fractional alpha.
                 const var81 = Math.trunc((remaining << 8) / denom);
                 alpha = var81 >= 0 && var81 < 255 ? var81 / 255 : 1;
@@ -2249,7 +2247,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const state = map.get(serverId);
         if (!state) return;
         const groupKey = ((kind === "npc" ? 1 : 0) << 24) | ((serverId | 0) & 0xffffff) | 0;
-        // Mirror class386: iterate from the tail of the deque.
+        // Iterate from the tail of the deque.
         for (let i = state.bars.length - 1; i >= 0; i--) {
             if (output.length >= maxOutput) break;
             const bar = state.bars[i];
@@ -2266,7 +2264,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             entry.worldX = worldX;
             entry.worldZ = worldZ;
             entry.plane = plane;
-            // OSRS Parity: Health bar at logicalHeightWithAnimationOffset + 15 units.
+            // Health bar at logicalHeightWithAnimationOffset + 15 units.
             // No additional offset needed - baseHeightTiles already includes the +15 offset
             entry.heightOffsetTiles = baseHeightTiles ?? 0;
             entry.ratio = osrs.ratio;
@@ -2474,11 +2472,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     override registerHitsplat(event: HitsplatEventPayload): void {
-        // OSRS Parity: Use CLIENT CYCLES (20ms each) for hitsplat timing.
+        // Use CLIENT CYCLES (20ms each) for hitsplat timing.
         // Client.cycle in OSRS is a client-side counter incrementing every 20ms.
         const clientCycle = getClientCycle() | 0;
 
-        // OSRS parity: `delayCycles` is already in client-cycle units (see Actor.addHitSplat var6).
+        // `delayCycles` is already in client-cycle units (see Actor.addHitSplat var6).
         const delayCycles =
             typeof event.delayCycles === "number" ? Math.max(0, event.delayCycles | 0) : 0;
 
@@ -2697,7 +2695,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             console.warn("Failed to init player geometry", e);
         }
 
-        // Initialize dynamic NPC animation loader (OSRS parity - load animations at render time)
+        // Initialize dynamic NPC animation loader ( - load animations at render time)
         this.initDynamicNpcAnimLoader();
 
         try {
@@ -3207,7 +3205,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         // Helper to count children (both dynamic from children array AND static from parentUid)
                         const getChildCount = (w: any): number => {
                             const dynamicCount = w.children?.length ?? 0;
-                            // OSRS parity: also count static children from parentUid filtering
+                            // also count static children from parentUid filtering
                             const staticCount =
                                 manager?.getStaticChildrenByParentUid(w.uid)?.length ?? 0;
                             return dynamicCount + staticCount;
@@ -3216,7 +3214,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         for (const viewportRoot of allRoots) {
                             if (viewportRoot) {
                                 // Layout each root independently in the current UI layout space.
-                                // Pass static children callback for OSRS parity
+                                // Pass static children callback for 
                                 const getStaticChildren = (uid: number) =>
                                     manager?.getStaticChildrenByParentUid(uid) ?? [];
                                 layoutWidgets(
@@ -3378,7 +3376,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                                         typeof wAny.playerModelKeepEquipment === "boolean"
                                             ? (wAny.playerModelKeepEquipment as boolean)
                                             : true;
-                                    // OSRS parity: contentType=328 renders the local player model.
+                                    // contentType=328 renders the local player model.
                                     // Prefer the ECS local-player appearance so server-driven updates
                                     // (PlayerDesign arrows) reflect immediately, even if the widget
                                     // has a stale `playerAppearance` snapshot.
@@ -3431,7 +3429,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                                             equip,
                                         );
 
-                                        // OSRS parity: contentType=328 uses KeyHandler.localPlayer.getModel().
+                                        // contentType=328 uses KeyHandler.localPlayer.getModel().
                                         // Our ECS base-model pipeline applies additional alignment (to NPC "man")
                                         // which is correct for in-world rendering, but skews UI preview offsets.
                                         // For widget rendering, prefer the raw PlayerComposition model build.
@@ -3444,7 +3442,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                                                 );
                                         }
                                         if (model) {
-                                            // OSRS parity: Widget type-6 models render into the *parent clip*,
+                                            // Widget type-6 models render into the *parent clip*,
                                             // not the widget bounds. This means player models can overflow the
                                             // widget rectangle (e.g., equipment/league summary) and still be visible.
                                             //
@@ -3607,14 +3605,13 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             const rot: number = ((rotFallback ?? 0) as number) | 0;
 
             const resolveFromAnimSet = (): number => {
-                // Movement blocking is handled in `PlayerEcs` (OSRS parity). This resolver is mode-only.
+                // Movement blocking is handled in `PlayerEcs` (). This resolver is mode-only.
                 if (this.playerAnimMode === "idle") {
                     const desired =
                         (pe.getTargetRotation?.(ecsIndex) ?? pe.targetRot?.[ecsIndex] ?? rot) | 0;
                     const delta = (desired - rot) & 2047;
                     if (delta !== 0) {
                         // OSRS turn animation delay: only play turn animation after 25 ticks of continuous rotation
-                        // Reference: player-animation.md lines 474-475 (field1240 > 0 && field1239 > 25)
                         const rotationCounter = (pe.getRotationCounter?.(ecsIndex) ?? 0) | 0;
                         const rotationSpeed = (pe.getRotationSpeed?.(ecsIndex) ?? 32) | 0;
                         const shouldPlayTurnAnim = rotationCounter >= 25 && rotationSpeed > 0;
@@ -5866,9 +5863,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     /**
-     * Set the scene-level HSL color override (OSRS Scene.Scene_cameraY).
+     * Set the scene-level HSL color override.
      * Tints all rendered geometry by lerping HSL vertex colors toward the target.
-     * Reference: HslOverride.java, AbstractRasterizer.applyHslOverride
      *
      * @param hue       Override hue target (-1 = no hue override, 0-63)
      * @param sat       Override saturation target (-1 = no sat override, 0-7)
@@ -5884,7 +5880,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     /**
      * Set the scene-level HSL override from a packed HSL short (as used by WorldEntityConfig.sceneTintHsl).
-     * Reference: WorldEntity.java lines 221-226
      *
      * @param packedHsl  Packed 16-bit HSL value (hue[15:10], sat[9:7], lum[6:0])
      * @param amount     Override strength (0-255, typically 127 for full override)
@@ -5898,7 +5893,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     /**
      * Clear the scene-level HSL override (restore normal rendering).
-     * Reference: HslOverride.clear()
      */
     clearSceneHslOverride(): void {
         this.sceneHslOverride[0] = -1;
@@ -6097,7 +6091,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const ticksElapsed = Math.min(serverTick - this.lastTick, 1);
         if (ticksElapsed > 0) this.lastTick = serverTick;
 
-        // OSRS Parity: Use client cycles (20ms each) for hitsplat timing
+        // Use client cycles (20ms each) for hitsplat timing
         const clientCycle = getClientCycle() | 0;
 
         // Use server-derived phase to anchor interpolation within the active client tick.
@@ -6158,7 +6152,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const inputManager = this.osrsClient.inputManager;
         this.syncMobileLoginInput(false);
         if (!loggedIn) {
-            // Transfer click state for this frame (OSRS parity)
+            // Transfer click state for this frame ()
             inputManager.onFrameStart();
             const uiMetrics = this.computeUiRenderMetrics(this.app.width, this.app.height);
             this.osrsClient.loginRenderer.syncMobileViewportState(
@@ -6385,7 +6379,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             sceneViewport.height,
         );
         this.clearSceneFramebuffer(sceneFramebufferViewport);
-        // OSRS parity: keep CS2-visible viewport zoom in sync with the viewport widget size
+        // keep CS2-visible viewport zoom in sync with the viewport widget size
         // (Client.viewportZoom; i.e., Rasterizer3D.get3dZoom()) so scripts and widget models scale correctly.
         try {
             this.osrsClient.cs2Vm.context.viewportZoom = camera.computeViewportZoomForSize(
@@ -6693,7 +6687,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         slot < 4 && hitsplats.length < hitsplatMaxEntries;
                         slot++
                     ) {
-                        // OSRS Parity: Use client cycles and calculate visibility from end cycle
+                        // Use client cycles and calculate visibility from end cycle
                         const animProgress = this.getHitsplatVisibility(state, slot, clientCycle);
                         if (animProgress === undefined) continue;
                         const entry = this.acquireHitsplatEntry();
@@ -6896,7 +6890,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                             slot < 4 && hitsplats.length < hitsplatMaxEntries;
                             slot++
                         ) {
-                            // OSRS Parity: Use client cycles and calculate visibility from end cycle
+                            // Use client cycles and calculate visibility from end cycle
                             const animProgress = this.getHitsplatVisibility(
                                 state,
                                 slot,
@@ -7037,7 +7031,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                                 slot < 4 && hitsplats.length < hitsplatMaxEntries;
                                 slot++
                             ) {
-                                // OSRS Parity: Use client cycles and calculate visibility from end cycle
+                                // Use client cycles and calculate visibility from end cycle
                                 const animProgress = this.getHitsplatVisibility(
                                     state,
                                     slot,
@@ -7863,7 +7857,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     /**
-     * Mirror Client.field600 pressure update:
+     * Camera pitch pressure update:
      * derive a terrain-driven minimum camera pitch from the focal point surroundings.
      */
     private updateCameraTerrainPitchPressure(
@@ -8142,7 +8136,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         if (terrainMinCamAngleX > camAngleX) {
             camAngleX = terrainMinCamAngleX;
         }
-        // OSRS parity: active pitch-shake also raises the minimum camera angle for orbit distance.
+        // active pitch-shake also raises the minimum camera angle for orbit distance.
         if (this.cameraShakeEnabled[4]) {
             const shakeMinCamAngleX = (this.cameraShakeWaveAmplitude[4] | 0) + 128;
             if (shakeMinCamAngleX > camAngleX) {
@@ -9811,8 +9805,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     override getCollisionFlagAt(level: number, tileX: number, tileY: number): number {
         const map = this.getPreferredMapForWorldTile(tileX, tileY) as any;
-        // OSRS parity: missing/unloaded tiles are treated as blocked via the 0x1000000 sentinel bit
-        // (see CollisionMap.clear + class142.method3226 terrain decode step).
+        // missing/unloaded tiles are treated as blocked via the 0x1000000 sentinel bit
+        // (missing/unloaded tiles use the 0x1000000 sentinel bit in collision flags).
         if (!map || typeof (map as any).getCollisionFlag !== "function") return 0x1000000;
         const local = this.getMapLocalTile(map, tileX, tileY);
         if (!local) return 0x1000000;
@@ -10064,7 +10058,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             visibleMaps.push(map);
 
             for (const loc of map.locsAnimated) {
-                // OSRS parity: DynamicObject/loc animation timing is based on Client.cycle (20ms each).
+                // DynamicObject/loc animation timing is based on Client.cycle (20ms each).
                 loc.update(seqFrameLoader, clientCycle | 0, this.seqSoundCallback);
             }
 
@@ -10127,7 +10121,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             soundSystem.updateAmbientSounds(this.ambientSoundBuffer);
         }
 
-        // OSRS parity: animation stepping is handled by the client tick loop (`PlayerEcs` + `PlayerAnimController`).
+        // animation stepping is handled by the client tick loop (`PlayerEcs` + `PlayerAnimController`).
     }
     // Update dynamic BLOCK_PLAYERS occupancy using per-cell counters when players cross tiles.
     private _ecsUpdatePlayerOccupancy(map: WebGLMapSquare): void {
@@ -10770,7 +10764,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         true,
                     );
 
-                    // OSRS parity: When a one-shot animation finishes, hold the
+                    // When a one-shot animation finishes, hold the
                     // last frame while seqTicksLeft > 0 instead of immediately
                     // reverting to idle. This prevents the NPC from flashing back
                     // to its idle pose between the death animation ending and the
@@ -12523,7 +12517,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         } else {
             activeSpell = null;
         }
-        // OSRS parity: world "Use" targeting is driven by ClientState.isItemSelected (not inventory UI selection).
+        // world "Use" targeting is driven by ClientState.isItemSelected (not inventory UI selection).
         const hasSelectedItem =
             ClientState.isItemSelected === 1 && (ClientState.selectedItemId | 0) > 0;
         const selectedItemName = String(ClientState.selectedSpellName || "");
@@ -12531,15 +12525,14 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const anchorY = picked ? pickY : inputManager.mouseY;
         const anchorInSceneViewport = this.osrsClient.camera.containsScreenPoint(anchorX, anchorY);
 
-        // OSRS parity: Only build world menu entries (NPCs, objects, Walk here) when mouse is NOT
+        // Only build world menu entries (NPCs, objects, Walk here) when mouse is NOT
         // over an interactive widget. In resizable mode, viewport covers the whole screen but
         // widgets (inventory, chat, etc.) are layered on top and should capture clicks.
-        // OSRS parity: Check if mouse is in a UI region (chatbox, minimap, sidebar)
-        // The Java client uses dynamic region checks based on frame dimensions
-        // See elvarg Client.java getMousePositions() for the reference implementation
+        // Check if mouse is in a UI region (chatbox, minimap, sidebar)
+        // The client uses dynamic region checks based on frame dimensions
         // PERF: Inline check instead of IIFE to avoid per-frame function allocation
         const mouseInUIRegion = this.isMouseInUIRegion(anchorX, anchorY);
-        // OSRS parity: Also treat any visible widget/modal capture under the pointer as UI.
+        // Also treat any visible widget/modal capture under the pointer as UI.
         // This prevents world hover/menu fallbacks ("Walk here") from leaking through modal overlays.
         const mouseOverWidget =
             anchorX !== -1 && anchorY !== -1
@@ -12551,7 +12544,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         // 2. Mouse is not in a static UI region (chatbox, minimap, sidebar)
         // 3. Mouse is not over any blocking widget/modal capture
         if (!usingPinnedMenu && !mouseInUIRegion && !mouseOverWidget) {
-            // OSRS parity: base menu always starts with Cancel (class365.addCancelMenuEntry).
+            // base menu always starts with Cancel.
             menuEntries.push({
                 option: "Cancel",
                 targetId: -1,
@@ -12573,7 +12566,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             playerIds.clear();
             const hoveredTile = this.osrsClient.hoveredTile;
 
-            // OSRS parity: add Walk here only when no item/spell is selected (class414.addSceneMenuOptions).
+            // add Walk here only when no item/spell is selected.
             const baseX = (ClientState.baseX | 0) as number;
             const baseY = (ClientState.baseY | 0) as number;
             const anchorTile = this.computeTileAt(anchorX, anchorY);
@@ -12601,7 +12594,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         try {
                             if (isServerConnected()) sendInteractStop();
                         } catch {}
-                        // OSRS parity: use the tile determined at menu creation
+                        // use the tile determined at menu creation
                         // time, not a re-raycast.  The camera may have shifted
                         // while the menu was open, making a second computeTileAt
                         // return the wrong tile.
@@ -12631,7 +12624,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             }
 
             const ray = this.screenToRay(anchorX, anchorY);
-            // OSRS parity: scene interactions are filtered by the current client plane
+            // scene interactions are filtered by the current client plane
             // (raw server plane), not the bridge-promoted render plane.
             const interactionPlane = this.getPlayerRawPlane() | 0;
             const raycastHits =
@@ -12715,7 +12708,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         : 0;
                 const targetIsClanMember = isClanMemberName(playerLabel);
 
-                // OSRS parity: When hovering a player, Walk here target becomes the player's label.
+                // When hovering a player, Walk here target becomes the player's label.
                 if (walkHereEntry) {
                     walkHereEntry.targetName = `<col=ffffff>${playerLabel}`;
                 }
@@ -13090,7 +13083,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     if (locIds.has(dedupeKey)) continue;
                     locIds.add(dedupeKey);
 
-                    // OSRS parity: Item selection suppresses normal actions/examine.
+                    // Item selection suppresses normal actions/examine.
                     if (ClientState.isItemSelected === 1) {
                         const itemName =
                             selectedItemName || `Item ${ClientState.selectedItemId | 0 || 0}`;
@@ -13111,7 +13104,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         continue;
                     }
 
-                    // OSRS parity: Spell selection suppresses normal actions/examine.
+                    // Spell selection suppresses normal actions/examine.
                     if (ClientState.isSpellSelected) {
                         if (
                             hasActiveSpell &&
@@ -13139,7 +13132,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         continue;
                     }
 
-                    // OSRS parity: LOC actions inserted 4..0, then Examine.
+                    // LOC actions inserted 4..0, then Examine.
                     for (let actionIdx = 4; actionIdx >= 0; actionIdx--) {
                         const option = resolvedLocType.actions?.[actionIdx];
                         if (!option) continue;
@@ -13476,7 +13469,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             shouldFreeze,
             toCssEvent: this.boundToCssEvent,
         });
-        // OSRS parity: Use shouldLeftClickOpenMenu which checks:
+        // Use shouldLeftClickOpenMenu which checks:
         // 1) leftClickOpensMenu setting && menuOptionsCount > 2
         // 2) OR top entry opcode is CC_OP_LowPriority (1007)
         // AND top entry is not shiftClickable
@@ -13530,13 +13523,13 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         // Handle left-click default action via the same menu interface as right-click
         // Skip if menu is open (choose-option.ts handles menu clicks)
-        // Skip if click is in a UI region (OSRS parity: region-based checks)
+        // Skip if click is in a UI region (region-based checks)
         // PERF: Reuse helper method instead of IIFE to avoid per-click function allocation
         const leftClickInUIRegion = leftClicked
             ? this.isMouseInUIRegion(inputManager.leftClickX, inputManager.leftClickY)
             : false;
 
-        // OSRS parity: block world interaction when a widget at the click point captures input.
+        // block world interaction when a widget at the click point captures input.
         const hasUIClickTarget = leftClicked
             ? this.osrsClient.isPointOverWidget(inputManager.leftClickX, inputManager.leftClickY)
             : false;
@@ -13597,7 +13590,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         xy.sx,
                         xy.sy,
                     );
-                    // OSRS parity: No client prediction on click - wait for server
+                    // No client prediction on click - wait for server
                     try {
                         this.spawnClickCross(clicked, xy, "yellow");
                     } catch {}
@@ -13630,7 +13623,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         sx,
                         sy,
                     );
-                    // OSRS parity: No client prediction on click - wait for server
+                    // No client prediction on click - wait for server
                     const playerPlane = this.getPlayerBasePlane() | 0;
                     const clickedPlane = clicked.plane ?? playerPlane;
                     this.clickCrossOverlay?.spawn(

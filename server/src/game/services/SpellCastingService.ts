@@ -23,9 +23,9 @@ export interface SpellCastingServiceDeps {
     queueSpellResult: (playerId: number, payload: {
         casterId: number;
         spellId: number;
-        outcome: string;
+        outcome: "success" | "failure";
         reason?: string;
-        targetType: string;
+        targetType: "npc" | "player" | "loc" | "obj" | "tile" | "item";
     }) => void;
     awardSkillXp: (player: PlayerState, skillId: SkillId, xp: number) => void;
     enqueueSpotAnimation: (event: {

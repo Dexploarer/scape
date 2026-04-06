@@ -41,7 +41,7 @@ export class ActionScheduler {
     }
 
     /**
-     * OSRS parity: Sets a callback to check if player has modal open.
+     * Sets a callback to check if player has modal open.
      * When modal is open, skill actions are paused (not executed, kept in queue).
      */
     setModalChecker(checker?: (playerId: number) => boolean): void {
@@ -161,7 +161,7 @@ export class ActionScheduler {
             const player = this.playerLookup.get(playerId);
             if (!player) continue;
 
-            // OSRS parity: Check if player has modal open (level-up dialog, etc.)
+            // Check if player has modal open (level-up dialog, etc.)
             const hasModal = this.modalChecker?.(playerId) ?? false;
 
             const matured: ScheduledAction[] = [];
@@ -303,7 +303,7 @@ export class ActionScheduler {
     }
 
     /**
-     * OSRS parity: Check if an action is a skill action that should be paused
+     * Check if an action is a skill action that should be paused
      * while a modal dialog (like level-up) is open.
      */
     private isSkillAction(action: ScheduledAction): boolean {
@@ -326,7 +326,7 @@ export class ActionScheduler {
     }
 
     /**
-     * OSRS parity: Cancel all interruptible actions for a player.
+     * Cancel all interruptible actions for a player.
      * This uses the same prefix matching as isInterruptibleAction() for consistency.
      * Called when player walks, starts new interaction, teleports, etc.
      */

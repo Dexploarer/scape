@@ -84,7 +84,7 @@ export class ActorAnimController {
                 }
                 // Validate array bounds - use clamped index to prevent out-of-bounds access
                 const safeFrameIndex = Math.min(this.frameIndex, lengths.length - 1);
-                // OSRS parity: 0 is a valid frame length (advances immediately when cycle > 0)
+                // 0 is a valid frame length (advances immediately when cycle > 0)
                 const currLen = (lengths[safeFrameIndex] ?? 0) | 0;
                 if (this.frameTick > currLen) {
                     this.frameTick = 1;

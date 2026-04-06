@@ -1,7 +1,7 @@
 export type CollisionFlagAtFn = (plane: number, tileX: number, tileY: number) => number;
 
 /**
- * OSRS parity: 32×32 local route finder used by the legacy client for short-range
+ * 32×32 local route finder used by the legacy client for short-range
  * path reconstruction (e.g. Player.method2429 -> GraphicsObject.method2132).
  *
  */

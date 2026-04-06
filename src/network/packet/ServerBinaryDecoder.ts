@@ -65,7 +65,7 @@ export class ServerPacketReader {
     }
 
     // ========================================
-    // READ METHODS (matching Buffer.java)
+    // READ METHODS
     // ========================================
 
     readByte(): number {

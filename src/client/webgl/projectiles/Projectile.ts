@@ -23,7 +23,7 @@ export interface ProjectileConfig {
 }
 
 /**
- * Projectile runtime modeled after OSRS Projectile.java semantics.
+ * Projectile runtime modeled after OSRS projectile semantics.
  */
 export class Projectile {
     readonly projectileId: number;

@@ -321,7 +321,7 @@ interface MultiFloorTarget {
 /**
  * Resolve the target level and optional fixed destination for a multi-floor traversal.
  *
- * OSRS parity: OSRS sends a fixed destination tile per staircase (from packet dump),
+ * OSRS sends a fixed destination tile per staircase (from packet dump),
  * independent of where the player was standing. When configured in stair-floors.json
  * that dest is used directly. Otherwise falls back to nearest-walkable scan.
  */
@@ -403,7 +403,7 @@ function resolveWalkableDest(
 
 /**
  * Execute an instant multi-floor traversal (no climb animation).
- * OSRS parity: top-floor / bottom-floor teleports are immediate with no
+ * top-floor / bottom-floor teleports are immediate with no
  * sequence animation — just a plane change and face direction toward the loc.
  *
  * The destination is resolved to the nearest walkable tile before teleporting

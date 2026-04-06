@@ -1823,7 +1823,7 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
     }
 
     /**
-     * OSRS parity: MidiPcmStream.isReady().
+     * MidiPcmStream.isReady().
      * Used by fade tasks to avoid adjusting volume while the player isn't ready.
      */
     isReady(): boolean {

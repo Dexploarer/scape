@@ -14,14 +14,17 @@ import { CombatDataService } from "../game/services/CombatDataService";
 import { LocationService } from "../game/services/LocationService";
 import { InterfaceManager as ExtractedInterfaceManager, type LevelUpPopup } from "../game/services/InterfaceManager";
 import { CollectionLogService } from "../game/services/CollectionLogService";
+import { WorldEntityService } from "../game/services/WorldEntityService";
 import { SoundService } from "../game/services/SoundService";
 import { MovementService } from "../game/services/MovementService";
 import { PlayerCombatService } from "../game/services/PlayerCombatService";
 import { buildScriptServices, type ScriptServiceAdapterDeps } from "../game/services/ScriptServiceAdapter";
 import { buildGamemodeServices } from "../game/services/GamemodeServiceAdapter";
 import { LoginHandshakeService } from "./LoginHandshakeService";
+import { BroadcastService } from "./BroadcastService";
 import { SpellCastingService } from "../game/services/SpellCastingService";
 import { TickPhaseService } from "../game/services/TickPhaseService";
+import { TickFrameService } from "../game/services/TickFrameService";
 import { VarpSyncService } from "../game/services/VarpSyncService";
 import { CombatEffectService } from "../game/services/CombatEffectService";
 import { ProjectileTimingService } from "../game/services/ProjectileTimingService";
@@ -31,6 +34,9 @@ import { InventoryMessageService } from "../game/services/InventoryMessageServic
 import { ActionDispatchService } from "../game/services/ActionDispatchService";
 import { AuthenticationService } from "./AuthenticationService";
 import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
+import {
+    handleExaminePacket as handleExaminePacketImpl,
+} from "./handlers/examineHandler";
 
 import { ConfigType } from "../../../src/rs/cache/ConfigType";
 import { IndexType } from "../../../src/rs/cache/IndexType";
@@ -120,7 +126,6 @@ import {
     buildCollectionOverviewOpenState,
     loadCollectionLogItems,
     populateCollectionLogCategories,
-    syncCollectionDisplayVarps,
     trackCollectionLogItem,
 } from "../game/collectionlog";
 import { PlayerCombatManager, createPlayerCombatManager } from "../game/combat";
@@ -257,7 +262,6 @@ import {
 } from "../widgets/hooks/CollectionLogInterfaceHooks";
 import { registerDialogInterfaceHooks } from "../widgets/hooks/DialogInterfaceHooks";
 import { type CacheEnv, initCacheEnv } from "../world/CacheEnv";
-import { buildRebuildNormalPayload, buildRebuildRegionPayload, buildRebuildWorldEntityPayload } from "../world/InstanceManager";
 import { SailingInstanceManager } from "../game/sailing/SailingInstanceManager";
 import {
     SAILING_WORLD_ENTITY_INDEX,
@@ -380,12 +384,10 @@ const SPEC_SPOT_GODSWORD_ARMADYL = 1206; // SpotanimID.GODWARS_GODSWORD_ARMADYL_
 const SPEC_SPOT_GODSWORD_SARADOMIN = 1207; // SpotanimID.GODWARS_GODSWORD_SARADOMIN_SPOT
 const SPEC_SPOT_GODSWORD_BANDOS = 1208; // SpotanimID.GODWARS_GODSWORD_BANDOS_SPOT
 
-// OSRS parity: melee hits resolve 1 tick after the swing animation starts.
+// melee hits resolve 1 tick after the swing animation starts.
 const MELEE_HIT_DELAY_TICKS = 1;
 export const COMBAT_SOUND_DELAY_MS = 50; // Small delay to ensure hitsplat renders before sound plays
 const DEFAULT_HIT_SOUND = 1979; // Generic blade hit sound
-
-
 const RANGED_WEAPON_CATEGORY_IDS = new Set([3, 5, 6, 7, 8, 19]);
 const DEFAULT_MISS_SOUND = 2564; // Generic block/miss sound
 // Unarmed (no weapon equipped): style-specific hit sounds.
@@ -398,7 +400,7 @@ const DEFAULT_MAGIC_SPLASH_SOUND = 227;
 const ITEM_DROP_SOUND = 2739;
 
 /**
- * OSRS parity: Message types that close interruptible interfaces (modals, dialogs).
+ * Message types that close interruptible interfaces (modals, dialogs).
  * Centralized here to avoid scattered closeInterruptibleInterfaces calls.
  */
 const INTERFACE_CLOSING_ACTIONS = new Set([
@@ -762,7 +764,7 @@ export interface WSServerOptions {
 }
 
 export class WSServer {
-    private wss: WebSocketServer;
+    private wss!: WebSocketServer;
     private options: WSServerOptions;
     private players?: PlayerManager;
     private npcManager?: NpcManager;
@@ -780,7 +782,7 @@ export class WSServer {
     private specialAttackCostUnitsByWeapon?: Map<number, number>;
     private specialAttackDescriptionByWeapon?: Map<number, string>;
     private specialAttackDefaultDescription?: string;
-    private actionScheduler: ActionScheduler;
+    private actionScheduler!: ActionScheduler;
     private defaultPlayerAnim: PlayerAnimSet = {
         idle: 808,
         walk: 819,
@@ -798,8 +800,8 @@ export class WSServer {
     private readonly prayerSystem = new PrayerSystem();
     private readonly scriptScheduler = new ScriptScheduler();
     private readonly scriptRegistry = new ScriptRegistry();
-    private readonly scriptRuntime: ScriptRuntime;
-    private readonly playerPersistence: PlayerPersistence;
+    private scriptRuntime!: ScriptRuntime;
+    private playerPersistence!: PlayerPersistence;
     private movementSystem?: MovementSystem;
     private followerManager?: FollowerManager;
     private followerCombatManager?: FollowerCombatManager;
@@ -815,47 +817,52 @@ export class WSServer {
     private messageRouter!: MessageRouter;
 
     // Extracted services (Phase 1)
-    private readonly gameContext!: GameContext;
-    private readonly dataLoaderService!: DataLoaderService;
-    private readonly authService!: AuthenticationService;
-    private readonly networkLayer!: PlayerNetworkLayer;
+    private gameContext!: GameContext;
+    private dataLoaderService!: DataLoaderService;
+    private authService!: AuthenticationService;
+    private networkLayer!: PlayerNetworkLayer;
 
     // Extracted services (Phase 2)
-    private readonly variableService!: VariableService;
-    private readonly messagingService!: MessagingService;
-    private readonly skillService!: SkillService;
+    private variableService!: VariableService;
+    private messagingService!: MessagingService;
+    private skillService!: SkillService;
 
     // Extracted services (Phase 3)
-    private readonly inventoryService!: InventoryService;
-    private readonly equipmentService!: EquipmentService;
-    private readonly appearanceService!: AppearanceService;
+    private inventoryService!: InventoryService;
+    private equipmentService!: EquipmentService;
+    private appearanceService!: AppearanceService;
 
     // Extracted services (Phase 4)
-    private readonly combatDataService!: CombatDataService;
+    private combatDataService!: CombatDataService;
 
     // Extracted services (Phase 5)
-    private readonly locationService!: LocationService;
-    private readonly interfaceManager!: ExtractedInterfaceManager;
+    private locationService!: LocationService;
+    private interfaceManager!: ExtractedInterfaceManager;
 
     // Extracted services (Phase 6)
-    private readonly collectionLogService!: CollectionLogService;
-    private readonly soundService!: SoundService;
-    private readonly movementService!: MovementService;
-    private readonly playerCombatService!: PlayerCombatService;
+    private collectionLogService!: CollectionLogService;
+    private worldEntityService!: WorldEntityService;
+    private soundService!: SoundService;
+    private movementService!: MovementService;
+    private playerCombatService!: PlayerCombatService;
 
     // Extracted services (Phase 7)
-    private readonly varpSyncService!: VarpSyncService;
-    private readonly spellCastingService!: SpellCastingService;
+    private varpSyncService!: VarpSyncService;
+    private spellCastingService!: SpellCastingService;
     private loginHandshakeService!: LoginHandshakeService;
     private tickPhaseService!: TickPhaseService;
 
+    // Extracted services (Broadcast + TickFrame)
+    private broadcastService!: BroadcastService;
+    private tickFrameService!: TickFrameService;
+
     // Extracted services (Phase 8)
-    private readonly combatEffectService!: CombatEffectService;
-    private readonly projectileTimingService!: ProjectileTimingService;
-    private readonly levelUpDisplayService!: LevelUpDisplayService;
-    private readonly equipmentStatsUiService!: EquipmentStatsUiService;
-    private readonly inventoryMessageService!: InventoryMessageService;
-    private readonly actionDispatchService!: ActionDispatchService;
+    private combatEffectService!: CombatEffectService;
+    private projectileTimingService!: ProjectileTimingService;
+    private levelUpDisplayService!: LevelUpDisplayService;
+    private equipmentStatsUiService!: EquipmentStatsUiService;
+    private inventoryMessageService!: InventoryMessageService;
+    private actionDispatchService!: ActionDispatchService;
 
     private gamemodeTickCallbacks: Array<(tick: number) => void> = [];
     private gamemodeSnapshotEncoders = new Map<string, {
@@ -906,10 +913,10 @@ export class WSServer {
     private musicCatalogService?: MusicCatalogService;
     private musicRegionService?: MusicRegionService;
     private musicUnlockService?: MusicUnlockService;
-    private readonly autosaveIntervalTicks: number;
-    private nextAutosaveTick: number;
+    private autosaveIntervalTicks!: number;
+    private nextAutosaveTick!: number;
     private autosaveRunning = false;
-    private groundItems: GroundItemManager;
+    private groundItems!: GroundItemManager;
     private playerGroundSerial = new Map<number, number>();
     private playerGroundChunk = new Map<number, number>();
     private readonly playerDynamicLocSceneKeys = new Map<number, string>();
@@ -927,17 +934,19 @@ export class WSServer {
     private soundManager!: SoundManager;
     private groundItemHandler!: GroundItemHandler;
     private playerDeathService!: PlayerDeathService;
-    private readonly accountSummary: AccountSummaryTracker;
-    private readonly reportGameTime: ReportGameTimeTracker;
+    private accountSummary!: AccountSummaryTracker;
+    private reportGameTime!: ReportGameTimeTracker;
+    private scriptAdapterDeps!: ScriptServiceAdapterDeps;
+    private cacheFactory: any;
 
     // Broadcast domain handlers
     private readonly skillBroadcaster = new SkillBroadcaster();
     private readonly varBroadcaster = new VarBroadcaster();
     private readonly chatBroadcaster = new ChatBroadcaster();
-    private readonly inventoryBroadcaster: InventoryBroadcaster;
-    private readonly widgetBroadcaster: WidgetBroadcaster;
-    private readonly combatBroadcaster: CombatBroadcaster;
-    private readonly miscBroadcaster: MiscBroadcaster;
+    private inventoryBroadcaster!: InventoryBroadcaster;
+    private widgetBroadcaster!: WidgetBroadcaster;
+    private combatBroadcaster!: CombatBroadcaster;
+    private miscBroadcaster!: MiscBroadcaster;
     private readonly actorSyncBroadcaster = new ActorSyncBroadcaster();
 
     // Login rate limiting moved to AuthenticationService
@@ -948,22 +957,66 @@ export class WSServer {
     constructor(opts: WSServerOptions) {
         this.options = opts;
         this.gamemode = opts.gamemode;
+        this.initBroadcasters();
+        this.initWebSocketServer(opts);
+        this.initAutosave();
+        this.initCacheEnvironment(opts);
+        this.initDoorSystem(opts);
+        this.initGameSystems(opts);
+        this.initServiceWiring(opts);
+        this.initDeferredDeps(opts);
+        this.initGamemode(opts);
+        this.initPlayerAnimations();
+        this.initTestBots();
+        this.broadcastService = new BroadcastService({
+            getNetworkLayer: () => this.networkLayer,
+            getBroadcastScheduler: () => this.broadcastScheduler,
+            getPlayers: () => this.players,
+            getActiveFrame: () => this.activeFrame,
+            getWssClients: () => this.wss.clients,
+            getPendingDirectSends: () => this.pendingDirectSends,
+        });
+        this.tickFrameService = new TickFrameService(
+            {
+                getBroadcastScheduler: () => this.broadcastScheduler,
+                getPendingNpcUpdates: () => this.pendingNpcUpdates,
+                setPendingNpcUpdates: (u) => { this.pendingNpcUpdates = u; },
+                getPendingNpcPackets: () => this.pendingNpcPackets,
+                setPendingNpcPackets: (p) => { this.pendingNpcPackets = p; },
+                getProjectileSystem: () => this.projectileSystem,
+                getTickOrchestrator: () => this.tickOrchestrator,
+                getNetworkLayer: () => this.networkLayer,
+                getPlayerPersistence: () => this.playerPersistence,
+                getPlayers: () => this.players,
+                getTickMs: () => this.options.tickMs,
+                currentTick: () => this.options.ticker.currentTick(),
+                upsertNpcUpdateDelta,
+            },
+            this.autosaveIntervalTicks,
+        );
+        this.loginHandshakeService = new LoginHandshakeService(this as any);
+        this.tickPhaseService = new TickPhaseService(this as any);
+        this.wss.on("connection", (ws) => this.loginHandshakeService.onConnection(ws));
+        opts.ticker.on("tick", (data) => this.tickFrameService.handleTick(data));
+    }
+
+    private initBroadcasters(): void {
         this.playerPersistence = new PlayerPersistence({
             dataDir: getGamemodeDataDir(this.gamemode.id),
         });
         this.accountSummary = new AccountSummaryTracker({
             queueWidgetEvent: (playerId, action) => this.queueWidgetEvent(playerId, action),
             isWidgetGroupOpenInLedger: (playerId, groupId) =>
-                this.isWidgetGroupOpenInLedger(playerId, groupId),
+                this.interfaceManager.isWidgetGroupOpenInLedger(playerId, groupId),
         });
         this.reportGameTime = new ReportGameTimeTracker({
             queueWidgetEvent: (playerId, action) => this.queueWidgetEvent(playerId, action),
             isWidgetGroupOpenInLedger: (playerId, groupId) =>
-                this.isWidgetGroupOpenInLedger(playerId, groupId),
+                this.interfaceManager.isWidgetGroupOpenInLedger(playerId, groupId),
         });
         this.inventoryBroadcaster = new InventoryBroadcaster({
             getPlayerById: (id) => this.players?.getById(id),
-            getInventory: (player) => this.getInventory(player),
+            getInventory: (player) => this.inventoryService.getInventory(player),
         });
         this.widgetBroadcaster = new WidgetBroadcaster({
             syncPostWidgetOpenState: (playerId, action) =>
@@ -982,8 +1035,9 @@ export class WSServer {
             this.actionDispatchService.dispatch(player, action, tick),
         );
         this.actionScheduler.setPriorityProvider((p) => p.getPidPriority());
-        // OSRS parity: Pause skill actions while modal (level-up dialog) is open
         this.actionScheduler.setModalChecker((playerId) => this.hasModalOpen(playerId));
+    }
+    private initWebSocketServer(opts: WSServerOptions): void {
         this.wss = new WebSocketServer({
             host: opts.host,
             port: opts.port,
@@ -1019,6 +1073,9 @@ export class WSServer {
                 });
             }
         });
+    }
+
+    private initAutosave(): void {
         const autosaveEnvRaw = process.env.PLAYER_AUTOSAVE_TICKS;
         const autosaveEnv = autosaveEnvRaw?.trim()
             ? parseInt(autosaveEnvRaw.trim(), 10)
@@ -1041,7 +1098,9 @@ export class WSServer {
         } else {
             logger.info("[autosave] disabled (interval <= 0)");
         }
-        // --- Phase 1: Initialize extracted services ---
+    }
+
+    private initCacheEnvironment(opts: WSServerOptions): void {
         const env = opts.cacheEnv ?? initCacheEnv("caches");
         this.cacheEnv = env;
 
@@ -1050,9 +1109,9 @@ export class WSServer {
         // AuthService created below after we know players is set up
         // GameContext created below after all Phase 1 services are ready
 
-        let cacheFactory: any = undefined;
+        this.cacheFactory = undefined;
         try {
-            cacheFactory = getCacheLoaderFactory(env.info as any, env.cacheSystem as any);
+            this.cacheFactory = getCacheLoaderFactory(env.info as any, env.cacheSystem as any);
             this.huffman = tryLoadOsrsHuffman(env.cacheSystem as any);
             if (!this.huffman) {
                 logger.warn(
@@ -1073,29 +1132,29 @@ export class WSServer {
             logger.warn("Failed to initialize cache environment", e);
         }
 
-        let locTypeLoader: any = undefined;
-        let npcTypeLoader: any = undefined;
-        if (cacheFactory) {
+        if (this.cacheFactory) {
             try {
-                locTypeLoader = cacheFactory.getLocTypeLoader();
+                this.locTypeLoader = this.cacheFactory.getLocTypeLoader();
                 try {
-                    const count = populateLocEffectsFromLoader(locTypeLoader);
+                    const count = populateLocEffectsFromLoader(this.locTypeLoader);
                     logger.info(`[locEffects] auto-registered ${count} loc sound effect(s)`);
                 } catch (err) {
                     logger.warn("[locEffects] failed to auto-register from loc loader", err);
                 }
             } catch (err) { logger.warn("[cache] loc type loader init failed", err); }
             try {
-                npcTypeLoader = cacheFactory.getNpcTypeLoader?.();
-                this.npcTypeLoader = npcTypeLoader;
+                this.npcTypeLoader = this.cacheFactory.getNpcTypeLoader?.();
             } catch (err) { logger.warn("[cache] npc type loader init failed", err); }
             try {
-                this.seqTypeLoader = cacheFactory.getSeqTypeLoader?.();
+                this.seqTypeLoader = this.cacheFactory.getSeqTypeLoader?.();
             } catch (err) { logger.warn("[cache] seq type loader init failed", err); }
         }
+    }
+
+    private initDoorSystem(opts: WSServerOptions): void {
         let collisionOverlays: CollisionOverlayStore | undefined;
+        const locTypeLoader = this.locTypeLoader;
         if (locTypeLoader) {
-            this.locTypeLoader = locTypeLoader;
 
             // Wire up door collision system for pathfinding parity
             collisionOverlays = new CollisionOverlayStore();
@@ -1152,11 +1211,14 @@ export class WSServer {
 
             // Loc/npc map building is now handled by extrascripts during register()
         }
+    }
+
+    private initGameSystems(opts: WSServerOptions): void {
         this.npcManager = opts.npcManager;
         if (this.npcManager) {
             this.sailingInstanceManager = new SailingInstanceManager({
                 teleportToInstance: (player, x, y, level, templateChunks, extraLocs) =>
-                    this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
+                    this.movementService.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
                 spawnNpc: (config) => this.npcManager!.spawnTransientNpc(config)!,
                 removeNpc: (npcId) => this.npcManager!.removeNpc(npcId),
                 pathService: opts.pathService,
@@ -1178,8 +1240,29 @@ export class WSServer {
             defaultDurationTicks: GROUND_ITEM_DESPAWN_TICKS,
             defaultPrivateTicks: GROUND_ITEM_PRIVATE_TICKS,
         });
-        this.spawnDebugGroundItemStack();
-        const scriptAdapterDeps: ScriptServiceAdapterDeps = {
+        try {
+            const nowTick = this.options.ticker.currentTick();
+            const stack = this.groundItems.spawn(
+                DEBUG_LOG_ITEM_ID,
+                DEBUG_LOG_STACK_QTY,
+                DEBUG_LOG_TILE,
+                nowTick,
+                { durationTicks: 0, privateTicks: 0 },
+            );
+            if (stack) {
+                logger.info(
+                    `[ground] spawned debug log stack item=%d qty=%d tile=(%d,%d,%d)`,
+                    stack.itemId,
+                    stack.quantity,
+                    DEBUG_LOG_TILE.x,
+                    DEBUG_LOG_TILE.y,
+                    DEBUG_LOG_TILE.level,
+                );
+            }
+        } catch (err) {
+            logger.warn("[ground] failed to spawn debug log stack", err);
+        }
+        this.scriptAdapterDeps = {
                 dataLoaders: this.dataLoaderService,
                 variableService: this.variableService,
                 messagingService: this.messagingService,
@@ -1211,24 +1294,24 @@ export class WSServer {
                 effectDispatcher: undefined as any, // Deferred: wired after creation
                 combatEffectApplicator: combatEffectApplicator,
                 getPlayers: () => this.players,
-                enqueueSpotAnimation: (anim) => this.enqueueSpotAnimation(anim),
-                enqueueForcedMovement: (data) => this.enqueueForcedMovement(data),
-                enqueueSoundBroadcast: (soundId, x, y, level) => this.enqueueSoundBroadcast(soundId, x, y, level),
+                enqueueSpotAnimation: (anim) => this.broadcastService.enqueueSpotAnimation(anim),
+                enqueueForcedMovement: (data) => this.broadcastService.enqueueForcedMovement(data),
+                enqueueSoundBroadcast: (soundId, x, y, level) => this.broadcastService.enqueueSoundBroadcast(soundId, x, y, level),
                 queueCombatSnapshot: (...args: any[]) => (this as any).queueCombatSnapshot(...args),
                 queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
-                queueSmithingInterfaceMessage: (pid, p) => this.queueSmithingInterfaceMessage(pid, p),
+                queueSmithingInterfaceMessage: (pid, p) => this.broadcastService.queueSmithingInterfaceMessage(pid, p),
                 queueExternalNpcTeleportSync: (npc) => this.queueExternalNpcTeleportSync(npc),
-                teleportToWorldEntity: (...args: any[]) => (this as any).teleportToWorldEntity(...args),
-                sendWorldEntity: (...args: any[]) => (this as any).sendWorldEntity(...args),
-                completeLogout: (sock, player, reason) => this.completeLogout(sock, player, reason),
-                closeInterruptibleInterfaces: (player) => this.closeInterruptibleInterfaces(player),
+                teleportToWorldEntity: (...args: any[]) => (this.worldEntityService as any).teleportToWorldEntity(...args),
+                sendWorldEntity: (...args: any[]) => (this.worldEntityService as any).sendWorldEntity(...args),
+                completeLogout: (sock, player, reason) => this.loginHandshakeService.completeLogout(sock, player, reason),
+                closeInterruptibleInterfaces: (player) => this.interfaceManager.closeInterruptibleInterfaces(player),
                 activeFrame: () => this.activeFrame,
         };
         this.scriptRuntime = new ScriptRuntime({
             registry: this.scriptRegistry,
             scheduler: this.scriptScheduler,
             logger,
-            services: buildScriptServices(scriptAdapterDeps),
+            services: buildScriptServices(this.scriptAdapterDeps),
         });
         logger.info(
             "[scripts] loaded",
@@ -1238,7 +1321,7 @@ export class WSServer {
         if (opts.pathService) {
             this.players = new PlayerManager(
                 opts.pathService,
-                locTypeLoader,
+                this.locTypeLoader,
                 this.doorManager,
                 this.scriptRuntime,
             );
@@ -1264,12 +1347,12 @@ export class WSServer {
                     ({ owner, companion, target, currentTick, combat }) => {
                         const attackSeq =
                             combat.attackAnimationId ??
-                            this.getNpcCombatSequences(companion.typeId).attack;
+                            this.combatDataService.getNpcCombatSequences(companion.typeId).attack;
                         if (attackSeq !== undefined && attackSeq >= 0) {
                             this.combatEffectService.broadcastNpcSequence(companion, attackSeq);
                         }
                         if (combat.attackSoundId !== undefined && combat.attackSoundId > 0) {
-                            this.queueBroadcastSound(
+                            this.broadcastService.queueBroadcastSound(
                                 {
                                     soundId: combat.attackSoundId,
                                     x: companion.tileX,
@@ -1311,23 +1394,23 @@ export class WSServer {
             );
             // Set up loc change callback to broadcast to all clients
             this.players.setLocChangeCallback((oldId, newId, tile, level, opts) => {
-                this.emitLocChange(oldId, newId, tile, level, opts);
+                this.locationService.emitLocChange(oldId, newId, tile, level, opts);
             });
             this.tradeManager = new TradeManager({
                 getPlayerById: (id) => this.players?.getById(id),
-                queueTradeMessage: (playerId, payload) => this.queueTradeMessage(playerId, payload),
+                queueTradeMessage: (playerId, payload) => this.broadcastService.queueTradeMessage(playerId, payload),
                 queueInventorySnapshot: (player) => {
                     const sock = this.players?.getSocketByPlayerId(player.id);
-                    if (sock) this.sendInventorySnapshot(sock, player);
+                    if (sock) this.inventoryService.sendInventorySnapshot(sock, player);
                 },
-                sendGameMessage: (player: PlayerState, text: string) => this.sendGameMessageToPlayer(player, text),
+                sendGameMessage: (player: PlayerState, text: string) => this.messagingService.sendGameMessageToPlayer(player, text),
                 openTradeWidget: (player) => player.widgets.open(335, { modal: true }),
                 closeTradeWidget: (player) => player.widgets.close(335),
-                getInventory: (player) => this.getInventory(player),
+                getInventory: (player) => this.inventoryService.getInventory(player),
                 setInventorySlot: (player, slot, itemId, quantity) =>
-                    this.setInventorySlot(player, slot, itemId, quantity),
+                    this.inventoryService.setInventorySlot(player, slot, itemId, quantity),
                 addItemToInventory: (player, itemId, qty) =>
-                    this.addItemToInventory(player, itemId, qty),
+                    this.inventoryService.addItemToInventory(player, itemId, qty),
                 getItemDefinition: (itemId) => getItemDefinition(itemId),
             });
             this.players.setTradeHandshakeCallback((me, target, tick) => {
@@ -1355,11 +1438,11 @@ export class WSServer {
                 }
             });
             this.players.setGameMessageCallback((player, text) => {
-                this.sendGameMessageToPlayer(player, text);
+                this.messagingService.sendGameMessageToPlayer(player, text);
             });
-            // OSRS parity: Wire up skill action interruption callback
+            // Wire up skill action interruption callback
             this.players.setInterruptSkillActionsCallback((playerId) => {
-                this.interruptPlayerSkillActions(playerId);
+                this.interfaceManager.interruptPlayerSkillActions(playerId);
             });
         }
         if (this.npcManager) {
@@ -1381,7 +1464,11 @@ export class WSServer {
             this.players.setNpcCombatPermissionCallback((attacker, npc, currentTick) =>
                 multiCombatSystem.canAttack(attacker, npc, currentTick),
             );
-            // Initialize NpcPacketEncoder
+        }
+    }
+
+    private initServiceWiring(opts: WSServerOptions): void {
+        if (this.players) {
             this.npcPacketEncoder = ServiceWiring.createNpcPacketEncoder(this);
             // Initialize PlayerPacketEncoder
             this.playerPacketEncoder = ServiceWiring.createPlayerPacketEncoder(this);
@@ -1423,10 +1510,10 @@ export class WSServer {
             this.chatBroadcaster.setForEachPlayer((fn) => this.players?.forEach(fn));
             this.actorSyncBroadcaster.setForEachPlayer((fn) => this.players?.forEach(fn));
             this.actorSyncBroadcaster.setApplyAppearanceSnapshots((frame) =>
-                this.applyAppearanceSnapshotsToViews(frame as TickFrame),
+                this.tickPhaseService.applyAppearanceSnapshotsToViews(frame as TickFrame),
             );
             this.actorSyncBroadcaster.setSyncCallback((sock, player, frame, ctx) =>
-                this.buildAndSendActorSync(sock, player, frame as TickFrame, ctx),
+                this.tickPhaseService.buildAndSendActorSync(sock, player, frame as TickFrame, ctx),
             );
         }
         if (this.npcManager) {
@@ -1439,7 +1526,9 @@ export class WSServer {
                 this.groundItems.spawn(itemId, qty, tile, tick, opts, worldViewId ?? -1);
             });
         }
-        // --- Phase 1: Finish service wiring ---
+    }
+
+    private initDeferredDeps(opts: WSServerOptions): void {
         this.authService = new AuthenticationService(
             {
                 hasConnectedPlayer: (u) => this.players?.hasConnectedPlayer(u) ?? false,
@@ -1481,7 +1570,7 @@ export class WSServer {
             broadcastScheduler: this.broadcastScheduler,
             networkLayer: this.networkLayer,
             gamemode: this.gamemode,
-            enqueueLevelUpPopup: (player, popup) => this.enqueueLevelUpPopup(player, popup as any),
+            enqueueLevelUpPopup: (player, popup) => this.interfaceManager.enqueueLevelUpPopup(player, popup as any),
         });
         logger.info("[services] Phase 2 services initialized (Variable, Messaging, Skill)");
 
@@ -1491,7 +1580,7 @@ export class WSServer {
             getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
             broadcastScheduler: this.broadcastScheduler,
             networkLayer: this.networkLayer,
-            getEquipArray: (player) => this.ensureEquipArray(player),
+            getEquipArray: (player) => this.equipmentService.ensureEquipArray(player),
         });
         this.appearanceService = new AppearanceService({
             dataLoaders: this.dataLoaderService,
@@ -1509,7 +1598,7 @@ export class WSServer {
             queueVarbit: (pid, vid, val) => this.variableService.queueVarbit(pid, vid, val),
             queueCombatState: (p) => this.queueCombatState(p),
             queueChatMessage: (msg) => this.messagingService.queueChatMessage(msg),
-            enqueueSpotAnimation: (anim) => this.enqueueSpotAnimation(anim),
+            enqueueSpotAnimation: (anim) => this.broadcastService.enqueueSpotAnimation(anim),
             scriptRuntime: undefined as any, // Set after scriptRuntime is created
             getCurrentTick: () => this.options.ticker.currentTick(),
             getOrCreateAppearance: (p) => this.appearanceService.getOrCreateAppearance(p),
@@ -1534,7 +1623,10 @@ export class WSServer {
             doorManager: undefined, // Set after doorManager is created
             dynamicLocState: this.dynamicLocState,
             dataLoaders: this.dataLoaderService,
-            broadcast: (msg, ctx) => this.broadcast(msg, ctx),
+            broadcast: (msg, ctx) => this.broadcastService.broadcast(msg, ctx),
+            playerSyncSessions: this.playerSyncSessions,
+            playerDynamicLocSceneKeys: this.playerDynamicLocSceneKeys,
+            withDirectSendBypass: (ctx, fn) => this.networkLayer.withDirectSendBypass(ctx, fn),
         });
         this.interfaceManager = new ExtractedInterfaceManager({
             getActiveFrame: () => this.activeFrame,
@@ -1545,6 +1637,12 @@ export class WSServer {
             showLevelUpPopup: (player, popup) => this.levelUpDisplayService.showLevelUpPopup(player, popup as any),
             closeChatboxModalOverlay: (pid) => this.levelUpDisplayService.closeChatboxModalOverlay(pid),
             getPlayerById: (id) => this.players?.getById(id),
+            interfaceService: this.interfaceService,
+            widgetDialogHandler: this.widgetDialogHandler,
+            cs2ModalManager: this.cs2ModalManager,
+            accountSummary: this.accountSummary,
+            gamemode: this.gamemode,
+            reportGameTime: this.reportGameTime,
         });
         logger.info("[services] Phase 5 services initialized (Location, InterfaceManager)");
 
@@ -1556,8 +1654,16 @@ export class WSServer {
             queueVarp: (pid, vid, val) => this.variableService.queueVarp(pid, vid, val),
             queueVarbit: (pid, vid, val) => this.variableService.queueVarbit(pid, vid, val),
             queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
-            queueNotification: (pid, p) => this.queueNotification(pid, p),
+            queueNotification: (pid, p) => this.messagingService.queueNotification(pid, p),
             queueChatMessage: (req) => this.messagingService.queueChatMessage(req),
+        });
+        this.worldEntityService = new WorldEntityService({
+            getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
+            networkLayer: this.networkLayer,
+            worldEntityInfoEncoder: this.worldEntityInfoEncoder,
+            locationService: this.locationService,
+            movementService: undefined as any, // Set after movementService is created
+            cacheEnv: this.cacheEnv,
         });
         this.soundService = new SoundService({
             networkLayer: this.networkLayer,
@@ -1565,8 +1671,8 @@ export class WSServer {
             musicCatalogService: undefined, // Set after musicCatalogService is created
             getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
             getCurrentTick: () => this.options.ticker.currentTick(),
-            enqueueSpotAnimation: (anim) => this.enqueueSpotAnimation(anim),
-            broadcastSound: (payload, ctx) => this.broadcastSound(payload, ctx),
+            enqueueSpotAnimation: (anim) => this.broadcastService.enqueueSpotAnimation(anim),
+            broadcastSound: (payload, ctx) => this.broadcastService.broadcastSound(payload, ctx),
         });
         this.movementService = new MovementService({
             getActiveFrame: () => this.activeFrame,
@@ -1576,13 +1682,15 @@ export class WSServer {
             actionScheduler: this.actionScheduler,
             getCurrentTick: () => this.options.ticker.currentTick(),
             getTickMs: () => this.options.tickMs,
-            getInventory: (p) => this.getInventory(p),
-            ensureEquipArray: (p) => this.ensureEquipArray(p),
+            getInventory: (p) => this.inventoryService.getInventory(p),
+            ensureEquipArray: (p) => this.equipmentService.ensureEquipArray(p),
             queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
             queueVarbit: (pid, vid, val) => this.variableService.queueVarbit(pid, vid, val),
             queueChatMessage: (msg) => this.messagingService.queueChatMessage(msg),
-            spawnLocForPlayer: (p, id, tile, lvl, shape, rot) => this.spawnLocForPlayer(p, id, tile, lvl, shape, rot),
-            closeInterruptibleInterfaces: (p) => this.closeInterruptibleInterfaces(p),
+            spawnLocForPlayer: (p, id, tile, lvl, shape, rot) => this.locationService.spawnLocForPlayer(p, id, tile, lvl, shape, rot),
+            closeInterruptibleInterfaces: (p) => this.interfaceManager.closeInterruptibleInterfaces(p),
+            enqueueSpotAnimation: (event) => this.broadcastService.enqueueSpotAnimation(event),
+            playAreaSound: (opts) => this.soundService.playAreaSound(opts),
             sailingInstanceManager: undefined as any,
             worldEntityInfoEncoder: this.worldEntityInfoEncoder,
             interfaceService: undefined as any,
@@ -1592,19 +1700,19 @@ export class WSServer {
         this.playerCombatService = new PlayerCombatService({
             dataLoaders: this.dataLoaderService,
             weaponData: this.appearanceService.getWeaponData(),
-            ensureEquipArray: (p) => this.ensureEquipArray(p),
+            ensureEquipArray: (p) => this.equipmentService.ensureEquipArray(p),
         });
         this.spellCastingService = new SpellCastingService({
             getPlayerBySocket: (ws) => this.players?.get(ws),
             getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
-            getInventory: (p) => this.getInventory(p),
-            setInventorySlot: (p, slot, itemId, qty) => this.setInventorySlot(p, slot, itemId, qty),
-            addItemToInventory: (p, itemId, qty) => this.addItemToInventory(p, itemId, qty),
-            sendInventorySnapshot: (ws, p) => this.sendInventorySnapshot(ws, p),
+            getInventory: (p) => this.inventoryService.getInventory(p),
+            setInventorySlot: (p, slot, itemId, qty) => this.inventoryService.setInventorySlot(p, slot, itemId, qty),
+            addItemToInventory: (p, itemId, qty) => this.inventoryService.addItemToInventory(p, itemId, qty),
+            sendInventorySnapshot: (ws, p) => this.inventoryService.sendInventorySnapshot(ws, p),
             queueChatMessage: (msg) => this.messagingService.queueChatMessage(msg),
-            queueSpellResult: (pid, payload) => this.queueSpellResult(pid, payload),
-            awardSkillXp: (p, skillId, xp) => this.awardSkillXp(p, skillId, xp),
-            enqueueSpotAnimation: (event) => this.enqueueSpotAnimation(event),
+            queueSpellResult: (pid, payload) => this.broadcastService.queueSpellResult(pid, payload),
+            awardSkillXp: (p, skillId, xp) => this.skillService.awardSkillXp(p, skillId, xp),
+            enqueueSpotAnimation: (event) => this.broadcastService.enqueueSpotAnimation(event),
             getCurrentTick: () => this.options.ticker.currentTick(),
             getActiveFrameTick: () => this.activeFrame?.tick,
         });
@@ -1632,20 +1740,23 @@ export class WSServer {
             sailingInstanceManager: this.sailingInstanceManager,
         });
         this.collectionLogService.setDeferredDeps({ interfaceService: this.interfaceService });
+        this.worldEntityService.setDeferredDeps({ movementService: this.movementService });
         // Wire deferred deps on the ScriptServiceAdapter deps object.
         // The adapter closures lazily read from this object, so mutations here
         // take effect before any script handler runs.
-        scriptAdapterDeps.movementService = this.movementService;
-        scriptAdapterDeps.widgetDialogHandler = this.widgetDialogHandler;
-        scriptAdapterDeps.gatheringSystem = this.gatheringSystem;
-        scriptAdapterDeps.cs2ModalManager = this.cs2ModalManager;
-        scriptAdapterDeps.followerManager = this.followerManager;
-        scriptAdapterDeps.followerCombatManager = this.followerCombatManager;
-        scriptAdapterDeps.inventoryActionHandler = this.inventoryActionHandler;
-        scriptAdapterDeps.effectDispatcher = this.effectDispatcher;
+        this.scriptAdapterDeps.movementService = this.movementService;
+        this.scriptAdapterDeps.widgetDialogHandler = this.widgetDialogHandler;
+        this.scriptAdapterDeps.gatheringSystem = this.gatheringSystem;
+        this.scriptAdapterDeps.cs2ModalManager = this.cs2ModalManager;
+        this.scriptAdapterDeps.followerManager = this.followerManager;
+        this.scriptAdapterDeps.followerCombatManager = this.followerCombatManager;
+        this.scriptAdapterDeps.inventoryActionHandler = this.inventoryActionHandler;
+        this.scriptAdapterDeps.effectDispatcher = this.effectDispatcher;
         logger.info("[services] All services initialized");
 
-        this.loadWeaponData();
+        this.appearanceService.loadWeaponData();
+        this.weaponData = this.appearanceService.getWeaponData();
+        this.weaponAnimOverrides = this.appearanceService.getWeaponAnimOverrides();
         if (this.cacheEnv) {
             try {
                 this.dbRepository = new DbRepository(this.cacheEnv.cacheSystem as any);
@@ -1655,7 +1766,7 @@ export class WSServer {
                 this.npcSoundLookup.initialize();
                 this.combatDataService.setDeferredDeps({ npcSoundLookup: this.npcSoundLookup });
                 this.musicCatalogService = new MusicCatalogService(this.dbRepository);
-                scriptAdapterDeps.musicCatalogService = this.musicCatalogService;
+                this.scriptAdapterDeps.musicCatalogService = this.musicCatalogService;
                 this.soundService.setDeferredDeps({ musicCatalogService: this.musicCatalogService });
                 this.musicRegionService = new MusicRegionService();
                 this.musicUnlockService = new MusicUnlockService(this.musicCatalogService);
@@ -1664,21 +1775,21 @@ export class WSServer {
                 logger.warn("[combat] failed to load combat category data", err);
             }
         }
-        if (cacheFactory) {
+        if (this.cacheFactory) {
             try {
-                this.objTypeLoader = cacheFactory.getObjTypeLoader();
+                this.objTypeLoader = this.cacheFactory.getObjTypeLoader();
             } catch (err) { logger.warn("[cache] obj type loader init failed", err); }
             try {
-                this.idkTypeLoader = cacheFactory.getIdkTypeLoader();
+                this.idkTypeLoader = this.cacheFactory.getIdkTypeLoader();
             } catch (err) { logger.warn("[cache] idk type loader init failed", err); }
             // Store cache loaders for systems that still use enum/struct lookups
             let enumTypeLoader: any;
             let structTypeLoader: any;
             try {
-                enumTypeLoader = cacheFactory.getEnumTypeLoader?.();
+                enumTypeLoader = this.cacheFactory.getEnumTypeLoader?.();
             } catch (err) { logger.warn("[cache] enum type loader init failed", err); }
             try {
-                structTypeLoader = cacheFactory.getStructTypeLoader?.();
+                structTypeLoader = this.cacheFactory.getStructTypeLoader?.();
             } catch (err) { logger.warn("[cache] struct type loader init failed", err); }
             this.enumTypeLoader = enumTypeLoader;
             this.structTypeLoader = structTypeLoader;
@@ -1686,10 +1797,13 @@ export class WSServer {
             // Collection log tracking/category mapping is server-authoritative from JSON.
             loadCollectionLogItems();
             if (enumTypeLoader) {
-                this.loadSpecialAttackCacheData(enumTypeLoader);
+                this.combatDataService.loadSpecialAttackCacheData(enumTypeLoader);
             }
+        }
+    }
 
-            // Initialize the active gamemode
+    private initGamemode(opts: WSServerOptions): void {
+        if (this.cacheFactory) {
             this.gamemode.initialize({
                 npcTypeLoader: this.npcTypeLoader,
                 objTypeLoader: this.objTypeLoader,
@@ -1700,13 +1814,13 @@ export class WSServer {
                     queueVarbit: (playerId, varbitId, value) =>
                         this.variableService.queueVarbit(playerId, varbitId, value),
                     queueNotification: (playerId, notification) =>
-                        this.queueNotification(playerId, notification),
+                        this.messagingService.queueNotification(playerId, notification),
                     queueWidgetEvent: (playerId, event) =>
                         this.queueWidgetEvent(playerId, event),
                     queueClientScript: (playerId, scriptId, ...args) =>
-                        this.queueClientScript(playerId, scriptId, ...args),
+                        this.broadcastService.queueClientScript(playerId, scriptId, ...args),
                     sendGameMessage: (player, text) =>
-                        this.sendGameMessageToPlayer(player, text),
+                        this.messagingService.sendGameMessageToPlayer(player, text),
                 },
                 serverServices: buildGamemodeServices({
                     dataLoaders: this.dataLoaderService,
@@ -1718,7 +1832,7 @@ export class WSServer {
                     getCurrentTick: () => this.options.ticker.currentTick(),
                     getPlayerById: (id) => this.players?.getById(id),
                     getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
-                    refreshCombatWeaponCategory: (p) => this.refreshCombatWeaponCategory(p),
+                    refreshCombatWeaponCategory: (p) => this.equipmentService.refreshCombatWeaponCategory(p),
                     queueCombatSnapshot: (...args: any[]) => (this as any).queueCombatSnapshot(...args),
                     queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
                     queueGamemodeSnapshot: (k, pid, p) => this.queueGamemodeSnapshot(k, pid, p),
@@ -1759,29 +1873,30 @@ export class WSServer {
                     queueVarbit: (playerId, varbitId, value) =>
                         this.variableService.queueVarbit(playerId, varbitId, value),
                     isWidgetGroupOpenInLedger: (playerId, groupId) =>
-                        this.isWidgetGroupOpenInLedger(playerId, groupId),
+                        this.interfaceManager.isWidgetGroupOpenInLedger(playerId, groupId),
                 });
                 logger.info(`Boot: gamemode UI controller created`);
             }
 
         }
+    }
 
-        // Derive default player sequences from BAS (player base animations), not an NPC
+    private initPlayerAnimations(): void {
         try {
-            const basTypeLoader = cacheFactory?.getBasTypeLoader();
+            const basTypeLoader = this.cacheFactory?.getBasTypeLoader();
             this.basTypeLoader = basTypeLoader;
             if (basTypeLoader) {
                 this.defaultPlayerAnimMale =
-                    this.loadAnimSetFromBas(() => basTypeLoader.load(0)) ||
+                    this.appearanceService.loadAnimSetFromBas(() => basTypeLoader.load(0)) ||
                     this.defaultPlayerAnimMale;
                 this.defaultPlayerAnimFemale =
-                    this.loadAnimSetFromBas(() => basTypeLoader.load(1)) ||
+                    this.appearanceService.loadAnimSetFromBas(() => basTypeLoader.load(1)) ||
                     this.defaultPlayerAnimFemale;
 
                 const bcount = basTypeLoader.getCount?.() ?? 0;
                 let best: PlayerAnimSet | undefined;
                 for (let id = 0; id < bcount; id++) {
-                    const anim = this.loadAnimSetFromBas(() => basTypeLoader.load(id));
+                    const anim = this.appearanceService.loadAnimSetFromBas(() => basTypeLoader.load(id));
                     if (!anim) continue;
                     if (!best) best = anim;
                     const prefers =
@@ -1801,8 +1916,9 @@ export class WSServer {
 
         if (!this.defaultPlayerAnimMale) this.defaultPlayerAnimMale = this.defaultPlayerAnim;
         if (!this.defaultPlayerAnimFemale) this.defaultPlayerAnimFemale = this.defaultPlayerAnim;
+    }
 
-        // Spawn a single headless/fake player at server startup
+    private initTestBots(): void {
         try {
             const bot1 = this.players?.addBot(3168, 3475, 0);
             const bot2 = this.players?.addBot(3173, 3475, 0);
@@ -1810,7 +1926,7 @@ export class WSServer {
             const setupCasterBot = (p: any, target: any) => {
                 if (!p) return;
                 p.setItemDefResolver((id: number) => getItemDefinition(id));
-                this.refreshAppearanceKits(p);
+                this.appearanceService.refreshAppearanceKits(p);
                 applyAutocastState(p, 3273, 1, false); // Wind Strike
                 p.botInteraction = { kind: "playerCombat", playerId: target.id };
                 // Give runes for Wind Strike (Air + Mind)
@@ -1821,7 +1937,7 @@ export class WSServer {
             const setupPassiveBot = (p: any) => {
                 if (!p) return;
                 p.setItemDefResolver((id: number) => getItemDefinition(id));
-                this.refreshAppearanceKits(p);
+                this.appearanceService.refreshAppearanceKits(p);
                 clearAutocastState(p);
                 p.botInteraction = undefined;
             };
@@ -1834,146 +1950,12 @@ export class WSServer {
                 this.actionScheduler.registerPlayer(bot2);
             }
         } catch (err) { logger.warn("[bot] test bot spawn failed", err); }
-
-        this.loginHandshakeService = new LoginHandshakeService(this as any);
-        this.tickPhaseService = new TickPhaseService(this as any);
-        this.wss.on("connection", (ws) => this.onConnection(ws));
-
-        // Broadcast ticks to all connected clients
-        opts.ticker.on("tick", (data) => this.handleTick(data));
     }
-
-    // ========== Delegating methods to extracted services (Phase 1) ==========
 
     private withDirectSendBypass<T>(context: string, fn: () => T): T {
         return this.networkLayer.withDirectSendBypass(context, fn);
     }
 
-    // ========== Login Validation Helpers (delegated to AuthenticationService) ==========
-
-    private checkLoginRateLimit(ip: string): boolean {
-        return this.authService.checkLoginRateLimit(ip);
-    }
-
-    private isPlayerAlreadyLoggedIn(username: string): boolean {
-        return this.authService.isPlayerAlreadyLoggedIn(username);
-    }
-
-    private isWorldFull(): boolean {
-        return this.authService.isWorldFull();
-    }
-
-    private completeLogout(ws: WebSocket, player?: PlayerState, source?: string): void {
-        const normalizedSource = source?.trim().slice(0, 64) ?? "";
-        const sourceSuffix =
-            normalizedSource.length > 0 && normalizedSource !== "logout"
-                ? ` source=${normalizedSource}`
-                : "";
-
-        if (player) {
-            logger.info(`[logout] Player ${player.id} logout approved${sourceSuffix}`);
-
-            try {
-                const response = encodeMessage({
-                    type: "logout_response",
-                    payload: { success: true },
-                });
-                ws.send(response);
-            } catch (err) { logger.warn("[logout] send logout response failed", err); }
-
-            try {
-                const saveKey = player.__saveKey ?? this.getPlayerSaveKey(player.name, player.id);
-                this.playerPersistence.saveSnapshot(saveKey, player);
-                logger.info(`[logout] Saved player state for key: ${saveKey}${sourceSuffix}`);
-            } catch (err) {
-                logger.warn(`[logout] Failed to save player state${sourceSuffix}:`, err);
-            }
-        }
-
-        try {
-            // Intentional logouts must use the canonical close reason so the client
-            // suppresses reconnect-based session resumption.
-            ws.close(1000, "logout");
-        } catch (err) { logger.warn("[logout] ws close failed", err); }
-    }
-
-    // ========== Network Layer (delegated to PlayerNetworkLayer) ==========
-
-
-    private flushMessageBatch(sock: WebSocket): void {
-        this.networkLayer.flushMessageBatch(sock);
-    }
-
-    private flushAllMessageBatches(): void {
-        this.networkLayer.flushAllMessageBatches();
-    }
-
-    private sendAdminResponse(ws: WebSocket, message: string | Uint8Array, context: string): void {
-        this.networkLayer.sendAdminResponse(ws, message, context);
-    }
-
-    private queueDirectSend(
-        sock: WebSocket | undefined,
-        message: string | Uint8Array,
-        context: string,
-    ): void {
-        if (!sock || sock.readyState !== WebSocket.OPEN) return;
-        // Best-effort debug/telemetry: keep the latest message per socket to avoid unbounded growth.
-        if (this.pendingDirectSends.size > 512) {
-            this.pendingDirectSends.clear();
-        }
-        this.pendingDirectSends.set(sock, { message, context });
-    }
-
-    private queueBroadcastSound(
-        payload: {
-            soundId: number;
-            x: number;
-            y: number;
-            level: number;
-            loops?: number;
-            delay?: number;
-            radius?: number;
-            volume?: number;
-        },
-        context = "sound",
-        radiusTiles = SOUND_BROADCAST_RADIUS_TILES,
-    ): void {
-        if (!payload || !(payload.soundId > 0) || !this.players) return;
-        const msgPayload: {
-            soundId: number;
-            x: number;
-            y: number;
-            level: number;
-            loops?: number;
-            delay?: number;
-            radius?: number;
-            volume?: number;
-        } = { ...payload };
-        if (payload.radius !== undefined && payload.radius > 0) {
-            msgPayload.radius = Math.min(15, Math.max(0, payload.radius));
-        }
-        if (payload.volume !== undefined && payload.volume < 255) {
-            msgPayload.volume = Math.min(255, Math.max(0, payload.volume));
-        }
-        const message = encodeMessage({
-            type: "sound",
-            payload: msgPayload,
-        });
-        const broadcastRadius = Math.max(0, radiusTiles);
-        this.players.forEach((sock, player) => {
-            if (!sock || sock.readyState !== WebSocket.OPEN) return;
-            if (player.level !== payload.level) return;
-            const dx = Math.abs(player.tileX - payload.x);
-            const dy = Math.abs(player.tileY - payload.y);
-            if (Math.max(dx, dy) > broadcastRadius) return;
-            this.queueDirectSend(sock, message, context);
-        });
-    }
-
-    private flushDirectSendWarnings(stage: string): void {
-        this.networkLayer.flushDirectSendWarnings(stage);
-    }
 
     private async handleTick(data: TickEvent): Promise<void> {
         if (this.tickOrchestrator) {
@@ -2002,7 +1984,7 @@ export class WSServer {
         if (!this.players) return;
         const entries: Array<{ key: string; player: PlayerState }> = [];
         this.players.forEach((ws, player) => {
-            const key = player.__saveKey ?? this.getPlayerSaveKey(player.name, player.id);
+            const key = player.__saveKey ?? buildPlayerSaveKey(player.name, player.id);
             if (key && key.length > 0) {
                 entries.push({ key, player });
             }
@@ -2041,7 +2023,7 @@ export class WSServer {
         await new Promise<void>((resolve) => {
             setImmediate(resolve);
         });
-        this.flushDirectSendWarnings(stage);
+        this.networkLayer.flushDirectSendWarnings(stage);
     }
 
     private restorePendingFrame(frame: TickFrame): void {
@@ -2135,156 +2117,6 @@ export class WSServer {
         this.withDirectSendBypass("tick_broadcast", () => this.broadcast(msg, "tick"));
     }
 
-    private emitLocChange(
-        oldId: number,
-        newId: number,
-        tile: { x: number; y: number },
-        level: number,
-        opts?: {
-            oldTile?: { x: number; y: number };
-            newTile?: { x: number; y: number };
-            oldRotation?: number;
-            newRotation?: number;
-            newShape?: number;
-        },
-    ): void {
-        this.locationService.emitLocChange(oldId, newId, tile, level, opts);
-    }
-
-    private sendLocChangeToPlayer(
-        player: PlayerState,
-        oldId: number,
-        newId: number,
-        tile: { x: number; y: number },
-        level: number,
-    ): void {
-        this.locationService.sendLocChangeToPlayer(player, oldId, newId, tile, level);
-    }
-
-    private spawnLocForPlayer(
-        player: PlayerState,
-        locId: number,
-        tile: { x: number; y: number },
-        level: number,
-        shape: number,
-        rotation: number,
-    ): void {
-        this.locationService.spawnLocForPlayer(player, locId, tile, level, shape, rotation);
-    }
-
-    private getGroundChunkKey(player: PlayerState): number {
-        const mapX = player.tileX >> 6;
-        const mapY = player.tileY >> 6;
-        return (mapX << 16) | (mapY & 0xffff);
-    }
-
-    private resolveSceneBaseCoordinate(currentBase: number, playerTile: number): number {
-        const centeredBase = Math.max(0, (playerTile - 48) & ~7);
-        if (currentBase < 0) {
-            return centeredBase;
-        }
-        const local = playerTile - currentBase;
-        if (local < 16 || local >= 88) {
-            return centeredBase;
-        }
-        return currentBase;
-    }
-
-    private getDynamicLocSceneKey(
-        ws: WebSocket | undefined,
-        player: PlayerState,
-    ): { key: string; baseX: number; baseY: number } {
-        const session = ws ? this.playerSyncSessions.get(ws) : undefined;
-        const baseX = this.resolveSceneBaseCoordinate(session?.baseTileX ?? -1, player.tileX);
-        const baseY = this.resolveSceneBaseCoordinate(session?.baseTileY ?? -1, player.tileY);
-        return {
-            key: `${player.level}:${baseX}:${baseY}`,
-            baseX,
-            baseY,
-        };
-    }
-
-    private maybeReplayDynamicLocState(
-        ws: WebSocket,
-        player: PlayerState,
-        force: boolean = false,
-    ): void {
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-            return;
-        }
-
-        const playerId = player.id;
-        if (!(playerId >= 0)) {
-            return;
-        }
-
-        const scene = this.getDynamicLocSceneKey(ws, player);
-        const lastSceneKey = this.playerDynamicLocSceneKeys.get(playerId);
-        if (!force && lastSceneKey === scene.key) {
-            return;
-        }
-
-        const visibleStates = this.dynamicLocState.queryScene(
-            scene.baseX,
-            scene.baseY,
-            player.level,
-        );
-        this.withDirectSendBypass("loc_change_replay", () => {
-            for (const state of visibleStates) {
-                this.networkLayer.sendWithGuard(
-                    ws,
-                    encodeMessage({
-                        type: "loc_change",
-                        payload: {
-                            oldId: state.oldId,
-                            newId: state.newId,
-                            tile: { x: state.oldTile.x, y: state.oldTile.y },
-                            level: state.level,
-                            oldTile: { x: state.oldTile.x, y: state.oldTile.y },
-                            newTile: { x: state.newTile.x, y: state.newTile.y },
-                            oldRotation: state.oldRotation,
-                            newRotation: state.newRotation,
-                        },
-                    }),
-                    "loc_change_replay",
-                );
-            }
-        });
-
-        this.playerDynamicLocSceneKeys.set(playerId, scene.key);
-    }
-
-    private maybeSendGroundItemSnapshot(ws: WebSocket, player: PlayerState): void {
-        this.groundItemHandler.maybeSendGroundItemSnapshot(ws, player);
-    }
-
-    private spawnDebugGroundItemStack(): void {
-        if (!this.groundItems) return;
-        try {
-            const nowTick = this.options.ticker.currentTick();
-            const tile = DEBUG_LOG_TILE;
-            const stack = this.groundItems.spawn(
-                DEBUG_LOG_ITEM_ID,
-                DEBUG_LOG_STACK_QTY,
-                tile,
-                nowTick,
-                { durationTicks: 0, privateTicks: 0 },
-            );
-            if (stack) {
-                logger.info(
-                    `[ground] spawned debug log stack item=%d qty=%d tile=(%d,%d,%d)`,
-                    stack.itemId,
-                    stack.quantity,
-                    tile.x,
-                    tile.y,
-                    tile.level,
-                );
-            }
-        } catch (err) {
-            logger.warn("[ground] failed to spawn debug log stack", err);
-        }
-    }
-
     private createTickFrame(data: TickEvent): TickFrame {
         const npcUpdates = this.pendingNpcUpdates;
         const npcPackets = new Map(this.pendingNpcPackets);
@@ -2354,128 +2186,8 @@ export class WSServer {
         };
     }
 
-    private runPreMovementPhase(frame: TickFrame): void {
-        this.tickPhaseService.runPreMovementPhase(frame);
-    }
-
-    private scheduleNpcAggressionAttack(
-        npcId: number,
-        targetPlayerId: number,
-        currentTick: number,
-    ): void {
-        this.tickPhaseService.scheduleNpcAggressionAttack(npcId, targetPlayerId, currentTick);
-    }
-
-    private flushPendingWalkCommands(currentTick: number, stage: "pre" | "movement" = "pre"): void {
-        this.tickPhaseService.flushPendingWalkCommands(currentTick, stage);
-    }
-
-    private runMovementPhase(frame: TickFrame): void {
-        this.tickPhaseService.runMovementPhase(frame);
-    }
-
-    private runCombatPhase(frame: TickFrame): void {
-        this.tickPhaseService.runCombatPhase(frame);
-    }
-
-    private refreshInteractionFacing(frame: TickFrame): void {
-        this.tickPhaseService.refreshInteractionFacing(frame);
-    }
-
-    private processGamemodeTickCallbacks(frame: TickFrame): void {
-        this.tickPhaseService.processGamemodeTickCallbacks(frame);
-    }
-
-    private runMusicPhase(frame: TickFrame): void {
-        this.tickPhaseService.runMusicPhase(frame);
-    }
-
-    private syncMusicUnlockVarps(player: PlayerState, trackId: number): void {
-        this.varpSyncService.syncMusicUnlockVarps(player, trackId);
-    }
-
-    private getCombatTargetPlayerVarpValue(player: PlayerState): number {
-        return this.varpSyncService.getCombatTargetPlayerVarpValue(player);
-    }
-
-    private syncCombatTargetPlayerVarp(player: PlayerState): void {
-        this.varpSyncService.syncCombatTargetPlayerVarp(player);
-    }
-
-    private runScriptPhase(frame: TickFrame): void {
-        this.tickPhaseService.runScriptPhase(frame);
-    }
-
-    private runDeathPhase(frame: TickFrame): void {
-        this.tickPhaseService.runDeathPhase(frame);
-    }
-
-    private runPostScriptPhase(frame: TickFrame): void {
-        this.tickPhaseService.runPostScriptPhase(frame);
-    }
-
-    private runPostEffectsPhase(frame: TickFrame): void {
-        this.tickPhaseService.runPostEffectsPhase(frame);
-    }
-
-    private runOrphanedPlayersPhase(frame: TickFrame): void {
-        this.tickPhaseService.runOrphanedPlayersPhase(frame);
-    }
-
-    private checkAndSendSnapshots(player: PlayerState, sock?: WebSocket): void {
-        this.tickPhaseService.checkAndSendSnapshots(player, sock);
-    }
-
-    private runBroadcastPhase(frame: TickFrame): void {
-        this.tickPhaseService.runBroadcastPhase(frame);
-    }
-
-    private buildBroadcastContext(): BroadcastContext {
-        return this.tickPhaseService.buildBroadcastContext();
-    }
-
-    private applyAppearanceSnapshotsToViews(frame: TickFrame): void {
-        this.tickPhaseService.applyAppearanceSnapshotsToViews(frame);
-    }
-
-    private buildAndSendActorSync(
-        sock: WebSocket,
-        player: PlayerState,
-        frame: TickFrame,
-        ctx: BroadcastContext,
-    ): void {
-        this.tickPhaseService.buildAndSendActorSync(sock, player, frame, ctx);
-    }
-
-    private flushPerPlayerDirtyState(frame: TickFrame): void {
-        this.tickPhaseService.flushPerPlayerDirtyState(frame);
-    }
-
-    private flushAnimSnapshots(frame: TickFrame, ctx: BroadcastContext): void {
-        this.tickPhaseService.flushAnimSnapshots(frame, ctx);
-    }
-
     getScriptScheduler(): ScriptScheduler {
         return this.scriptScheduler;
-    }
-
-    private getOrCreateWidgetLedger(playerId: number): PlayerWidgetOpenLedger {
-        return this.interfaceManager.getOrCreateWidgetLedger(playerId);
-    }
-
-    private noteWidgetEventForLedger(playerId: number, action: WidgetAction): void {
-        this.interfaceManager.noteWidgetEventForLedger(playerId, action);
-    }
-
-    private isWidgetGroupOpenInLedger(playerId: number, groupId: number): boolean {
-        return this.interfaceManager.isWidgetGroupOpenInLedger(playerId, groupId);
-    }
-
-    private clearUiTrackingForPlayer(playerId: number): void {
-        this.interfaceManager.clearUiTrackingForPlayer(playerId);
-        this.accountSummary.clearPlayer(playerId);
-        this.gamemode.onPlayerDisconnect?.(playerId);
-        this.reportGameTime.clearPlayer(playerId);
     }
 
     private getGamemodeBridge(): GamemodeBridge {
@@ -2483,9 +2195,9 @@ export class WSServer {
             getPlayer: (playerId) => this.players?.getById(playerId),
             queueVarp: (playerId, varpId, value) => this.variableService.queueVarp(playerId, varpId, value),
             queueVarbit: (playerId, varbitId, value) => this.variableService.queueVarbit(playerId, varbitId, value),
-            queueNotification: (playerId, notification) => this.queueNotification(playerId, notification),
+            queueNotification: (playerId, notification) => this.messagingService.queueNotification(playerId, notification),
             queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event),
-            queueClientScript: (playerId, scriptId, ...args) => this.queueClientScript(playerId, scriptId, ...args),
+            queueClientScript: (playerId, scriptId, ...args) => this.broadcastService.queueClientScript(playerId, scriptId, ...args),
             sendGameMessage: (player, text) => this.messagingService.queueChatMessage({
                 messageType: "game",
                 text,
@@ -2529,13 +2241,9 @@ export class WSServer {
         this.gamemodeUi?.applySideJournalUi(player);
     }
 
-    private queueNotification(playerId: number, payload: any): void {
-        this.messagingService.queueNotification(playerId, payload);
-    }
-
     private queueWidgetEvent(playerId: number, action: WidgetAction): void {
         const event = { playerId: playerId, action };
-        this.noteWidgetEventForLedger(event.playerId, action);
+        this.interfaceManager.noteWidgetEventForLedger(event.playerId, action);
         // Tick-phase parity: if called during active game logic phases, include in the
         // current frame so it broadcasts this tick (avoids 1-tick UI highlight lag).
         // During broadcast phase itself, queue for next tick to avoid mutating the
@@ -2554,7 +2262,7 @@ export class WSServer {
         if (action.action === "open_sub" && (action.groupId ?? 0) === 84) {
             const player = this.players?.getById(event.playerId);
             if (player) {
-                this.queueEquipmentStatsWidgetTexts(player);
+                this.equipmentStatsUiService.queueEquipmentStatsWidgetTexts(player);
             }
         }
         if (action.action === "open_sub" && (action.groupId ?? 0) === ACCOUNT_SUMMARY_GROUP_ID) {
@@ -2576,8 +2284,6 @@ export class WSServer {
             }
         }
     }
-
-
     private queueSmithingInterfaceMessage(playerId: number, payload: SmithingServerPayload): void {
         this.broadcastScheduler.queueKeyedMessage("smithing", playerId, payload);
     }
@@ -2637,15 +2343,6 @@ export class WSServer {
         this.broadcastScheduler.queueClientScript(playerId, scriptId, args);
     }
 
-    private sendGameMessageToPlayer(player: PlayerState, text: string): void {
-        this.messagingService.sendGameMessageToPlayer(player, text);
-    }
-
-
-    private enqueueForcedChat(event: ForcedChatBroadcast): void {
-        this.messagingService.enqueueForcedChat(event);
-    }
-
     private enqueueForcedMovement(event: ForcedMovementBroadcast): void {
         if (this.activeFrame) {
             this.activeFrame.forcedMovements.push(event);
@@ -2660,346 +2357,6 @@ export class WSServer {
         } else {
             this.broadcastScheduler.queueSpotAnimation(event);
         }
-    }
-
-    private enqueueSoundBroadcast(soundId: number, x: number, y: number, level: number): void {
-        // Always use broadcast during tick execution to avoid "direct-send" warnings
-        // The activeFrame check is sufficient to determine if we're inside a tick cycle
-        this.withDirectSendBypass("broadcast", () =>
-            this.broadcastSound({ soundId, x, y, level }, "sound"),
-        );
-    }
-
-
-    private sendSound(
-        player: PlayerState,
-        soundId: number,
-        opts?: { delay?: number; loops?: number },
-    ): void {
-        this.soundService.sendSound(player, soundId, opts);
-    }
-
-    /**
-     * Send a loot notification popup to a player when they pick up an item.
-     * Matches OSRS's notification_display (interface 660) behavior.
-     */
-    private sendLootNotification(player: PlayerState, itemId: number, quantity: number): void {
-        this.messagingService.sendLootNotification(player, itemId, quantity);
-    }
-
-    /**
-     * OSRS parity: Send a jingle (short music fanfare) to a player.
-     * Jingles interrupt current music, then music resumes after jingle ends.
-     * Used for level-ups, quest completions, achievement unlocks, etc.
-     *
-     * @param player - Target player
-     * @param jingleId - Jingle track ID from musicJingles index (index 11)
-     * @param delay - Unused jingle delay field from the OSRS packet (default 0)
-     */
-    private sendJingle(player: PlayerState, jingleId: number, delay: number = 0): void {
-        this.soundService.sendJingle(player, jingleId, delay);
-    }
-
-    private broadcastSound(
-        payload: {
-            soundId: number;
-            x?: number;
-            y?: number;
-            level?: number;
-            loops?: number;
-            delay?: number;
-            /** SOUND_AREA: radius in tiles (0-15) for client-side distance falloff */
-            radius?: number;
-            /** SOUND_AREA: volume (0-255, default 255) */
-            volume?: number;
-        },
-        context = "sound",
-        radiusTiles = SOUND_BROADCAST_RADIUS_TILES,
-    ): void {
-        if (!payload || !(payload.soundId > 0)) return;
-        const hasPosition =
-            payload.x !== undefined &&
-            payload.y !== undefined &&
-            Number.isFinite(payload.x) &&
-            Number.isFinite(payload.y);
-        const level =
-            payload.level !== undefined && Number.isFinite(payload.level)
-                ? payload.level
-                : undefined;
-        // Build the message payload, including SOUND_AREA fields if present
-        const msgPayload: {
-            soundId: number;
-            x?: number;
-            y?: number;
-            level?: number;
-            loops?: number;
-            delay?: number;
-            radius?: number;
-            volume?: number;
-        } = { ...payload };
-        if (level !== undefined) msgPayload.level = level;
-        if (payload.radius !== undefined && payload.radius > 0) {
-            msgPayload.radius = Math.min(15, Math.max(0, payload.radius));
-        }
-        if (payload.volume !== undefined && payload.volume < 255) {
-            msgPayload.volume = Math.min(255, Math.max(0, payload.volume));
-        }
-        const msg = encodeMessage({
-            type: "sound",
-            payload: msgPayload,
-        });
-        if (!hasPosition || !this.players) {
-            this.broadcast(msg, context);
-            return;
-        }
-        const px = payload.x as number;
-        const py = payload.y as number;
-        const broadcastRadius = Math.max(0, radiusTiles);
-        this.players.forEach((sock, p) => {
-            if (!sock || sock.readyState !== WebSocket.OPEN) return;
-            if (level !== undefined && p.level !== level) return;
-            const dx = Math.abs(p.tileX - px);
-            const dy = Math.abs(p.tileY - py);
-            if (Math.max(dx, dy) > broadcastRadius) return;
-            this.networkLayer.sendWithGuard(sock, msg, context);
-        });
-    }
-
-    private playLocSound(opts: {
-        soundId: number;
-        tile?: { x: number; y: number };
-        level?: number;
-        loops?: number;
-        delayMs?: number;
-        radius?: number;
-        volume?: number;
-    }): void {
-        this.soundService.playLocSound(opts);
-    }
-
-    /**
-     * SOUND_AREA: Play a sound at a specific location with radius and volume.
-     * This is the OSRS-parity method for area sounds that have distance-based falloff.
-     * @param opts.soundId - The sound effect ID
-     * @param opts.tile - The tile position {x, y}
-     * @param opts.level - The plane/level (0-3)
-     * @param opts.radius - Radius in tiles (0-15) for distance falloff on client
-     * @param opts.volume - Volume (0-255, default 255)
-     * @param opts.delay - Delay in ticks before playing
-     */
-    private playAreaSound(opts: {
-        soundId: number;
-        tile: { x: number; y: number };
-        level?: number;
-        radius?: number;
-        volume?: number;
-        delay?: number;
-    }): void {
-        this.soundService.playAreaSound(opts);
-    }
-
-    private getMusicTrackIdByName(trackName: string): number {
-        return this.soundService.getMusicTrackIdByName(trackName);
-    }
-
-    private enqueueSpellFailureChat(
-        player: PlayerState,
-        spellId: number,
-        reason: string | undefined,
-    ): void {
-        this.spellCastingService.enqueueSpellFailureChat(player, spellId, reason);
-    }
-
-    private queueAppearanceSnapshot(
-        player: PlayerState,
-        overrides?: Partial<{
-            x: number;
-            y: number;
-            level: number;
-            rot: number;
-            orientation: number;
-            running: boolean;
-            appearance: PlayerAppearanceState | undefined;
-            name?: string;
-            anim?: PlayerAnimSet;
-            moved: boolean;
-            turned: boolean;
-            snap: boolean;
-            directions?: number[];
-            worldViewId?: number;
-        }>,
-    ): void {
-        this.playerAppearanceManager.queueAppearanceSnapshot(player, overrides);
-    }
-
-    private requestTeleportAction(
-        player: PlayerState,
-        request: TeleportActionRequest,
-    ): { ok: boolean; reason?: string } {
-        return this.movementService.requestTeleportAction(player, request);
-    }
-
-    private tryReleaseTeleportDelayLock(player: PlayerState, expected: LockState): void {
-        this.movementService.tryReleaseTeleportDelayLock(player, expected);
-    }
-
-    /**
-     * Teleport a player to a new location with proper OSRS parity.
-     * Clears actions, updates playerViews, and syncs appearance.
-     */
-    private teleportPlayer(
-        player: PlayerState,
-        x: number,
-        y: number,
-        level: number,
-        _forceRebuild: boolean = false,
-    ): void {
-        this.movementService.teleportPlayer(player, x, y, level, _forceRebuild);
-    }
-
-    private teleportToInstance(
-        player: PlayerState,
-        x: number,
-        y: number,
-        level: number,
-        templateChunks: number[][][],
-        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
-    ): void {
-        this.movementService.teleportToInstance(player, x, y, level, templateChunks, extraLocs);
-    }
-
-    sendRebuildNormal(player: PlayerState): void {
-        const ws = this.players?.getSocketByPlayerId(player.id);
-        if (!ws) return;
-
-        const regionX = player.tileX >> 3;
-        const regionY = player.tileY >> 3;
-        const payload = buildRebuildNormalPayload(
-            regionX,
-            regionY,
-            this.cacheEnv!,
-        );
-        const packet = encodeMessage({ type: "rebuild_normal", payload } as any);
-        this.withDirectSendBypass("rebuild_normal", () =>
-            this.networkLayer.sendWithGuard(ws, packet, "rebuild_normal"),
-        );
-    }
-
-    sendWorldEntity(
-        player: PlayerState,
-        entityIndex: number,
-        configId: number,
-        sizeX: number,
-        sizeZ: number,
-        templateChunks: number[][][],
-        buildAreas: import("../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
-        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
-        extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>,
-        drawMode: number = 0,
-    ): void {
-        const ws = this.players?.getSocketByPlayerId(player.id);
-        if (!ws) return;
-
-        const regionX = 480; // source region chunk X
-        const regionY = 800; // source region chunk Y
-
-        const payload = buildRebuildWorldEntityPayload(
-            entityIndex, configId, sizeX, sizeZ,
-            regionX, regionY, regionX, regionY,
-            templateChunks, buildAreas, this.cacheEnv!, false,
-        );
-        (payload as any).extraNpcs = extraNpcs ?? [];
-        // Pass basePlane so the client knows which plane deck content lives on
-        (payload as any).basePlane = 1;
-        const packet = encodeMessage({ type: "rebuild_worldentity", payload } as any);
-        this.withDirectSendBypass("rebuild_worldentity", () =>
-            this.networkLayer.sendWithGuard(ws, packet, "rebuild_worldentity"),
-        );
-
-        // Register in per-tick world entity tracker with initial position (fine units)
-        const entityFineX = (regionX * 8 + sizeX * 4) * 128;
-        const entityFineZ = (regionY * 8 + sizeZ * 4) * 128;
-        this.worldEntityInfoEncoder.addEntity(player.id, {
-            entityIndex, sizeX, sizeZ, configId, drawMode,
-            position: { x: entityFineX, y: 0, z: entityFineZ, orientation: 0 },
-        });
-
-        if (extraLocs) {
-            for (const loc of extraLocs) {
-                this.spawnLocForPlayer(player, loc.id, { x: loc.x, y: loc.y }, loc.level, loc.shape, loc.rotation);
-            }
-        }
-    }
-
-    teleportToWorldEntity(
-        player: PlayerState,
-        x: number,
-        y: number,
-        level: number,
-        entityIndex: number,
-        configId: number,
-        sizeX: number,
-        sizeZ: number,
-        templateChunks: number[][][],
-        buildAreas: import("../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
-        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
-        drawMode: number = 0,
-    ): void {
-        logger.info(`[teleportToWorldEntity] Player ${player.id} -> (${x}, ${y}, ${level}) entity=${entityIndex}`);
-        const ws = this.players?.getSocketByPlayerId(player.id);
-        if (!ws) {
-            logger.warn(`[teleportToWorldEntity] No websocket for player ${player.id}`);
-            return;
-        }
-
-        const regionX = x >> 3;
-        const regionY = y >> 3;
-        const zoneX = regionX;
-        const zoneZ = regionY;
-
-        const payload = buildRebuildWorldEntityPayload(
-            entityIndex,
-            configId,
-            sizeX,
-            sizeZ,
-            zoneX,
-            zoneZ,
-            regionX,
-            regionY,
-            templateChunks,
-            buildAreas,
-            this.cacheEnv!,
-            false,
-        );
-        const packet = encodeMessage({ type: "rebuild_worldentity", payload } as any);
-        logger.info(`[teleportToWorldEntity] Sending REBUILD_WORLDENTITY packet (${packet.length} bytes, ${payload.mapRegions.length} regions)`);
-        this.withDirectSendBypass("rebuild_worldentity", () =>
-            this.networkLayer.sendWithGuard(ws, packet, "rebuild_worldentity"),
-        );
-
-        // Register in per-tick world entity tracker with initial position (fine units)
-        const entityFineX = (regionX * 8 + sizeX * 4) * 128;
-        const entityFineZ = (regionY * 8 + sizeZ * 4) * 128;
-        this.worldEntityInfoEncoder.addEntity(player.id, {
-            entityIndex, sizeX, sizeZ, configId, drawMode,
-            position: { x: entityFineX, y: 0, z: entityFineZ, orientation: 0 },
-        });
-
-        this.teleportPlayer(player, x, y, level);
-
-        if (extraLocs) {
-            for (const loc of extraLocs) {
-                this.spawnLocForPlayer(player, loc.id, { x: loc.x, y: loc.y }, loc.level, loc.shape, loc.rotation);
-            }
-        }
-    }
-
-    private queueInventorySnapshot(playerId: number): void {
-        this.inventoryService.queueInventorySnapshot(playerId);
-    }
-
-    private queueSkillSnapshot(playerId: number, update: SkillSyncUpdate): void {
-        this.skillService.queueSkillSnapshot(playerId, update);
     }
 
     private queueCombatSnapshot(
@@ -3061,202 +2418,15 @@ export class WSServer {
             player.combatSpellId > 0 ? player.combatSpellId : undefined,
         );
     }
-
-
-    private queueRunEnergySnapshot(player: PlayerState | undefined): void {
-        this.movementService.queueRunEnergySnapshot(player);
-    }
-
-    private sendRunEnergyState(sock: WebSocket, player: PlayerState): void {
-        this.movementService.sendRunEnergyState(sock, player);
-    }
-
-
-    private isAdminPlayer(player: PlayerState | undefined): boolean {
-        return this.authService.isAdminPlayer(player);
-    }
-
-
-    private getAppearanceDisplayName(player: PlayerState | undefined): string {
-        return this.appearanceService.getAppearanceDisplayName(player);
-    }
-
-    private getPublicChatPlayerType(player: PlayerState): number {
-        return this.authService.getPublicChatPlayerType(player);
-    }
-
-    private syncAccountTypeVarbit(sock: WebSocket, player: PlayerState): void {
-        this.varpSyncService.syncAccountTypeVarbit(sock, player);
-    }
-
-    private sendSavedAutocastTransmitVarbits(sock: WebSocket, player: PlayerState): void {
-        this.varpSyncService.sendSavedAutocastTransmitVarbits(sock, player);
-    }
-
-    private sendSavedTransmitVarps(sock: WebSocket, player: PlayerState): void {
-        this.varpSyncService.sendSavedTransmitVarps(sock, player);
-    }
-
-    private queueAnimSnapshot(playerId: number, anim: PlayerAnimSet | undefined): void {
-        this.appearanceService.queueAnimSnapshot(playerId, anim);
-    }
-
-    private queueSpellResult(playerId: number, payload: SpellResultPayload): void {
-        if (this.activeFrame) {
-            this.activeFrame.spellResults.push({ playerId: playerId, payload });
-            return;
-        }
-        this.broadcastScheduler.queueSpellResult(playerId, payload);
-    }
-    /**
-     * Send collection-log display varps on login/reconnect so summary/account UIs have the same
-     * state they would get after opening the collection log itself.
-     */
-    private sendCollectionLogDisplayVarps(sock: WebSocket, player: PlayerState): void {
-        const displayVarps = syncCollectionDisplayVarps(player);
-        for (const [varpIdRaw, valueRaw] of Object.entries(displayVarps)) {
-            this.withDirectSendBypass("varp", () =>
-                this.networkLayer.sendWithGuard(
-                    sock,
-                    encodeMessage({
-                        type: "varp",
-                        payload: {
-                            varpId: Number(varpIdRaw),
-                            value: valueRaw | 0,
-                        },
-                    }),
-                    "varp",
-                ),
-            );
-        }
-    }
-
-    private getInventory(p: PlayerState): InventoryEntry[] {
-        return this.inventoryService.getInventory(p);
-    }
-
-    private setInventorySlot(
-        p: PlayerState,
-        slotIndex: number,
-        itemId: number,
-        quantity: number,
-    ): void {
-        this.inventoryService.setInventorySlot(p, slotIndex, itemId, quantity);
-    }
-
-    /**
-     * Build the generic server services bag for gamemodes to consume.
-     * Any gamemode feature (banking, shops, etc.) uses these to interact with core server systems.
-     */
-
-    /**
-     * Create the NpcPacketEncoder with all required services.
-     */
-
-    /**
-     * Create the PlayerPacketEncoder with all required services.
-     */
-
-    /**
-     * Encode text to CP1252 bytes.
-     */
-    private encodeCp1252(text: string): Uint8Array {
-        const out: number[] = [];
-        const map: Record<number, number> = {
-            0x20ac: 0x80,
-            0x201a: 0x82,
-            0x0192: 0x83,
-            0x201e: 0x84,
-            0x2026: 0x85,
-            0x2020: 0x86,
-            0x2021: 0x87,
-            0x02c6: 0x88,
-            0x2030: 0x89,
-            0x0160: 0x8a,
-            0x2039: 0x8b,
-            0x0152: 0x8c,
-            0x017d: 0x8e,
-            0x2018: 0x91,
-            0x2019: 0x92,
-            0x201c: 0x93,
-            0x201d: 0x94,
-            0x2022: 0x95,
-            0x2013: 0x96,
-            0x2014: 0x97,
-            0x02dc: 0x98,
-            0x2122: 0x99,
-            0x0161: 0x9a,
-            0x203a: 0x9b,
-            0x0153: 0x9c,
-            0x017e: 0x9e,
-            0x0178: 0x9f,
-        };
-        for (let i = 0; i < text.length; i++) {
-            const codePoint = text.codePointAt(i) ?? 0;
-            if (codePoint > 0xffff) i++;
-            if ((codePoint >= 0 && codePoint <= 0x7f) || (codePoint >= 0xa0 && codePoint <= 0xff)) {
-                out.push(codePoint & 0xff);
-                continue;
-            }
-            const mapped = map[codePoint];
-            out.push(mapped !== undefined ? mapped : 0x3f);
-        }
-        return Uint8Array.from(out);
-    }
-
-    /**
-     * Create the CombatActionHandler with all required services.
-     */
-
-    /**
-     * Create the SpellActionHandler with all required services.
-     */
-
-    /**
-     * Create the InventoryActionHandler with all required services.
-     */
-
-    /**
-     * Create the EffectDispatcher with all required services.
-     */
-
-    /**
-     * Create the WidgetDialogHandler with all required services.
-     */
-
-
-    /**
-     * Create the NpcSyncManager with all required services.
-     */
-
-
-    /**
-     * Create the ProjectileSystem with all required services.
-     */
-
-    /**
-     * Create the GatheringSystemManager with all required services.
-     */
-
-    /**
-     * Create the EquipmentHandler with all required services.
-     */
-
-    /**
-     * Build the ScriptServices object for the ScriptRuntime.
-     * Extracted from the constructor to reduce constructor size and make
-     * the services wiring independently modifiable.
-     */
-
     private createMessageRouter(): MessageRouter {
         const services: MessageRouterServices = {
             getPlayer: (ws) => this.players?.get(ws),
             sendWithGuard: (ws, message, context) => this.networkLayer.sendWithGuard(ws, message, context),
             sendAdminResponse: (ws, message, context) =>
-                this.sendAdminResponse(ws, message, context),
+                this.networkLayer.sendAdminResponse(ws, message, context),
             withDirectSendBypass: (context, fn) => this.withDirectSendBypass(context, fn),
             queueChatMessage: (msg) => this.messagingService.queueChatMessage(msg),
-            closeInterruptibleInterfaces: (player) => this.closeInterruptibleInterfaces(player),
+            closeInterruptibleInterfaces: (player) => this.interfaceManager.closeInterruptibleInterfaces(player),
             encodeMessage: encodeMessage,
         };
 
@@ -3267,154 +2437,6 @@ export class WSServer {
 
         return router;
     }
-
-
-    private sanitizeHandshakeAppearance(raw: HandshakeAppearance): PlayerAppearanceState {
-        const colors = raw.colors?.slice(0, 10);
-        const kits = raw.kits?.slice(0, 12);
-        return {
-            gender: raw.gender === 1 ? 1 : 0,
-            colors,
-            kits,
-            equip: new Array<number>(EQUIP_SLOT_COUNT).fill(-1),
-            equipQty: new Array<number>(EQUIP_SLOT_COUNT).fill(0),
-            headIcons: { prayer: -1 },
-        };
-    }
-
-    private getOrCreateAppearance(player: PlayerState): PlayerAppearanceState {
-        return this.appearanceService.getOrCreateAppearance(player);
-    }
-
-
-    private createDefaultAppearance(): PlayerAppearanceState {
-        return this.appearanceService.createDefaultAppearance();
-    }
-
-    private setPendingLoginName(ws: WebSocket, name: string): void {
-        this.loginHandshakeService.setPendingLoginName(ws, name);
-    }
-
-    private consumePendingLoginName(ws: WebSocket): string | undefined {
-        return this.loginHandshakeService.consumePendingLoginName(ws);
-    }
-
-    private getSocketRemoteAddress(ws: WebSocket): string | undefined {
-        const transport = Reflect.get(ws, "_socket") as { remoteAddress?: string } | undefined;
-        const remoteAddress = transport?.remoteAddress;
-        return remoteAddress && remoteAddress.length > 0 ? remoteAddress : undefined;
-    }
-
-
-    private queueEquipmentStatsWidgetTexts(player: PlayerState): void {
-        this.equipmentStatsUiService.queueEquipmentStatsWidgetTexts(player);
-    }
-
-
-    private computeRunEnergyRegenUnits(
-        agilityLevel: number,
-        opts: { resting: boolean; gracefulPieces?: number },
-    ): number {
-        return this.movementService.computeRunEnergyRegenUnits(agilityLevel, opts);
-    }
-
-
-    private updateRunEnergy(
-        player: PlayerState,
-        activity: { ran: boolean; moved: boolean; runSteps: number },
-        currentTick: number,
-    ): void {
-        this.movementService.updateRunEnergy(player, activity, currentTick);
-    }
-
-    private deriveAttackTypeFromStyle(
-        style: number | undefined,
-        attacker?: PlayerState,
-    ): AttackType {
-        return this.playerCombatService.deriveAttackTypeFromStyle(style, attacker);
-    }
-
-    private ensureEquipArray(p: PlayerState): number[] {
-        return this.equipmentService.ensureEquipArray(p);
-    }
-
-
-    private getPlayerSaveKey(name: string | undefined, id: number): string {
-        return buildPlayerSaveKey(name, id);
-    }
-
-    private getEquippedItemIds(p: PlayerState): number[] {
-        return this.equipmentService.getEquippedItemIds(p);
-    }
-
-    private refreshAppearanceKits(p: PlayerState): void {
-        this.appearanceService.refreshAppearanceKits(p);
-    }
-
-    private loadAnimSetFromBas(loader: () => BasType | undefined): PlayerAnimSet | undefined {
-        return this.appearanceService.loadAnimSetFromBas(loader);
-    }
-
-
-    private guessBasIdForAppearance(
-        appearance: { gender?: number } | undefined,
-    ): number | undefined {
-        return this.appearanceService.guessBasIdForAppearance(appearance);
-    }
-
-    private resolveAnimForAppearance(appearance: { gender?: number } | undefined): PlayerAnimSet {
-        const gender = appearance?.gender === 1 ? 1 : 0;
-        const genderFallback =
-            gender === 1
-                ? this.defaultPlayerAnimFemale ?? this.defaultPlayerAnim
-                : this.defaultPlayerAnimMale ?? this.defaultPlayerAnim;
-
-        const basId = this.guessBasIdForAppearance(appearance);
-        if (basId !== undefined) {
-            const fromBas = this.loadAnimSetFromBas(() => this.basTypeLoader!.load(basId));
-            if (fromBas) return ensureCorePlayerAnimSet(fromBas, genderFallback);
-        }
-        return ensureCorePlayerAnimSet(genderFallback, this.defaultPlayerAnim);
-    }
-
-
-    private loadWeaponData(): void {
-        this.appearanceService.loadWeaponData();
-        this.weaponData = this.appearanceService.getWeaponData();
-        this.weaponAnimOverrides = this.appearanceService.getWeaponAnimOverrides();
-    }
-
-    private loadSpecialAttackCacheData(enumTypeLoader: EnumTypeLoader): void {
-        this.combatDataService.loadSpecialAttackCacheData(enumTypeLoader);
-    }
-
-    private getWeaponSpecialCostPercent(weaponItemId: number): number | undefined {
-        return this.combatDataService.getWeaponSpecialCostPercent(weaponItemId);
-    }
-
-
-    private applyWeaponAnimOverrides(
-        p: PlayerState,
-        animTarget: Record<string, number | undefined>,
-    ): void {
-        this.appearanceService.applyWeaponAnimOverrides(p, animTarget);
-    }
-
-    private refreshCombatWeaponCategory(p: PlayerState): {
-        categoryChanged: boolean;
-        weaponItemChanged: boolean;
-    } {
-        return this.equipmentService.refreshCombatWeaponCategory(p);
-    }
-
-    private resetAutocast(p: PlayerState): void {
-        this.equipmentService.resetAutocast(p);
-    }
-
-    private buildAnimPayload(p: PlayerState): PlayerAnimSet | undefined {
-        return this.appearanceService.buildAnimPayload(p);
-    }
-
     private applyInteractionIndex<T extends Record<string, unknown>>(
         payload: T,
         interactionIndex?: number,
@@ -3440,66 +2462,6 @@ export class WSServer {
         }
     }
 
-    private sendAnimUpdate(ws: WebSocket, p: PlayerState): void {
-        this.appearanceService.sendAnimUpdate(p);
-    }
-
-    private getDefaultBodyKits(gender: number): number[] {
-        return this.appearanceService.getDefaultBodyKits(gender);
-    }
-
-    private getObjType(itemId: number): ObjType | undefined {
-        return this.dataLoaderService.getObjType(itemId);
-    }
-
-    private queuePlayerGameMessage(player: PlayerState, text: string | undefined): void {
-        this.messagingService.queuePlayerGameMessage(player, text);
-    }
-
-    private resolveEquipSlot(itemId: number): number | undefined {
-        return this.equipmentService.resolveEquipSlot(itemId);
-    }
-
-    // Item-specific actions (e.g., Prayer burying) are implemented via the scripts runtime.
-
-    /**
-     * @deprecated Use player.addItem() directly instead (RSMod parity).
-     * This method is kept for backward compatibility with existing service callbacks.
-     */
-    private addItemToInventory(
-        p: PlayerState,
-        itemId: number,
-        quantity: number,
-    ): InventoryAddResult {
-        return this.inventoryService.addItemToInventory(p, itemId, quantity);
-    }
-
-
-    private sendInventorySnapshot(ws: WebSocket, p: PlayerState): void {
-        this.inventoryService.sendInventorySnapshot(ws, p);
-    }
-
-    private sendInventorySnapshotImmediate(ws: WebSocket, p: PlayerState): void {
-        this.inventoryService.sendInventorySnapshotImmediate(ws, p);
-    }
-
-    private sendInventorySnapshotImmediate(ws: WebSocket, p: PlayerState): void {
-        this.inventoryService.sendInventorySnapshotImmediate(ws, p);
-    }
-
-    /**
-     * Send the collection log inventory (620) snapshot to a player.
-     * Converts the player's collectionObtained map to slot format.
-     */
-
-
-    private sendSkillsSnapshotImmediate(
-        ws: WebSocket,
-        player: PlayerState,
-        update?: SkillSyncUpdate,
-    ): void {
-        this.skillService.sendSkillsSnapshotImmediate(ws, player, update);
-    }
     private sendSkillsMessage(ws: WebSocket, player: PlayerState, update?: SkillSyncUpdate): void {
         const sync = update ?? player.takeSkillSync();
         if (!sync) return;
@@ -3517,137 +2479,13 @@ export class WSServer {
             player.combatSpellId > 0 ? player.combatSpellId : undefined,
         );
     }
-
-
-    private equipItem(
-        p: PlayerState,
-        slotIndex: number,
-        itemId: number,
-        equipSlot: number,
-        opts?: { playSound?: boolean },
-    ): { ok: boolean; reason?: string; categoryChanged: boolean; weaponItemChanged: boolean } {
-        return this.equipmentService.equipItem(p, slotIndex, itemId, equipSlot, opts);
-    }
-
-    private consumeItem(p: PlayerState, slotIndex: number): boolean {
-        return this.inventoryService.consumeItem(p, slotIndex);
-    }
-
-
-    private findOwnedItemLocation(
-        player: PlayerState,
-        itemId: number,
-    ): OwnedItemLocation | undefined {
-        return this.inventoryService.findOwnedItemLocation(player, itemId);
-    }
-
-    private countInventoryItem(player: PlayerState, itemId: number): number {
-        return this.inventoryService.countInventoryItem(player, itemId);
-    }
-
-    private awardSkillXp(player: PlayerState, skillId: SkillId, xp: number): void {
-        this.skillService.awardSkillXp(player, skillId, xp);
-    }
-
-    private handleSpellCastOnItem(
-        ws: WebSocket,
-        payload: {
-            spellbookGroupId?: number;
-            widgetChildId?: number;
-            selectedSpellWidgetId?: number;
-            selectedSpellChildIndex?: number;
-            selectedSpellItemId?: number;
-            spellId?: number;
-            slot: number;
-            itemId: number;
-            widgetId?: number;
-        },
-    ): void {
-        this.spellCastingService.handleSpellCastOnItem(ws, payload);
-    }
-
-    private sendSpellFailure(player: PlayerState, spellId: number, reason: string): void {
-        this.spellCastingService.sendSpellFailure(player, spellId, reason);
-    }
-
-    private enqueueLevelUpPopup(player: PlayerState, popup: LevelUpPopup): void {
-        this.interfaceManager.enqueueLevelUpPopup(player, popup);
-    }
-
     /**
-     * OSRS parity: Level-up popups do not hard-block gameplay; the chatbox modal should be
-     * dismissed when the player initiates another action (walk, attack, etc.).
-     */
-    private dismissLevelUpPopupQueue(playerIdRaw: number): boolean {
-        return this.interfaceManager.dismissLevelUpPopupQueue(playerIdRaw);
-    }
-
-    /**
-     * OSRS parity: Close all interfaces that should be interrupted by damage or movement.
-     * Called when:
-     * - Player takes combat damage (NPC or PvP hits)
-     * - Player initiates movement (walk click)
-     * - Player starts a new interaction (NPC click, attack, etc.)
-     * - Player teleports
-     *
-     * NOTE: Passive damage (poison, venom, disease) does NOT close interfaces.
-     * Those effects are processed in PlayerState.processPoison/processVenom/processDisease
-     * and intentionally bypass this method to match OSRS behavior.
-     */
-    private closeInterruptibleInterfaces(player: PlayerState): void {
-        const playerId = player.id;
-
-        // 1. Close tracked modal interfaces through the canonical widget runtime.
-        const closedEntries = player.widgets.closeModalInterfaces();
-
-        // 2. Run interface close hooks for tracked lifecycle entries.
-        if (this.interfaceService && closedEntries.length > 0) {
-            this.interfaceService.triggerCloseHooksForEntries(player, closedEntries);
-        }
-
-        // 3. Clear level-up popup queue
-        this.dismissLevelUpPopupQueue(playerId);
-
-        // 4. Close all open dialogs (NPC dialog, options, etc.)
-        this.widgetDialogHandler.closeAllPlayerDialogs(player);
-        this.cs2ModalManager.clearPlayerState(player);
-    }
-
-    /**
-     * OSRS parity: Check if player has a modal dialog open (level-up, etc.)
+     * Check if player has a modal dialog open (level-up, etc.)
      * that should pause skill action execution.
      */
     hasModalOpen(playerId: number): boolean {
         return this.interfaceManager.hasModalOpen(playerId);
     }
-
-    /**
-     * OSRS parity: Interrupt/cancel all queued skill actions for a player.
-     * Called when player walks, starts a new interaction, teleports, etc.
-     */
-    private interruptPlayerSkillActions(playerId: number): void {
-        this.interfaceManager.interruptPlayerSkillActions(playerId);
-    }
-
-    private advanceLevelUpPopupQueue(player: PlayerState): void {
-        this.interfaceManager.advanceLevelUpPopupQueue(player);
-    }
-
-
-    private handleLoginMessage(ws: WebSocket, payload: any): void {
-        this.loginHandshakeService.handleLoginMessage(ws, payload);
-    }
-
-
-    private handleHandshakeMessage(ws: WebSocket, payload: any): void {
-        this.loginHandshakeService.handleHandshakeMessage(ws, payload);
-    }
-
-
-    private onConnection(ws: WebSocket) {
-        this.loginHandshakeService.onConnection(ws);
-    }
-
 
     private ensurePlayerSyncSession(ws: WebSocket): PlayerSyncSession {
         let session = this.playerSyncSessions.get(ws);
@@ -3680,85 +2518,36 @@ export class WSServer {
             actions: ["", "", ""],
         });
     }
-
-
-    private broadcastToNearby(
-        x: number,
-        y: number,
-        level: number,
-        radius: number,
-        message: string | Uint8Array,
-        context = "broadcast_nearby",
-    ): void {
-        if (!this.players) return;
-        const broadcastRadius = Math.max(0, radius);
-        this.players.forEach((sock, player) => {
-            if (!sock || sock.readyState !== WebSocket.OPEN) return;
-            if (player.level !== level) return;
-            const dx = Math.abs(player.tileX - x);
-            const dy = Math.abs(player.tileY - y);
-            if (Math.max(dx, dy) > broadcastRadius) return;
-            this.networkLayer.sendWithGuard(sock, message, context);
-        });
+    get tickMs(): number {
+        return this.options.tickMs;
     }
 
-    private pickAttackSequence(player: PlayerState): number {
-        return this.playerCombatService.pickAttackSequence(player);
+    get pathService(): PathService | undefined {
+        return this.options.pathService;
     }
 
-
-    private pickSpellSound(spellId: number, stage: "cast" | "impact" | "splash"): number | undefined {
-        return this.playerCombatService.pickSpellSound(spellId, stage);
-    }
-
-    private pickHitDelay(player: PlayerState): number {
-        return this.playerCombatService.pickHitDelay(player);
-    }
-
-    private resolveBaseAttackSpeed(player: PlayerState): number {
-        return this.playerCombatService.resolveBaseAttackSpeed(player);
-    }
-
-    private pickAttackSpeed(player: PlayerState): number {
-        return this.playerCombatService.pickAttackSpeed(player);
-    }
-
-    private getPlayerAttackReach(player: PlayerState): number {
-        return this.playerCombatService.getPlayerAttackReach(player);
-    }
-
-
-    pickNpcAttackSpeed(npc: NpcState, _player?: PlayerState): number {
-        return this.combatEffectService.pickNpcAttackSpeed(npc, _player);
-    }
-
-    pickNpcHitDelay(npc: NpcState, _player: PlayerState, _attackSpeed: number): number {
-        return this.combatEffectService.pickNpcHitDelay(npc, _player, _attackSpeed);
-    }
-
-    private getNpcCombatSequences(typeId: number): {
-        block?: number;
-        attack?: number;
-        death?: number;
-    } {
-        return this.combatDataService.getNpcCombatSequences(typeId);
-    }
-
-
-    private getNpcDeathSoundId(typeId: number): number | undefined {
-        return this.combatDataService.getNpcDeathSoundId({ typeId } as any);
-    }
-
-    private getNpcAttackSoundId(typeId: number): number {
-        return this.combatDataService.getNpcAttackSoundId({ typeId } as any);
-    }
-
-    private getNpcHitSoundId(typeId: number): number | undefined {
-        return this.combatDataService.getNpcHitSoundId({ typeId } as any);
-    }
-
-    private getNpcDefendSoundId(typeId: number): number | undefined {
-        return this.combatDataService.getNpcDefendSoundId({ typeId } as any);
+    handleExaminePacket(ws: WebSocket, packet: DecodedPacket): boolean {
+        return handleExaminePacketImpl(
+            {
+                getPlayer: (sock) => this.players?.get(sock),
+                queuePlayerGameMessage: (player, text) =>
+                    this.messagingService.queueChatMessage({
+                        messageType: "game",
+                        text,
+                        targetPlayerIds: [player.id],
+                    }),
+                queryGroundItemArea: (x, y, level, radius, tick, playerId, wvId) =>
+                    this.groundItems.queryArea(x, y, level, radius, tick, playerId, wvId),
+                getCurrentTick: () => this.options.ticker.currentTick(),
+                locTypeLoader: this.locTypeLoader,
+                npcTypeLoader: this.npcTypeLoader,
+                objTypeLoader: this.objTypeLoader,
+                getNpcType: (npc) => this.npcTypeLoader?.load(npc?.typeId ?? npc),
+                getObjType: (itemId) => this.objTypeLoader?.load(itemId),
+            },
+            ws,
+            packet,
+        );
     }
 
     private queueExternalNpcTeleportSync(npc: NpcState): void {
@@ -3770,13 +2559,4 @@ export class WSServer {
         upsertNpcUpdateDelta(this.pendingNpcUpdates, delta);
     }
 
-    /**
-     * Process binary packet converted to ClientToServer message format
-     */
-
-    private broadcast(msg: string | Uint8Array, context = "broadcast") {
-        for (const client of this.wss.clients) {
-            this.networkLayer.sendWithGuard(client, msg, context);
-        }
-    }
 }

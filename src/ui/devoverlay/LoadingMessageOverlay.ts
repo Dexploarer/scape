@@ -30,7 +30,6 @@ enum FadeState {
  * Renders "Loading - please wait." text box in the top-left corner
  * during LOADING_GAME, RECONNECTING, and CONNECTION_LOST states.
  *
- * OSRS Reference: StructComposition.drawLoadingMessage (StructComposition.java:126)
  * Position: top-left corner with padding=4, offset=6
  *
  * Uses explicit FadeState enum instead of implicit state tracking for clarity.
@@ -306,7 +305,6 @@ export class LoadingMessageOverlay implements Overlay {
     }
 
     private renderMessageToCanvas(message: string): void {
-        // OSRS reference positioning (StructComposition.java:126-135):
         // padding = 4, lineHeight = 13
         const padding = 4;
         const lineHeight = 13;

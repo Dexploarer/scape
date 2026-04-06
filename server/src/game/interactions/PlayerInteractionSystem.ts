@@ -156,7 +156,7 @@ export class PlayerInteractionSystem {
     ) => void;
     private onGameMessage?: (player: PlayerState, text: string) => void;
     /**
-     * OSRS parity: Callback to interrupt/cancel all queued skill actions for a player.
+     * Callback to interrupt/cancel all queued skill actions for a player.
      * Called when player walks, starts a new interaction, teleports, etc.
      */
     private onInterruptSkillActions?: (playerId: number) => void;
@@ -235,7 +235,7 @@ export class PlayerInteractionSystem {
     }
 
     /**
-     * OSRS parity: Set callback for interrupting skill actions.
+     * Set callback for interrupting skill actions.
      * This is called when player walks, starts new interaction, teleports, etc.
      */
     setInterruptSkillActionsCallback(callback: (playerId: number) => void): void {
@@ -264,7 +264,7 @@ export class PlayerInteractionSystem {
     }
 
     /**
-     * OSRS parity: Interrupt all queued skill actions for a player.
+     * Interrupt all queued skill actions for a player.
      * Called when any action that should cancel skilling occurs.
      */
     interruptSkillActions(playerId: number): void {
@@ -445,7 +445,7 @@ export class PlayerInteractionSystem {
             }
         }
 
-        // OSRS parity: Starting a new NPC interaction cancels any active skill actions
+        // Starting a new NPC interaction cancels any active skill actions
         this.interruptSkillActions(me.id);
         this.replaceInteractionState(ws, me);
 
@@ -483,7 +483,7 @@ export class PlayerInteractionSystem {
 
         const npcSize = Math.max(1, npc.size);
         const strategy = new RectAdjacentRouteStrategy(npc.tileX, npc.tileY, npcSize, npcSize);
-        // OSRS parity: Set collision getter so hasArrived() checks for walls
+        // Set collision getter so hasArrived() checks for walls
         strategy.setCollisionGetter(
             (x, y, p) => this.pathService.getCollisionFlagAt(x, y, p),
             me.level,
@@ -543,7 +543,7 @@ export class PlayerInteractionSystem {
             return;
         }
 
-        // OSRS parity: Ground-item interactions replace active click intents.
+        // Ground-item interactions replace active click intents.
         this.interruptSkillActions(me.id);
         this.replaceInteractionState(ws, me);
 
@@ -576,7 +576,7 @@ export class PlayerInteractionSystem {
         const interaction = this.interactions.get(ws);
         const me = this.players.get(ws);
 
-        // OSRS parity: Walking cancels all queued skill actions (woodcutting, mining, etc.)
+        // Walking cancels all queued skill actions (woodcutting, mining, etc.)
         if (me) {
             this.interruptSkillActions(me.id);
         }
@@ -643,7 +643,7 @@ export class PlayerInteractionSystem {
             };
         }
 
-        // OSRS parity: Starting combat cancels any active skill actions
+        // Starting combat cancels any active skill actions
         this.interruptSkillActions(me.id);
         this.replaceInteractionState(ws, me);
 
@@ -666,7 +666,7 @@ export class PlayerInteractionSystem {
 
         state.modifierFlags = this.normalizeModifierFlags(state.modifierFlags);
 
-        // OSRS parity: Do not force NPC to face/engage on click.
+        // Do not force NPC to face/engage on click.
         // NPC retaliation/engagement begins when the first hit actually lands (confirmHitLanded),
         // not when the player clicks "Attack" or starts pathing.
 
@@ -702,7 +702,7 @@ export class PlayerInteractionSystem {
         );
         const routedWithProgress = routed && (me.hasPath() || this.isWithinAttackReach(me, npc));
         if (routedWithProgress) {
-            // OSRS parity: Allow attack on the same tick the player arrives in range.
+            // Allow attack on the same tick the player arrives in range.
             // If player walks into range during this tick's movement phase, they can
             // attack during the combat phase (same tick). The attack speed cooldown
             // only starts AFTER the first attack is executed, not when clicked.
@@ -1132,7 +1132,7 @@ export class PlayerInteractionSystem {
 
             const npcSize = Math.max(1, npc.size);
             const strategy = new RectAdjacentRouteStrategy(npc.tileX, npc.tileY, npcSize, npcSize);
-            // OSRS parity: Set collision getter so hasArrived() checks for walls.
+            // Set collision getter so hasArrived() checks for walls.
             // Without this, player appears "arrived" when geometrically adjacent but
             // wall-blocked, causing an infinite re-routing loop.
             strategy.setCollisionGetter(
@@ -1358,11 +1358,11 @@ export class PlayerInteractionSystem {
             return;
         }
 
-        // OSRS parity: Starting a new loc interaction cancels any active skill actions
+        // Starting a new loc interaction cancels any active skill actions
         this.interruptSkillActions(me.id);
         this.replaceInteractionState(ws, me);
 
-        // OSRS parity: Clicking an object replaces any in-flight click-to-walk intent.
+        // Clicking an object replaces any in-flight click-to-walk intent.
         // This also handles immediate interactions (already in range) where no new path is set.
         me.clearPath();
         me.clearWalkDestination();
@@ -1376,7 +1376,7 @@ export class PlayerInteractionSystem {
         };
         const resolved = this.resolvePendingLocInteraction(me, pending);
 
-        // OSRS parity: Never execute loc interactions immediately from the
+        // Never execute loc interactions immediately from the
         // message handler.  Always defer to the next tick's pre-movement phase
         // so that the animation queued by the script is consumed by
         // popPendingSeq BEFORE the delayed teleport fires in the combat phase.
@@ -1647,7 +1647,7 @@ export class PlayerInteractionSystem {
     }
 
     /**
-     * OSRS parity: Make the player face the loc when interaction triggers.
+     * Make the player face the loc when interaction triggers.
      * For normal objects (trees, rocks, etc.), face towards the center of the object.
      * This matches RSMod's faceObj behavior.
      */
@@ -1670,7 +1670,7 @@ export class PlayerInteractionSystem {
     }
 
     // Decide the route strategy for a loc interaction using the loc definition metadata.
-    // OSRS parity: Sets collision getter on wall-aware strategies so hasArrived() checks walls.
+    // Sets collision getter on wall-aware strategies so hasArrived() checks walls.
     private selectLocRouteStrategy(
         id: number,
         tile: { x: number; y: number },
@@ -1927,7 +1927,7 @@ export class PlayerInteractionSystem {
         for (const step of normalizedSteps) {
             const dx = Math.abs(step.x - prevX);
             const dy = Math.abs(step.y - prevY);
-            // OSRS parity: path buffers are per-tile steps (Chebyshev distance 1).
+            // path buffers are per-tile steps (Chebyshev distance 1).
             if (dx > 1 || dy > 1 || (dx === 0 && dy === 0)) {
                 return false;
             }
@@ -2347,7 +2347,7 @@ export class PlayerInteractionSystem {
     ): boolean {
         const normalizedReach = Math.max(1, reach);
         const attackType = resolvePlayerAttackType(player);
-        // OSRS parity: Melee requires cardinal positioning (N/S/E/W), not diagonal
+        // Melee requires cardinal positioning (N/S/E/W), not diagonal
         const strategy =
             normalizedReach <= 1
                 ? new CardinalAdjacentRouteStrategy(
@@ -2371,7 +2371,7 @@ export class PlayerInteractionSystem {
                       Math.max(1, npc.size),
                       normalizedReach,
                   );
-        // OSRS parity: Melee arrival checks must be wall-aware. Without this, routing can stop on
+        // Melee arrival checks must be wall-aware. Without this, routing can stop on
         // geometrically-adjacent tiles that are edge-blocked by walls, causing stuck combat pathing.
         if (strategy instanceof CardinalAdjacentRouteStrategy) {
             strategy.setCollisionGetter(
@@ -2383,7 +2383,7 @@ export class PlayerInteractionSystem {
                 this.pathService.projectileRaycast(from, to),
             );
         }
-        // OSRS parity: use the step-by-step path reconstruction. The legacy pathfinder's
+        // use the step-by-step path reconstruction. The legacy pathfinder's
         // buffer output is turn-point compressed and must not be expanded via naive interpolation.
         const res = this.pathService.findPathSteps(
             {
@@ -2455,7 +2455,7 @@ export class PlayerInteractionSystem {
     /**
      * Checks if a player is within attack reach of an NPC.
      *
-     * OSRS Parity Notes:
+     *  Notes:
      * - For melee (reach <= 1), player must be adjacent to the NPC bounding box (not overlapping)
      * - For halberds (reach = 2), player can attack from 2 tiles away but walls block
      * - For ranged/magic, reach is typically 7-10 and only requires distance check
@@ -2493,7 +2493,7 @@ export class PlayerInteractionSystem {
 
         // For melee reach (1), check wall collision for adjacency
         if (reach <= 1) {
-            // OSRS parity: Melee attacks require cardinal positioning (N/S/E/W)
+            // Melee attacks require cardinal positioning (N/S/E/W)
             // Reject diagonal positions - player must share an X or Y coordinate with NPC bounds
             const onCardinalX = px >= minX && px <= maxX; // Player X is within NPC X range
             const onCardinalY = py >= minY && py <= maxY; // Player Y is within NPC Y range
@@ -2514,7 +2514,7 @@ export class PlayerInteractionSystem {
         // For reach > 1 (e.g., halberds), use attack type resolution to decide LoS vs wall-path checks.
         const isMelee = resolvePlayerAttackType(player) === "melee";
 
-        // OSRS parity: Ranged/magic attacks require LINE OF SIGHT to the target.
+        // Ranged/magic attacks require LINE OF SIGHT to the target.
         // Wall checks are different from LoS - walls block melee, but projectiles
         // require an unobstructed raycast path to the target.
         if (!isMelee) {

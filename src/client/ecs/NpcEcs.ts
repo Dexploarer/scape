@@ -107,7 +107,7 @@ export class NpcEcs {
     // WorldView assignment (-1 = overworld, >= 0 = world entity)
     private worldViewId: Int16Array;
 
-    // OSRS parity: actor path buffers are length 10 with pathLength capped to 9.
+    // actor path buffers are length 10 with pathLength capped to 9.
     static readonly MAX_SERVER_PATH = 10;
     static readonly MAX_PENDING_PATH = 9;
     private serverPathX: Int8Array; // packed as [id*MAX + i]
@@ -803,15 +803,15 @@ export class NpcEcs {
                 const dx = (tx - cx) | 0;
                 const dy = (ty - cy) | 0;
 
-                // OSRS parity: one current path target is processed per client cycle.
+                // one current path target is processed per client cycle.
                 if (cx === tx && cy === ty) {
                     this.completeActiveStep(id);
                 } else if (dx > 256 || dx < -256 || dy > 256 || dy < -256) {
-                    // OSRS parity: snap to target tile center when >2 tiles away on either axis.
+                    // snap to target tile center when >2 tiles away on either axis.
                     this.setXY(id, tx, ty);
                     this.completeActiveStep(id);
                 } else {
-                    // OSRS parity: base movement speed from remaining path length thresholds.
+                    // base movement speed from remaining path length thresholds.
                     const rawStepSpeed = Math.max(1, this.getCurrentStepSpeed(id) | 0);
                     const pendingPathLength = pathLengthLike;
                     let speed = 4;
@@ -850,7 +850,7 @@ export class NpcEcs {
                     else if (rawStepSpeed <= 2) speed >>= 1; // crawl traversal
                     speed = Math.max(1, speed | 0);
 
-                    // OSRS parity: axis-wise stepping (both axes can move in one cycle).
+                    // axis-wise stepping (both axes can move in one cycle).
                     let newX = cx;
                     let newY = cy;
                     if (cx < tx) newX = Math.min(tx, cx + speed);

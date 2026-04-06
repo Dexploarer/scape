@@ -52,10 +52,10 @@ export type NpcInfoFrame = {
 };
 
 /**
- * Decodes the OSRS NPC update packet (`class353.updateNpcs`).
+ * Decodes the NPC update packet.
  *
  * Notes:
- * - Maintains a local NPC id list internally (like Client.npcIndices).
+ * - Maintains a local NPC id list internally.
  * - Only decodes the subset of update blocks that our server currently emits:
  *   FACE_ENTITY (0x8), HIT_MASK (0x20), COLOR_OVERRIDE (0x100), SPOTANIM2 (0x20000), SEQUENCE (0x10).
  */

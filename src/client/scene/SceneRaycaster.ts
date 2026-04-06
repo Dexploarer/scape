@@ -245,7 +245,7 @@ export class SceneRaycaster {
                 ? Math.max(0, Math.min(Scene.MAX_LEVELS - 1, options.basePlane | 0))
                 : undefined;
 
-        // OSRS parity: interact buffers disable picking when full fog is reached.
+        // interact buffers disable picking when full fog is reached.
         // Match that by filtering out hits beyond the current fog "end" radius (u_renderDistance).
         let fogCutoffSq: number | undefined;
         let playerWorldX: number | undefined;

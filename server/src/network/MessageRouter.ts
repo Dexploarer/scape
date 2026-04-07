@@ -115,12 +115,28 @@ const INTERFACE_CLOSING_ACTIONS = new Set([
  * Routes incoming WebSocket messages to appropriate handlers.
  * Extracted from wsServer.onConnection() to improve maintainability.
  */
+export type FallbackDispatcher = (
+    type: string,
+    ws: WebSocket,
+    player: PlayerState | undefined,
+    payload: unknown,
+) => boolean;
+
 export class MessageRouter {
     private handlers = new Map<RoutedMessageType, MessageHandler<RoutedMessageType>>();
     private services: MessageRouterServices;
+    private fallbackDispatcher: FallbackDispatcher | undefined;
 
     constructor(services: MessageRouterServices) {
         this.services = services;
+    }
+
+    /**
+     * Set a fallback dispatcher for message types with no registered handler.
+     * Used to route messages to gamemode-registered handlers (via ScriptRegistry).
+     */
+    setFallbackDispatcher(fn: FallbackDispatcher): void {
+        this.fallbackDispatcher = fn;
     }
 
     /**
@@ -169,6 +185,9 @@ export class MessageRouter {
         const type = parsed.type as RoutedMessageType;
         const handler = this.handlers.get(type);
         if (!handler) {
+            if (this.fallbackDispatcher) {
+                return this.fallbackDispatcher(parsed.type, ws, player, parsed.payload);
+            }
             return false;
         }
 

@@ -1,8 +1,10 @@
 import { loadVisibleLocTypeForPlayer } from "../../world/LocTransforms";
 
 type ExamineVarReader = {
-    getVarbitValue(varbitId: number): number;
-    getVarpValue(varpId: number): number;
+    varps: {
+        getVarbitValue(varbitId: number): number;
+        getVarpValue(varpId: number): number;
+    };
 };
 
 type LocTypeLoaderLike = {

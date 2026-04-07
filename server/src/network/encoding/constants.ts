@@ -3,18 +3,18 @@ import { DIRECTION_TO_ORIENTATION } from "../../../../src/shared/Direction";
 /**
  * Player update mask bit flags.
  * These control which update blocks are included in the player sync packet.
- * Order matches the OSRS client parsing order in `class467.method2621`.
+ * Order matches the client parsing order.
  */
 export const PLAYER_MASKS = {
     FORCED_CHAT: 0x01,
-    /** Player face direction (Actor.field1208). */
+    /** Player face direction. */
     FACE_DIR: 0x02,
     APPEARANCE: 0x04,
     ANIMATION: 0x08,
     PUBLIC_CHAT: 0x10,
     HIT: 0x20,
     FACE_ENTITY: 0x40,
-    FIELD512: 0x200,
+    COLOR_OVERRIDE: 0x200,
     FORCE_MOVEMENT: 0x400,
     ACTIONS: 0x800,
     MOVEMENT_TYPE: 0x1000,
@@ -27,7 +27,7 @@ export const PLAYER_MASKS = {
 /**
  * NPC update mask bit flags.
  * These control which update blocks are included in the NPC sync packet.
- * Order matches `UrlRequester.method2903` parsing order.
+ * Order matches the client parsing order.
  */
 export const NPC_MASKS = {
     FACE_ENTITY: 0x8,
@@ -64,7 +64,7 @@ export const NO_INTERACTION = -1;
 export const NO_TARGET_INDEX = 0xffffff;
 
 /**
- * OSRS parity: Rotation index lookup from RS orientation (0-2047) to 3-bit direction index.
+ * Rotation index lookup from RS orientation (0-2047) to 3-bit direction index.
  */
 export const ROTATION_TO_INDEX = new Map<number, number>([
     [DIRECTION_TO_ORIENTATION[0], 0],
@@ -78,7 +78,7 @@ export const ROTATION_TO_INDEX = new Map<number, number>([
 ]);
 
 /**
- * OSRS parity: Direction index to RS orientation.
+ * Direction index to RS orientation.
  */
 export const INDEX_TO_ROTATION = DIRECTION_TO_ORIENTATION;
 

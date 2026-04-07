@@ -65,7 +65,7 @@ export function ensureCorePlayerAnimSet(
 
     const fallbackValue = (key: CoreAnimKey): number | undefined => {
         for (const fb of fallbacks) {
-            const v = pickAnimId((fb as any)?.[key]);
+            const v = pickAnimId(fb?.[key]);
             if (v !== undefined) return v;
         }
         return HARD_CODED_CORE_DEFAULTS[key];

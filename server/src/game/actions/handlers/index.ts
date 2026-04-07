@@ -25,7 +25,6 @@ export {
 
 export {
     SpellActionHandler,
-    type SpellActionServices,
     type SpellCastModifiers,
     type SpellTargetKind,
     type SpellCastTarget,
@@ -43,10 +42,8 @@ export {
 
 export {
     InventoryActionHandler,
-    type InventoryActionServices,
     type EquipResult,
     type UnequipResult,
-    type CookingRecipe,
     type ObjTypeInfo,
 } from "./InventoryActionHandler";
 
@@ -63,7 +60,6 @@ export type { ProjectileLaunch } from "../../../../../src/shared/projectiles/Pro
 
 export {
     WidgetDialogHandler,
-    type WidgetDialogServices,
     type WidgetAction,
     type ScriptDialogRequest,
     type ScriptDialogOptionRequest,

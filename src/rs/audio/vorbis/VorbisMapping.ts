@@ -1,5 +1,5 @@
 /**
- * Vorbis Mapping (port of VorbisMapping.java).
+ * Vorbis Mapping.
  * Handles channel mapping and coupling configuration.
  */
 import { VorbisBitReader, sharedBitReader } from "./VorbisBitReader";

@@ -2,10 +2,10 @@ import path from "path";
 
 import { getCacheLoaderFactory } from "../../src/rs/cache/loader/CacheLoaderFactory";
 import { config } from "./config";
-import { initSpellWidgetMapping } from "./data/spells";
+import { initSpellWidgetMapping } from "./game/spells/SpellDataProvider";
+import { damageTracker } from "./game/combat/DamageTracker";
 import { createGamemode } from "./game/gamemodes/GamemodeRegistry";
 import { NpcManager } from "./game/npcManager";
-import { PlayerState } from "./game/player";
 import { GameTicker } from "./game/ticker";
 import { WSServer } from "./network/wsServer";
 import { PathService } from "./pathfinding/PathService";
@@ -26,11 +26,6 @@ async function main() {
     const cacheEnv = initCacheEnv("caches");
     logger.info(`Boot: cache ready (rev=${cacheEnv.info.revision}, name=${cacheEnv.info.name})`);
 
-    // Initialize spell-widget mappings from cache (OSRS parity)
-    logger.info("Boot: initializing spell-widget mappings from cache...");
-    initSpellWidgetMapping(cacheEnv.info, cacheEnv.cacheSystem);
-    logger.info("Boot: spell-widget mappings initialized");
-
     // Build full scenes like the editor (models included) so server has parity
     logger.info("Boot: creating map collision service (precomputed=true)...");
     const mapService = new MapCollisionService(cacheEnv, false, {
@@ -41,7 +36,7 @@ async function main() {
     const pathService = new PathService(mapService);
     logger.info("Boot: path service ready");
 
-    const cacheFactory = getCacheLoaderFactory(cacheEnv.info, cacheEnv.cacheSystem as any);
+    const cacheFactory = getCacheLoaderFactory(cacheEnv.info, cacheEnv.cacheSystem);
     const npcTypeLoader = cacheFactory.getNpcTypeLoader();
     const basTypeLoader = cacheFactory.getBasTypeLoader();
 
@@ -61,7 +56,9 @@ async function main() {
 
     logger.info(`Boot: creating gamemode "${config.gamemode}"...`);
     const gamemode = createGamemode(config.gamemode);
-    PlayerState.gamemodeRef = gamemode;
+    if (gamemode.getLootDistributionConfig) {
+        damageTracker.lootConfigResolver = (npcTypeId) => gamemode.getLootDistributionConfig!(npcTypeId);
+    }
     logger.info(`Boot: gamemode "${gamemode.name}" created`);
 
     logger.info("Boot: constructing WebSocket server...");
@@ -80,6 +77,11 @@ async function main() {
     });
     logger.info("Boot: WebSocket server constructed");
 
+    // Initialize spell-widget mappings from cache (must happen after gamemode registers SpellDataProvider)
+    logger.info("Boot: initializing spell-widget mappings from cache...");
+    initSpellWidgetMapping(cacheEnv.info, cacheEnv.cacheSystem);
+    logger.info("Boot: spell-widget mappings initialized");
+
     // Start the game tick
     ticker.start();
     logger.info("Boot: game ticker started");
@@ -95,7 +97,6 @@ async function main() {
 }
 
 main().catch((err) => {
-    // eslint-disable-next-line no-console
-    console.error(err);
+    logger.error(err);
     process.exit(1);
 });

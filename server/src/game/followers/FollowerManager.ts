@@ -58,24 +58,24 @@ export class FollowerManager {
     }
 
     restoreFollowerForPlayer(player: PlayerState): boolean {
-        const state = player.getFollowerState();
+        const state = player.followers.getState();
         if (!state) {
             this.unregisterFollower(player.id);
-            player.setActiveFollowerNpcId(undefined);
+            player.followers.setActiveNpcId(undefined);
             this.onFollowerIndexChanged?.(player.id, undefined);
             return false;
         }
         const normalizedState = this.normalizeFollowerState(state.itemId, state.npcTypeId);
         if (!normalizedState) {
             this.unregisterFollower(player.id);
-            player.clearFollowerState();
-            player.setActiveFollowerNpcId(undefined);
+            player.followers.clearState();
+            player.followers.setActiveNpcId(undefined);
             this.onFollowerIndexChanged?.(player.id, undefined);
             return false;
         }
-        player.setFollowerState(normalizedState);
+        player.followers.setState(normalizedState);
 
-        const activeNpcId = player.getActiveFollowerNpcId();
+        const activeNpcId = player.followers.getActiveNpcId();
         if (activeNpcId !== undefined) {
             const activeNpc = this.npcManager.getById(activeNpcId);
             if (activeNpc) {
@@ -87,7 +87,7 @@ export class FollowerManager {
                 );
                 return true;
             }
-            player.setActiveFollowerNpcId(undefined);
+            player.followers.setActiveNpcId(undefined);
             this.unregisterFollower(player.id, activeNpcId);
         }
 
@@ -104,13 +104,13 @@ export class FollowerManager {
         itemId: number,
         npcTypeId: number,
     ): { ok: true; npcId: number } | { ok: false; reason: string } {
-        const existing = player.getFollowerState();
+        const existing = player.followers.getState();
         if (existing) {
             if (this.restoreFollowerForPlayer(player)) {
                 return { ok: false, reason: "already_active" };
             }
-            player.clearFollowerState();
-            player.setActiveFollowerNpcId(undefined);
+            player.followers.clearState();
+            player.followers.setActiveNpcId(undefined);
         }
 
         const normalizedState = this.normalizeFollowerState(itemId, npcTypeId);
@@ -118,7 +118,7 @@ export class FollowerManager {
             return { ok: false, reason: "spawn_failed" };
         }
 
-        player.setFollowerState(normalizedState);
+        player.followers.setState(normalizedState);
         const npc = this.spawnFollowerNpc(
             player,
             normalizedState.itemId,
@@ -129,8 +129,8 @@ export class FollowerManager {
             },
         );
         if (!npc) {
-            player.clearFollowerState();
-            player.setActiveFollowerNpcId(undefined);
+            player.followers.clearState();
+            player.followers.setActiveNpcId(undefined);
             return { ok: false, reason: "spawn_failed" };
         }
         return { ok: true, npcId: npc.id };
@@ -152,7 +152,7 @@ export class FollowerManager {
             return { ok: false, reason: "not_owner" };
         }
 
-        const state = player.getFollowerState();
+        const state = player.followers.getState();
         const itemId = state?.itemId ?? follower.itemId;
         const definition = getFollowerDefinitionByItemId(itemId);
         if (!definition) {
@@ -174,7 +174,7 @@ export class FollowerManager {
         this.unregisterFollower(player.id, npc.id);
         this.npcManager.removeNpc(npc.id);
 
-        player.setFollowerState({ itemId, npcTypeId: nextVariant.npcTypeId });
+        player.followers.setState({ itemId, npcTypeId: nextVariant.npcTypeId });
         const morphedNpc = this.npcManager.spawnTransientNpc({
             id: nextVariant.npcTypeId,
             x: spawnTile.x,
@@ -183,11 +183,11 @@ export class FollowerManager {
             wanderRadius: 0,
         });
         if (!morphedNpc) {
-            player.setFollowerState({ itemId, npcTypeId: npc.typeId });
+            player.followers.setState({ itemId, npcTypeId: npc.typeId });
             const restoredNpc = this.spawnFollowerNpc(player, itemId, npc.typeId);
             if (!restoredNpc) {
-                player.clearFollowerState();
-                player.setActiveFollowerNpcId(undefined);
+                player.followers.clearState();
+                player.followers.setActiveNpcId(undefined);
                 return { ok: false, reason: "spawn_failed" };
             }
             return { ok: false, reason: "spawn_failed" };
@@ -212,20 +212,20 @@ export class FollowerManager {
         if (follower.ownerPlayerId !== player.id) {
             return { ok: false, reason: "not_owner" };
         }
-        const state = player.getFollowerState();
+        const state = player.followers.getState();
         const npcTypeId = state?.npcTypeId ?? npc.typeId;
         const itemId = state?.itemId ?? follower.itemId;
 
         this.unregisterFollower(player.id, npc.id);
-        player.setActiveFollowerNpcId(undefined);
-        player.clearFollowerState();
+        player.followers.setActiveNpcId(undefined);
+        player.followers.clearState();
         this.npcManager.removeNpc(npc.id);
 
         return { ok: true, itemId, npcTypeId };
     }
 
     callFollower(player: PlayerState): { ok: true; npcId: number } | { ok: false; reason: string } {
-        const state = player.getFollowerState();
+        const state = player.followers.getState();
         if (!state) {
             return { ok: false, reason: "missing" };
         }
@@ -254,10 +254,10 @@ export class FollowerManager {
     despawnFollowerForPlayer(playerId: number, clearPersistentState = false): boolean {
         const player = this.players.getById(playerId);
         const active = this.followersByPlayerId.get(playerId);
-        const npcId = active?.npcId ?? player?.getActiveFollowerNpcId();
+        const npcId = active?.npcId ?? player?.followers.getActiveNpcId();
         if (npcId === undefined) {
             if (player && clearPersistentState) {
-                player.clearFollowerState();
+                player.followers.clearState();
             }
             this.onFollowerIndexChanged?.(playerId, undefined);
             return false;
@@ -265,9 +265,9 @@ export class FollowerManager {
 
         this.unregisterFollower(playerId, npcId);
         if (player) {
-            player.setActiveFollowerNpcId(undefined);
+            player.followers.setActiveNpcId(undefined);
             if (clearPersistentState) {
-                player.clearFollowerState();
+                player.followers.clearState();
             }
         }
         return this.npcManager.removeNpc(npcId);
@@ -287,7 +287,7 @@ export class FollowerManager {
 
             if (!npc) {
                 this.unregisterFollower(active.playerId, active.npcId);
-                if (player.getFollowerState()) {
+                if (player.followers.getState()) {
                     this.restoreFollowerForPlayer(player);
                 }
                 continue;
@@ -420,8 +420,8 @@ export class FollowerManager {
         }
         npc.setFollowerState(player.id, itemId);
         npc.setInteraction("player", player.id);
-        player.setFollowerState({ itemId, npcTypeId });
-        player.setActiveFollowerNpcId(npc.id);
+        player.followers.setState({ itemId, npcTypeId });
+        player.followers.setActiveNpcId(npc.id);
         this.followersByPlayerId.set(player.id, {
             playerId: player.id,
             npcId: npc.id,

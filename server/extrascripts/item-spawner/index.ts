@@ -2,7 +2,7 @@ import { CustomItemBuilder } from "../../../src/custom/items/CustomItemBuilder";
 import { CustomItemRegistry } from "../../../src/custom/items/CustomItemRegistry";
 import { CustomWidgetRegistry } from "../../src/game/scripts/CustomWidgetRegistry";
 import type { PlayerState } from "../../src/game/player";
-import type { ScriptModule, WidgetActionEvent } from "../../src/game/scripts/types";
+import type { IScriptRegistry, ScriptServices, WidgetActionEvent } from "../../src/game/scripts/types";
 import {
     ITEM_SPAWNER_MODAL_COMPONENT_BODY,
     ITEM_SPAWNER_MODAL_COMPONENT_CLOSE,
@@ -56,7 +56,7 @@ function normalizeQuery(query: string | undefined): string {
 }
 
 function queueWidgetEvent(services: WidgetActionEvent["services"], playerId: number, event: any): void {
-    services.queueWidgetEvent?.(playerId, event);
+    services.dialog.queueWidgetEvent?.(playerId, event);
 }
 
 function runScript(services: WidgetActionEvent["services"], playerId: number, scriptId: number, args: Array<number | string>): void {
@@ -114,7 +114,7 @@ function applyItemSpawnerLayout(services: WidgetActionEvent["services"], player:
 }
 
 function openItemSpawnerModal(services: WidgetActionEvent["services"], player: PlayerState, query?: string): string {
-    const interfaceService = services.getInterfaceService?.();
+    const interfaceService = services.dialog.getInterfaceService?.();
     if (!interfaceService) return "Interface service unavailable.";
 
     const normalizedQuery = normalizeQuery(query);
@@ -138,9 +138,9 @@ function spawnInventoryItem(
     player: PlayerState,
     itemId: number,
 ): { requested: number; completed: number; itemName: string } {
-    const result = services.addItemToInventory(player, itemId, 1);
-    services.snapshotInventory(player);
-    const itemName = services.getObjType?.(itemId)?.name?.trim() || `Item ${itemId}`;
+    const result = services.inventory.addItemToInventory(player, itemId, 1);
+    services.inventory.snapshotInventory(player);
+    const itemName = services.data.getObjType?.(itemId)?.name?.trim() || `Item ${itemId}`;
     return {
         requested: 1,
         completed: result.added >= 1 ? 1 : 0,
@@ -148,62 +148,59 @@ function spawnInventoryItem(
     };
 }
 
-export const module: ScriptModule = {
-    id: "extrascript.item-spawner",
-    register(registry, services) {
-        registry.registerItemAction(ITEM_SPAWNER_ID, (event) => {
-            openItemSpawnerModal(event.services, event.player);
-        });
+export function register(registry: IScriptRegistry, services: ScriptServices): void {
+    registry.registerItemAction(ITEM_SPAWNER_ID, (event) => {
+        openItemSpawnerModal(event.services, event.player);
+    });
 
-        registry.registerCommand("itemspawner", (event) => {
-            const result = services.addItemToInventory(event.player, ITEM_SPAWNER_ID, 1);
-            if (result.added >= 1) {
-                services.snapshotInventory(event.player);
-                return "Item Spawner added to your inventory. Activate it to open the spawn menu.";
-            }
-            return "No free inventory space.";
-        });
-
-        // Search background click - no-op, handled client-side
-        registry.onButton(ITEM_SPAWNER_MODAL_GROUP_ID, ITEM_SPAWNER_MODAL_COMPONENT_SEARCH_BACKGROUND, () => {});
-
-        // Query text click - no-op, handled client-side
-        registry.onButton(ITEM_SPAWNER_MODAL_GROUP_ID, ITEM_SPAWNER_MODAL_COMPONENT_QUERY, () => {});
-
-        // Close button
-        registry.onButton(ITEM_SPAWNER_MODAL_GROUP_ID, ITEM_SPAWNER_MODAL_COMPONENT_CLOSE, (event) => {
-            const interfaceService = event.services.getInterfaceService?.();
-            interfaceService?.closeModal(event.player);
-        });
-
-        // Results view / scrollbar - no-op, prevent fallthrough
-        registry.onButton(ITEM_SPAWNER_MODAL_GROUP_ID, ITEM_SPAWNER_MODAL_COMPONENT_RESULTS_VIEW, () => {});
-        registry.onButton(ITEM_SPAWNER_MODAL_GROUP_ID, ITEM_SPAWNER_MODAL_COMPONENT_RESULTS_SCROLLBAR, () => {});
-
-        // Slot icon click handlers for spawning items
-        for (let slotIndex = 0; slotIndex < ITEM_SPAWNER_MODAL_RESULT_SLOT_COUNT; slotIndex++) {
-            const componentId = ITEM_SPAWNER_MODAL_COMPONENT_SLOT_ICON_START + slotIndex;
-            registry.onButton(ITEM_SPAWNER_MODAL_GROUP_ID, componentId, (event: WidgetActionEvent) => {
-                const selectedItemId = typeof event.itemId === "number" ? event.itemId | 0 : -1;
-                if (!(selectedItemId > 0)) return;
-
-                const result = spawnInventoryItem(event.services, event.player, selectedItemId);
-                if (result.completed < result.requested) {
-                    event.services.sendGameMessage(
-                        event.player,
-                        `Not enough inventory space to spawn ${result.itemName} (${selectedItemId}).`,
-                    );
-                    return;
-                }
-
-                event.services.sendGameMessage(
-                    event.player,
-                    `Spawned ${result.itemName} (${selectedItemId}) x${result.completed}.`,
-                );
-            });
+    registry.registerCommand("itemspawner", (event) => {
+        const result = services.inventory.addItemToInventory(event.player, ITEM_SPAWNER_ID, 1);
+        if (result.added >= 1) {
+            services.inventory.snapshotInventory(event.player);
+            return "Item Spawner added to your inventory. Activate it to open the spawn menu.";
         }
+        return "No free inventory space.";
+    });
 
-        // Client message handler for search queries (currently no-op, search is client-side)
-        registry.registerClientMessageHandler("item_spawner_search", () => {});
-    },
-};
+    // Search background click - no-op, handled client-side
+    registry.onButton(ITEM_SPAWNER_MODAL_GROUP_ID, ITEM_SPAWNER_MODAL_COMPONENT_SEARCH_BACKGROUND, () => {});
+
+    // Query text click - no-op, handled client-side
+    registry.onButton(ITEM_SPAWNER_MODAL_GROUP_ID, ITEM_SPAWNER_MODAL_COMPONENT_QUERY, () => {});
+
+    // Close button
+    registry.onButton(ITEM_SPAWNER_MODAL_GROUP_ID, ITEM_SPAWNER_MODAL_COMPONENT_CLOSE, (event) => {
+        const interfaceService = event.services.dialog.getInterfaceService?.();
+        interfaceService?.closeModal(event.player);
+    });
+
+    // Results view / scrollbar - no-op, prevent fallthrough
+    registry.onButton(ITEM_SPAWNER_MODAL_GROUP_ID, ITEM_SPAWNER_MODAL_COMPONENT_RESULTS_VIEW, () => {});
+    registry.onButton(ITEM_SPAWNER_MODAL_GROUP_ID, ITEM_SPAWNER_MODAL_COMPONENT_RESULTS_SCROLLBAR, () => {});
+
+    // Slot icon click handlers for spawning items
+    for (let slotIndex = 0; slotIndex < ITEM_SPAWNER_MODAL_RESULT_SLOT_COUNT; slotIndex++) {
+        const componentId = ITEM_SPAWNER_MODAL_COMPONENT_SLOT_ICON_START + slotIndex;
+        registry.onButton(ITEM_SPAWNER_MODAL_GROUP_ID, componentId, (event: WidgetActionEvent) => {
+            const selectedItemId = typeof event.itemId === "number" ? event.itemId | 0 : -1;
+            if (!(selectedItemId > 0)) return;
+
+            const result = spawnInventoryItem(event.services, event.player, selectedItemId);
+            if (result.completed < result.requested) {
+                event.services.messaging.sendGameMessage(
+                    event.player,
+                    `Not enough inventory space to spawn ${result.itemName} (${selectedItemId}).`,
+                );
+                return;
+            }
+
+            event.services.messaging.sendGameMessage(
+                event.player,
+                `Spawned ${result.itemName} (${selectedItemId}) x${result.completed}.`,
+            );
+        });
+    }
+
+    // Client message handler for search queries (currently no-op, search is client-side)
+    registry.registerClientMessageHandler("item_spawner_search", () => {});
+}

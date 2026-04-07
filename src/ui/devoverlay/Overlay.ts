@@ -34,17 +34,17 @@ export interface HitsplatEntry {
     style?: number;
     spriteName?: string;
     /**
-     * OSRS Parity: Secondary hitsplat type (e.g., poison icon displayed alongside damage).
+     * Secondary hitsplat type (e.g., poison icon displayed alongside damage).
      * Maps to Actor.hitSplatTypes2[slot] in OSRS.
      */
     type2?: number;
     /**
-     * OSRS Parity: Secondary hitsplat value (e.g., poison damage amount).
+     * Secondary hitsplat value (e.g., poison damage amount).
      * Maps to Actor.hitSplatValues2[slot] in OSRS.
      */
     damage2?: number;
     /**
-     * OSRS Parity: Animation progress ratio from 0..1.
+     * Animation progress ratio from 0..1.
      * 0 = just became visible, 1 = about to expire.
      * Used to animate xOffset (from xOffset to 0), yOffset (from 0 to -yOffset),
      * and fade alpha (from 255 to 0 after fadeStartCycle).

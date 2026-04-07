@@ -3,6 +3,7 @@ import { ScriptScheduler } from "../systems/ScriptScheduler";
 import { ScriptRegistry } from "./ScriptRegistry";
 import {
     type ClientMessageHandler,
+    type CommandHandler,
     type EquipmentActionEvent,
     type EquipmentActionHandler,
     type IScriptRegistry,
@@ -17,7 +18,6 @@ import {
     type RegionEvent,
     type RegionEventHandler,
     type ScriptActionHandler,
-    type ScriptModule,
     type ScriptRegistrationResult,
     type ScriptServices,
     type TickHandler,
@@ -45,8 +45,8 @@ export class ScriptRuntime {
     private readonly scheduler: ScriptScheduler;
     private readonly logger: LoggerLike;
     private readonly services: ScriptServices;
-    private readonly loadedModuleIds = new Set<string>();
-    private readonly moduleDisposers = new Map<string, ScriptRegistrationResult[]>();
+    private readonly loadedHandlerIds = new Set<string>();
+    private readonly handlerDisposers = new Map<string, ScriptRegistrationResult[]>();
     private readonly hotReloadEnabled: boolean;
 
     constructor(options: ScriptRuntimeOptions) {
@@ -68,20 +68,23 @@ export class ScriptRuntime {
         return this.services;
     }
 
-    loadModule(module: ScriptModule): void {
-        if (!this.hotReloadEnabled && this.loadedModuleIds.has(module.id)) {
-            this.logger.debug(`[script] module already loaded: ${module.id}`);
+    registerHandlers(
+        id: string,
+        fn: (registry: IScriptRegistry, services: ScriptServices) => void,
+    ): void {
+        if (!this.hotReloadEnabled && this.loadedHandlerIds.has(id)) {
+            this.logger.debug(`[script] handlers already loaded: ${id}`);
             return;
         }
-        if (this.hotReloadEnabled && this.loadedModuleIds.has(module.id)) {
-            this.unloadModule(module.id);
+        if (this.hotReloadEnabled && this.loadedHandlerIds.has(id)) {
+            this.unloadHandlers(id);
         }
         const disposers: ScriptRegistrationResult[] = [];
         const trackingRegistry = this.createTrackingRegistry(disposers);
-        module.register(trackingRegistry, this.services);
-        this.moduleDisposers.set(module.id, disposers);
-        this.loadedModuleIds.add(module.id);
-        this.logger.info(`[script] loaded module: ${module.id}`);
+        fn(trackingRegistry, this.services);
+        this.handlerDisposers.set(id, disposers);
+        this.loadedHandlerIds.add(id);
+        this.logger.info(`[script] loaded handlers: ${id}`);
     }
 
     queueNpcInteraction(event: Omit<NpcInteractionEvent, "services">): boolean {
@@ -390,33 +393,33 @@ export class ScriptRuntime {
     }
 
     reset(): void {
-        for (const [moduleId, disposers] of this.moduleDisposers.entries()) {
+        for (const [handlerId, disposers] of this.handlerDisposers.entries()) {
             for (const disposer of disposers.reverse()) {
                 try {
                     disposer.unregister();
                 } catch (err) {
-                    this.logger.warn(`[script] disposer for module ${moduleId} threw`, err);
+                    this.logger.warn(`[script] disposer for ${handlerId} threw`, err);
                 }
             }
         }
-        this.moduleDisposers.clear();
+        this.handlerDisposers.clear();
         this.registry.clearAll();
         this.scheduler.clear();
-        this.loadedModuleIds.clear();
+        this.loadedHandlerIds.clear();
     }
 
-    private unloadModule(moduleId: string): void {
-        const disposers = this.moduleDisposers.get(moduleId);
+    private unloadHandlers(id: string): void {
+        const disposers = this.handlerDisposers.get(id);
         if (!disposers) return;
         for (const disposer of disposers.reverse()) {
             try {
                 disposer.unregister();
             } catch (err) {
-                this.logger.warn(`[script] disposer for module ${moduleId} threw`, err);
+                this.logger.warn(`[script] disposer for ${id} threw`, err);
             }
         }
-        this.moduleDisposers.delete(moduleId);
-        this.loadedModuleIds.delete(moduleId);
+        this.handlerDisposers.delete(id);
+        this.loadedHandlerIds.delete(id);
     }
 
     private scheduleHandler<TEvent>(
@@ -491,7 +494,7 @@ export class ScriptRuntime {
                 track(this.registry.registerRegionHandler(regionId, handler)),
             registerTickHandler: (handler: TickHandler) =>
                 track(this.registry.registerTickHandler(handler)),
-            registerCommand: (name: string, handler: any) =>
+            registerCommand: (name: string, handler: CommandHandler) =>
                 track(this.registry.registerCommand(name, handler)),
             findCommand: (name: string) => this.registry.findCommand(name),
             findNpcInteraction: (npcId, option) => this.registry.findNpcInteraction(npcId, option),

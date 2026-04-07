@@ -35,7 +35,7 @@ export function isLeagueVWorldPlayer(player: PlayerState | undefined): boolean {
 function countUnlockedRelics(player: PlayerState): number {
     let unlocked = 0;
     for (const varbitId of LEAGUE_RELIC_VARBITS) {
-        const selected = player.getVarbitValue(varbitId);
+        const selected = player.varps.getVarbitValue(varbitId);
         if (selected > 0) unlocked++;
     }
     return unlocked;

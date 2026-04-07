@@ -4,7 +4,7 @@
  * Encodes OSRS-style binary player sync packets.
  * Extracted from wsServer.ts buildPlayerSyncPacket method.
  *
- * Reference: `class388.updatePlayers` + `class467.method2621`
+ * Player sync packet encoder.
  */
 import {
     MovementDirection,
@@ -17,6 +17,8 @@ import {
     type HitsplatSourceType,
 } from "../../game/combat/OsrsHitsplatIds";
 import type { PlayerAppearance, PlayerState } from "../../game/player";
+import type { ServerServices } from "../../game/ServerServices";
+import { encodeAppearanceBinary } from "./AppearanceEncoder";
 import { BitWriter } from "../BitWriter";
 import { PlayerSyncSession } from "../PlayerSyncSession";
 import { encodeCp1252Bytes } from "./Cp1252";
@@ -126,20 +128,6 @@ export interface PlayerTickFrameData {
 /**
  * Services interface for player packet encoding.
  */
-export interface PlayerPacketEncoderServices {
-    /** Get a player by ID */
-    getPlayer(id: number): PlayerState | undefined;
-    /** Get all live players (players + bots) */
-    getLivePlayers(): Map<number, PlayerState>;
-    /** Build animation payload for a player */
-    buildAnimPayload(player: PlayerState): PlayerAnimSet | undefined;
-    /** Serialize appearance block for a player view */
-    serializeAppearancePayload(view: PlayerViewSnapshot): Uint8Array;
-    /** Resolve healthbar width by definition ID */
-    resolveHealthBarWidth(defId: number): number;
-    /** Encode text with Huffman compression */
-    encodeHuffmanChat(text: string): Uint8Array;
-}
 
 /**
  * Player Packet Encoder class.
@@ -152,7 +140,62 @@ function foldAppearanceHash(hash: number, value: number): number {
 }
 
 export class PlayerPacketEncoder {
-    constructor(private services: PlayerPacketEncoderServices) {}
+    constructor(private svc: ServerServices) {}
+
+    private getPlayer(id: number): PlayerState | undefined {
+        return this.svc.players?.getById(id);
+    }
+
+    private getLivePlayers(): Map<number, PlayerState> {
+        const liveById = new Map<number, PlayerState>();
+        if (this.svc.players) {
+            this.svc.players.forEach((_, p) => { liveById.set(p.id, p); });
+            this.svc.players.forEachBot((p) => { liveById.set(p.id, p); });
+        }
+        return liveById;
+    }
+
+    private buildAnimPayload(player: PlayerState): PlayerAnimSet | undefined {
+        return this.svc.appearanceService.buildAnimPayload(player);
+    }
+
+    private serializeAppearancePayload(view: PlayerViewSnapshot): Uint8Array {
+        const player = this.svc.players?.getById(view.id);
+        return encodeAppearanceBinary(view, {
+            combatLevel: player?.combatLevel ?? 3,
+            skillLevel: player?.skillTotal ?? 32,
+            isHidden: false,
+            actions: ["", "", ""],
+        });
+    }
+
+    private resolveHealthBarWidth(defId: number): number {
+        try {
+            const def = this.svc.healthBarDefLoader?.load?.(defId);
+            return Math.max(1, Math.min(255, def?.width ?? 30));
+        } catch {
+            return 30;
+        }
+    }
+
+    private encodeHuffmanChat(text: string): Uint8Array {
+        const raw = encodeCp1252Bytes(text);
+        const huffman = this.svc.huffman;
+        if (!huffman) return raw;
+        const maxCompressed = raw.length * 4 + 8;
+        const buf = new Uint8Array(maxCompressed);
+        let off = 0;
+        const len = raw.length;
+        if (len >= 0 && len < 128) {
+            buf[off++] = len & 0xff;
+        } else if (len >= 0 && len < 32768) {
+            const vv = (len + 32768) & 0xffff;
+            buf[off++] = (vv >> 8) & 0xff;
+            buf[off++] = vv & 0xff;
+        }
+        const written = huffman.compress(raw, 0, raw.length, buf, off);
+        return buf.subarray(0, off + written);
+    }
 
     /**
      * Build the player sync packet for a given player.
@@ -166,7 +209,7 @@ export class PlayerPacketEncoder {
         const tickMs = Math.max(1, frame.tickMs);
         const cyclesPerTick = Math.max(1, Math.round(tickMs / 20));
         const localIndex = player.id;
-        // OSRS parity: keep scene base stable and only rebase near the scene edge.
+        // keep scene base stable and only rebase near the scene edge.
         const baseTileX = this.resolveSceneBaseCoordinate(session.baseTileX, player.tileX);
         const baseTileY = this.resolveSceneBaseCoordinate(session.baseTileY, player.tileY);
         session.baseTileX = baseTileX;
@@ -175,7 +218,7 @@ export class PlayerPacketEncoder {
         const views = frame.playerViews;
         const stepsById = frame.playerSteps;
         const interactionIndices = frame.interactionIndices;
-        const liveById = this.services.getLivePlayers();
+        const liveById = this.getLivePlayers();
 
         // Refresh view appearances from live player data
         for (const [id, view] of views) {
@@ -185,7 +228,7 @@ export class PlayerPacketEncoder {
                 if (!view.name || view.name.length === 0) {
                     view.name = livePlayer.name;
                 }
-                view.anim = this.services.buildAnimPayload(livePlayer);
+                view.anim = this.buildAnimPayload(livePlayer);
             }
         }
 
@@ -253,7 +296,7 @@ export class PlayerPacketEncoder {
             if (spotId < -1) continue;
             const slot = evt.slot !== undefined ? evt.slot & 0xff : 0;
             const height = evt.height ?? 0;
-            // OSRS parity: spot animation delays in update blocks are in client cycles (20ms units),
+            // spot animation delays in update blocks are in client cycles (20ms units),
             // but server events supply delays in server ticks.
             const delayServerTicks = evt.delay !== undefined ? Math.max(0, evt.delay) : 0;
             const delayCycles = Math.min(
@@ -315,14 +358,14 @@ export class PlayerPacketEncoder {
         // Actor HSL color overrides (poison/freeze/venom tints)
         for (const [pid, co] of frame.colorOverrides) {
             if (pid < 0 || co.amount <= 0) continue;
-            const entry = markMask(pid, PLAYER_MASKS.FIELD512);
-            entry.field512 = {
-                field1180: frame.tick, // startCycle = current tick
-                field1233: frame.tick + co.durationTicks, // endCycle
-                field1234: co.hue,
-                field1193: co.sat,
-                field1204: co.lum,
-                field1237: co.amount,
+            const entry = markMask(pid, PLAYER_MASKS.COLOR_OVERRIDE);
+            entry.colorOverride = {
+                startCycle: frame.tick,
+                endCycle: frame.tick + co.durationTicks,
+                hue: co.hue,
+                sat: co.sat,
+                lum: co.lum,
+                amount: co.amount,
             };
         }
 
@@ -347,7 +390,7 @@ export class PlayerPacketEncoder {
                 packedColor,
                 playerType,
                 autoChat: msg.autoChat === true,
-                payload: this.services.encodeHuffmanChat(text),
+                payload: this.encodeHuffmanChat(text),
                 extra:
                     expectedExtraLen > 0 && Array.isArray(msg.pattern)
                         ? Uint8Array.from(msg.pattern.map((v) => v & 0xff))
@@ -460,12 +503,12 @@ export class PlayerPacketEncoder {
             const view = viewById.get(id);
             if (view && (spawnSet.has(id) || this.shouldWriteAppearance(session, id, view))) {
                 const entry = markMask(id, PLAYER_MASKS.APPEARANCE);
-                entry.appearance = this.services.serializeAppearancePayload(view);
+                entry.appearance = this.serializeAppearancePayload(view);
             }
 
             const movement = movementById.get(id);
             const desiredMovementType = (() => {
-                const list = movement?.traversals ?? (view as any)?.traversals;
+                const list = movement?.traversals ?? view?.traversals;
                 if (Array.isArray(list) && list.length > 0) {
                     const last = list[list.length - 1];
                     if (Number.isFinite(last)) {
@@ -684,23 +727,23 @@ export class PlayerPacketEncoder {
             let skip = 0;
             for (let i = 0; i < session.playersIndices.length; i++) {
                 const id = session.playersIndices[i];
-                if (((session.field1355[id] & 1) as 0 | 1) !== wantBit0) continue;
+                if (((session.updateFlags[id] & 1) as 0 | 1) !== wantBit0) continue;
                 if (skip > 0) {
                     skip--;
-                    session.field1355[id] = (session.field1355[id] | 2) & 0xff;
+                    session.updateFlags[id] = (session.updateFlags[id] | 2) & 0xff;
                     continue;
                 }
                 if (!shouldUpdatePlayer(id)) {
                     let run = 0;
                     for (let j = i + 1; j < session.playersIndices.length && run < 2047; j++) {
                         const next = session.playersIndices[j];
-                        if (((session.field1355[next] & 1) as 0 | 1) !== wantBit0) continue;
+                        if (((session.updateFlags[next] & 1) as 0 | 1) !== wantBit0) continue;
                         if (shouldUpdatePlayer(next)) break;
                         run++;
                     }
                     writer.writeBits(1, 0);
                     writeSkipCount(run);
-                    session.field1355[id] = (session.field1355[id] | 2) & 0xff;
+                    session.updateFlags[id] = (session.updateFlags[id] | 2) & 0xff;
                     skip = run;
                     continue;
                 }
@@ -716,30 +759,30 @@ export class PlayerPacketEncoder {
             let skip = 0;
             for (let i = 0; i < session.emptyIndices.length; i++) {
                 const id = session.emptyIndices[i];
-                if (((session.field1355[id] & 1) as 0 | 1) !== wantBit0) continue;
+                if (((session.updateFlags[id] & 1) as 0 | 1) !== wantBit0) continue;
                 if (skip > 0) {
                     skip--;
-                    session.field1355[id] = (session.field1355[id] | 2) & 0xff;
+                    session.updateFlags[id] = (session.updateFlags[id] | 2) & 0xff;
                     continue;
                 }
                 if (!shouldUpdateExternal(id)) {
                     let run = 0;
                     for (let j = i + 1; j < session.emptyIndices.length && run < 2047; j++) {
                         const next = session.emptyIndices[j];
-                        if (((session.field1355[next] & 1) as 0 | 1) !== wantBit0) continue;
+                        if (((session.updateFlags[next] & 1) as 0 | 1) !== wantBit0) continue;
                         if (shouldUpdateExternal(next)) break;
                         run++;
                     }
                     writer.writeBits(1, 0);
                     writeSkipCount(run);
-                    session.field1355[id] = (session.field1355[id] | 2) & 0xff;
+                    session.updateFlags[id] = (session.updateFlags[id] | 2) & 0xff;
                     skip = run;
                     continue;
                 }
                 writer.writeBits(1, 1);
                 const spawned = writeExternalUpdate(id);
                 if (spawned) {
-                    session.field1355[id] = (session.field1355[id] | 2) & 0xff;
+                    session.updateFlags[id] = (session.updateFlags[id] | 2) & 0xff;
                 }
             }
             if (skip !== 0) {
@@ -758,7 +801,7 @@ export class PlayerPacketEncoder {
 
         // Advance session flags + rebuild index lists
         for (let i = 1; i < 2048; i++) {
-            session.field1355[i] = (session.field1355[i] >>> 1) & 0xff;
+            session.updateFlags[i] = (session.updateFlags[i] >>> 1) & 0xff;
         }
         session.playersIndices.length = 0;
         session.emptyIndices.length = 0;
@@ -904,11 +947,11 @@ export class PlayerPacketEncoder {
             const actor = liveById.get(id);
             if (!actor) continue;
             const hbDefId = Math.max(0, actor.getHealthBarDefinitionId());
-            const hbWidth = this.services.resolveHealthBarWidth(hbDefId);
-            const maxHp = Math.max(1, actor.getHitpointsMax());
-            const curHp = Math.max(0, actor.getHitpointsCurrent());
+            const hbWidth = this.resolveHealthBarWidth(hbDefId);
+            const maxHp = Math.max(1, actor.skillSystem.getHitpointsMax());
+            const curHp = Math.max(0, actor.skillSystem.getHitpointsCurrent());
 
-            // OSRS Parity: Don't skip when HP is 0 - we need to send health bar update showing 0%
+            // Don't skip when HP is 0 - we need to send health bar update showing 0%
             // before death animation plays. The health bar should animate to empty.
             let scaled = Math.max(
                 0,
@@ -981,7 +1024,7 @@ export class PlayerPacketEncoder {
                 id: hbDefId,
                 cycleOffset: 0,
                 delayCycles: 0,
-                // OSRS parity: most HP updates are sent as immediate snaps (cycleOffset=0),
+                // most HP updates are sent as immediate snaps (cycleOffset=0),
                 // meaning `health2` is omitted on the wire and treated as `health`.
                 health: scaled,
                 health2: scaled,
@@ -1066,8 +1109,8 @@ export class PlayerPacketEncoder {
             if (rawMask & PLAYER_MASKS.SPOT_ANIM) {
                 this.writeSpotAnims(writer, info?.spotAnims);
             }
-            if (rawMask & PLAYER_MASKS.FIELD512) {
-                this.writeField512(writer, info?.field512, tick, cyclesPerTick);
+            if (rawMask & PLAYER_MASKS.COLOR_OVERRIDE) {
+                this.writeColorOverride(writer, info?.colorOverride, tick, cyclesPerTick);
             }
             pendingUpdates.delete(id);
         }
@@ -1204,24 +1247,24 @@ export class PlayerPacketEncoder {
         }
     }
 
-    private writeField512(
+    private writeColorOverride(
         writer: BitWriter,
-        entry?: PlayerUpdateInfo["field512"],
+        entry?: PlayerUpdateInfo["colorOverride"],
         tick?: number,
         cyclesPerTick?: number,
     ): void {
         const cpt = Math.max(1, cyclesPerTick ?? 30);
         const frameTick = tick ?? 0;
-        const t1 = entry?.field1180 ?? frameTick;
-        const t2 = entry?.field1233 ?? frameTick;
+        const t1 = entry?.startCycle ?? frameTick;
+        const t2 = entry?.endCycle ?? frameTick;
         const off1 = Math.max(0, Math.round(Math.max(0, t1 - frameTick) * cpt)) & 0xffff;
         const off2 = Math.max(0, Math.round(Math.max(0, t2 - frameTick) * cpt)) & 0xffff;
         writer.writeShortLE(off1);
         writer.writeShortLE(off2);
-        this.writeByteS(writer, (entry?.field1234 ?? 0) & 0xff);
-        writer.writeByte((entry?.field1193 ?? 0) & 0xff);
-        this.writeByteA(writer, (entry?.field1204 ?? 0) & 0xff);
-        writer.writeByteC((entry?.field1237 ?? 0) & 0xff);
+        this.writeByteS(writer, (entry?.hue ?? 0) & 0xff);
+        writer.writeByte((entry?.sat ?? 0) & 0xff);
+        this.writeByteA(writer, (entry?.lum ?? 0) & 0xff);
+        writer.writeByteC((entry?.amount ?? 0) & 0xff);
     }
 
     // Byte transform helpers

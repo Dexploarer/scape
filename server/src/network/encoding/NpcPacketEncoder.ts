@@ -4,8 +4,10 @@
  * Encodes OSRS-style binary NPC sync packets.
  * Extracted from wsServer.ts for better modularity.
  *
- * Reference: `class353.updateNpcs` + `PcmPlayer.method846` + `UrlRequester.method2903`
+ * NPC sync packet encoder.
  */
+import { logger } from "../../utils/logger";
+import type { ServerServices } from "../../game/ServerServices";
 import {
     resolveHitsplatTypeForObserver,
     type HitsplatSourceType,
@@ -74,20 +76,29 @@ export interface NpcTickFrameData {
 /**
  * Services interface for NPC packet encoding.
  */
-export interface NpcPacketEncoderServices {
-    /** Get an NPC by ID */
-    getNpcById(id: number): NpcState | undefined;
-    /** Get nearby NPCs for a player's viewport */
-    getNearbyNpcs(x: number, y: number, level: number, radius: number): NpcState[];
-    /** Resolve healthbar width by definition ID */
-    resolveHealthBarWidth(defId: number): number;
-}
-
 /**
  * NPC Packet Encoder class.
  */
 export class NpcPacketEncoder {
-    constructor(private services: NpcPacketEncoderServices) {}
+    constructor(private svc: ServerServices) {}
+
+    private getNpcById(id: number): NpcState | undefined {
+        return this.svc.npcManager?.getById(id);
+    }
+
+    private getNearbyNpcs(x: number, y: number, level: number, radius: number): NpcState[] {
+        return this.svc.npcManager?.getNearby(x, y, level, radius) ?? [];
+    }
+
+    private resolveHealthBarWidth(defId: number): number {
+        try {
+            const def = this.svc.healthBarDefLoader?.load?.(defId);
+            return Math.max(1, Math.min(255, def?.width ?? 30));
+        } catch (err) {
+            logger.warn("Failed to resolve NPC health bar width", err);
+            return 30;
+        }
+    }
 
     /**
      * Build a binary NPC sync packet for a player.
@@ -106,7 +117,7 @@ export class NpcPacketEncoder {
         const level = player.level;
 
         // Get nearby NPCs
-        const desiredNpcs = this.services.getNearbyNpcs(
+        const desiredNpcs = this.getNearbyNpcs(
             localTileX,
             localTileY,
             level,
@@ -225,7 +236,7 @@ export class NpcPacketEncoder {
 
             try {
                 const hbDefId = Math.max(0, npc.getHealthBarDefinitionId());
-                const hbWidth = this.services.resolveHealthBarWidth(hbDefId);
+                const hbWidth = this.resolveHealthBarWidth(hbDefId);
                 const maxHp = Math.max(1, npc.getMaxHitpoints());
                 const curHp = Math.max(0, npc.getHitpoints());
 
@@ -265,7 +276,7 @@ export class NpcPacketEncoder {
                         id: hbDefId,
                         cycleOffset: 0,
                         delayCycles: 0,
-                        // OSRS parity: most HP updates are sent as immediate snaps (cycleOffset=0),
+                        // most HP updates are sent as immediate snaps (cycleOffset=0),
                         // meaning `health2` is omitted on the wire and treated as `health`.
                         health: scaled,
                         health2: scaled,
@@ -279,7 +290,7 @@ export class NpcPacketEncoder {
                         health2: scaled,
                     });
                 }
-            } catch {}
+            } catch (err) { logger.warn("[npc-encoder] failed to encode health bar", err); }
 
             if (hasHits || healthBars.length > 0) {
                 info.mask |= NPC_MASKS.HIT;
@@ -302,12 +313,12 @@ export class NpcPacketEncoder {
         // Process existing NPCs
         for (let i = 0; i < prevCount; i++) {
             const npcId = session.npcIndices[i];
-            const npc = this.services.getNpcById(npcId);
+            const npc = this.getNpcById(npcId);
             if (!npc || !desiredSet.has(npcId)) {
                 writer.writeBits(1, 1);
                 writer.writeBits(2, 3);
                 // Per-recipient caches must be cleared when an NPC leaves the local list.
-                // OSRS parity: ids are reused and actors are re-instantiated client-side.
+                // ids are reused and actors are re-instantiated client-side.
                 session.lastTargetIndex.delete(npcId);
                 player.lastNpcHealthBarScaled.delete(npcId);
                 continue;
@@ -391,7 +402,7 @@ export class NpcPacketEncoder {
         // Determine if large encoding is needed
         const needsLarge = (() => {
             for (const id of addCandidates) {
-                const npc = this.services.getNpcById(id);
+                const npc = this.getNpcById(id);
                 if (!npc) continue;
                 const dx = npc.tileX - localTileX;
                 const dy = npc.tileY - localTileY;
@@ -410,7 +421,7 @@ export class NpcPacketEncoder {
         let added = 0;
         for (let i = 0; i < addCandidates.length && added < maxToAdd; i++) {
             const npcId = addCandidates[i];
-            const npc = this.services.getNpcById(npcId);
+            const npc = this.getNpcById(npcId);
             if (!npc) continue;
             if (!desiredSet.has(npcId)) continue;
 
@@ -470,7 +481,7 @@ export class NpcPacketEncoder {
         }
 
         // Keep per-recipient NPC healthbar history bounded.
-        // OSRS parity: NPC ids are reused for respawns, so stale baselines can otherwise
+        // NPC ids are reused for respawns, so stale baselines can otherwise
         // cause a full-health respawn to briefly show a "healing" health bar update.
         for (const id of Array.from(player.lastNpcHealthBarScaled.keys())) {
             if (!nextSet.has(id)) player.lastNpcHealthBarScaled.delete(id);
@@ -579,7 +590,7 @@ export class NpcPacketEncoder {
             const slot = evt.slot !== undefined ? evt.slot & 0xff : 0;
             const spotId = evt.spotId;
             if (spotId < -1) continue;
-            // OSRS parity: spot animation delays in update blocks are in client cycles (20ms units),
+            // spot animation delays in update blocks are in client cycles (20ms units),
             // but server events supply delays in server ticks.
             const delayServerTicks = evt.delay !== undefined ? Math.max(0, evt.delay) : 0;
             const delayCycles = Math.min(
@@ -607,7 +618,7 @@ export class NpcPacketEncoder {
         infos: Map<number, NpcUpdateInfo>,
     ): void {
         for (const npcId of pendingUpdateOrder) {
-            const npc = this.services.getNpcById(npcId);
+            const npc = this.getNpcById(npcId);
             if (!npc) continue;
             const info = infos.get(npcId);
             if (!info) continue;

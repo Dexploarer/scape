@@ -1,5 +1,5 @@
 /**
- * Vorbis Floor (port of VorbisFloor.java).
+ * Vorbis Floor.
  * Handles spectral floor curve decoding and synthesis.
  */
 import { VorbisBitReader, sharedBitReader } from "./VorbisBitReader";

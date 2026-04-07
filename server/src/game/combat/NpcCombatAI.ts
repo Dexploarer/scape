@@ -263,7 +263,7 @@ export function onNpcAttack(
 /**
  * Check if player is within NPC's HUNT range.
  *
- * OSRS parity: Hunt range uses the NPC's SW tile (x, y) as origin.
+ * Hunt range uses the NPC's SW tile (x, y) as origin.
  * NPC size is NOT accounted for in hunt range calculations.
  *
  * This creates a known quirk where larger NPCs (2x2, 3x3) won't detect
@@ -295,7 +295,7 @@ export function isInHuntRange(
 /**
  * Check if player is within NPC's AGGRESSION range.
  *
- * OSRS parity: Aggression range uses the nearest tile of the NPC.
+ * Aggression range uses the nearest tile of the NPC.
  * NPC size IS accounted for (distance from nearest edge).
  *
  * This is different from hunt range - aggression range is used for
@@ -392,7 +392,7 @@ export function checkAggression(
         // Must be on same level
         if (player.level !== npcLevel) continue;
 
-        // OSRS parity: Use HUNT range check (SW tile origin, size NOT included)
+        // Use HUNT range check (SW tile origin, size NOT included)
         // This enables the quirk where larger NPCs don't detect players at N/E edges
         if (!isInHuntRange(npcX, npcY, player.x, player.y, huntRange)) {
             continue;
@@ -403,7 +403,7 @@ export function checkAggression(
         const dy = Math.abs(player.y - npcY);
         const distance = Math.max(dx, dy);
 
-        // OSRS parity: Combat level check
+        // Combat level check
         // - Skip check entirely in wilderness (all NPCs aggressive regardless of level)
         // - Level 63+ NPCs are always aggressive (63*2=126 = max player combat level)
         // - Otherwise: Player must be <= 2x NPC's combat level
@@ -457,7 +457,7 @@ export function checkAggressionTimerExpired(
 /**
  * Create aggression state when player enters an area.
  *
- * OSRS parity: Initializes both tile positions to entry location.
+ * Initializes both tile positions to entry location.
  * The 21x21 tolerance region is centered on these tracked tiles.
  */
 export function createAggressionState(
@@ -488,7 +488,7 @@ export function createAggressionStateLegacy(entryTick: number): PlayerAggression
 
 /**
  * Update aggression state each tick (without position tracking).
- * @deprecated Use updateAggressionStateWithPosition for full OSRS parity
+ * @deprecated Use updateAggressionStateWithPosition for full 
  */
 export function updateAggressionState(
     state: PlayerAggressionState,
@@ -507,7 +507,7 @@ export function updateAggressionState(
 /**
  * Update aggression state with position tracking for tolerance reset.
  *
- * OSRS parity: Player must move 10+ tiles from BOTH tracked positions to reset timer.
+ * Player must move 10+ tiles from BOTH tracked positions to reset timer.
  * - Distance uses Chebyshev (max of dx, dy)
  * - When reset occurs, oldest tile (tile1) is replaced with tile2, tile2 becomes current position
  * - Timer resets to full 10 minutes

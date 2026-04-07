@@ -2,7 +2,7 @@
  * ServerBinaryEncoder - Encode server messages to binary format
  *
  * Replaces JSON.stringify for server-to-client messages.
- * All encoding methods match OSRS Buffer.java patterns.
+ * Binary encoding helpers for server packets.
  */
 import {
     SERVER_PACKET_LENGTHS,
@@ -28,7 +28,7 @@ export class ServerPacketBuffer {
     }
 
     // ========================================
-    // WRITE METHODS (matching Buffer.java)
+    // WRITE METHODS
     // ========================================
 
     writeByte(value: number): void {
@@ -223,7 +223,7 @@ export class ServerBinaryEncoder {
     encodeHandshake(
         id: number,
         name?: string,
-        appearance?: any,
+        appearance?: { gender?: number; colors?: number[]; kits?: number[]; equip?: number[] },
         chatIcons?: number[],
         chatPrefix?: string,
     ): Uint8Array {
@@ -440,40 +440,6 @@ export class ServerBinaryEncoder {
         return this.buffer.toPacket(ServerPacketId.RUN_ENERGY);
     }
 
-    encodeHitsplat(
-        targetType: "player" | "npc",
-        targetId: number,
-        damage: number,
-        style?: number,
-        type2?: number,
-        damage2?: number,
-        delayCycles?: number,
-    ): Uint8Array {
-        this.buffer.reset();
-        this.buffer.writeByte(targetType === "player" ? 0 : 1);
-        this.buffer.writeShort(targetId);
-        this.buffer.writeSmartByteShort(damage);
-        this.buffer.writeByte(style ?? 0);
-        const hasSecondary =
-            type2 !== undefined &&
-            Number.isFinite(type2) &&
-            damage2 !== undefined &&
-            Number.isFinite(damage2) &&
-            type2 >= 0 &&
-            damage2 >= 0;
-        this.buffer.writeBoolean(hasSecondary);
-        if (hasSecondary) {
-            this.buffer.writeSmartByteShort(type2!);
-            this.buffer.writeSmartByteShort(damage2!);
-        }
-        this.buffer.writeSmartByteShort(
-            delayCycles !== undefined && Number.isFinite(delayCycles)
-                ? Math.max(0, Math.min(32767, delayCycles))
-                : 0,
-        );
-        return this.buffer.toPacket(ServerPacketId.HITSPLAT);
-    }
-
     encodeSpotAnim(
         spotId: number,
         playerId?: number,
@@ -631,7 +597,7 @@ export class ServerBinaryEncoder {
         return this.buffer.toPacket(ServerPacketId.WIDGET_SET_FLAGS_RANGE);
     }
 
-    encodeWidgetRunScript(scriptId: number, args: any[]): Uint8Array {
+    encodeWidgetRunScript(scriptId: number, args: (number | string)[]): Uint8Array {
         this.buffer.reset();
         this.buffer.writeInt(scriptId);
         this.buffer.writeByte(args.length);
@@ -743,7 +709,7 @@ export class ServerBinaryEncoder {
     ): Uint8Array {
         this.buffer.reset();
         this.buffer.writeShort(trackId);
-        // OSRS parity default (see Coord.playSong -> WorldMapRectangle.method5019(0,100,100,0))
+        //  default 
         this.buffer.writeShort(fadeOutDelay ?? 0);
         this.buffer.writeShort(fadeOutDuration ?? 100);
         this.buffer.writeShort(fadeInDelay ?? 100);
@@ -987,7 +953,7 @@ export class ServerBinaryEncoder {
 
     /**
      * LOC_ADD_CHANGE — spawn or change a loc at a world tile.
-     * OSRS parity: zone-relative coords would use (x&7 << 4 | y&7),
+     * zone-relative coords would use (x&7 << 4 | y&7),
      * but we use absolute world coords for simplicity.
      */
     encodeLocAddChange(
@@ -1535,7 +1501,7 @@ export class ServerBinaryEncoder {
     // DEBUG
     // ========================================
 
-    encodeDebug(payload: any): Uint8Array {
+    encodeDebug(payload: Record<string, unknown>): Uint8Array {
         this.buffer.reset();
         // Encode debug payload as JSON string for flexibility
         const jsonStr = JSON.stringify(payload);

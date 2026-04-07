@@ -1,5 +1,5 @@
 import { SkillId } from "../../../../src/rs/skill/skills";
-import { SpellDataEntry, getSpellData } from "../../data/spells";
+import { SpellDataEntry, getSpellData } from "./SpellDataProvider";
 import { NpcState } from "../npc";
 import { PlayerState } from "../player";
 import { InventoryItem, RuneValidationResult, RuneValidator } from "./RuneValidator";
@@ -54,7 +54,7 @@ export class SpellCaster {
         }
 
         // Check magic level requirement
-        const magicSkill = ctx.player.getSkill(SkillId.Magic);
+        const magicSkill = ctx.player.skillSystem.getSkill(SkillId.Magic);
         const baseLevel = magicSkill.baseLevel;
         const boost = magicSkill.boost;
         const magicLevel = Math.max(1, baseLevel + boost);

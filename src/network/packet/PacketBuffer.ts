@@ -10,15 +10,14 @@
  * - writeIntME: middle-endian [b1, b0, b3, b2]
  * - writeIntIME: inverse middle-endian [b2, b3, b0, b1]
  *
- * Bit-level operations match PacketBuffer.java exactly:
+ * Bit-level operations:
  * - importIndex: bitIndex = offset * 8
  * - readBits: read n bits using bitmask array
  * - exportIndex: offset = (bitIndex + 7) / 8
  */
 
 /**
- * OSRS bitmask lookup table - matches PacketBuffer.field5172
- * Precomputed masks: field5172[n] = (1 << n) - 1
+ * Precomputed masks: mask[n] = (1 << n) - 1
  * Exported for use in other bit-level operations.
  */
 export const BITMASKS: readonly number[] = [
@@ -28,11 +27,11 @@ export const BITMASKS: readonly number[] = [
 ];
 
 /**
- * Interface for ISAAC cipher (matches PacketBuffer.java's isaacCipher field)
+ * Interface for ISAAC cipher.
  */
 export interface IIsaacCipher {
     nextInt(): number;
-    /** Peek at next value without consuming (OSRS: method9968) */
+    /** Peek at next value without consuming. */
     peekInt?(): number;
 }
 
@@ -41,16 +40,10 @@ export class PacketBuffer {
     private view: DataView;
     offset: number = 0;
 
-    /**
-     * Bit index for bit-level operations.
-     * OSRS: PacketBuffer.bitIndex
-     */
+    /** Bit index for bit-level operations. */
     bitIndex: number = 0;
 
-    /**
-     * ISAAC cipher for packet encryption.
-     * OSRS: PacketBuffer.isaacCipher
-     */
+    /** ISAAC cipher for packet encryption. */
     isaacCipher: IIsaacCipher | null = null;
 
     constructor(size: number);
@@ -267,7 +260,6 @@ export class PacketBuffer {
 
     /**
      * Write CESU-8 encoded string with null prefix and varint length.
-     * OSRS: Buffer.writeCESU8(CharSequence)
      */
     writeCESU8(str: string): void {
         // Calculate CESU-8 byte length
@@ -305,7 +297,6 @@ export class PacketBuffer {
 
     /**
      * Read CESU-8 encoded string with null prefix and varint length.
-     * OSRS: Buffer.readCESU8()
      */
     readCESU8(): string {
         const prefix = this.data[this.offset++];
@@ -752,7 +743,6 @@ export class PacketBuffer {
 
     /**
      * Release/clear the array for reuse (pooling support).
-     * OSRS: Buffer.releaseArray() - returns array to pool.
      * In TypeScript we just reset state since GC handles memory.
      */
     releaseArray(): void {
@@ -761,12 +751,11 @@ export class PacketBuffer {
     }
 
     // ========================================
-    // BIT-LEVEL OPERATIONS (from PacketBuffer.java)
+    // BIT-LEVEL OPERATIONS
     // ========================================
 
     /**
      * Prepare for bit-level reads.
-     * OSRS: PacketBuffer.importIndex()
      */
     importIndex(): void {
         this.bitIndex = this.offset * 8;
@@ -774,11 +763,9 @@ export class PacketBuffer {
 
     /**
      * Read n bits from the buffer.
-     * OSRS: PacketBuffer.readBits(int)
      *
-     * Uses the exact algorithm from PacketBuffer.java:
-     * - var2 = bitIndex >> 3 (byte index)
-     * - var3 = 8 - (bitIndex & 7) (bits remaining in current byte)
+     * - byteIndex = bitIndex >> 3
+     * - bitsInByte = 8 - (bitIndex & 7) (bits remaining in current byte)
      * - Accumulate bits from multiple bytes as needed
      */
     readBits(count: number): number {
@@ -805,7 +792,6 @@ export class PacketBuffer {
 
     /**
      * Finish bit-level reads, realigning to byte boundary.
-     * OSRS: PacketBuffer.exportIndex()
      */
     exportIndex(): void {
         this.offset = ((this.bitIndex + 7) / 8) | 0;
@@ -813,19 +799,17 @@ export class PacketBuffer {
 
     /**
      * Get bits remaining until a given byte position.
-     * OSRS: PacketBuffer.bitsRemaining(int)
      */
     bitsRemaining(maxOffset: number): number {
         return maxOffset * 8 - this.bitIndex;
     }
 
     // ========================================
-    // ADDITIONAL READ METHODS (from Buffer.java)
+    // ADDITIONAL READ METHODS
     // ========================================
 
     /**
      * Read boolean (1 byte, true if LSB is 1)
-     * OSRS: Buffer.readBoolean()
      */
     readBoolean(): boolean {
         return (this.readUnsignedByte() & 1) === 1;
@@ -833,7 +817,6 @@ export class PacketBuffer {
 
     /**
      * Read float from 4 bytes (int bits to float)
-     * OSRS: Buffer.method9394()
      */
     readFloat(): number {
         const intValue = this.readInt();
@@ -846,7 +829,6 @@ export class PacketBuffer {
 
     /**
      * Read null-terminated string, or null if first byte is 0.
-     * OSRS: Buffer.readStringCp1252NullTerminatedOrNull()
      */
     readStringCp1252NullTerminatedOrNull(): string | null {
         if (this.data[this.offset] === 0) {
@@ -858,7 +840,6 @@ export class PacketBuffer {
 
     /**
      * Read string with null prefix and suffix.
-     * OSRS: Buffer.readStringCp1252NullCircumfixed()
      */
     readStringCp1252NullCircumfixed(): string {
         const prefix = this.data[this.offset++];
@@ -870,7 +851,6 @@ export class PacketBuffer {
 
     /**
      * Read short smart with -1 adjustment.
-     * OSRS: Buffer.readShortSmartSub()
      */
     readShortSmartSub(): number {
         const peek = this.data[this.offset] & 0xff;
@@ -879,7 +859,6 @@ export class PacketBuffer {
 
     /**
      * Read incrementing small smart (accumulated 32767s).
-     * OSRS: Buffer.readIncrSmallSmart()
      */
     readIncrSmallSmart(): number {
         let result = 0;
@@ -895,7 +874,6 @@ export class PacketBuffer {
      * Read large smart (2 or 4 bytes).
      * If first byte >= 128, read int and mask off sign bit.
      * Otherwise read unsigned short.
-     * OSRS: Buffer.readLargeSmart()
      */
     readLargeSmart(): number {
         if (this.data[this.offset] < 0) {
@@ -907,7 +885,6 @@ export class PacketBuffer {
     /**
      * Read nullable large smart.
      * Returns -1 for 32767, otherwise same as readLargeSmart.
-     * OSRS: Buffer.readNullableLargeSmart()
      */
     readNullableLargeSmart(): number {
         if (this.data[this.offset] < 0) {
@@ -919,7 +896,6 @@ export class PacketBuffer {
 
     /**
      * Read variable-length int (alternative encoding).
-     * OSRS: Buffer.packBytesToInt()
      */
     packBytesToInt(): number {
         let result = 0;
@@ -935,7 +911,6 @@ export class PacketBuffer {
 
     /**
      * Read signed short with ADD LE decoding.
-     * OSRS: Buffer.method9432()
      */
     readShortAddLE(): number {
         this.offset += 2;
@@ -950,7 +925,6 @@ export class PacketBuffer {
 
     /**
      * Read bytes in reverse order into destination.
-     * OSRS: Buffer.method9533()
      */
     readBytesReverse(dest: Uint8Array, destOffset: number, length: number): void {
         for (let i = destOffset + length - 1; i >= destOffset; i--) {
@@ -959,12 +933,11 @@ export class PacketBuffer {
     }
 
     // ========================================
-    // XTEA ENCRYPTION/DECRYPTION (from Buffer.java)
+    // XTEA ENCRYPTION/DECRYPTION
     // ========================================
 
     /**
      * XTEA decrypt the entire buffer.
-     * OSRS: Buffer.xteaDecryptAll(int[])
      */
     xteaDecryptAll(key: Int32Array | number[]): void {
         const blocks = (this.offset / 8) | 0;
@@ -987,7 +960,6 @@ export class PacketBuffer {
 
     /**
      * XTEA encrypt the entire buffer.
-     * OSRS: Buffer.xteaEncryptAll(int[])
      */
     xteaEncryptAll(key: Int32Array | number[]): void {
         const blocks = (this.offset / 8) | 0;
@@ -1010,7 +982,6 @@ export class PacketBuffer {
 
     /**
      * XTEA decrypt a range of the buffer.
-     * OSRS: Buffer.xteaDecrypt(int[], int, int)
      */
     xteaDecrypt(key: Int32Array | number[], start: number, end: number): void {
         const savedOffset = this.offset;
@@ -1035,7 +1006,6 @@ export class PacketBuffer {
 
     /**
      * XTEA encrypt a range of the buffer.
-     * OSRS: Buffer.xteaEncrypt(int[], int, int)
      */
     xteaEncrypt(key: Int32Array | number[], start: number, end: number): void {
         const savedOffset = this.offset;
@@ -1059,12 +1029,11 @@ export class PacketBuffer {
     }
 
     // ========================================
-    // ISAAC CIPHER METHODS (from PacketBuffer.java)
+    // ISAAC CIPHER METHODS
     // ========================================
 
     /**
      * Set the ISAAC cipher.
-     * OSRS: PacketBuffer.newIsaacCipher(int[]) / setIsaacCipher(IsaacCipher)
      */
     setIsaacCipher(cipher: IIsaacCipher | null): void {
         this.isaacCipher = cipher;
@@ -1072,7 +1041,6 @@ export class PacketBuffer {
 
     /**
      * Write byte encrypted with ISAAC cipher.
-     * OSRS: PacketBuffer.writeByteIsaac(int)
      */
     writeByteIsaac(value: number): void {
         if (!this.isaacCipher) {
@@ -1083,7 +1051,6 @@ export class PacketBuffer {
 
     /**
      * Read byte decrypted with ISAAC cipher.
-     * OSRS: PacketBuffer.readByteIsaac()
      */
     readByteIsaac(): number {
         if (!this.isaacCipher) {
@@ -1094,7 +1061,6 @@ export class PacketBuffer {
 
     /**
      * Check if next ISAAC-encrypted byte indicates a short smart.
-     * OSRS: PacketBuffer.method9326()
      */
     peekIsaacSmartIsShort(): boolean {
         if (!this.isaacCipher || !this.isaacCipher.peekInt) {
@@ -1106,7 +1072,6 @@ export class PacketBuffer {
 
     /**
      * Read smart byte/short decrypted with ISAAC cipher.
-     * OSRS: PacketBuffer.readSmartByteShortIsaac()
      */
     readSmartByteShortIsaac(): number {
         if (!this.isaacCipher) {
@@ -1122,7 +1087,6 @@ export class PacketBuffer {
 
     /**
      * Read bytes decrypted with ISAAC cipher.
-     * OSRS: PacketBuffer.method9357(byte[], int, int)
      */
     readBytesIsaac(dest: Uint8Array, destOffset: number, length: number): void {
         if (!this.isaacCipher) {

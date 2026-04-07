@@ -160,13 +160,13 @@ export interface PlayerUpdateInfo {
     movementType?: number;
     movementFlag?: number;
     actions?: [string, string, string];
-    field512?: {
-        field1180: number;
-        field1233: number;
-        field1234: number;
-        field1193: number;
-        field1204: number;
-        field1237: number;
+    colorOverride?: {
+        startCycle: number;
+        endCycle: number;
+        hue: number;
+        sat: number;
+        lum: number;
+        amount: number;
     };
 }
 

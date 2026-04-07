@@ -53,7 +53,7 @@ export class LeaguesVUiController implements GamemodeUiController {
         player: PlayerState,
         opts?: { queueFlashsideVarbitOnStep3?: boolean },
     ): void {
-        const tutorialStep = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const tutorialStep = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         queueLeagueTutorialOverlayUi(
             this.asLeaguePlayer(player),
             this.leagueBridge,

@@ -7,6 +7,7 @@ import {
 import { SkillId } from "../../../../src/rs/skill/skills";
 import { getItemDefinition } from "../../data/items";
 import { PlayerState } from "../player";
+import type { PrayerSystemProvider, PrayerTickResult } from "./PrayerSystemProvider";
 
 export type PrayerSelectionError = { prayer: PrayerName; message: string };
 
@@ -16,15 +17,13 @@ export type PrayerSelectionResult = {
     errors: PrayerSelectionError[];
 };
 
-export type PrayerTickResult = {
-    prayerDepleted?: boolean;
-};
+export { PrayerTickResult };
 
-export class PrayerSystem {
+export class PrayerSystem implements PrayerSystemProvider {
     applySelection(player: PlayerState, requested: Iterable<string>): PrayerSelectionResult {
         const normalized = this.normalizeRequest(requested);
         const errors: PrayerSelectionError[] = [];
-        const skill = player.getSkill(SkillId.Prayer);
+        const skill = player.skillSystem.getSkill(SkillId.Prayer);
         const currentLevel = Math.max(0, skill.baseLevel + skill.boost);
         if (currentLevel <= 0 && normalized.length > 0) {
             errors.push({
@@ -33,7 +32,7 @@ export class PrayerSystem {
             });
             return {
                 changed: false,
-                activePrayers: Array.from(player.getActivePrayers()),
+                activePrayers: Array.from(player.prayer.getActivePrayers()),
                 errors,
             };
         }
@@ -60,33 +59,33 @@ export class PrayerSystem {
             this.removeConflicts(next, def);
             next.push(prayer);
         }
-        const changed = player.setActivePrayers(next);
+        const changed = player.prayer.setActivePrayers(next);
         return {
             changed,
-            activePrayers: Array.from(player.getActivePrayers()),
+            activePrayers: Array.from(player.prayer.getActivePrayers()),
             errors,
         };
     }
 
     processPlayer(player: PlayerState): PrayerTickResult | undefined {
-        const active = player.getActivePrayers();
+        const active = player.prayer.getActivePrayers();
         if (active.size === 0) {
-            player.resetPrayerDrainAccumulator();
+            player.prayer.resetDrainAccumulator();
             return undefined;
         }
-        const skill = player.getSkill(SkillId.Prayer);
+        const skill = player.skillSystem.getSkill(SkillId.Prayer);
         let current = Math.max(0, skill.baseLevel + skill.boost);
         if (current <= 0) {
-            player.resetPrayerDrainAccumulator();
+            player.prayer.resetDrainAccumulator();
             return { prayerDepleted: active.size > 0 };
         }
         const drainRate = this.computeDrainRate(active);
         if (!(drainRate > 0)) {
-            player.resetPrayerDrainAccumulator();
+            player.prayer.resetDrainAccumulator();
             return undefined;
         }
         const resistance = Math.max(1, 60 + this.computePrayerBonus(player) * 2);
-        let accumulator = player.getPrayerDrainAccumulator();
+        let accumulator = player.prayer.getDrainAccumulator();
         accumulator += drainRate;
         let drained = 0;
         while (accumulator >= resistance && current > 0) {
@@ -94,12 +93,12 @@ export class PrayerSystem {
             drained++;
             current--;
         }
-        player.setPrayerDrainAccumulator(accumulator);
+        player.prayer.setDrainAccumulator(accumulator);
         if (drained <= 0) return undefined;
-        player.adjustSkillBoost(SkillId.Prayer, -drained);
-        const remaining = player.getPrayerLevel();
+        player.skillSystem.adjustSkillBoost(SkillId.Prayer, -drained);
+        const remaining = player.prayer.getPrayerLevel();
         if (remaining <= 0) {
-            player.resetPrayerDrainAccumulator();
+            player.prayer.resetDrainAccumulator();
             return { prayerDepleted: active.size > 0 };
         }
         return undefined;
@@ -142,7 +141,7 @@ export class PrayerSystem {
         def: PrayerDefinition,
     ): { ok: boolean; message?: string } {
         if (def.unlockVarbit !== undefined) {
-            const value = player.getVarbitValue(def.unlockVarbit);
+            const value = player.varps.getVarbitValue(def.unlockVarbit);
             if (!(value > 0)) {
                 return {
                     ok: false,
@@ -151,7 +150,7 @@ export class PrayerSystem {
             }
         }
         if (def.questRequirement) {
-            const current = player.getVarbitValue(def.questRequirement.varbit);
+            const current = player.varps.getVarbitValue(def.questRequirement.varbit);
             if (current < def.questRequirement.minValue) {
                 return {
                     ok: false,

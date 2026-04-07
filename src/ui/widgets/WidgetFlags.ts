@@ -4,7 +4,7 @@
  * Widget flags are stored as a 24-bit integer (Medium in cache format).
  * The server sends IF_SETEVENTS packets to override cache-defined flags at runtime.
  *
- * OSRS Flag Storage Key (class405.getWidgetFlags):
+ * Flag Storage Key:
  * - Key = (widget.childIndex) + (widget.id << 32)
  * - Static widgets (from cache): childIndex = -1, id = widget's UID
  * - Dynamic children (CC_CREATE): childIndex = slot index (>= 0), id = parent's UID
@@ -12,9 +12,6 @@
  * IF_SETEVENTS fromSlot/toSlot:
  * - For static widgets: fromSlot = -1, toSlot = -1
  * - For dynamic children: fromSlot = 0, toSlot = N-1 (or whatever range)
- *
- * Reference: RuneLite WidgetConfig.java, class405.getWidgetFlags, class304.method5978,
- *            Widget.java constructor (childIndex = -1), class28.java CC_CREATE
  */
 
 // ============================================================================
@@ -24,7 +21,7 @@
 /**
  * Bit 0: Pause button / clickable widget
  * Enables "Continue" menu option for dialog widgets.
- * Reference: class304.method5978 - (flags & 1) != 0
+ * (flags & 1) != 0
  */
 export const FLAG_PAUSE_BUTTON = 1 << 0;
 
@@ -33,7 +30,7 @@ export const FLAG_PAUSE_BUTTON = 1 << 0;
  * When action N (0-indexed) is clicked, check bit (N+1) to determine if it
  * should be transmitted to the server. If not set, only run CS2 handler.
  * OSRS supports 10 ops total (indices 0-9, bits 1-10).
- * Reference: HealthBarUpdate.java:229, class59.java:733, WorldMapSprite.java:109-124
+ * Check bit (actionIndex+1) in the flags bitfield.
  */
 export const FLAG_TRANSMIT_OP1 = 1 << 1;
 export const FLAG_TRANSMIT_OP2 = 1 << 2;
@@ -49,7 +46,7 @@ export const FLAG_TRANSMIT_OP10 = 1 << 10;
 /**
  * Bits 11-16: Target mask (6 bits)
  * Indicates what entity types this widget can target when in targeting mode.
- * Reference: class155.Widget_unpackTargetMask - (flags >> 11) & 63
+ * Extracted as (flags >> 11) & 63
  */
 export const FLAG_USE_GROUND_ITEM = 1 << 11; // Can target ground items
 export const FLAG_USE_NPC = 1 << 12; // Can target NPCs
@@ -65,7 +62,7 @@ export const TARGET_MASK_BITS = 0x3f; // 6 bits
  * Bits 17-19: Drag parent depth (3-bit field, NOT a boolean flag)
  * Value 0-7 indicating the number of parent levels to climb for drag operations.
  * Use getDragDepth(flags) to extract this value.
- * Reference: ReflectionCheck.method736 - (flags >> 17) & 7
+ * Extracted as (flags >> 17) & 7
  *
  * NOTE: This is a multi-bit field, not a single flag. There is no "FLAG_DRAG".
  * The drag capability is controlled by bit 20 (FLAG_DRAG_ON).
@@ -76,21 +73,21 @@ export const DRAG_DEPTH_BITS = 0x7; // 3 bits (values 0-7)
 /**
  * Bit 20: Drop target (DRAG_ON)
  * Widget can receive drag-and-drop items.
- * Reference: Skeleton.method5378 - (flags >> 20 & 1) != 0
+ * (flags >> 20 & 1) != 0
  */
 export const FLAG_DRAG_ON = 1 << 20;
 
 /**
  * Bit 21: Widget use target
  * Widget can be targeted by spells/items using USE_WIDGET flag.
- * Reference: WorldMapSprite.java:104 - (flags >> 21 & 1) != 0
+ * (flags >> 21 & 1) != 0
  */
 export const FLAG_WIDGET_USE_TARGET = 1 << 21;
 
 /**
  * Bit 22: Key input enabled
  * Related to keyboard input handling for widgets.
- * Reference: ModeWhere.method7296 - (flags >> 22 & 1) != 0
+ * (flags >> 22 & 1) != 0
  */
 export const FLAG_KEY_INPUT = 1 << 22;
 
@@ -100,7 +97,6 @@ export const FLAG_KEY_INPUT = 1 << 22;
 
 /**
  * Check if pause button flag is set (bit 0).
- * Reference: class304.method5978
  */
 export function isPauseButton(flags: number): boolean {
     return (flags & FLAG_PAUSE_BUTTON) !== 0;
@@ -110,7 +106,6 @@ export function isPauseButton(flags: number): boolean {
  * Get the transmit flag bit for a given action index (0-indexed).
  * Returns the bit value (1 << (actionIndex + 1)).
  * OSRS supports action indices 0-9 (10 ops total).
- * Reference: WidgetConfig.transmitAction
  */
 export function getTransmitActionBit(actionIndex: number): number {
     if (actionIndex < 0 || actionIndex > 9) return 0;
@@ -120,7 +115,7 @@ export function getTransmitActionBit(actionIndex: number): number {
 /**
  * Check if action at given index (0-indexed) should be transmitted to server.
  * OSRS supports action indices 0-9 (10 ops total).
- * Reference: HealthBarUpdate.java:229 - (flags >> (actionIndex + 1) & 1) != 0
+ * (flags >> (actionIndex + 1) & 1) != 0
  */
 export function shouldTransmitAction(flags: number, actionIndex: number): boolean {
     if (actionIndex < 0 || actionIndex > 9) return false;
@@ -133,7 +128,6 @@ export function shouldTransmitAction(flags: number, actionIndex: number): boolea
  * 1. The transmit flag for that action is set, OR
  * 2. The widget has an onOp handler
  *
- * Reference: HealthBarUpdate.java method2496
  */
 export function shouldShowMenuOption(
     flags: number,
@@ -146,7 +140,6 @@ export function shouldShowMenuOption(
 
 /**
  * Extract target mask from flags (bits 11-16).
- * Reference: class155.Widget_unpackTargetMask
  */
 export function getTargetMask(flags: number): number {
     return (flags >> TARGET_MASK_SHIFT) & TARGET_MASK_BITS;
@@ -215,7 +208,6 @@ export function canTargetWidget(flagsOrMask: number): boolean {
 
 /**
  * Extract drag parent depth from flags (bits 17-19).
- * Reference: ReflectionCheck.method736
  */
 export function getDragDepth(flags: number): number {
     return (flags >> DRAG_DEPTH_SHIFT) & DRAG_DEPTH_BITS;
@@ -223,7 +215,6 @@ export function getDragDepth(flags: number): number {
 
 /**
  * Check if widget can be a drop target (bit 20).
- * Reference: Skeleton.method5378
  */
 export function isDropTarget(flags: number): boolean {
     return ((flags >> 20) & 1) !== 0;
@@ -231,7 +222,6 @@ export function isDropTarget(flags: number): boolean {
 
 /**
  * Check if widget can be targeted by USE_WIDGET (bit 21).
- * Reference: WorldMapSprite.java:104
  */
 export function isWidgetUseTarget(flags: number): boolean {
     return ((flags >> 21) & 1) !== 0;
@@ -239,7 +229,6 @@ export function isWidgetUseTarget(flags: number): boolean {
 
 /**
  * Check if key input flag is set (bit 22).
- * Reference: ModeWhere.method7296
  */
 export function hasKeyInputFlag(flags: number): boolean {
     return ((flags >> 22) & 1) !== 0;

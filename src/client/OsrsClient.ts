@@ -28,7 +28,6 @@ import {
     subscribeDisconnect,
     subscribeGroundItems,
     subscribeHandshake,
-    subscribeHitsplats,
     subscribeInventory,
     subscribeNotifications,
     subscribeNpcInfo,
@@ -395,7 +394,7 @@ export class OsrsClient {
     private static readonly MAX_CLIENT_TICK_BACKLOG_MS = 2000;
     // Keep a conservative upper bound per slice to avoid long main-thread stalls if the tab is
     // throttled/suspended and then resumes with a large tick debt.
-    // OSRS parity/perf: cap catch-up to avoid huge tick bursts after background-tab timer throttling.
+    // /perf: cap catch-up to avoid huge tick bursts after background-tab timer throttling.
     // The official client never tries to "fast forward" thousands of 20ms cycles in one go.
     private static readonly MAX_CLIENT_TICKS_PER_SLICE = 50;
 
@@ -495,7 +494,7 @@ export class OsrsClient {
         this.writeVarcs();
     };
 
-    // OSRS PARITY: Transmit cycles for engine-level event gating
+    // Transmit cycles for engine-level event gating
     // See TransmitCycles.ts for documentation on how OSRS gates transmit handlers
     // IMPORTANT: Use getTransmitCycles() to get the global singleton, not createTransmitCycles()!
     // This ensures CLIENTCLOCK opcode and OsrsClient use the same cycleCntr.
@@ -570,7 +569,7 @@ export class OsrsClient {
     minimapZoom: number = 4;
     /**
      * Runtime flag controlled by CS2 (SETSHOWMOUSEOVERTEXT) to toggle mouseover text display.
-     * Default true per OSRS reference (Client.java:1574).
+     * Default true.
      */
     showMouseOverText: boolean = true;
 
@@ -704,14 +703,14 @@ export class OsrsClient {
 
     dragSourceWidget: any = null;
 
-    // OSRS parity: track hover state per-widget (Widget.field3722).
+    // track hover state per-widget.
     // Multiple widgets (parents + children) can be hovered at once and must receive onMouseRepeat.
     private hoveredWidgetUids: Set<number> = new Set();
     private hoveredWidgetsByUid: Map<number, any> = new Map();
 
     // Track clicked widget for onClick/onClickRepeat/onRelease events
     private clickedWidget: any = null;
-    // OSRS parity: parent widget used as drag clamp/coordinate space (Client.clickedWidgetParent)
+    // parent widget used as drag clamp/coordinate space (Client.clickedWidgetParent)
     private clickedWidgetParent: any = null;
     private clickedWidgetX: number = 0; // Mouse position relative to clicked widget
     private clickedWidgetY: number = 0;
@@ -735,14 +734,14 @@ export class OsrsClient {
     private _lastHoverHitX: number = -1;
     private _lastHoverHitY: number = -1;
     private _cachedHoverHits: any[] | null = null;
-    // OSRS parity: hover listeners are dispatched once per client cycle (Client.field830 loop).
+    // hover listeners are dispatched once per client cycle.
     private _lastHoverListenerCycle: number = -1;
 
-    // OSRS parity: Deferred widget action for draggable items
+    // Deferred widget action for draggable items
     // Action is queued on mousedown and fired on mouseup if no drag occurred
     private deferredWidgetAction: any = null;
 
-    // OSRS parity: Pending widget action for input dialogs (Withdraw-X, Deposit-X, etc.)
+    // Pending widget action for input dialogs (Withdraw-X, Deposit-X, etc.)
     // When a CS2 script opens an input dialog, the widget action is deferred until dialog completion
     private pendingInputDialogAction: {
         payload: any;
@@ -901,7 +900,6 @@ export class OsrsClient {
     }
 
     private unsubscribeWidgetEvents?: () => void;
-    private unsubscribeHitsplats?: () => void;
     private unsubscribeNpcInfo?: () => void;
     private unsubscribeCombat?: () => void;
     private unsubscribePlayerSync?: () => void;
@@ -1543,7 +1541,7 @@ export class OsrsClient {
                     self.inputManager.wasKeyPressed(osrsKeyCode),
             },
             // Audio playback for CS2 SOUND_SONG opcode
-            // OSRS parity: Skills.method6928([trackId], outDelay, outDur, inDelay, inDur)
+            // Music fade params: trackId, outDelay, outDur, inDelay, inDur
             playSong: (
                 songId: number,
                 fadeOutDelay: number,
@@ -1562,7 +1560,7 @@ export class OsrsClient {
                 }
             },
             // Audio playback for CS2 SOUND_JINGLE opcode
-            // OSRS parity: jingles interrupt music, then music resumes
+            // jingles interrupt music, then music resumes
             playJingle: (jingleId: number, delay: number) => {
                 if (self.musicSystem && jingleId >= 0) {
                     self.musicSystem.playJingle(jingleId, delay);
@@ -1765,7 +1763,7 @@ export class OsrsClient {
             // Callback for cc_resume_pausebutton / if_resume_pausebutton
             // Sends RESUME_PAUSEBUTTON packet to server for dialog continuation
             sendResumePauseButton: (widgetUid: number, childIndex: number) => {
-                // OSRS parity: Only send if not already waiting for response
+                // Only send if not already waiting for response
                 if (self.widgetManager?.meslayerContinueWidget !== null) {
                     return;
                 }
@@ -1773,7 +1771,7 @@ export class OsrsClient {
                 pkt.packetBuffer.writeShortAddLE(childIndex); // childIndex
                 pkt.packetBuffer.writeInt(widgetUid); // widgetId
                 queuePacket(pkt);
-                // OSRS parity: Set meslayerContinueWidget to show "Please wait..."
+                // Set meslayerContinueWidget to show "Please wait..."
                 let w = self.widgetManager?.getWidgetByUid(widgetUid);
                 if (
                     w &&
@@ -1816,7 +1814,7 @@ export class OsrsClient {
                         );
                     } catch {}
 
-                    // OSRS parity: notification_display must be mounted into the toplevel "notifications"
+                    // notification_display must be mounted into the toplevel "notifications"
                     // component (e.g., toplevel_osrs_stretch:notifications) before running scripts.
                     self.ensureNotificationDisplayMounted();
 
@@ -1833,10 +1831,10 @@ export class OsrsClient {
 
         // Wire up the deferred callbacks - triggers queued var changes after script execution
         this.cs2Vm.onVarpChange = (varpId) => {
-            // OSRS PARITY: Mark var cycle with specific varp ID - handlers fire during processWidgetTransmits()
+            // Mark var cycle with specific varp ID - handlers fire during processWidgetTransmits()
             markVarTransmit(varpId);
         };
-        // OSRS parity: Varc changes do not directly drive onMiscTransmit (field592).
+        // Varc changes do not directly drive onMiscTransmit.
         // Misc transmit is driven by engine state updates (run energy, weight, reboot, etc.).
         this.cs2Vm.onVarcChange = null;
         // Wire up input dialog completion callback - sends dialog result to server
@@ -1956,7 +1954,7 @@ export class OsrsClient {
             }
         };
 
-        // IMPORTANT (OSRS parity): Cache-loaded listener arrays are in the form [scriptId, ...args].
+        // IMPORTANT (): Cache-loaded listener arrays are in the form [scriptId, ...args].
         // These must be executed via runScriptEvent/executeScriptListener so the VM can split args
         // correctly and substitute magic values. Do NOT pass the scriptId as a normal int arg.
         this.widgetManager.onLoadListener = (_scriptId, widget) => {
@@ -2077,10 +2075,10 @@ export class OsrsClient {
                     const privileged = typeInfo?.isPrivileged === true;
                     const isAuto = autoChat === true;
                     const messageType = privileged ? (isAuto ? 91 : 1) : isAuto ? 90 : 2;
-                    // OSRS parity: public chat (player sync block) populates chat history so
+                    // public chat (player sync block) populates chat history so
                     // `onChatTransmit` listeners (chatbox scripts) behave correctly.
                     chatHistory.addMessage(messageType, text, sender, "");
-                    // OSRS PARITY: Mark chat cycle instead of directly triggering handlers.
+                    // Mark chat cycle instead of directly triggering handlers.
                     // Use markChatTransmit() which handles timing when async events arrive
                     // after processWidgetTransmits has already run this tick.
                     markChatTransmit();
@@ -2186,12 +2184,12 @@ export class OsrsClient {
                     // PERF: Clear CS2 handler caches when switching root interfaces
                     // This prevents memory leaks from stale cached widget references
                     this.cs2Vm.clearHandlerCaches();
-                    // OSRS parity: Trigger initial onVarTransmit for root interface widgets
+                    // Trigger initial onVarTransmit for root interface widgets
                     this.triggerInitialVarTransmitForGroup(payload.groupId);
                     // Mark widgets loaded for transmit processing optimization
                     markWidgetsLoaded();
 
-                    // OSRS parity: notification_display (660) is mounted into the toplevel
+                    // notification_display (660) is mounted into the toplevel
                     // "notifications" component (toplevel_*:notifications), and its visibility
                     // is controlled by CS2 scripts (3343-3348), not by hiding the root widget.
                     // IMPORTANT: Do not mount immediately. The cache default state of 660 contains
@@ -2231,7 +2229,7 @@ export class OsrsClient {
                     }
                 }
                 
-                // OSRS parity: Execute preScripts BEFORE mounting the interface.
+                // Execute preScripts BEFORE mounting the interface.
                 if (Array.isArray(payload.preScripts) && this.cs2Vm) {
                     for (const ps of payload.preScripts) {
                         const scriptId = ps?.scriptId | 0;
@@ -2297,7 +2295,7 @@ export class OsrsClient {
                 console.log(`[OsrsClient] Closing group ID: ${closingGroupId}`);
                 
                 if (this.widgetManager) {
-                    // OSRS parity: When closing an interface, any active text input should be cleared
+                    // When closing an interface, any active text input should be cleared
                     if (closingGroupId === SETTINGS_MODAL_GROUP_ID) {
                         const groupInstance = this.widgetManager.getGroup(closingGroupId);
                         if (groupInstance) {
@@ -2413,12 +2411,12 @@ export class OsrsClient {
                     w.isHidden = hidden;
                     w.hidden = hidden;
 
-                    // OSRS parity: hiding does not affect layout, showing can (we skip layout while hidden).
+                    // hiding does not affect layout, showing can (we skip layout while hidden).
                     if (hidden) {
                         this.widgetManager.invalidateWidgetRender(w, "server-set-hidden");
                     } else {
                         this.widgetManager.invalidateWidget(w, "server-set-hidden");
-                        // OSRS parity: When a previously hidden interface becomes visible,
+                        // When a previously hidden interface becomes visible,
                         // pending transmit handlers (var/inv/stat) must be processed even if no new
                         // events occurred this tick.
                         markWidgetsLoaded();
@@ -2455,7 +2453,7 @@ export class OsrsClient {
                         this.widgetManager.invalidateWidgetRender(w);
                     } else {
                         let obj = this.objTypeLoader?.load?.(normalizedItemId);
-                        // OSRS parity: For stackable items (coins, etc.), get the correct model
+                        // For stackable items (coins, etc.), get the correct model
                         // based on quantity using countObj/countCo arrays.
                         // The server sends the amountOrZoom value which determines the model.
                         if (
@@ -2525,7 +2523,7 @@ export class OsrsClient {
                     this.widgetManager.invalidateWidgetRender(w);
                 }
             } else if (payload?.action === "set_flags") {
-                // OSRS parity: Set widget flags override (enables/disables click permissions)
+                // Set widget flags override (enables/disables click permissions)
                 const uid = Number(payload.uid) | 0;
                 const flags = Number(payload.flags) | 0;
                 const w = this.widgetManager?.getWidgetByUid(uid);
@@ -2533,14 +2531,13 @@ export class OsrsClient {
                     this.widgetManager.setWidgetFlagsOverride(w, flags);
                 }
             } else if (payload?.action === "set_flags_range") {
-                // OSRS parity: IF_SETEVENTS packet - sets flags for a range of child indices.
-                // Reference: player.setInterfaceEvents(interfaceId, component, from, to, setting)
-                // In OSRS, this stores flags in Client.widgetFlags with keys:
+                // IF_SETEVENTS packet - sets flags for a range of child indices.
+                // Stores flags with keys:
                 //   key = (uid << 32) | childIndex for each childIndex in [from, to]
                 // Dynamic children (CC_CREATE) have id=parentUid and childIndex from the script.
                 // When getWidgetFlags is called on a dynamic child, it looks up (child.id << 32) | child.childIndex.
                 const uid = Number(payload.uid) | 0;
-                // OSRS parity: -1 may arrive as 65535 (0xFFFF) due to unsigned transmission.
+                // -1 may arrive as 65535 (0xFFFF) due to unsigned transmission.
                 // Static widgets use childIndex=-1, so normalize 65535 back to -1.
                 let fromSlot = Number(payload.fromSlot) | 0;
                 let toSlot = Number(payload.toSlot) | 0;
@@ -2562,7 +2559,7 @@ export class OsrsClient {
                     }
                 }
             } else if (payload?.action === "run_script") {
-                // OSRS parity: RUNCLIENTSCRIPT packet - run a CS2 script with arguments
+                // RUNCLIENTSCRIPT packet - run a CS2 script with arguments
                 const scriptId = Number(payload.scriptId) | 0;
                 const args = payload.args;
                 if (scriptId > 0 && this.cs2Vm && Array.isArray(args)) {
@@ -2665,19 +2662,6 @@ export class OsrsClient {
                 }
             }
         });
-        this.unsubscribeHitsplats = subscribeHitsplats((event) => {
-            try {
-                // Log each hitsplat so developers can trace combat events easily.
-                console.log(
-                    `[hitsplat] ${event.targetType} ${event.targetId} damage=${
-                        event.damage
-                    } serverTick=${event.tick} clientTick=${getCurrentTick()}`,
-                    event,
-                );
-            } catch {}
-            if (this.renderer) this.renderer.registerHitsplat(event);
-            else this.pendingHitsplats.push(event);
-        });
         this.unsubscribeNpcInfo = subscribeNpcInfo((payload: NpcInfoPayload) => {
             try {
                 this.applyNpcInfo(payload);
@@ -2689,7 +2673,7 @@ export class OsrsClient {
         try {
             const unsubSpot = subscribeSpot((payload: SpotAnimationPayload) => {
                 try {
-                    // OSRS parity: spot animation delay is in client cycles (Client.cycle units).
+                    // spot animation delay is in client cycles (Client.cycle units).
                     const delayCycles = Math.max(0, payload.delay ?? 0);
                     const startCycle = getClientCycle() + delayCycles;
 
@@ -2787,7 +2771,7 @@ export class OsrsClient {
                         fadeInDuration,
                     );
                 }
-                // Note: "Now Playing" text is updated via IF_SETTEXT from server (OSRS parity)
+                // Note: "Now Playing" text is updated via IF_SETTEXT from server ()
             });
         } catch {}
         // Subscribe to server-side play_jingle messages for jingle playback (level-ups, quests, etc.)
@@ -2807,7 +2791,7 @@ export class OsrsClient {
             });
             // Set up callback to mark chat cycle when ANY message is added (including from CS2 MES opcode)
             chatHistory.onMessageAdded = () => {
-                // OSRS PARITY: Mark chat cycle - handlers fire during processWidgetTransmits()
+                // Mark chat cycle - handlers fire during processWidgetTransmits()
                 // Use markChatTransmit() which handles the timing correctly when
                 // async events arrive after processWidgetTransmits has already run
                 markChatTransmit();
@@ -2821,7 +2805,7 @@ export class OsrsClient {
                 console.log("[Chat Test] Added with uid:", uid);
                 console.log("[Chat Test] Public chat length:", chatHistory.getLength(2));
                 console.log("[Chat Test] Latest message:", chatHistory.getFullByTypeAndLine(2, 0));
-                // OSRS PARITY: Mark chat cycle (uses markChatTransmit for proper timing)
+                // Mark chat cycle (uses markChatTransmit for proper timing)
                 markChatTransmit();
                 console.log("[Chat Test] Marked chatCycle for transmit");
             };
@@ -2876,11 +2860,11 @@ export class OsrsClient {
                         baseLevel: entry.baseLevel ?? 1,
                         xp: entry.xp ?? 0,
                     });
-                    // OSRS PARITY: Mark each changed stat ID for trigger checking
+                    // Mark each changed stat ID for trigger checking
                     markStatTransmit(entry.id);
                 }
 
-                // OSRS parity: "Depends on combat levels" comparisons use the local player's combat level.
+                // "Depends on combat levels" comparisons use the local player's combat level.
                 // Compute it from base skill levels (Combat level formula).
                 const getBase = (skillId: SkillId): number =>
                     this.skillsMap.get(skillId)?.baseLevel ?? 1;
@@ -2899,9 +2883,9 @@ export class OsrsClient {
                 const combatLevel = Math.floor(base + Math.max(melee, range, mage));
                 const clampedCombat = clamp(combatLevel, 3, 126);
                 ClientState.localPlayerCombatLevel = clampedCombat;
-                // OSRS parity: Set varcint for CS2 scripts (account_summary_update_combatlevel uses this)
+                // Set varcint for CS2 scripts (account_summary_update_combatlevel uses this)
                 this.varManager?.setVarcInt(VARC_COMBAT_LEVEL, clampedCombat);
-                // OSRS parity: Set varbit for combat styles tab (combat_interface_setup uses this)
+                // Set varbit for combat styles tab (combat_interface_setup uses this)
                 this.varManager?.setVarbit(VARBIT_COMBATLEVEL_TRANSMIT, clampedCombat);
             });
         } catch {}
@@ -2930,7 +2914,7 @@ export class OsrsClient {
                         this._serverVarpSync = false;
                     }
                 }
-                // OSRS PARITY: Set varbit 25 (stamina_active) for CS2 orb scripts
+                // Set varbit 25 (stamina_active) for CS2 orb scripts
                 // This allows orbs_update_runmode to show the correct run icon when stamina is active
                 const staminaActive = state.stamina && state.stamina.ticks > 0 ? 1 : 0;
                 const currentStamina = this.varManager?.getVarbit(VARBIT_STAMINA_ACTIVE) ?? 0;
@@ -2942,7 +2926,7 @@ export class OsrsClient {
                         this._serverVarpSync = false;
                     }
                 }
-                // OSRS PARITY: Mark misc cycle to update run orb display
+                // Mark misc cycle to update run orb display
                 // The orbs_update_runenergy script uses if_setonmisctransmit to refresh when energy changes
                 markMiscTransmit();
             });
@@ -3046,7 +3030,7 @@ export class OsrsClient {
             // Return to login screen when reconnection attempts are exhausted
             subscribeReconnectFailed(() => {
                 try {
-                    // OSRS parity: failed connect shows timeout on login screen.
+                    // failed connect shows timeout on login screen.
                     if (this.gameState === GameState.CONNECTING) {
                         this.loginState.loginIndex = LoginIndex.TRY_AGAIN;
                         this.loginState.setResponse(
@@ -3245,7 +3229,7 @@ export class OsrsClient {
             });
             // Receive server-provided animation sequences (idle/walk/run)
             // NOTE: This is now a fallback - animations are primarily sent per-player in the
-            // appearance block (OSRS parity). This handler is kept for backward compatibility
+            // appearance block (). This handler is kept for backward compatibility
             // and for setting initial default animations before player is fully spawned.
             subscribeAnim((anim) => {
                 try {
@@ -3409,7 +3393,7 @@ export class OsrsClient {
         // minimap marker and sends the packet. Movement prediction happens when the server
         // sends back movement updates with running mode.
 
-        // Mirror OSRS client: send MOVE_GAMECLICK (ClientPacket.field3179) via binary packet writer.
+        // Send MOVE_GAMECLICK via binary packet writer.
         // Server computes path; packet contains world coords + ctrl modifier (run invert).
         if (isServerConnected()) {
             const node = createPacket(ClientPacketId.MOVE_GAMECLICK);
@@ -3449,7 +3433,7 @@ export class OsrsClient {
     }
 
     /**
-     * OSRS parity: Check if a widget UID belongs to an inventory container (type 2)
+     * Check if a widget UID belongs to an inventory container (type 2)
      * Used to determine if child items should be treated as draggable
      */
     private isInventoryContainer(parentUid: number): boolean {
@@ -3465,8 +3449,7 @@ export class OsrsClient {
     }
 
     /**
-     * OSRS parity: Resolve clickedWidgetParent via flag-based parent climbing.
-     * Reference: class482.method8733 + ReflectionCheck.method736(getWidgetFlags(w)).
+     * Resolve clickedWidgetParent via flag-based parent climbing.
      */
     private resolveDragParentByFlags(w: any): any | null {
         const depth = this.getDragParentDepth(w);
@@ -3482,9 +3465,8 @@ export class OsrsClient {
     }
 
     /**
-     * OSRS parity: clickedWidgetParent selection used for clamping and script coords.
-     * Reference: class220.clickWidget(): method8733(widget) ?? widget.parent
-     * In our client, `dragRenderArea` is the equivalent of Java `Widget.parent` (CC_SETDRAGGABLE).
+     * clickedWidgetParent selection used for clamping and script coords.
+     * `dragRenderArea` is the equivalent of the parent widget (CC_SETDRAGGABLE).
      *
      * IMPORTANT: Only return a drag parent if explicitly set via:
      * 1. Flag bits 17-19 (from cc_setdraggable with parent depth)
@@ -3500,7 +3482,7 @@ export class OsrsClient {
         if (byFlags) return byFlags;
         // Check explicit drag render area (set by cc_setdraggable)
         if (w.dragRenderArea) return w.dragRenderArea;
-        // OSRS parity: Do NOT fall back to parentUid for drag clamping
+        // Do NOT fall back to parentUid for drag clamping
         // Widgets without explicit drag parent (like bank items) should drag freely
         return null;
     }
@@ -3521,15 +3503,15 @@ export class OsrsClient {
     }
 
     /**
-     * OSRS parity: Check if a widget is draggable.
-     * Reference: class482.method8733 - drag is controlled by flag bits 17-19 set via cc_setdraggable.
+     * Check if a widget is draggable.
+     * Drag is controlled by flag bits 17-19 set via cc_setdraggable.
      * A widget is only draggable if:
      * 1. cc_setdraggable was called (sets isDraggable flag)
      * 2. OR it has an onDrag handler
      * 3. OR it's an inventory item with a dragRenderArea set
      */
     private isWidgetDraggable(w: any): boolean {
-        // OSRS parity: primary gate is flags bits 17-19 (parent depth) OR explicit drag parent set by CC_SETDRAGGABLE.
+        // primary gate is flags bits 17-19 (parent depth) OR explicit drag parent set by CC_SETDRAGGABLE.
         if (this.getDragParentDepth(w) !== 0) return true;
         if (w.dragRenderArea) return true;
         if (w.isDraggable) return true;
@@ -3677,7 +3659,7 @@ export class OsrsClient {
             let v = (colors[idx] ?? 0) | 0;
             for (let i = 0; i < len; i++) {
                 v = (v + (dir === 1 ? 1 : -1) + len) % len;
-                // OSRS parity: restrict skin palette (index 4) to < 8
+                // restrict skin palette (index 4) to < 8
                 if (idx !== 4 || v < 8) break;
             }
             colors[idx] = v | 0;
@@ -3858,7 +3840,7 @@ export class OsrsClient {
         slot?: number;
         itemId?: number;
     }): void {
-        // OSRS parity: for dynamic children (CC_CREATE), the click packet identifies the parent widget
+        // for dynamic children (CC_CREATE), the click packet identifies the parent widget
         // plus a childIndex ("slot"). Our menu/hit-test layers sometimes surface the parent widget with
         // `slot` set to the dynamic child index. For CS2, we must execute onOp/onClick on the DYNAMIC
         // child widget itself (where cc_setonop listeners are attached), not on the parent container.
@@ -3924,7 +3906,7 @@ export class OsrsClient {
             return;
         }
 
-        // PlayerDesign (679): handle locally (OSRS parity: appearance changes are client-side).
+        // PlayerDesign (679): handle locally (appearance changes are client-side).
         // The interface widgets themselves are largely CS2-driven containers; server should only
         // receive the final selection, not each arrow click.
         if ((groupId | 0) === 679) {
@@ -3955,7 +3937,7 @@ export class OsrsClient {
             });
         }
 
-        // OSRS parity: For draggable widgets (like inventory items), defer action until mouse released
+        // For draggable widgets (like inventory items), defer action until mouse released
         // This prevents "Use" from triggering on mousedown when the user might be trying to drag
         if (event.source === "primary" && event.widget && this.isWidgetDraggable(event.widget)) {
             // Check if mouse button is currently held
@@ -3972,7 +3954,7 @@ export class OsrsClient {
             const widgetGroupId = event.widget.groupId ?? event.widget.uid >>> 16;
             const childId = event.widget.fileId ?? event.widget.uid & 0xffff;
 
-            // OSRS parity: Settings cog buttons in side tabs switch to the Settings tab (index 11)
+            // Settings cog buttons in side tabs switch to the Settings tab (index 11)
             // Widget 399:11 = Quest list settings cog
             // Widget 629:* with option "Settings" = Side journal settings cogs
             // Widget 116:32 = "All Settings" button (opens settings modal - handled separately)
@@ -4020,7 +4002,7 @@ export class OsrsClient {
             }
 
             // Handle spell-on-widget (e.g., High Alchemy on inventory item)
-            // OSRS parity: route this through the low-level IF_BUTTONT packet.
+            // route this through the low-level IF_BUTTONT packet.
             if (ClientState.isSpellSelected) {
                 // Prevent casting on the same click that entered targeting mode
                 // Require at least 50ms to have passed since entering spell targeting
@@ -4058,9 +4040,9 @@ export class OsrsClient {
                     }
                 }
 
-                // OSRS parity: Check if this widget is a valid target for the selected spell/item
+                // Check if this widget is a valid target for the selected spell/item
                 // If targeting a non-item widget, check WIDGET_USE_TARGET (bit 21) validation
-                // Reference: WorldMapSprite.java:104 - (flags >> 21 & 1) != 0
+                // WIDGET_USE_TARGET validation: (flags >> 21 & 1) != 0
                 if (!isInventoryItem) {
                     const targetFlags =
                         this.widgetManager?.getWidgetFlags?.(event.widget) ??
@@ -4167,7 +4149,7 @@ export class OsrsClient {
                 ClientState.selectedSpellActionName = "Use";
                 ClientState.selectedSpellName = event.target || event.widget.name || "";
                 ClientState.spellTargetEnteredFrame = Date.now();
-                // OSRS parity: Items can target NPCs, objects, ground items, players, and widgets
+                // Items can target NPCs, objects, ground items, players, and widgets
                 // Set targetMask with all target types enabled (bits 11-16)
                 ClientState.selectedSpellTargetMask = 0x3f; // All 6 target type bits
 
@@ -4219,13 +4201,13 @@ export class OsrsClient {
             let targetVerb = event.widget.targetVerb || event.widget.spellActionName;
             const isSpellbookWidget = groupId === 218 && childId > 0;
 
-            // OSRS parity: Only enter targeting mode if targetMask > 0 (spell needs a target)
+            // Only enter targeting mode if targetMask > 0 (spell needs a target)
             // Teleport spells have targetMask === 0 and should cast immediately
             const targetMask = this.getWidgetTargetMask(event.widget);
             const needsTarget = targetMask > 0;
 
             // No-target spells (teleports) send IF_BUTTON1 directly.
-            // OSRS parity: spellbook op1 routes through widget button packets.
+            // spellbook op1 routes through widget button packets.
             if (
                 isSpellbookWidget &&
                 !needsTarget &&
@@ -4257,7 +4239,7 @@ export class OsrsClient {
                 // Get the import for ClientState
                 const { ClientState } = require("./ClientState");
 
-                // OSRS parity: Clicking the currently selected spell deselects it.
+                // Clicking the currently selected spell deselects it.
                 if (
                     ClientState.isSpellSelected &&
                     ClientState.selectedSpellWidget === event.widget.uid
@@ -4289,7 +4271,7 @@ export class OsrsClient {
                     "";
                 // Track when spell targeting was entered to prevent casting on same click
                 ClientState.spellTargetEnteredFrame = Date.now();
-                // OSRS parity: Store the spell's target mask (what entity types it can target)
+                // Store the spell's target mask (what entity types it can target)
                 // This is stored in bits 11-16 of the current widget flags.
                 ClientState.selectedSpellTargetMask = targetMask;
 
@@ -4303,7 +4285,7 @@ export class OsrsClient {
                     )}`,
                 );
 
-                // Fire onTargetEnter on the source widget (OSRS parity - use widget child ID, not hardcoded spell ID)
+                // Fire onTargetEnter on the source widget ( - use widget child ID, not hardcoded spell ID)
                 this.setSelectedSpell(
                     {
                         spellId: childId, // Widget child ID is the spell identifier
@@ -4318,7 +4300,7 @@ export class OsrsClient {
             }
         }
 
-        // OSRS parity: Handle pause button widgets
+        // Handle pause button widgets
         // When a widget with buttonText "Continue" or text containing "click here to continue"
         // is clicked, send RESUME_PAUSEBUTTON packet.
         // This handles dialog continue buttons like:
@@ -4343,7 +4325,7 @@ export class OsrsClient {
             const isPauseButtonWidget = isContinueButtonText || hasClickToContinue;
 
             if (isPauseButtonWidget) {
-                // OSRS parity: Only send if not already waiting for response
+                // Only send if not already waiting for response
                 if (this.widgetManager?.meslayerContinueWidget === null) {
                     const widgetUid =
                         (typeof (event.widget as any).id === "number"
@@ -4360,7 +4342,7 @@ export class OsrsClient {
                     pkt.packetBuffer.writeShortAddLE(childIndex);
                     pkt.packetBuffer.writeInt(widgetUid);
                     queuePacket(pkt);
-                    // OSRS parity: Set meslayerContinueWidget to show "Please wait..."
+                    // Set meslayerContinueWidget to show "Please wait..."
                     if (this.widgetManager) {
                         this.widgetManager.meslayerContinueWidget = event.widget;
                         this.widgetManager.invalidateWidgetRender(event.widget);
@@ -4374,7 +4356,7 @@ export class OsrsClient {
         }
 
         // CS2 Event Hooks
-        // OSRS parity: Skip CS2 handler invocation for primary clicks if game loop already handled it
+        // Skip CS2 handler invocation for primary clicks if game loop already handled it
         // This prevents double-invocation when:
         // 1. Game loop fires onClick/onOp on mousedown (non-draggable widgets)
         // 2. UI registry fires handleWidgetAction on mouseup
@@ -4391,7 +4373,7 @@ export class OsrsClient {
             const opIndex = this.inferWidgetOpId(event.widget, event.option) ?? 1;
             const widgetGroupId = event.widget.groupId ?? event.widget.uid >>> 16;
 
-            // OSRS parity: CS2 event coords are relative to the widget ("event_mousex/y").
+            // CS2 event coords are relative to the widget ("event_mousex/y").
             // The GL UI dispatches absolute canvas coords; the main loop uses relative coords.
             // Prefer already-relative coords when they fit inside the widget bounds; otherwise
             // convert absolute coords using the widget's cached absolute position from rendering.
@@ -4468,13 +4450,13 @@ export class OsrsClient {
             return;
         }
 
-        // OSRS parity: widget onOp visuals happen client-side before packet handling.
+        // widget onOp visuals happen client-side before packet handling.
         // Keep the league tutorial area highlights in sync on the same click frame.
         if (event.widget) {
             this.applyLeagueAreaTutorialHighlightPrediction(event.widget);
         }
 
-        // OSRS parity: Withdraw-X and Deposit-X need to prompt for quantity
+        // Withdraw-X and Deposit-X need to prompt for quantity
         const optionLower = event.option?.toLowerCase() ?? "";
         const isQuantityDialog = optionLower === "withdraw-x" || optionLower === "deposit-x";
         const widgetGroupId = event.widget?.groupId ?? event.widget?.uid >>> 16;
@@ -4497,7 +4479,7 @@ export class OsrsClient {
                 const result = this.cs2Vm.runScriptEvent(scriptEvent);
                 console.log(`[handleWidgetAction] Script execution result: ${result}`);
 
-                // Manually enable key input capture (opcode 3138 sets field798=0 which allows all widgets to receive input)
+                // Manually enable key input capture (opcode 3138 sets inputDialogType=0 which allows all widgets to receive input)
                 this.cs2Vm.inputDialogType = 0;
                 this.cs2Vm.inputDialogString = "";
                 this.varManager.setVarcString(335, "");
@@ -4512,8 +4494,8 @@ export class OsrsClient {
             const payload = this.buildWidgetActionPayload(event);
             if (!payload) return;
 
-            // OSRS parity: Only transmit action to server if the transmit flag is set for this action
-            // Reference: class59.java:733 - (flags >> (actionIndex + 1) & 1) != 0
+            // Only transmit action to server if the transmit flag is set for this action.
+            // (flags >> (actionIndex + 1) & 1) != 0
             // If the transmit flag is not set, the action is client-side only (CS2 handlers)
             const widget = event.widget;
             if (widget) {
@@ -5133,7 +5115,7 @@ export class OsrsClient {
                 // Get ALL root widgets (group 161 has multiple independent roots)
                 const allRoots = this.widgetManager.getAllGroupRoots(rootInterface);
 
-                // OSRS parity: layoutWidgets needs to traverse static children via parentUid filtering
+                // layoutWidgets needs to traverse static children via parentUid filtering
                 const getStaticChildren = (uid: number) =>
                     widgetManager.getStaticChildrenByParentUid(uid);
 
@@ -5156,7 +5138,7 @@ export class OsrsClient {
     /**
      * Process onTimer event handlers for all widgets
      * Queues timer events to low-priority queue (processed after other events)
-     * OSRS parity: traverses both static children (via parentUid) and dynamic children
+     * traverses both static children (via parentUid) and dynamic children
      */
     private processWidgetTimers(): void {
         if (this.widgetManager.rootInterface === -1) return;
@@ -5167,7 +5149,7 @@ export class OsrsClient {
         const stack: any[] = [];
         for (const r of allRoots) if (r) stack.push(r);
 
-        // OSRS PARITY: Also process timers for InterfaceParent-mounted sub-interfaces.
+        // Also process timers for InterfaceParent-mounted sub-interfaces.
         // In the official client these are traversed via the InterfaceParent draw/update path.
         for (const [containerUid, parent] of this.widgetManager.interfaceParents) {
             if (!parent) continue;
@@ -5220,7 +5202,7 @@ export class OsrsClient {
                 this.queueScriptEvent(event, 1); // 1 = low priority (timer)
             }
 
-            // OSRS parity: traverse static children (via parentUid filtering)
+            // traverse static children (via parentUid filtering)
             const staticChildren = this.widgetManager.getStaticChildrenByParentUid(uid);
             for (let i = staticChildren.length - 1; i >= 0; i--) {
                 stack.push(staticChildren[i]);
@@ -5236,13 +5218,13 @@ export class OsrsClient {
     }
 
     /**
-     * OSRS PARITY: Process transmit handlers at the engine level.
+     * Process transmit handlers at the engine level.
      *
      * Instead of calling triggerChatTransmit/triggerMiscTransmit directly when events occur,
      * OSRS gates transmit handlers during widget tree updates by comparing global "event cycles"
      * to per-widget timestamps.
      *
-     * Reference: WorldMapRegion.java ~line 1806 (updateRootInterface)
+     * Runs during updateRootInterface.
      *
      * For each widget:
      * 1. If chatCycle > widget.lastTransmitCycle && widget.onChatTransmit exists → queue event
@@ -5250,7 +5232,7 @@ export class OsrsClient {
      * 3. (repeat for all transmit types)
      * 4. Set widget.lastTransmitCycle = cycleCntr
      *
-     * OSRS PARITY: All transmit handlers are QUEUED, not executed immediately.
+     * All transmit handlers are QUEUED, not executed immediately.
      * This ensures cycleCntr++ happens before scripts run.
      */
     private processWidgetTransmits(): void {
@@ -5262,7 +5244,7 @@ export class OsrsClient {
         }
 
         const cycles = this.transmitCycles;
-        // OSRS PARITY: All transmit types with triggers (var, inv, stat) now use counter-based
+        // All transmit types with triggers (var, inv, stat) now use counter-based
         // tracking. No snapshots needed - counters are monotonically increasing and never cleared.
         const allRoots = this.widgetManager.getAllGroupRoots(this.widgetManager.rootInterface);
         if (!allRoots || allRoots.length === 0) {
@@ -5274,7 +5256,7 @@ export class OsrsClient {
         const stack: any[] = [];
         for (const r of allRoots) if (r) stack.push(r);
 
-        // OSRS PARITY: Also traverse InterfaceParent-mounted sub-interfaces so their transmit
+        // Also traverse InterfaceParent-mounted sub-interfaces so their transmit
         // handlers (var/inv/stat/chat/etc.) fire while the interface is open.
         for (const [containerUid, parent] of this.widgetManager.interfaceParents) {
             if (!parent) continue;
@@ -5286,7 +5268,7 @@ export class OsrsClient {
 
         // Helper to queue a transmit event
         const queueTransmit = (node: any, handler: any, cacheHandler: any[]) => {
-            // OSRS parity: Prefer the OSRS-style args array (Object[]) to preserve exact
+            // Prefer the OSRS-style args array (Object[]) to preserve exact
             // signature ordering (ints/strings can interleave).
             if (Array.isArray(cacheHandler) && cacheHandler.length > 0) {
                 const event = createScriptEvent({
@@ -5308,7 +5290,7 @@ export class OsrsClient {
         };
 
         // Helper to check if transmit should fire
-        // OSRS PARITY: Fire if (eventCycle > lastCycle) OR (newly loaded widget AND event pending)
+        // Fire if (eventCycle > lastCycle) OR (newly loaded widget AND event pending)
         const shouldFire = (eventCycle: number, lastCycle: number): boolean => {
             return eventCycle > -1 && (lastCycle === -1 || eventCycle > lastCycle);
         };
@@ -5335,7 +5317,7 @@ export class OsrsClient {
             }
 
             // onStatTransmit - check statTransmitTriggers if defined
-            // OSRS PARITY: Use counter-based approach instead of cycle-based
+            // Use counter-based approach instead of cycle-based
             // - changedStatCount is monotonically increasing (never cleared)
             // - Widget tracks lastChangedStatCount - the count when handler last fired
             // - Fire if changedStatCount > lastChangedStatCount
@@ -5379,10 +5361,9 @@ export class OsrsClient {
             }
 
             // onVarTransmit - check varTransmitTriggers if defined
-            // OSRS PARITY: Use counter-based approach instead of cycle-based
-            // Reference: WorldMapRegion.java lines 1728-1752
+            // Use counter-based approach instead of cycle-based.
             // - changedVarpCount is monotonically increasing (never cleared)
-            // - Widget tracks lastChangedVarpCount (field3842) - the count when handler last fired
+            // - Widget tracks lastChangedVarpCount - the count when handler last fired
             // - Fire if changedVarpCount > lastChangedVarpCount
             // - If triggers defined AND diff <= 32, scan circular buffer for matching triggers
             // - If no triggers OR diff > 32, fire unconditionally
@@ -5421,7 +5402,7 @@ export class OsrsClient {
             }
 
             // onInvTransmit - check invTransmitTriggers if defined
-            // OSRS PARITY: Use counter-based approach instead of cycle-based
+            // Use counter-based approach instead of cycle-based
             // - changedInvCount is monotonically increasing (never cleared)
             // - Widget tracks lastChangedInvCount - the count when handler last fired
             // - Fire if changedInvCount > lastChangedInvCount
@@ -5517,7 +5498,7 @@ export class OsrsClient {
             }
 
             // Update widget's last processed cycle
-            // OSRS: widget.field3836 = Client.cycleCntr
+            // OSRS: widget.lastTransmitCycle = cycleCntr
             node.lastTransmitCycle = cycles.cycleCntr;
 
             // Traverse static children
@@ -5593,7 +5574,7 @@ export class OsrsClient {
 
     /**
      * Trigger initial onVarTransmit handlers for widgets in a group.
-     * OSRS parity: When a widget with varTransmitTriggers loads, its onVarTransmit
+     * When a widget with varTransmitTriggers loads, its onVarTransmit
      * handler should fire immediately with current varp values, not wait for changes.
      * This ensures prayer buttons show correct state when the prayer tab first opens.
      */
@@ -5682,7 +5663,7 @@ export class OsrsClient {
     }
 
     /**
-     * OSRS parity: Ensure notification_display (interface 660) is mounted into the toplevel
+     * Ensure notification_display (interface 660) is mounted into the toplevel
      * notifications container for the current root interface.
      *
      * This container is used by CS2 scripts like notification_positioning (3351) and
@@ -5705,7 +5686,7 @@ export class OsrsClient {
         this.widgetManager.openSubInterface(targetUid, 660, 1);
         this.triggerInitialVarTransmitForGroup(660);
 
-        // OSRS parity: toplevel_init calls notification_init(notificationsComponent) which
+        // toplevel_init calls notification_init(notificationsComponent) which
         // installs notification_positioning timers when a layer is present. Since we mount
         // on-demand, run the proc here so positioning/anchoring matches OSRS.
         try {
@@ -5830,18 +5811,18 @@ export class OsrsClient {
         // Input picking treats widgets as visible unless explicitly hidden.
         const visibleMap = new Map<number, boolean>();
 
-        // OSRS PARITY: While a widget is clicked/held, it is invalidated every frame so it can be
+        // While a widget is clicked/held, it is invalidated every frame so it can be
         // rendered semi-transparent (and to support drag visuals).
-        // Reference: Client.method1282() -> FaceNormal.invalidateWidget(clickedWidget)
+        // The clicked widget is invalidated so it can be re-rendered semi-transparent.
         if (this.clickedWidget) {
             this.widgetManager.invalidateWidgetRender(this.clickedWidget);
         }
 
-        // OSRS parity: callback for static children lookup
+        // callback for static children lookup
         const getStaticChildren = (uid: number) =>
             this.widgetManager.getStaticChildrenByParentUid(uid);
 
-        // OSRS parity: callback for InterfaceParent lookup (scrollbar widgets shouldn't scroll)
+        // callback for InterfaceParent lookup (scrollbar widgets shouldn't scroll)
         const getInterfaceParentRoots = (containerUid: number): any[] => {
             const group = this.widgetManager.interfaceParents.get(containerUid)?.group;
             return typeof group === "number" ? this.widgetManager.getAllGroupRoots(group) : [];
@@ -5851,10 +5832,10 @@ export class OsrsClient {
             return !!parent && (parent.type | 0) === 0;
         };
 
-        // OSRS parity: widget flags accessor with runtime overrides applied.
+        // widget flags accessor with runtime overrides applied.
         const getWidgetFlags = (w: any): number => this.widgetManager.getWidgetFlags(w);
 
-        // OSRS parity: Primary click should use the same default entry selection rules as the menu.
+        // Primary click should use the same default entry selection rules as the menu.
         const getPrimaryWidgetAction = (
             w: any,
         ): { option: string; target: string; slot?: number; itemId?: number } => {
@@ -5869,8 +5850,8 @@ export class OsrsClient {
 
             // Prefer deriving options from the parent widget for dynamic children only when the parent
             // holds the ops (e.g., equipped item icons inside equipment slot components).
-            // OSRS parity: For dynamic children (fileId=-1), check if parent has menu ops.
-            // Reference: HealthBarUpdate.method2496 - menu options show if transmit flag OR onOp handler.
+            // For dynamic children (fileId=-1), check if parent has menu ops.
+            // Menu options show if transmit flag OR onOp handler.
             // Must check actions, targetVerb, AND onOp handler (not just actions/targetVerb).
             const menuWidget = (() => {
                 const isDynamic = (w?.fileId | 0) === -1;
@@ -5934,7 +5915,7 @@ export class OsrsClient {
                 const isShiftHeld = input.isShiftDown();
                 const hasSelection =
                     ClientState.isSpellSelected || ClientState.isItemSelected === 1;
-                // OSRS parity: shift-click uses the item's configured shiftClickIndex (opcode 42) when enabled.
+                // shift-click uses the item's configured shiftClickIndex (opcode 42) when enabled.
                 // Inventory shift-click drop only applies to the inventory interface (group 149).
                 let shiftClickActionIndex: number | undefined;
                 if (
@@ -5968,7 +5949,7 @@ export class OsrsClient {
                     entryTarget = chosen.target;
                 }
 
-                // OSRS parity: Shift-click drop overrides the inventory item's primary option only when
+                // Shift-click drop overrides the inventory item's primary option only when
                 // no spell/item selection is active.
                 if (
                     isShiftHeld &&
@@ -6039,20 +6020,20 @@ export class OsrsClient {
         }
 
         const hoverCycle = this.transmitCycles.cycleCntr | 0;
-        // OSRS parity: class536 (widget event traversal) runs once per client cycle.
+        // widget event traversal runs once per client cycle.
         // Avoid dispatching hover listeners multiple times when render FPS exceeds 50Hz.
         if (this._lastHoverListenerCycle !== hoverCycle) {
             this._lastHoverListenerCycle = hoverCycle;
 
-            // OSRS parity: hover state is tracked per-widget (Widget.field4564 / field3722).
+            // hover state is tracked per-widget.
             // Multiple widgets (parents + children) can be hovered at once and receive onMouseRepeat.
             const nextHoveredUids = new Set<number>();
             const nextHoveredWidgetsByUid = new Map<number, any>();
             const hasHoverHandlers = (w: any): boolean => {
-                // OSRS parity: mouse listener dispatch in class536 is in the IF3 event branch.
+                // mouse listener dispatch is in the IF3 event branch.
                 if (!w || w.isIf3 === false) return false;
                 // If the cache/runtime explicitly marked this widget as "no listeners", skip.
-                if (w.field4517 === false) return false;
+                if (w.hasListeners === false) return false;
                 return !!(
                     w.eventHandlers?.onMouseOver ||
                     w.eventHandlers?.onMouseLeave ||
@@ -6110,7 +6091,7 @@ export class OsrsClient {
                 }
             }
 
-            // OSRS parity: onMouseRepeat fires once per client cycle while hovered.
+            // onMouseRepeat fires once per client cycle while hovered.
             for (let i = 0; i < hits.length; i++) {
                 const w = hits[i];
                 if (!hasHoverHandlers(w)) continue;
@@ -6129,7 +6110,7 @@ export class OsrsClient {
             this.hoveredWidgetsByUid = nextHoveredWidgetsByUid;
         }
 
-        // OSRS parity: IF1 scrollbar interaction (Skills.nv).
+        // IF1 scrollbar interaction (Skills.nv).
         // Handles arrows, track dragging, and wheel over content+scrollbar region.
         if (!this.isDraggingWidget) {
             this.if1AlternativeScrollbarWidth = this.if1ScrollbarDragging ? 32 : 0;
@@ -6263,7 +6244,7 @@ export class OsrsClient {
             }
         }
 
-        // OSRS parity: Handle scroll wheel events on widgets with onScroll handlers
+        // Handle scroll wheel events on widgets with onScroll handlers
         // (IF1 default wheel scrolling is handled by the IF1 scrollbar path above).
         const wheelDelta = input.wheelDeltaY;
         if (wheelDelta !== 0 && hits.length > 0 && !this.isDraggingWidget) {
@@ -6277,7 +6258,7 @@ export class OsrsClient {
                 const wUid = (w.uid ?? 0) | 0;
                 if (this.widgetManager.isEffectivelyHidden(wUid)) continue;
 
-                // OSRS parity: noScrollThrough blocks scroll from reaching widgets behind
+                // noScrollThrough blocks scroll from reaching widgets behind
                 if (w.noScrollThrough && w.isIf3 !== false) {
                     break;
                 }
@@ -6355,7 +6336,7 @@ export class OsrsClient {
                 for (let i = clickHits.length - 1; i >= 0; i--) {
                     const w = clickHits[i];
                     const hasItem = typeof (w as any).itemId === "number" && (w as any).itemId > 0;
-                    // OSRS PARITY: Check for actual handlers, not just empty arrays
+                    // Check for actual handlers, not just empty arrays
                     // Empty arrays are truthy but shouldn't count as having handlers
                     const hasActions = Array.isArray(w.actions) && w.actions.length > 0;
                     const getWidgetByUid = (uid: number) => this.widgetManager?.getWidgetByUid(uid);
@@ -6364,13 +6345,13 @@ export class OsrsClient {
                         getWidgetFlags,
                         getWidgetByUid,
                     );
-                    // OSRS parity: widgets can be clickable purely via IF_SETEVENTS transmit flags
+                    // widgets can be clickable purely via IF_SETEVENTS transmit flags
                     // (bits 1-10 for op1..op10), even if they have no actions[] or scripts attached.
                     // This is required for interfaces like PlayerDesign (679) where button widgets
                     // are often empty containers with only transmit flags set.
                     const flags = getWidgetFlags(w) | 0;
                     const hasTransmitOps = (flags & 0x7fe) !== 0;
-                    // OSRS parity: spell widgets are actionable when target mask is non-zero
+                    // spell widgets are actionable when target mask is non-zero
                     // and spellActionName exists (Widget_getSpellActionName).
                     const targetMask = (flags >>> 11) & 0x3f;
                     const hasSpellAction =
@@ -6395,7 +6376,7 @@ export class OsrsClient {
                         w.onDrag ||
                         w.isDraggable ||
                         isPauseButtonWidget ||
-                        // OSRS parity: IF_SETEVENTS transmit bits can make otherwise-empty STATIC widgets
+                        // IF_SETEVENTS transmit bits can make otherwise-empty STATIC widgets
                         // clickable (e.g., server-authoritative tab controls). For dynamic children,
                         // transmit-only hit targets can incorrectly steal clicks from scripted row widgets.
                         (!isDynamicWidget && hasTransmitOps) ||
@@ -6407,7 +6388,7 @@ export class OsrsClient {
                         // Use absolute position (from hit detection) for event_mousey calculation
                         this.clickedWidgetX = input.leftClickX - (w._absX ?? w.x ?? 0);
                         this.clickedWidgetY = input.leftClickY - (w._absY ?? w.y ?? 0);
-                        // OSRS parity: Mark the clicked widget dirty immediately so the held-click
+                        // Mark the clicked widget dirty immediately so the held-click
                         // translucency is visible on the same frame.
                         this.widgetManager.invalidateWidgetRender(w);
 
@@ -6421,7 +6402,7 @@ export class OsrsClient {
                             // Get targetVerb from widget or use "Cast" as fallback for spell widgets
                             let targetVerb = w.targetVerb || w.spellActionName;
 
-                            // OSRS parity: Only enter targeting mode if targetMask > 0 (spell needs a target)
+                            // Only enter targeting mode if targetMask > 0 (spell needs a target)
                             // Teleport spells have targetMask === 0 and should cast immediately.
                             const targetMask = this.getWidgetTargetMask(w);
                             const needsTarget = targetMask > 0;
@@ -6455,7 +6436,7 @@ export class OsrsClient {
                             }
 
                             if (targetVerb && needsTarget) {
-                                // OSRS parity: Clicking the currently selected spell deselects it.
+                                // Clicking the currently selected spell deselects it.
                                 if (
                                     ClientState.isSpellSelected &&
                                     ClientState.selectedSpellWidget === w.uid
@@ -6481,7 +6462,7 @@ export class OsrsClient {
                                     w.opBase || w.dataText || w.name || "";
                                 // Track when spell targeting was entered to prevent casting on same click
                                 ClientState.spellTargetEnteredFrame = Date.now();
-                                // OSRS parity: Store the spell's target mask
+                                // Store the spell's target mask
                                 ClientState.selectedSpellTargetMask = targetMask;
 
                                 const clickGroupId = (w.uid >> 16) & 0xffff;
@@ -6495,7 +6476,7 @@ export class OsrsClient {
                                     )}`,
                                 );
 
-                                // Fire onTargetEnter on the source widget (OSRS parity - use widget child ID, not hardcoded spell ID)
+                                // Fire onTargetEnter on the source widget ( - use widget child ID, not hardcoded spell ID)
                                 this.setSelectedSpell(
                                     {
                                         spellId: clickChildId, // Widget child ID is the spell identifier
@@ -6511,11 +6492,11 @@ export class OsrsClient {
                             }
                         }
 
-                        // OSRS parity: Pause button widgets send RESUME_PAUSEBUTTON and do not go through
+                        // Pause button widgets send RESUME_PAUSEBUTTON and do not go through
                         // generic widget action dispatch.
-                        // Reference: WorldMapSprite.java line 128-129 - menu shows "Continue" with empty target
+                        // Pause button widgets send RESUME_PAUSEBUTTON - menu shows "Continue" with empty target
                         if (isPauseButtonWidget) {
-                            // OSRS parity: Only send if not already waiting for response
+                            // Only send if not already waiting for response
                             if (!this.widgetManager?.meslayerContinueWidget) {
                                 const widgetUid =
                                     (typeof (w as any).id === "number"
@@ -6542,16 +6523,16 @@ export class OsrsClient {
                             break;
                         }
 
-                        // OSRS parity: For draggable widgets, DON'T fire onClick on mousedown
+                        // For draggable widgets, DON'T fire onClick on mousedown
                         // Wait until mouseup to determine if it was a click or a drag
-                        // Reference: Client.java drag handling - onClick only fires on release if not dragging
+                        // onClick only fires on release if not dragging
                         if (this.isWidgetDraggable(w)) {
                             // Don't fire onClick yet - wait for mouseup to see if it's a drag
                             // The onClick will be fired in the release handler if no drag occurred
                             break;
                         }
 
-                        // OSRS parity: resolve the primary menu action before any onClick/onOp handlers run.
+                        // resolve the primary menu action before any onClick/onOp handlers run.
                         // Handlers can mutate widget ops (e.g., Mute -> Unmute), but the transmitted action
                         // should reflect what was clicked pre-mutation.
                         const primaryAction = getPrimaryWidgetAction(w);
@@ -6573,7 +6554,7 @@ export class OsrsClient {
                         }
 
                         // If the GL widgets layer is active, defer primary click handling to it.
-                        // OSRS parity: Primary left-click handling is driven by the game loop
+                        // Primary left-click handling is driven by the game loop
                         // (clickedWidget + menuAction semantics), not by the GL widget click registry.
 
                         // Non-draggable widgets: Fire onClick immediately on press
@@ -6633,10 +6614,10 @@ export class OsrsClient {
                             this.clickedWidgetHandled = true;
                         }
 
-                        // OSRS parity: keep league tutorial area highlight transitions client-side on click.
+                        // keep league tutorial area highlight transitions client-side on click.
                         this.applyLeagueAreaTutorialHighlightPrediction(w);
 
-                        // OSRS parity: Only transmit widget ops to the server when the transmit flag is set
+                        // Only transmit widget ops to the server when the transmit flag is set
                         // for the action (IF_SETEVENTS / Client.widgetFlags).
                         // Avoid double-send when the GL widget system already dispatches onWidgetAction.
                         const { option, target, slot, itemId } = primaryAction;
@@ -6694,8 +6675,7 @@ export class OsrsClient {
         // (WebGLOsrsRenderer.checkInteractions). Do not mutate clickMode3 here, since
         // the GL UI click system (Choose Option, dialog click targets) relies on it.
 
-        // Drag handling - OSRS style
-        // Reference: Client.java lines 6304-6307 - drag only initiates for widgets with drag capability
+        // Drag handling - drag only initiates for widgets with drag capability
         if (this.clickedWidget && isHolding && this.isWidgetDraggable(this.clickedWidget)) {
             this.widgetDragDuration++;
 
@@ -6721,7 +6701,7 @@ export class OsrsClient {
                             this.dragClickY - (this.clickedWidget._absY ?? 0);
                     }
 
-                    // OSRS parity: clickedWidgetParent defines clamp/coordinate space.
+                    // clickedWidgetParent defines clamp/coordinate space.
                     // Ensure it's resolved before we cache absolute coordinates for drag math.
                     if (!this.clickedWidgetParent) {
                         this.clickedWidgetParent = this.resolveClickedWidgetParent(
@@ -6729,7 +6709,7 @@ export class OsrsClient {
                         );
                     }
                     const renderArea = this.clickedWidgetParent ?? this.clickedWidget;
-                    // Cache absolute position of clickedWidgetParent for coord calculations (field688/field689)
+                    // Cache absolute position of clickedWidgetParent for coord calculations
                     let renderAreaAbsX: number;
                     let renderAreaAbsY: number;
                     if (renderArea._absX !== undefined && renderArea._absY !== undefined) {
@@ -6755,7 +6735,7 @@ export class OsrsClient {
             if (this.isDraggingWidget) {
                 const w = this.clickedWidget;
 
-                // OSRS parity: clickedWidgetParent defines clamp/coordinate space.
+                // clickedWidgetParent defines clamp/coordinate space.
                 // If null, widget can be dragged freely without clamping (like bank items).
                 if (!this.clickedWidgetParent) {
                     this.clickedWidgetParent = this.resolveClickedWidgetParent(w);
@@ -6812,8 +6792,7 @@ export class OsrsClient {
                 // from the widget's parent (e.g., scrollbar dragger clamps to track but renders
                 // as a child of the scrollbar container).
                 //
-                // Reference: UserComparator5.java lines 106-128
-                // OSRS uses the clamped absolute position directly for rendering (var12=var15, var13=var16).
+                // OSRS uses the clamped absolute position directly for rendering.
                 // Our renderer does: finalPos = parentOffset + visualPos
                 // So we need visualPos relative to the actual parent, not the drag render area.
                 let actualParent =
@@ -6829,15 +6808,10 @@ export class OsrsClient {
                 const visualPosX = targetAbsX - actualParentAbsX;
                 const visualPosY = targetAbsY - actualParentAbsY;
 
-                // Script coordinates for CS2 event_mousex/event_mousey
-                // Reference: Client.java lines 6309-6310:
-                //   int var6 = var1 - field688 + clickedWidgetParent.scrollX;
-                //   int var7 = var2 - field689 + clickedWidgetParent.scrollY;
-                // where var1/var2 are the clamped absolute positions, field688/689 are the
-                // drag render area's absolute position.
-                // This gives the position within the drag render area plus its scroll offset.
+                // Script coordinates for CS2 event_mousex/event_mousey.
+                // Position within the drag render area plus its scroll offset.
                 //
-                // OSRS parity: For widgets without explicit drag parent (like bank items),
+                // For widgets without explicit drag parent (like bank items),
                 // use the actual parent's position for script coordinates. The script
                 // (e.g., bankmain_dragscroll) subtracts if_gety(container) which returns
                 // position relative to parent, so event_mousey must also be relative to
@@ -6876,7 +6850,7 @@ export class OsrsClient {
                 // Store visual position in LOGICAL (widget-layout) coordinates so it uses
                 // the same coordinate space as CS2 script positions (event_mousey, cc_setposition).
                 //
-                // OSRS PARITY: When the drag parent differs from the actual parent (e.g.,
+                // When the drag parent differs from the actual parent (e.g.,
                 // scrollbar dragger clamped to track but parented to container), scriptY and
                 // the naive logicalVisualY are truncated independently from different reference
                 // points. At fractional pixel offsets this causes ±1 logical pixel misalignment
@@ -6906,7 +6880,7 @@ export class OsrsClient {
                 (w as any)._dragVisualY = logicalVisualY;
                 (w as any)._isDragActive = true;
 
-                // OSRS parity: dragged widget is invalidated every tick during drag (FaceNormal.invalidateWidget).
+                // dragged widget is invalidated every tick during drag (FaceNormal.invalidateWidget).
                 // Our overlay renderer uses dirty-region tracking, so force a redraw while the cursor moves.
                 // PERF: Only invalidate when position has actually changed
                 if (positionChanged) {
@@ -6915,9 +6889,8 @@ export class OsrsClient {
                     } catch {}
                 }
 
-                // OSRS parity: Track draggedOnWidget - the widget under the cursor that can receive drops
-                // Reference: WorldMapRegion.java line 1609-1610
-                // This is updated every frame while dragging, checking widgets under mouse
+                // Track draggedOnWidget - the widget under the cursor that can receive drops.
+                // This is updated every frame while dragging, checking widgets under mouse.
                 //
                 // PERF: Only recalculate when mouse has actually moved
                 if (mx !== this._lastDragHitX || my !== this._lastDragHitY) {
@@ -6955,17 +6928,16 @@ export class OsrsClient {
         }
 
         // Fire onClickRepeat / onHold for ANY held widget, not just draggable ones.
-        // OSRS parity: onHold fires every tick while the widget is held (e.g., scrollbar arrows).
-        // Reference: Client.java - onHoldListener is processed independently of drag state.
-        // OSRS parity: hold events are suppressed while a widget drag is active.
-        // Reference: InterfaceUpdateHandler.java line 465 — draggedWidget != null suppresses var46/var47.
+        // onHold fires every tick while the widget is held (e.g., scrollbar arrows).
+        // onHoldListener is processed independently of drag state.
+        // hold events are suppressed while a widget drag is active.
         if (this.clickedWidget && isHolding && !this.isDraggingWidget) {
             const holdCtx: Partial<ScriptEvent> = {
                 mouseX: mx - (this.clickedWidget._absX ?? this.clickedWidget.x ?? 0),
                 mouseY: my - (this.clickedWidget._absY ?? this.clickedWidget.y ?? 0),
             };
 
-            // OSRS parity: onClickRepeat requires isClicked (set by onClick on the previous frame).
+            // onClickRepeat requires isClicked (set by onClick on the previous frame).
             // On the first frame of a click, onClick fires and sets isClicked — onClickRepeat
             // only starts firing from the next frame onward. Using !isNewClick as the guard
             // achieves the same one-frame delay.
@@ -6993,7 +6965,7 @@ export class OsrsClient {
             // Drag complete
             if (this.isDraggingWidget) {
                 const w = this.clickedWidget;
-                // Use draggedOnWidget tracked during drag (OSRS parity)
+                // Use draggedOnWidget tracked during drag ()
                 const dragTarget = this.draggedOnWidget;
                 // Ensure clickedWidgetParent is resolved for final clamp/coords.
                 if (!this.clickedWidgetParent) {
@@ -7107,7 +7079,7 @@ export class OsrsClient {
                     }
                 } else if (dragTarget != null) {
                     // Non-inventory drag-drop - send IF_BUTTOND packet
-                    // OSRS parity: For dynamically created children (fileId === -1),
+                    // For dynamically created children (fileId === -1),
                     // send the PARENT container's UID, not the child's own UID.
                     // The childIndex is the slot within the container.
                     const sourceIsDynamic = (w as any).fileId === -1;
@@ -7160,7 +7132,7 @@ export class OsrsClient {
                     opIndex: 1,
                 };
 
-                // OSRS parity: For draggable widgets, onClick fires on release (not mousedown)
+                // For draggable widgets, onClick fires on release (not mousedown)
                 // Check if this was a draggable widget that we deferred onClick for
                 if (this.isWidgetDraggable(this.clickedWidget)) {
                     const { option, target, slot, itemId } = getPrimaryWidgetAction(
@@ -7195,7 +7167,7 @@ export class OsrsClient {
             this.clickedWidgetHandled = false;
             this.widgetDragDuration = 0;
 
-            // OSRS parity: Process deferred widget action on mouse release (if no drag occurred)
+            // Process deferred widget action on mouse release (if no drag occurred)
             if (this.deferredWidgetAction && !this.isDraggingWidget) {
                 const deferredEvent = this.deferredWidgetAction;
                 this.deferredWidgetAction = null;
@@ -7208,7 +7180,7 @@ export class OsrsClient {
         }
         // OSRS dispatches key events to all widgets with onKey handlers, not just mouse-hovered ones
         if (input.keyEvents.length > 0) {
-            // OSRS parity: When inputDialogType > 0, keyboard input is captured for the dialog
+            // When inputDialogType > 0, keyboard input is captured for the dialog
             // Type 0 = no dialog, Type 1 = default, Type 2 = interface-scoped, Type 3 = widget-scoped
             const dialogActive = this.cs2Vm.inputDialogType > 0;
             const itemSpawnerSearchHandled =
@@ -7310,7 +7282,7 @@ export class OsrsClient {
                     if (uid !== 0) keyWidgetsByUid.set(uid, w);
                 }
             }
-            // OSRS PARITY: Also dispatch keys to InterfaceParent-mounted sub-interfaces
+            // Also dispatch keys to InterfaceParent-mounted sub-interfaces
             // (e.g., chatbox input handlers). Mounted interfaces are separate widget trees.
             for (const [containerUid, parent] of this.widgetManager.interfaceParents) {
                 if (!parent) continue;
@@ -7444,7 +7416,7 @@ export class OsrsClient {
     }
 
     /**
-     * OSRS parity: target mask comes from bits 11-16 of current widget flags
+     * target mask comes from bits 11-16 of current widget flags
      * (cache flags overridden by IF_SETEVENTS when present).
      */
     private getWidgetTargetMask(widget: any): number {
@@ -7978,7 +7950,7 @@ export class OsrsClient {
             } catch {}
             this.playerEcs.setTeam(ecsIndex, team);
             if (isLocalPlayer) {
-                // OSRS parity: expose local gender to CS2 via player_design_bodytype varbit.
+                // expose local gender to CS2 via player_design_bodytype varbit.
                 // This varbit is read by scripts like proc 3755 (PlayerDesign A/B button state).
                 try {
                     this.varManager?.setVarbit?.(14021, ((pa.gender ?? 0) | 0) === 1 ? 1 : 0);
@@ -8029,7 +8001,7 @@ export class OsrsClient {
             }
         }
 
-        // OSRS parity: apply animation set from appearance block (like Player.read() in reference)
+        // apply animation set from appearance block (like Player.read() in reference)
         // This ensures per-player animations are set when appearance changes (e.g., equipment change, death)
         const anim = data?.anim;
         if (anim && typeof anim === "object") {
@@ -8093,7 +8065,7 @@ export class OsrsClient {
             }
         }
         this.equipment.setSnapshot(slots);
-        // OSRS PARITY: Mark inv cycle for equipment (94) - handlers fire during processWidgetTransmits()
+        // Mark inv cycle for equipment (94) - handlers fire during processWidgetTransmits()
         markInvTransmit(94);
     }
 
@@ -8127,7 +8099,7 @@ export class OsrsClient {
                     name: r.name,
                 })) ?? [];
             ClientState.selectedSpellSourceWidget = sourceWidget ?? spell.sourceWidget ?? null;
-            // OSRS parity: Set target mask from current widget flags (if not already set)
+            // Set target mask from current widget flags (if not already set)
             // This determines what entity types the spell can target.
             if (ClientState.selectedSpellTargetMask === 0 && sourceWidget) {
                 ClientState.selectedSpellTargetMask = this.getWidgetTargetMask(sourceWidget);
@@ -8405,7 +8377,7 @@ export class OsrsClient {
             console.log("[castSpellFromMenu] Spell cast target resolution failed; no packet sent");
         }
 
-        // OSRS parity: any completed menu action while a spell is selected clears spell targeting,
+        // any completed menu action while a spell is selected clears spell targeting,
         // even when target resolution fails client-side.
         this.clearSelectedSpell();
         this.closeMenu();
@@ -8421,7 +8393,7 @@ export class OsrsClient {
             playerServerId?: number;
         } = {},
     ): void {
-        // OSRS parity: world "Use" state is tracked in ClientState, not inventory UI selection.
+        // world "Use" state is tracked in ClientState, not inventory UI selection.
         let selectedSlot: number | null = null;
         let selectedItemId = -1;
         if (ClientState.isItemSelected === 1 && (ClientState.selectedItemId | 0) > 0) {
@@ -8881,7 +8853,7 @@ export class OsrsClient {
         if (shouldFadeOutLoginMusicForTransition(oldState, newState)) {
             this.cancelPendingLoginMusicStart();
             try {
-                // OSRS parity: leaving the login/title flow clears title music via clearSongs(0, 100).
+                // leaving the login/title flow clears title music via clearSongs(0, 100).
                 this.musicSystem?.stopMusic(0, 100);
             } catch {}
         }
@@ -9465,7 +9437,7 @@ export class OsrsClient {
     onLoginSuccess(): void {
         this.loginState.savePersistedLoginState();
 
-        // OSRS parity: First show "Loading - please wait." (gameState 25)
+        // First show "Loading - please wait." (gameState 25)
         // The game world renders in the background while this message is shown
         this.updateGameState(GameState.LOADING_GAME);
 
@@ -9607,10 +9579,10 @@ export class OsrsClient {
     private runClientTicks(ticks: number): void {
         if (!(ticks > 0)) return;
         for (let t = 0; t < (ticks | 0); t++) {
-            // OSRS parity: Client.cycleCntr advances once per 20ms client tick.
+            // Client.cycleCntr advances once per 20ms client tick.
             this.transmitCycles.cycleCntr++;
 
-            // OSRS parity: midi manager tasks advance on the 20ms client tick.
+            // midi manager tasks advance on the 20ms client tick.
             try {
                 this.musicSystem?.tick?.(1);
             } catch {}
@@ -9629,7 +9601,7 @@ export class OsrsClient {
                 this.npcEcs.updateClient(1);
             } catch {}
 
-            // OSRS parity: Widget transmit handlers and timers are processed on the client tick,
+            // Widget transmit handlers and timers are processed on the client tick,
             // not on the render frame. These queue CS2 events which are then processed below.
             try {
                 this.processWidgetTransmits();
@@ -9649,7 +9621,7 @@ export class OsrsClient {
             try {
                 this.tryWriteVarcs();
             } catch {}
-            // OSRS parity: type-6 widget model animations are advanced using Client.graphicsCycle
+            // type-6 widget model animations are advanced using Client.graphicsCycle
             // during drawWidgets(); keep them on the 20ms tick so frame timing is correct.
             try {
                 this.widgetManager.tickModelAnimations(1, this.seqTypeLoader);
@@ -10011,7 +9983,7 @@ export class OsrsClient {
             console.log("[inventory] snapshot post-update", this.inventory.getSlots());
         } catch {}
 
-        // OSRS PARITY: Mark inv cycle with specific inventory ID - handlers fire during processWidgetTransmits()
+        // Mark inv cycle with specific inventory ID - handlers fire during processWidgetTransmits()
         // Inventory ID 93 is the player inventory in OSRS
         markInvTransmit(93);
     }
@@ -10057,7 +10029,7 @@ export class OsrsClient {
             }
         }
 
-        // OSRS PARITY: Mark inv cycle for bank (95) - handlers fire during processWidgetTransmits()
+        // Mark inv cycle for bank (95) - handlers fire during processWidgetTransmits()
         markInvTransmit(95);
 
         // Bank main item rendering is driven by onInvTransmit(bank) on group 12.
@@ -10096,7 +10068,7 @@ export class OsrsClient {
             }
         }
 
-        // OSRS PARITY: Mark inv cycle for collection_transmit (620) - handlers fire during processWidgetTransmits()
+        // Mark inv cycle for collection_transmit (620) - handlers fire during processWidgetTransmits()
         markInvTransmit(620);
     }
 
@@ -10127,7 +10099,7 @@ export class OsrsClient {
             }
         }
 
-        // OSRS PARITY: Mark inv cycle for shop (516) - handlers fire during processWidgetTransmits()
+        // Mark inv cycle for shop (516) - handlers fire during processWidgetTransmits()
         markInvTransmit(516);
     }
 
@@ -10417,7 +10389,6 @@ export class OsrsClient {
 
         const existingEcs = this.npcEcs.getEcsIdForServer(serverId);
         if (existingEcs !== undefined) {
-            // OSRS parity (class136.method4170 -> RSNPC.method3656):
             // existing NPC ids in the add stream still apply a movement update.
             // Near-range non-teleport updates queue a walk target; far/teleport updates reset path.
             const existingMapId = this.npcEcs.getMapId(existingEcs) | 0;
@@ -10521,7 +10492,7 @@ export class OsrsClient {
         this.npcEcs.setRotation(ecsId, spawn.rot | 0);
         this.npcEcs.setOccTile(ecsId, localTileX, localTileY, spawn.level | 0);
 
-        // OSRS parity: Actor world coords include size-based center offset (size * 64).
+        // Actor world coords include size-based center offset (size * 64).
         // For NPCs >1x1, `(tile << 7) + 64` is wrong and will desync client-side path tracking.
         const worldSubX = (worldTileX << 7) + (size << 6);
         const worldSubY = (worldTileY << 7) + (size << 6);
@@ -10633,7 +10604,7 @@ export class OsrsClient {
             if (block.seq) {
                 const seqId = block.seq.id | 0;
                 if (seqId >= 0) {
-                    // OSRS parity: Add a hold buffer (1 server tick = 30 cycles)
+                    // Add a hold buffer (1 server tick = 30 cycles)
                     // so seqTicksLeft outlasts the animation frames. This prevents
                     // NPCs from flashing back to idle between their death animation
                     // ending and the server despawn arriving.
@@ -10698,7 +10669,7 @@ export class OsrsClient {
 
         if (Array.isArray(block.spotAnims)) {
             for (const spot of block.spotAnims) {
-                // OSRS parity: spot animation delay is in client cycles (Client.cycle units).
+                // spot animation delay is in client cycles (Client.cycle units).
                 const delayCycles = Math.max(0, spot.delayCycles | 0);
                 const startCycle = getClientCycle() + delayCycles;
                 (this.renderer as any)?.registerNpcSpotAnimation?.({
@@ -10995,7 +10966,7 @@ export class OsrsClient {
         this.inventory.swapSlots(src, dst);
         sendInventoryMove(src, dst);
 
-        // OSRS PARITY: Mark inv cycle for inventory (93) - handlers fire during processWidgetTransmits()
+        // Mark inv cycle for inventory (93) - handlers fire during processWidgetTransmits()
         markInvTransmit(93);
         try {
             this.widgetManager.invalidateAll();

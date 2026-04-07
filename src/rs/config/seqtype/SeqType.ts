@@ -27,7 +27,7 @@ export class SeqType extends Type {
 
     stretches: boolean;
 
-    forcedPriority: number; // field2220: Animation interrupt priority (default 5, higher = harder to interrupt)
+    forcedPriority: number; // Animation interrupt priority (default 5, higher = harder to interrupt)
 
     leftHandItem: number;
     rightHandItem: number;
@@ -36,9 +36,9 @@ export class SeqType extends Type {
 
     looping: boolean;
 
-    precedenceAnimating: number; // field2244: Movement priority (0 = blocks movement, 1 = allows, -1 = auto)
+    precedenceAnimating: number; // Movement priority (0 = blocks movement, 1 = allows, -1 = auto)
 
-    priority: number; // field2226: Standing priority (0 = blocks when stationary, 2 = allows, -1 = auto)
+    priority: number; // Standing priority (0 = blocks when stationary, 2 = allows, -1 = auto)
 
     replyMode: number;
 
@@ -206,7 +206,7 @@ export class SeqType extends Type {
         } else if (opcode === 18) {
             buffer.readString();
         } else if (opcode === 100) {
-            // Speculative: not in decompiled reference. Parsing to avoid crash, but not used.
+            // Parsing to avoid crash, but not used.
             const count = buffer.readUnsignedByte();
             const table: Array<{ frame: number; interval: number }> = [];
             for (let i = 0; i < count; i++) {

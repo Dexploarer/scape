@@ -12,6 +12,7 @@ import {
     getCustomStructParam,
     getRelicOrMasteryStructParam,
     getLeagueTaskStructParam,
+    getReplacedChallengeStructIds,
 } from "../../../shared/gamemode/GamemodeContentStore";
 import { Opcodes } from "../Opcodes";
 import type { HandlerMap } from "./HandlerTypes";
@@ -75,7 +76,7 @@ export function registerConfigOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.OC_PLACEHOLDER, (ctx) => {
         const itemId = ctx.intStack[--ctx.intStackSize];
         const obj = ctx.objTypeLoader?.load(itemId);
-        // OSRS parity (see ScriptOpcodes.OC_PLACEHOLDER):
+        //  (see ScriptOpcodes.OC_PLACEHOLDER):
         // If this item has a placeholder defined (placeholder >= 0) and is NOT itself a placeholder
         // (placeholderTemplate == -1), return the placeholder item id; else return the input id.
         if (obj && (obj.placeholderTemplate | 0) === -1 && (obj.placeholder | 0) >= 0) {
@@ -88,7 +89,7 @@ export function registerConfigOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.OC_UNPLACEHOLDER, (ctx) => {
         const itemId = ctx.intStack[--ctx.intStackSize];
         const obj = ctx.objTypeLoader?.load(itemId);
-        // OSRS parity (see ScriptOpcodes.OC_UNPLACEHOLDER):
+        //  (see ScriptOpcodes.OC_UNPLACEHOLDER):
         // If this item IS a placeholder (placeholderTemplate >= 0 && placeholder >= 0), return the
         // original/underlying item id stored in placeholder; else return the input id.
         if (obj && (obj.placeholderTemplate | 0) >= 0 && (obj.placeholder | 0) >= 0) {
@@ -320,6 +321,24 @@ export function registerConfigOps(handlers: HandlerMap): void {
             }
             // Shift the key to account for inserted custom content
             key = customOverride.shiftedKey;
+        }
+
+        // Skip cache entries replaced by custom challenges.
+        // When iterating, the Nth non-replaced cache entry maps to a higher
+        // original cache key because replaced entries are removed from the sequence.
+        const replaced = getReplacedChallengeStructIds();
+        if (replaced.size > 0 && enumType?.intValues && customOverride) {
+            let target = key; // 0-based position among non-replaced entries
+            let cacheIdx = 0;
+            for (let i = 0; i < (enumType.keys?.length ?? 0); i++) {
+                const structId = enumType.intValues[i];
+                if (replaced.has(structId)) continue;
+                if (cacheIdx === target) {
+                    key = enumType.keys![i];
+                    break;
+                }
+                cacheIdx++;
+            }
         }
 
         if (enumType?.outputType === "s") {

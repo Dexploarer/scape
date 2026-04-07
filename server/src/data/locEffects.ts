@@ -1,4 +1,5 @@
 import { LocTypeLoader } from "../../../src/rs/config/loctype/LocTypeLoader";
+import { logger } from "../utils/logger";
 
 export type LocSpotEffect = {
     spotId: number;
@@ -57,7 +58,7 @@ export const registerLocEffects = (
         for (const dispose of disposers.reverse()) {
             try {
                 dispose();
-            } catch {}
+            } catch (err) { logger.info("[loc-effects] failed to dispose loc effect", err); }
         }
     };
 };
@@ -70,7 +71,12 @@ export const getLocEffect = (locId: number): LocEffectDefinition | undefined => 
     return LOC_EFFECTS.get(locId);
 };
 
-const deriveEffectFromLoc = (loc: any): LocEffectDefinition | undefined => {
+type LocEffectLike = {
+    ambientSoundId?: number;
+    ambientSoundIds?: number[];
+};
+
+const deriveEffectFromLoc = (loc: LocEffectLike): LocEffectDefinition | undefined => {
     if (!loc) return undefined;
     let soundId = loc.ambientSoundId ?? -1;
     if (!(soundId >= 0)) {
@@ -95,9 +101,9 @@ export const populateLocEffectsFromLoader = (
     let registered = 0;
     const count = loader.getCount();
     for (let id = 0; id < count; id++) {
-        let loc: any;
+        let loc: LocEffectLike & { id?: number };
         try {
-            loc = loader.load(id);
+            loc = loader.load(id) as LocEffectLike & { id?: number };
         } catch {
             continue;
         }

@@ -6,7 +6,6 @@ import { MAX_XP, SKILL_IDS } from "../../../../src/rs/skill/skills";
 import { DEFAULT_EQUIP_SLOT_COUNT } from "../equipment";
 import {
     type BankSnapshotEntry,
-    DEFAULT_BANK_CAPACITY,
     type EquipmentSnapshotEntry,
     INVENTORY_SLOT_COUNT,
     type InventorySnapshotEntry,
@@ -16,6 +15,7 @@ import {
     PlayerState,
     normalizeSkillXpValue,
 } from "../player";
+import { DEFAULT_BANK_CAPACITY } from "./PlayerBankSystem";
 
 const DEFAULT_DATA_DIR = path.resolve(__dirname, "../../../data");
 const MAX_TILE_COORD = 32767;
@@ -474,13 +474,21 @@ function mergeStates(
     return result;
 }
 
+import type { PersistenceProvider } from "./PersistenceProvider";
+
+export type { PersistenceProvider };
+
 export interface PlayerPersistenceOptions {
     dataDir?: string;
     storePath?: string;
     defaultsPath?: string;
 }
 
-export class PlayerPersistence {
+/**
+ * Default JSON file-based persistence provider.
+ * Stores all player data in a single aggregate JSON file per gamemode.
+ */
+export class PlayerPersistence implements PersistenceProvider {
     private readonly store = new Map<string, PlayerPersistentVars>();
     private readonly defaults: PlayerPersistentVars | undefined;
     private readonly storePath: string;

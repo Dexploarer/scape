@@ -1,5 +1,5 @@
 /**
- * Vorbis Residue (port of VorbisResidue.java).
+ * Vorbis Residue.
  * Handles residue vector decoding for spectral coefficients.
  */
 import { VorbisBitReader, sharedBitReader } from "./VorbisBitReader";

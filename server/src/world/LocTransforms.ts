@@ -1,6 +1,8 @@
 type LocTransformStateReader = {
-    getVarbitValue(varbitId: number): number;
-    getVarpValue(varpId: number): number;
+    varps: {
+        getVarbitValue(varbitId: number): number;
+        getVarpValue(varpId: number): number;
+    };
 };
 
 type TransformableLocDefinition = {
@@ -33,9 +35,9 @@ export function resolveLocTransformId(
 
     let transformIndex = -1;
     if (transformVarbit !== undefined && transformVarbit >= 0) {
-        transformIndex = player.getVarbitValue(transformVarbit);
+        transformIndex = player.varps.getVarbitValue(transformVarbit);
     } else if (transformVarp !== undefined && transformVarp >= 0) {
-        transformIndex = player.getVarpValue(transformVarp);
+        transformIndex = player.varps.getVarpValue(transformVarp);
     }
 
     let transformId = transforms[transforms.length - 1];

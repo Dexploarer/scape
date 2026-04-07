@@ -5,7 +5,7 @@
  * The actual interaction checking and click handling remains in the renderer since it needs
  * GPU access (interaction buffer) and input state.
  *
- * OSRS Parity: Menu construction follows the same priority and structure as the Java client.
+ * Menu construction follows the same priority and structure as the Java client.
  */
 import {
     type MenuEntry,
@@ -532,7 +532,7 @@ export function buildPlayerMenuEntries(
 
 /**
  * Check if mouse position is in a UI region (chatbox, minimap, sidebar)
- * OSRS parity: The Java client uses dynamic region checks based on frame dimensions
+ * The Java client uses dynamic region checks based on frame dimensions
  */
 export function isMouseInUIRegion(
     mx: number,
@@ -551,7 +551,7 @@ export function isMouseInUIRegion(
     }
 
     // Chatbox region: NOT hardcoded here.
-    // OSRS parity: chatbox click-blocking is driven entirely by the widget system.
+    // chatbox click-blocking is driven entirely by the widget system.
     // CS2 script toplevel_chatbox_background calls if_setnoclickthrough(true/false, chatbox:chat_background)
     // depending on transparency and blockclick settings. isPointOverWidget (noClickThrough flag) is
     // the authoritative gate — hardcoding this region would break transparent/hidden click-through.

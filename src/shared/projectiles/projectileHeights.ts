@@ -1,5 +1,5 @@
 /**
- * Shared projectile height / offset helpers for strict OSRS parity.
+ * Shared projectile height / offset helpers for strict .
  *
  * Coordinate convention:
  * - World Z is negative-up (more negative = higher).

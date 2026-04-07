@@ -2,7 +2,7 @@
  * ClientBinaryEncoder - Encode client messages to binary format
  *
  * Replaces JSON.stringify for client-to-server messages.
- * All encoding methods match OSRS Buffer.java patterns.
+ * All encoding methods match OSRS buffer patterns.
  */
 import { CLIENT_PACKET_LENGTHS, ClientPacketId } from "../../shared/packets/ClientPacketId";
 

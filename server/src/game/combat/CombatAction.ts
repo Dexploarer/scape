@@ -125,7 +125,7 @@ function aabbChebyshevDistance(a: AabbBounds, b: AabbBounds): number {
 /**
  * Find the nearest target tile within a rectangle that has clear projectile LoS.
  *
- * OSRS parity: when a player attacks a large NPC, LoS is satisfied by the nearest
+ * when a player attacks a large NPC, LoS is satisfied by the nearest
  * visible tile of that NPC's occupied footprint, not just the south-west tile.
  */
 export function findProjectileLineOfSightTileToRect(
@@ -544,7 +544,7 @@ export function canNpcAttackPlayerFromCurrentPosition(
  * For melee attacks, this uses CardinalAdjacentRouteStrategy to ensure
  * the path ends at a cardinal position (N/S/E/W), not diagonal.
  *
- * OSRS parity: NPCs use "dumb pathfinder" (naive diagonal-then-cardinal),
+ * NPCs use "dumb pathfinder" (naive diagonal-then-cardinal),
  * while players use BFS smart pathfinding. This is CRITICAL for safespots.
  * Reference: docs/npc-behavior.md, docs/pathfinding-details.md
  *
@@ -576,7 +576,7 @@ export function walkToAttackRange(
     const tz = target.tileY;
     const plane = pawn.level;
 
-    // OSRS parity: NPCs use dumb pathfinder, players use BFS
+    // NPCs use dumb pathfinder, players use BFS
     if (pawn instanceof NpcState) {
         // NPC: Use dumb pathfinder - generates steps one at a time toward target
         // NPCs will NOT path around obstacles (enables safespots)
@@ -643,7 +643,7 @@ export function walkToAttackRange(
     const strategy =
         attackRange <= 1
             ? new CardinalAdjacentRouteStrategy(tx, tz, targetSize, targetSize)
-            : pawn instanceof PlayerState && resolvePlayerAttackType(pawn) !== "melee"
+            : pawn instanceof PlayerState && resolvePlayerAttackType(pawn.combat) !== "melee"
             ? new RectWithinRangeLineOfSightRouteStrategy(
                   tx,
                   tz,
@@ -679,7 +679,7 @@ export function walkToAttackRange(
     }
 
     // Apply path to pawn
-    const run = pawn instanceof PlayerState ? pawn.isRunActive() : false;
+    const run = pawn instanceof PlayerState ? pawn.energy.isRunActive() : false;
     pawn.setPath(result.steps, run);
 
     return true;
@@ -742,7 +742,7 @@ export function combatCycle(ctx: CombatCycleContext): CombatCycleResult {
     if (target instanceof NpcState && target.getHitpoints() <= 0) {
         return CombatCycleResult.END;
     }
-    if (target instanceof PlayerState && target.getHitpointsCurrent() <= 0) {
+    if (target instanceof PlayerState && target.skillSystem.getHitpointsCurrent() <= 0) {
         return CombatCycleResult.END;
     }
 

@@ -22,9 +22,8 @@ export function isFullyCulled(clip: ClipRect, x: number, y: number, w: number, h
 }
 
 /**
- * OSRS PARITY: Calculate widget clip bounds for Type 9 (Line) widgets.
+ * Calculate widget clip bounds for Type 9 (Line) widgets.
  * Lines can have negative dimensions (drawn from right-to-left or bottom-to-top).
- * Reference: UserComparator5.java lines 142-162
  *
  * @param parentClip The parent's clip bounds
  * @param x Widget X position
@@ -41,7 +40,6 @@ export function calculateType9Clip(
     h: number,
 ): ClipRect {
     // For Type 9 lines, OSRS calculates bounds differently to handle negative dimensions
-    // Reference: UserComparator5.java lines 143-162
     let x0 = x;
     let y0 = y;
     let x1 = x + w;
@@ -106,8 +104,7 @@ export function calculateType9ClipInPlace(
 }
 
 /**
- * OSRS PARITY: Calculate widget clip bounds for standard widgets (non-Type 9).
- * Reference: UserComparator5.java lines 163-169
+ * Calculate widget clip bounds for standard widgets (non-Type 9).
  *
  * @param parentClip The parent's clip bounds
  * @param x Widget X position
@@ -124,11 +121,6 @@ export function calculateStandardClip(
     h: number,
 ): ClipRect {
     // Standard clip calculation: intersection of widget bounds with parent clip
-    // Reference: UserComparator5.java lines 164-169
-    // var15 = var12 > var2 ? var12 : var2;  (max of widget.x and parent.x0)
-    // var16 = var13 > var3 ? var13 : var3;  (max of widget.y and parent.y0)
-    // var17 = var19 < var4 ? var19 : var4;  (min of widget.x+w and parent.x1)
-    // var18 = var20 < var5 ? var20 : var5;  (min of widget.y+h and parent.y1)
     return {
         x0: Math.max(parentClip.x0, x),
         y0: Math.max(parentClip.y0, y),
@@ -343,15 +335,14 @@ export class ScissorStack {
     }
 
     /**
-     * OSRS PARITY: Expand (tighten) the current clip bounds.
-     * Reference: Rasterizer2D.Rasterizer2D_expandClip in Java client.
+     * Expand (tighten) the current clip bounds.
      *
      * In OSRS, expandClip modifies clip globals in-place and setClip is used to restore.
      * Our implementation uses a stack for easier state management - push the expanded
      * clip, then pop() to restore. This achieves identical behavior.
      *
      * Used for sprite tiling where we need to temporarily constrain drawing to a
-     * widget's bounds. Reference: UserComparator5.java lines 391-407.
+     * widget's bounds.
      *
      * Call pop() when done to restore the previous clip.
      *

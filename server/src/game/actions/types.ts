@@ -98,7 +98,7 @@ export type BaseActionEffect =
           endDeltaY: number;
           startCycle: number;
           endCycle: number;
-          /** OSRS `field1173` (forced-move facing) in RS rotation units (0..2047). */
+          /** Forced-move facing in RS rotation units (0..2047). */
           direction: number;
       }
     | {
@@ -107,7 +107,7 @@ export type BaseActionEffect =
           projectile: ProjectileLaunch;
       };
 
-// Skill/level-up celebration effects (OSRS parity).
+// Skill/level-up celebration effects ().
 export type LevelUpEffect = {
     type: "levelUp";
     playerId: number;

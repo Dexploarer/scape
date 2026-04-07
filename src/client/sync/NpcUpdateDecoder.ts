@@ -52,10 +52,10 @@ export type NpcInfoFrame = {
 };
 
 /**
- * Decodes the OSRS NPC update packet (`class353.updateNpcs`).
+ * Decodes the NPC update packet.
  *
  * Notes:
- * - Maintains a local NPC id list internally (like Client.npcIndices).
+ * - Maintains a local NPC id list internally.
  * - Only decodes the subset of update blocks that our server currently emits:
  *   FACE_ENTITY (0x8), HIT_MASK (0x20), COLOR_OVERRIDE (0x100), SPOTANIM2 (0x20000), SEQUENCE (0x10).
  */
@@ -212,7 +212,7 @@ export class NpcUpdateDecoder {
 
         stream.finishBitAccess();
 
-        // Update blocks (subset, in UrlRequester.method2903 order for the bits we emit).
+        // Update blocks (subset, in mask order for the bits we emit).
         for (const npcId of needsUpdateIds) {
             let mask = stream.readUnsignedByte() | 0;
             if ((mask & 0x80) !== 0) {
@@ -232,7 +232,7 @@ export class NpcUpdateDecoder {
                 block.faceEntity = targetIndex | 0;
             }
 
-            // HIT_MASK (0x20) (UrlRequester.method2903 semantics; differs from player HIT_MASK).
+            // HIT_MASK (0x20) (semantics differ from player HIT_MASK).
             if ((mask & 0x20) !== 0) {
                 const hits: HitsplatUpdate[] = [];
                 const hitCount = stream.readUnsignedByteSub() | 0;

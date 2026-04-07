@@ -47,7 +47,7 @@ export class MapManager<T extends MapSquare> {
     worldEntityMapIds: Set<number> = new Set();
 
     // Legacy resident budget knobs kept for compatibility with existing settings UI.
-    // Top-level streaming now prunes maps strictly to the active grid for OSRS parity.
+    // Top-level streaming now prunes maps strictly to the active grid for .
     maxResidentMaps: number = 128;
     private _useCounter: number = 1;
     private _lastUsed: Map<number, number> = new Map();

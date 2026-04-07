@@ -8,6 +8,7 @@ import {
     CLIENT_PACKET_LENGTHS,
     ClientPacketId,
 } from "../../../../src/shared/network/ClientPacketId";
+import { logger } from "../../utils/logger";
 import type { ClientToServer } from "../messages";
 import { ServerPacketBuffer } from "./ServerPacketBuffer";
 
@@ -329,7 +330,7 @@ export function decodePacket(opcode: number, data: Uint8Array): DecodedPacket {
         // NPC OPTIONS (9-13)
         // ========================================
 
-        // OPNPC1 (76) - OSRS field3208
+        // OPNPC1 (76)
         // Client: writeByte(ctrl), writeShortAddLE(identifier)
         case ClientPacketId.OPNPC1_ALT: {
             const ctrlHeld = buf.readByte() !== 0;
@@ -361,7 +362,7 @@ export function decodePacket(opcode: number, data: Uint8Array): DecodedPacket {
             return { type: "npc_op", opNum: 4, npcIndex, ctrlHeld };
         }
 
-        // OPNPC5 (57) - OSRS field3220
+        // OPNPC5 (57)
         // Note: this currently comes through ClientPacketId.OPNPC1 (legacy alias naming).
         // Client: writeByteAdd(ctrl), writeShortLE(identifier)
         case ClientPacketId.OPNPC1: {
@@ -788,7 +789,7 @@ export function decodePacket(opcode: number, data: Uint8Array): DecodedPacket {
         }
 
         // IF_TRIGGEROPLOCAL (30) - forwarded Object[] trigger-op local payload
-        // Payload layout (class7.method121):
+        // Payload layout :
         //   short blockLen,
         //   intLE opcodeParam,
         //   shortLE childIndex,
@@ -939,7 +940,7 @@ export function parsePackets(data: Uint8Array): Array<{ opcode: number; packet: 
 
         // Validate opcode range (OSRS uses 0-127 for client packets)
         if (opcode < 0 || opcode > 127) {
-            console.error(
+            logger.error(
                 `[PacketHandler] Invalid opcode ${opcode} at offset ${offset - 1}, stopping parse`,
             );
             break;
@@ -949,7 +950,7 @@ export function parsePackets(data: Uint8Array): Array<{ opcode: number; packet: 
 
         if (expectedLength === undefined) {
             // Unknown packet - we cannot safely continue since we don't know its length
-            console.warn(
+            logger.warn(
                 `[PacketHandler] Unknown packet opcode ${opcode} at offset ${
                     offset - 1
                 }, stopping parse (${data.length - offset} bytes remaining)`,
@@ -961,7 +962,7 @@ export function parsePackets(data: Uint8Array): Array<{ opcode: number; packet: 
         if (expectedLength === -1) {
             // Variable byte length - need at least 1 byte for length
             if (offset >= data.length) {
-                console.error(
+                logger.error(
                     `[PacketHandler] Packet ${opcode} truncated: missing variable byte length`,
                 );
                 break;
@@ -970,7 +971,7 @@ export function parsePackets(data: Uint8Array): Array<{ opcode: number; packet: 
         } else if (expectedLength === -2) {
             // Variable short length - need at least 2 bytes for length
             if (offset + 1 >= data.length) {
-                console.error(
+                logger.error(
                     `[PacketHandler] Packet ${opcode} truncated: missing variable short length`,
                 );
                 break;
@@ -982,7 +983,7 @@ export function parsePackets(data: Uint8Array): Array<{ opcode: number; packet: 
 
         // Validate we have enough bytes for the payload
         if (offset + length > data.length) {
-            console.error(
+            logger.error(
                 `[PacketHandler] Packet ${opcode} overrun: needs ${length} bytes, only ${
                     data.length - offset
                 } available`,
@@ -1069,7 +1070,7 @@ export function parsePacketsAsMessages(
 
         // Validate opcode range (OSRS uses 0-127 for client packets)
         if (opcode < 0 || opcode > 127) {
-            console.error(
+            logger.error(
                 `[PacketHandler] Invalid opcode ${opcode} at offset ${offset - 1}, stopping parse`,
             );
             break;
@@ -1079,7 +1080,7 @@ export function parsePacketsAsMessages(
 
         if (expectedLength === undefined) {
             // Unknown packet - we cannot safely continue since we don't know its length
-            console.warn(
+            logger.warn(
                 `[PacketHandler] Unknown packet opcode ${opcode} at offset ${
                     offset - 1
                 }, stopping parse (${data.length - offset} bytes remaining)`,
@@ -1091,7 +1092,7 @@ export function parsePacketsAsMessages(
         if (expectedLength === -1) {
             // Variable byte length - need at least 1 byte for length
             if (offset >= data.length) {
-                console.error(
+                logger.error(
                     `[PacketHandler] Packet ${opcode} truncated: missing variable byte length`,
                 );
                 break;
@@ -1100,7 +1101,7 @@ export function parsePacketsAsMessages(
         } else if (expectedLength === -2) {
             // Variable short length - need at least 2 bytes for length
             if (offset + 1 >= data.length) {
-                console.error(
+                logger.error(
                     `[PacketHandler] Packet ${opcode} truncated: missing variable short length`,
                 );
                 break;
@@ -1112,7 +1113,7 @@ export function parsePacketsAsMessages(
 
         // Validate we have enough bytes for the payload
         if (offset + length > data.length) {
-            console.error(
+            logger.error(
                 `[PacketHandler] Packet ${opcode} overrun: needs ${length} bytes, only ${
                     data.length - offset
                 } available`,
@@ -1154,7 +1155,7 @@ function convertDecodedPacketToMessage(packet: DecodedPacket): ClientToServer | 
         // PLAYER INTERACTIONS
         // ========================================
         case "player_op":
-            // OSRS parity: OPPLAYER2 = Trade, OPPLAYER3 = Follow (see client MenuAction.ts).
+            // OPPLAYER2 = Trade, OPPLAYER3 = Follow (see client MenuAction.ts).
             if (packet.opNum === 2) {
                 return {
                     type: "interact",

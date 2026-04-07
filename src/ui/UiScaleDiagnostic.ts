@@ -102,7 +102,7 @@ export class UiScaleDiagnostic {
                 : bufW * bufH;
             const rsX = effectiveScale > 1 ? bufW / Math.round(bufW / effectiveScale) : 1;
             const rsY = effectiveScale > 1 ? bufH / Math.round(bufH / effectiveScale) : 1;
-            ln(`[OSRS Parity] layout area: ${layoutArea}px² (${(layoutArea / (765 * 503)).toFixed(2)}x fixed) | 100px widget → ${(100 * rsX).toFixed(1)}x${(100 * rsY).toFixed(1)} buf px → ${(100 * rsX / (bufW / cssW)).toFixed(1)}x${(100 * rsY / (bufH / cssH)).toFixed(1)} CSS px`);
+            ln(`[] layout area: ${layoutArea}px² (${(layoutArea / (765 * 503)).toFixed(2)}x fixed) | 100px widget → ${(100 * rsX).toFixed(1)}x${(100 * rsY).toFixed(1)} buf px → ${(100 * rsX / (bufW / cssW)).toFixed(1)}x${(100 * rsY / (bufH / cssH)).toFixed(1)} CSS px`);
         } else {
             ln("[Canvas] Not found");
         }

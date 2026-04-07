@@ -488,7 +488,7 @@ export class Model2DRenderer {
         const zc = new Int32Array(vc);
         const cxv = new Int32Array(vc);
         const cyv = new Int32Array(vc);
-        // OSRS parity: Rasterizer3D.get3dZoom() is global (Client.viewportZoom).
+        // Rasterizer3D.get3dZoom() is global (Client.viewportZoom).
         // Use caller-provided zoom3d to match viewport scaling; fall back to legacy 512.
         const zoom3d = Math.max(1, (it.zoom3d ?? 512) | 0);
 
@@ -640,7 +640,7 @@ export class Model2DRenderer {
                         B = ((src & 255) * shade) | 0;
                     const ai = Math.max(0, Math.min(255, faceAlpha & 255));
                     if (ai >= 255) {
-                        // OSRS parity: sprite pixel 0 is treated as transparent; never write 0 for drawn pixels.
+                        // sprite pixel 0 is treated as transparent; never write 0 for drawn pixels.
                         let outRgb = (R << 16) | (G << 8) | B;
                         if (outRgb === 0) outRgb = 1;
                         buf[idx] = outRgb;
@@ -653,7 +653,7 @@ export class Model2DRenderer {
                         const outR = ((R * ai + dR * (255 - ai)) / 255) | 0;
                         const outG = ((G * ai + dG * (255 - ai)) / 255) | 0;
                         const outB = ((B * ai + dB * (255 - ai)) / 255) | 0;
-                        // OSRS parity: avoid writing 0 (transparent) for blended-but-visible pixels.
+                        // avoid writing 0 (transparent) for blended-but-visible pixels.
                         let outRgb = (outR << 16) | (outG << 8) | outB;
                         if (outRgb === 0) outRgb = 1;
                         buf[idx] = outRgb;
@@ -735,7 +735,7 @@ export class Model2DRenderer {
                     const outR = ((R * aComb + dR * (255 - aComb)) / 255) | 0;
                     const outG = ((G * aComb + dG * (255 - aComb)) / 255) | 0;
                     const outB = ((B * aComb + dB * (255 - aComb)) / 255) | 0;
-                    // OSRS parity: sprite pixel 0 is transparent; keep visible pixels non-zero.
+                    // sprite pixel 0 is transparent; keep visible pixels non-zero.
                     let outRgb = (outR << 16) | (outG << 8) | outB;
                     if (aComb > 0 && outRgb === 0) outRgb = 1;
                     buf[idx] = outRgb;

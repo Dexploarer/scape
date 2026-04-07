@@ -77,7 +77,7 @@ function encodeSquare(square: ReturnType<MapCollisionService["getMapSquare"]>): 
 
     const planeBuffers = square.collisionMaps.map((cm) => encodePlane(cm));
 
-    // Extra OSRS parity data: minimal bridge/min-plane flags needed to resolve collision plane without
+    // Extra  data: minimal bridge/min-plane flags needed to resolve collision plane without
     // rebuilding scenes on the server.
     //
     // Layout (v2, after plane buffers):

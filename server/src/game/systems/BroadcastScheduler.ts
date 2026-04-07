@@ -1,5 +1,78 @@
-import type { SkillSyncUpdate } from "../player";
+import type { PlayerAppearance, SkillSyncUpdate } from "../player";
 import type { HitsplatSourceType } from "../combat/OsrsHitsplatIds";
+import type { WidgetAction } from "../../widgets/WidgetManager";
+import type { SpellResultPayload } from "../../network/messages";
+
+/**
+ * Widget event queued for broadcast.
+ */
+export interface WidgetEventSnapshot {
+    playerId: number;
+    action: WidgetAction;
+}
+
+/**
+ * Combat state snapshot for broadcast.
+ */
+export interface CombatSnapshot {
+    playerId: number;
+    weaponCategory: number;
+    weaponItemId: number;
+    autoRetaliate: boolean;
+    activeStyle?: number;
+    activePrayers?: string[];
+    activeSpellId?: number;
+    specialEnergy?: number;
+    specialActivated?: boolean;
+    quickPrayers?: string[];
+    quickPrayersEnabled?: boolean;
+}
+
+/**
+ * Appearance snapshot for broadcast.
+ */
+export interface AppearanceSnapshot {
+    playerId: number;
+    payload: {
+        x: number;
+        y: number;
+        level: number;
+        rot: number;
+        orientation: number;
+        running: boolean;
+        appearance: PlayerAppearance | undefined;
+        name?: string;
+        anim?: PlayerAnimSet;
+        moved: boolean;
+        turned: boolean;
+        snap: boolean;
+        directions?: number[];
+        worldViewId?: number;
+    };
+}
+
+/**
+ * Inventory snapshot request for broadcast.
+ */
+export interface InventorySnapshotRequest {
+    playerId: number;
+    slots?: Array<{ slot: number; itemId: number; quantity: number }>;
+}
+
+/**
+ * Loc change payload for broadcast.
+ */
+export interface LocChangeSnapshot {
+    oldId: number;
+    newId: number;
+    tile: { x: number; y: number };
+    level: number;
+    oldTile: { x: number; y: number };
+    newTile: { x: number; y: number };
+    oldRotation?: number;
+    newRotation?: number;
+    newShape?: number;
+}
 
 /**
  * Chat message types for broadcast scheduling.
@@ -123,7 +196,7 @@ export interface PlayerAnimSet {
 export class BroadcastScheduler {
     // Chat and notifications
     private pendingChatMessages: ChatMessageSnapshot[] = [];
-    private pendingNotifications: Array<{ playerId: number; payload: any }> = [];
+    private pendingNotifications: Array<{ playerId: number; payload: Record<string, unknown> }> = [];
 
     // Game state updates
     private pendingVarps: VarpUpdate[] = [];
@@ -155,7 +228,7 @@ export class BroadcastScheduler {
         this.pendingChatMessages.push(message);
     }
 
-    queueNotification(playerId: number, payload: any): void {
+    queueNotification(playerId: number, payload: Record<string, unknown>): void {
         this.pendingNotifications.push({ playerId: playerId, payload });
     }
 
@@ -165,7 +238,7 @@ export class BroadcastScheduler {
         return messages;
     }
 
-    drainNotifications(): Array<{ playerId: number; payload: any }> {
+    drainNotifications(): Array<{ playerId: number; payload: Record<string, unknown> }> {
         const notifications = this.pendingNotifications;
         this.pendingNotifications = [];
         return notifications;
@@ -314,7 +387,7 @@ export class BroadcastScheduler {
         this.pendingChatMessages = messages.concat(this.pendingChatMessages);
     }
 
-    restoreNotifications(notifications: Array<{ playerId: number; payload: any }>): void {
+    restoreNotifications(notifications: Array<{ playerId: number; payload: Record<string, unknown> }>): void {
         this.pendingNotifications = notifications.concat(this.pendingNotifications);
     }
 
@@ -366,5 +439,188 @@ export class BroadcastScheduler {
         }>,
     ): void {
         this.pendingRunEnergySnapshots = snapshots.concat(this.pendingRunEnergySnapshots);
+    }
+
+    // ----- Widget Events -----
+
+    private pendingWidgetEvents: WidgetEventSnapshot[] = [];
+
+    queueWidgetEvent(event: WidgetEventSnapshot): void {
+        this.pendingWidgetEvents.push(event);
+    }
+
+    drainWidgetEvents(): WidgetEventSnapshot[] {
+        const events = this.pendingWidgetEvents;
+        this.pendingWidgetEvents = [];
+        return events;
+    }
+
+    restoreWidgetEvents(events: WidgetEventSnapshot[]): void {
+        this.pendingWidgetEvents = events.concat(this.pendingWidgetEvents);
+    }
+
+    // ----- Keyed Message Queues (smithing, trade, etc.) -----
+
+    private keyedMessages = new Map<string, Array<{ playerId: number; payload: Record<string, unknown> }>>();
+
+    queueKeyedMessage(key: string, playerId: number, payload: Record<string, unknown>): void {
+        let queue = this.keyedMessages.get(key);
+        if (!queue) {
+            queue = [];
+            this.keyedMessages.set(key, queue);
+        }
+        queue.push({ playerId, payload });
+    }
+
+    drainKeyedMessages(key: string): Array<{ playerId: number; payload: Record<string, unknown> }> {
+        const messages = this.keyedMessages.get(key) ?? [];
+        this.keyedMessages.delete(key);
+        return messages;
+    }
+
+    restoreKeyedMessages(key: string, messages: Array<{ playerId: number; payload: Record<string, unknown> }>): void {
+        const existing = this.keyedMessages.get(key) ?? [];
+        this.keyedMessages.set(key, messages.concat(existing));
+    }
+
+    drainAllKeyedMessages(): Map<string, Array<{ playerId: number; payload: Record<string, unknown> }>> {
+        const all = this.keyedMessages;
+        this.keyedMessages = new Map();
+        return all;
+    }
+
+    restoreAllKeyedMessages(all: Map<string, Array<{ playerId: number; payload: Record<string, unknown> }>>): void {
+        for (const [key, messages] of all.entries()) {
+            this.restoreKeyedMessages(key, messages);
+        }
+    }
+
+    // ----- Loc Changes -----
+
+    private pendingLocChanges: LocChangeSnapshot[] = [];
+
+    queueLocChange(payload: LocChangeSnapshot): void {
+        this.pendingLocChanges.push(payload);
+    }
+
+    drainLocChanges(): LocChangeSnapshot[] {
+        const changes = this.pendingLocChanges;
+        this.pendingLocChanges = [];
+        return changes;
+    }
+
+    restoreLocChanges(changes: LocChangeSnapshot[]): void {
+        this.pendingLocChanges = changes.concat(this.pendingLocChanges);
+    }
+
+    // ----- Inventory Snapshots -----
+
+    private pendingInventorySnapshots: InventorySnapshotRequest[] = [];
+
+    queueInventorySnapshot(request: InventorySnapshotRequest): void {
+        if (this.pendingInventorySnapshots.some((s) => s.playerId === request.playerId)) return;
+        this.pendingInventorySnapshots.push(request);
+    }
+
+    drainInventorySnapshots(): InventorySnapshotRequest[] {
+        const snapshots = this.pendingInventorySnapshots;
+        this.pendingInventorySnapshots = [];
+        return snapshots;
+    }
+
+    restoreInventorySnapshots(snapshots: InventorySnapshotRequest[]): void {
+        this.pendingInventorySnapshots = snapshots.concat(this.pendingInventorySnapshots);
+    }
+
+    // ----- Combat Snapshots -----
+
+    private pendingCombatSnapshots: CombatSnapshot[] = [];
+
+    queueCombatSnapshot(snapshot: CombatSnapshot): void {
+        this.pendingCombatSnapshots.push(snapshot);
+    }
+
+    drainCombatSnapshots(): CombatSnapshot[] {
+        const snapshots = this.pendingCombatSnapshots;
+        this.pendingCombatSnapshots = [];
+        return snapshots;
+    }
+
+    restoreCombatSnapshots(snapshots: CombatSnapshot[]): void {
+        this.pendingCombatSnapshots = snapshots.concat(this.pendingCombatSnapshots);
+    }
+
+    // ----- Appearance Snapshots -----
+
+    private pendingAppearanceSnapshots: AppearanceSnapshot[] = [];
+
+    queueAppearanceSnapshot(snapshot: AppearanceSnapshot): void {
+        this.pendingAppearanceSnapshots.push(snapshot);
+    }
+
+    /**
+     * Returns the live mutable array for direct manipulation by PlayerAppearanceManager.
+     * Use drainAppearanceSnapshots() for tick frame creation.
+     */
+    getPendingAppearanceSnapshots(): AppearanceSnapshot[] {
+        return this.pendingAppearanceSnapshots;
+    }
+
+    drainAppearanceSnapshots(): AppearanceSnapshot[] {
+        const snapshots = this.pendingAppearanceSnapshots;
+        this.pendingAppearanceSnapshots = [];
+        return snapshots;
+    }
+
+    restoreAppearanceSnapshots(snapshots: AppearanceSnapshot[]): void {
+        this.pendingAppearanceSnapshots = snapshots.concat(this.pendingAppearanceSnapshots);
+    }
+
+    // ----- Spell Results -----
+
+    private pendingSpellResults: Array<{ playerId: number; payload: SpellResultPayload }> = [];
+
+    queueSpellResult(playerId: number, payload: SpellResultPayload): void {
+        this.pendingSpellResults.push({ playerId, payload });
+    }
+
+    drainSpellResults(): Array<{ playerId: number; payload: SpellResultPayload }> {
+        const results = this.pendingSpellResults;
+        this.pendingSpellResults = [];
+        return results;
+    }
+
+    restoreSpellResults(results: Array<{ playerId: number; payload: SpellResultPayload }>): void {
+        this.pendingSpellResults = results.concat(this.pendingSpellResults);
+    }
+
+    // ----- Gamemode Snapshots -----
+
+    private pendingGamemodeSnapshots = new Map<string, Array<{ playerId: number; payload: unknown }>>();
+
+    queueGamemodeSnapshot(key: string, playerId: number, payload: unknown): void {
+        const queue = this.pendingGamemodeSnapshots.get(key) ?? [];
+        const idx = queue.findIndex((entry) => entry.playerId === playerId);
+        if (idx >= 0) {
+            queue[idx] = { playerId, payload };
+        } else {
+            queue.push({ playerId, payload });
+        }
+        this.pendingGamemodeSnapshots.set(key, queue);
+    }
+
+    drainGamemodeSnapshots(): Map<string, Array<{ playerId: number; payload: unknown }>> {
+        const snapshots = new Map(this.pendingGamemodeSnapshots);
+        this.pendingGamemodeSnapshots = new Map();
+        return snapshots;
+    }
+
+    restoreGamemodeSnapshots(snapshots: Map<string, Array<{ playerId: number; payload: unknown }>>): void {
+        for (const [key, entries] of snapshots) {
+            if (entries.length > 0) {
+                const existing = this.pendingGamemodeSnapshots.get(key) ?? [];
+                this.pendingGamemodeSnapshots.set(key, entries.concat(existing));
+            }
+        }
     }
 }

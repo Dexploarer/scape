@@ -9,7 +9,7 @@ interface OsrsLoadingBarProps {
 }
 
 /**
- * OSRS Loading Bar - matches GameEngine.java drawInitial()
+ * OSRS Loading Bar
  *
  * Structure (from reference):
  * - Outer: 304x34 with red border (#8C1111)

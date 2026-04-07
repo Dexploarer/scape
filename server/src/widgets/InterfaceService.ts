@@ -16,6 +16,7 @@
  * 3. Close modal: interfaceService.closeModal(player) -> triggers onClose hooks
  */
 import type { PlayerState } from "../game/player";
+import { logger } from "../utils/logger";
 import type { WidgetEntry } from "./WidgetManager";
 import { getMainmodalUid, getSidemodalUid } from "./viewport";
 
@@ -711,7 +712,7 @@ export class InterfaceService {
             try {
                 hook(player, context);
             } catch (err) {
-                console.error(`[InterfaceService] Error in onOpen hook for ${interfaceId}:`, err);
+                logger.error(`[InterfaceService] Error in onOpen hook for ${interfaceId}:`, err);
             }
         }
     }
@@ -729,7 +730,7 @@ export class InterfaceService {
             try {
                 hook(player, context);
             } catch (err) {
-                console.error(`[InterfaceService] Error in onClose hook for ${interfaceId}:`, err);
+                logger.error(`[InterfaceService] Error in onClose hook for ${interfaceId}:`, err);
             }
         }
     }

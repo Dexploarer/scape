@@ -11,7 +11,7 @@ export class HealthBarDefinition extends Type {
     int2: number = 255;
     int3: number = -1;
     /** Step increment used when animating toward the next ratio. */
-    field1885: number = 1;
+    stepIncrement: number = 1;
     /** Total linger duration after the last update before the bar fully fades. */
     int5: number = 70;
     frontSpriteId: number = -1;

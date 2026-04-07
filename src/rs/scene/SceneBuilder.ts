@@ -1429,7 +1429,6 @@ export class SceneBuilder {
 
     // ====================================================================
     // REBUILD_REGION — Instance scene building
-    // Ported from MapLoader.java lines 301-386, 959-1035
     // ====================================================================
 
     /**
@@ -1573,7 +1572,7 @@ export class SceneBuilder {
     /**
      * Decode an 8×8 terrain chunk from a source region archive with rotation.
      * Reads the full 4×64×64 terrain buffer but only applies tiles within the
-     * source chunk bounds. Ported from MapLoader.decodeInstanceTerrainChunk.
+     * source chunk bounds.
      */
     private decodeInstanceTerrainChunk(
         scene: Scene,
@@ -1640,7 +1639,6 @@ export class SceneBuilder {
 
     /**
      * Clear an 8×8 terrain chunk with edge blending from adjacent chunks.
-     * Ported from MapLoader.clearTerrainChunk (lines 886-915).
      */
     private clearTerrainChunk(
         scene: Scene,
@@ -1695,7 +1693,6 @@ export class SceneBuilder {
 
     /**
      * Fill missing terrain for empty chunks on plane 0 by smoothing edge heights.
-     * Ported from MapLoader.fillMissingTerrain (lines 859-884).
      */
     private fillMissingTerrain(
         scene: Scene,
@@ -1727,7 +1724,6 @@ export class SceneBuilder {
 
     /**
      * Decode locs for an 8×8 instance chunk from a source region with rotation.
-     * Ported from MapLoader.decodeInstanceObjects.
      */
     private decodeInstanceLocs(
         scene: Scene,

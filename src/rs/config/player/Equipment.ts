@@ -108,7 +108,7 @@ export function deriveEquipSlotFromParams(obj: ObjType | undefined): EquipmentSl
     if (obj.params) {
         slotId = obj.params.get(OSRS_EQUIP_SLOT_PARAM_ID) as number | undefined;
     }
-    // OSRS parity: item "wearpos" is stored as opcode 13 in ObjType and indicates the equipment slot
+    // item "wearpos" is stored as opcode 13 in ObjType and indicates the equipment slot
     // using PlayerComposition indices (e.g., 0=head, 3=weapon, 4=body, 5=shield, 7=legs).
     if (slotId === undefined || slotId === null) {
         const wearPos = (obj as any).op13;

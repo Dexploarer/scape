@@ -172,7 +172,7 @@ export class PlayerRenderer {
             const cached = this.skeletalDurationCache.get(seqId | 0);
             if (cached && cached > 0) return cached | 0;
 
-            // OSRS parity: cached-seq duration is `SequenceDefinition.method4106()` (end-start).
+            // cached-seq duration is (end-start).
             let duration = Number(seqType?.getSkeletalDuration?.() ?? 0) | 0;
 
             if (!(duration > 0)) duration = 1;
@@ -842,7 +842,7 @@ export class PlayerRenderer {
             if (!skeletal) return;
             const duration = this.getEffectiveSkeletalDuration(seqType, seqId | 0);
             const local = Math.max(0, frameIdx | 0) % Math.max(1, duration | 0);
-            // OSRS parity: cached sequences use the local frame index (no start offset at render time).
+            // cached sequences use the local frame index (no start offset at render time).
             model.animateSkeletal(skeletal, local | 0);
             return;
         }
@@ -1638,7 +1638,7 @@ export class PlayerRenderer {
                 ty,
             );
 
-            // OSRS parity: actor positions advance on client cycles; do not render-time interpolate.
+            // actor positions advance on client cycles; do not render-time interpolate.
             const localX = (px - mapBaseTileX * 128) | 0;
             const localY = (py - mapBaseTileY * 128) | 0;
             // Apply yaw bias so model forward aligns with OSRS orientation

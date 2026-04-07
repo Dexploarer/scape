@@ -7,7 +7,7 @@
  * - Barrows equipment: Degrades to "0" state after 15 hours of combat
  * - Other degradable items
  *
- * OSRS Parity Notes:
+ *  Notes:
  * - Historical crystal bow: 4212 (new) → 4214 (full) → 4215-4223 (9/10 to 1/10) → seed
  * - Each state lasts 250 shots, total 2,500 shots
  * - Stats decrease linearly: Ranged atk 100→64, Ranged str 70→52

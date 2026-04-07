@@ -8,6 +8,7 @@ import { CollisionMap } from "../../../src/rs/scene/CollisionMap";
 import { Scene } from "../../../src/rs/scene/Scene";
 import { LocLoadType, SceneBuilder } from "../../../src/rs/scene/SceneBuilder";
 import { bitsetGet } from "../utils/bitset";
+import { logger } from "../utils/logger";
 import { CacheEnv } from "./CacheEnv";
 
 export type ServerMapSquare = {
@@ -54,7 +55,7 @@ export class MapCollisionService {
             ? path.resolve(opts.precomputedRoot)
             : path.resolve("server/cache/collision");
 
-        const factory = getCacheLoaderFactory(env.info, env.cacheSystem as any);
+        const factory = getCacheLoaderFactory(env.info, env.cacheSystem);
         const underlays = factory.getUnderlayTypeLoader();
         const overlays = factory.getOverlayTypeLoader();
         const locTypeLoader = factory.getLocTypeLoader();
@@ -105,7 +106,7 @@ export class MapCollisionService {
             const version = buf.readUInt8(offset);
             offset += 1;
             if (version !== 1 && version !== 2) {
-                console.warn?.(
+                logger.warn(
                     `[MapCollisionService] unsupported collision cache version ${version} for ${mapX}_${mapY}`,
                 );
                 return undefined;
@@ -132,12 +133,12 @@ export class MapCollisionService {
             offset += 2; // padding
 
             if (headerMapX !== mapX || headerMapY !== mapY) {
-                console.warn?.(
+                logger.warn(
                     `[MapCollisionService] collision cache header mismatch for ${mapX}_${mapY}`,
                 );
             }
             if (sizeDuplicate !== size || borderDuplicate !== borderSize) {
-                console.warn?.(
+                logger.warn(
                     `[MapCollisionService] collision cache size mismatch for ${mapX}_${mapY}`,
                 );
             }
@@ -197,7 +198,7 @@ export class MapCollisionService {
                 forceMin0Masks,
             };
         } catch (err) {
-            console.warn?.(
+            logger.warn(
                 `[MapCollisionService] failed to load precomputed collision for ${mapX}_${mapY}:`,
                 err,
             );
@@ -210,7 +211,7 @@ export class MapCollisionService {
             return this.sceneBuilder;
         }
         if (this.usePrecomputed && !this.includeModels) {
-            const factory = getCacheLoaderFactory(this.env.info, this.env.cacheSystem as any);
+            const factory = getCacheLoaderFactory(this.env.info, this.env.cacheSystem);
             const underlays = factory.getUnderlayTypeLoader();
             const overlays = factory.getOverlayTypeLoader();
             const locTypeLoader = factory.getLocTypeLoader();
@@ -281,7 +282,7 @@ export class MapCollisionService {
                 tileMinLevels,
             };
         } catch (err) {
-            console.warn?.(`[MapCollisionService] failed to build scene for ${mapX}_${mapY}:`, err);
+            logger.warn(`[MapCollisionService] failed to build scene for ${mapX}_${mapY}:`, err);
             return undefined;
         }
     }
@@ -345,7 +346,7 @@ export class MapCollisionService {
             );
             return scene.collisionMaps;
         } catch (e) {
-            console.warn("[MapCollisionService] buildInstanceCollision failed", e);
+            logger.warn("[MapCollisionService] buildInstanceCollision failed", e);
             return undefined;
         }
     }

@@ -118,16 +118,67 @@ export {
     canUseSpecialAttack,
     consumeSpecialEnergy,
     restoreSpecialEnergy,
+    registerSpecialAttackProvider,
+    getSpecialAttackProvider,
     type SpecialAttackDef,
-} from "./SpecialAttackRegistry";
+    type SpecialAttackProvider,
+} from "./SpecialAttackProvider";
+
+// Combat formulas
+export {
+    attackRoll,
+    defenceRoll,
+    hitChance,
+    maxHit,
+    rollDamage,
+    effectiveLevel,
+    effectiveMagicDefence,
+    npcEffectiveAttack,
+    npcEffectiveStrength,
+    npcEffectiveDefence,
+    getNpcAttackBonus,
+    getNpcDefenceBonus,
+    npcMaxHit,
+    calculateNpcVsPlayer,
+    registerCombatFormulaProvider,
+    getCombatFormulaProvider,
+    type AttackerStats,
+    type DefenderStats,
+    type MaxHitParams,
+    type CombatFormulaProvider,
+} from "./CombatFormulaProvider";
+
+// Combat style sequences
+export {
+    getMeleeAttackSequenceForCategory,
+    registerCombatStyleSequenceProvider,
+    getCombatStyleSequenceProvider,
+    type CombatStyleSlot,
+    type CombatStyleSequenceProvider,
+} from "./CombatStyleSequenceProvider";
+
+// Skill configuration
+export {
+    registerSkillConfiguration,
+    getSkillConfiguration,
+    getSkillRestoreIntervalTicks,
+    getSkillBoostDecayIntervalTicks,
+    getHitpointRegenIntervalTicks,
+    getHitpointOverhealDecayIntervalTicks,
+    getPreserveDecayMultiplier,
+    type SkillConfiguration,
+} from "./SkillConfigurationProvider";
 
 // Equipment bonuses
 export {
     calculateEquipmentBonuses,
+    registerEquipmentBonusProvider,
+    getEquipmentBonusProvider,
     type TargetInfo,
     type SlayerTaskInfo,
     type EquipmentBonusResult,
-} from "./EquipmentBonuses";
+    type EquipmentBonusProvider,
+} from "./EquipmentBonusProvider";
 
 // Ammo system
 export {
@@ -154,17 +205,6 @@ export {
     type DropEligibility,
     calculateXpShare,
 } from "./DamageTracker";
-
-// Boss combat scripts
-export {
-    BossScript,
-    createBossScript,
-    registerBossScript,
-    getBossScript,
-    type BossPhase,
-    type BossSpecialAttack,
-    type BossMechanic,
-} from "./BossCombatScript";
 
 // NPC Combat AI
 export { NpcCombatAI, npcCombatAI, type AggroTarget } from "./NpcCombatAI";

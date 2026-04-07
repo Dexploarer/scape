@@ -1,5 +1,5 @@
 /**
- * OSRS Vorbis Sample Decoder (port of VorbisSample.java).
+ * OSRS Vorbis Sample Decoder.
  * Faithful port of the OSRS custom Vorbis decoder.
  */
 import { ByteBuffer } from "../../io/ByteBuffer";
@@ -113,28 +113,28 @@ function initMdctTables(idx: number, n: number): void {
     const n4 = n >> 2;
     const n8 = n >> 3;
 
-    // Twiddle factors (field391/field399)
+    // Twiddle factors
     const twiddle = new Float32Array(n2);
     for (let i = 0; i < n4; i++) {
         twiddle[i * 2] = Math.cos((i * 4 * Math.PI) / n);
         twiddle[i * 2 + 1] = -Math.sin((i * 4 * Math.PI) / n);
     }
 
-    // Window factors (field371/field395)
+    // Window factors
     const window = new Float32Array(n2);
     for (let i = 0; i < n4; i++) {
         window[i * 2] = Math.cos(((i * 2 + 1) * Math.PI) / (n * 2));
         window[i * 2 + 1] = Math.sin(((i * 2 + 1) * Math.PI) / (n * 2));
     }
 
-    // Window2 factors (field392/field396)
+    // Window2 factors
     const window2 = new Float32Array(n4);
     for (let i = 0; i < n8; i++) {
         window2[i * 2] = Math.cos(((i * 4 + 2) * Math.PI) / n);
         window2[i * 2 + 1] = -Math.sin(((i * 4 + 2) * Math.PI) / n);
     }
 
-    // Bit reversal table (field390/field370)
+    // Bit reversal table
     const bitrev = new Int32Array(n8);
     const bits = iLog(n8 - 1);
     for (let i = 0; i < n8; i++) {
@@ -165,15 +165,15 @@ export class VorbisSample {
     looped: boolean;
     packets: Uint8Array[];
 
-    // Decoding state (instance fields from Java)
-    private pcmBuffer: Float32Array; // field374 - current frame
-    private prevPcmBuffer: Float32Array; // field386 - previous frame
-    private prevBlockSize: number = 0; // field387
-    private prevRightLen: number = 0; // field388
-    private prevNoFloor: boolean = false; // field382
-    private outputSamples: Int8Array | null = null; // samples
-    private outputPos: number = 0; // field400
-    private packetIndex: number = 0; // field401
+    // Decoding state
+    private pcmBuffer: Float32Array; // current frame
+    private prevPcmBuffer: Float32Array; // previous frame
+    private prevBlockSize: number = 0;
+    private prevRightLen: number = 0;
+    private prevNoFloor: boolean = false;
+    private outputSamples: Int8Array | null = null;
+    private outputPos: number = 0;
+    private packetIndex: number = 0;
 
     constructor(data: Uint8Array) {
         const buf = new ByteBuffer(data);
@@ -188,7 +188,7 @@ export class VorbisSample {
             this.end = ~this.end;
         }
 
-        // Read packets (field372)
+        // Read packets
         const packetCount = buf.readInt();
         this.packets = new Array(packetCount);
 
@@ -213,7 +213,7 @@ export class VorbisSample {
     }
 
     /**
-     * Decode a single packet (method1112 in Java).
+     * Decode a single packet .
      * Returns overlap-added samples or null.
      */
     private decodePacket(packetIdx: number): Float32Array | null {

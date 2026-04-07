@@ -48,6 +48,9 @@ export class LeagueTaskIndex {
     private itemObtainToChallenges = new Map<number, ParsedChallenge[]>();
     private itemCraftToChallenges = new Map<number, ParsedChallenge[]>();
 
+    // Combat-level challenges - checked on every NPC kill (small list)
+    private npcKillCombatLevelChallenges: ParsedChallenge[] = [];
+
     // Stats for debugging
     private parsedCount = 0;
     private unparsedCount = 0;
@@ -85,7 +88,7 @@ export class LeagueTaskIndex {
 
     private indexTask(task: LeagueTaskRow, loaders: TriggerParserLoaders): void {
         // Check if task has a manual trigger override
-        const manualTrigger = (task as any).trigger as TaskTrigger | undefined;
+        const manualTrigger = (task as unknown as Record<string, unknown>).trigger as TaskTrigger | undefined;
 
         // Parse trigger from task name, or use manual override
         const trigger =
@@ -257,6 +260,10 @@ export class LeagueTaskIndex {
                 }
                 break;
 
+            case "npc_kill_combat_level":
+                this.npcKillCombatLevelChallenges.push(parsed);
+                break;
+
             default:
                 break;
         }
@@ -333,6 +340,14 @@ export class LeagueTaskIndex {
      */
     getChallengesForItemCraft(itemId: number): ParsedChallenge[] {
         return this.itemCraftToChallenges.get(itemId) ?? [];
+    }
+
+    getChallengesForNpcKillCombatLevel(combatLevel: number): ParsedChallenge[] {
+        return this.npcKillCombatLevelChallenges.filter((parsed) => {
+            const trigger = parsed.trigger;
+            if (trigger.type !== "npc_kill_combat_level") return false;
+            return combatLevel >= trigger.minCombatLevel;
+        });
     }
 
     // === Stats ===

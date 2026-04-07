@@ -3,7 +3,8 @@ import {
     VARBIT_LEAGUE_TUTORIAL_COMPLETED,
     VARBIT_LEAGUE_TYPE,
 } from "../../../../src/shared/vars";
-import { type ScriptModule } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, type NpcInteractionEvent, type ScriptServices } from "../../../src/game/scripts/types";
+import type { PlayerState } from "../../../src/game/player";
 import { queueLeagueTutorialOverlayUi } from "./leagueWidgets";
 
 const LEAGUE_TUTOR_NPC_ID = 315;
@@ -15,7 +16,7 @@ const PARAM_LEAGUE_RELIC_REWARD_OBJ = 2049;
 const ECHO_TOOL_ITEM_IDS = new Set([25110, 25112, 25114, 25115, 25367, 25368, 25373, 25374]);
 
 function getTutorialCompleteStep(player: { getVarbitValue?: (id: number) => number }): number {
-    const leagueType = player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+    const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
     return leagueType === 3 ? 14 : 12;
 }
 
@@ -62,7 +63,7 @@ function getCurrentTutorialGuidance(step: number, completeStep: number): string[
     ];
 }
 
-function findEnumIntValue(enumType: any, key: number): number | undefined {
+function findEnumIntValue(enumType: { keys?: number[]; intValues?: number[] } | undefined, key: number): number | undefined {
     const keys: number[] | undefined = enumType?.keys;
     const values: number[] | undefined = enumType?.intValues;
     if (!Array.isArray(keys) || !Array.isArray(values)) return undefined;
@@ -72,11 +73,11 @@ function findEnumIntValue(enumType: any, key: number): number | undefined {
     return undefined;
 }
 
-function resolveTierOneRelicRewardItemId(player: any, services: any): number | undefined {
-    const selectedRelicKey = player.getVarbitValue?.(VARBIT_LEAGUE_RELIC_1) ?? 0;
+function resolveTierOneRelicRewardItemId(player: PlayerState, services: ScriptServices): number | undefined {
+    const selectedRelicKey = player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_1) ?? 0;
     if (!(selectedRelicKey > 0)) return undefined;
 
-    const leagueType = player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+    const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
     const enumLoader = services?.getEnumTypeLoader?.() ?? services?.enumTypeLoader;
     const structLoader = services?.getStructTypeLoader?.() ?? services?.structTypeLoader;
     if (!enumLoader?.load || !structLoader?.load) return undefined;
@@ -111,8 +112,8 @@ function resolveTierOneRelicRewardItemId(player: any, services: any): number | u
     return rewardItemId;
 }
 
-function reclaimLostEchoTool(player: any, services: any): string[] {
-    const selectedRelicKey = player.getVarbitValue?.(VARBIT_LEAGUE_RELIC_1) ?? 0;
+function reclaimLostEchoTool(player: PlayerState, services: ScriptServices): string[] {
+    const selectedRelicKey = player.varps.getVarbitValue?.(VARBIT_LEAGUE_RELIC_1) ?? 0;
     if (!(selectedRelicKey > 0)) {
         return [
             "You haven't unlocked a tier-1 relic yet.",
@@ -128,7 +129,7 @@ function reclaimLostEchoTool(player: any, services: any): string[] {
         ];
     }
 
-    const ownedLocation = services.findOwnedItemLocation?.(player, rewardItemId);
+    const ownedLocation = services.inventory.findOwnedItemLocation(player, rewardItemId);
     if (ownedLocation === "inventory") {
         return ["You already have your Echo tool with you.", "Check your inventory first."];
     }
@@ -142,9 +143,9 @@ function reclaimLostEchoTool(player: any, services: any): string[] {
         ];
     }
 
-    const added = services.addItemToInventory(player, rewardItemId, 1);
+    const added = services.inventory.addItemToInventory(player, rewardItemId, 1);
     if (added.added >= 1) {
-        services.snapshotInventory(player);
+        services.inventory.snapshotInventory(player);
         return [
             "I've replaced your lost Echo tool.",
             "Come back if you lose it again and need another replacement.",
@@ -157,130 +158,126 @@ function reclaimLostEchoTool(player: any, services: any): string[] {
     ];
 }
 
-export const leagueTutorModule: ScriptModule = {
-    id: "content.league-tutor",
-    register(registry, services) {
-        const activeConvos = new Set<number>();
+export function registerLeagueTutorHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+    const activeConvos = new Set<number>();
 
-        const openTutorConversation = (event: any) => {
-            const player = event.player;
-            const pid = player.id;
-            if (activeConvos.has(pid)) return;
-            activeConvos.add(pid);
+    const openTutorConversation = (event: NpcInteractionEvent) => {
+        const player = event.player;
+        const pid = player.id;
+        if (activeConvos.has(pid)) return;
+        activeConvos.add(pid);
 
-            const tutorialStep = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
-            const completeStep = getTutorialCompleteStep(player);
-            const tutorialActive = tutorialStep < completeStep;
+        const tutorialStep = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
+        const completeStep = getTutorialCompleteStep(player);
+        const tutorialActive = tutorialStep < completeStep;
 
-            const closeConversation = () => {
-                activeConvos.delete(pid);
-            };
-
-            const openNpcDialog = (id: string, lines: string[], onContinue?: () => void) =>
-                services.openDialog?.(player, {
-                    kind: "npc",
-                    id,
-                    npcId: LEAGUE_TUTOR_NPC_ID,
-                    npcName: LEAGUE_TUTOR_NAME,
-                    lines,
-                    clickToContinue: true,
-                    closeOnContinue: !onContinue,
-                    onContinue,
-                    onClose: closeConversation,
-                });
-
-            const convoId = `league_tutor_${pid}`;
-            openNpcDialog(
-                `${convoId}_intro`,
-                tutorialActive
-                    ? ["Welcome to Leagues!", "I can walk you through your next tutorial step."]
-                    : ["Welcome back, adventurer.", "Need a refresher on Leagues systems?"],
-                () => {
-                    services.closeDialog?.(player, `${convoId}_intro`);
-                    services.openDialogOptions?.(player, {
-                        id: `${convoId}_options`,
-                        title: LEAGUE_TUTOR_NAME,
-                        options: tutorialActive
-                            ? [
-                                  "What should I do right now?",
-                                  "Remind me how tier-1 relic tools work.",
-                                  "I've lost my Echo tool.",
-                                  "Reopen the tutorial panel.",
-                              ]
-                            : [
-                                  "Give me a quick Leagues refresher.",
-                                  "Remind me how tier-1 relic tools work.",
-                                  "I've lost my Echo tool.",
-                                  "Reopen the Leagues tutorial panel.",
-                              ],
-                        onClose: closeConversation,
-                        onSelect: (choiceIndex) => {
-                            activeConvos.delete(pid);
-                            if (choiceIndex === 0) {
-                                openNpcDialog(
-                                    `${convoId}_guidance`,
-                                    getCurrentTutorialGuidance(tutorialStep, completeStep),
-                                );
-                                return;
-                            }
-                            if (choiceIndex === 1) {
-                                openNpcDialog(`${convoId}_tier1`, [
-                                    "Power Miner, Animal Wrangler, and Lumberjack are tier-1 relics.",
-                                    "Their Echo tools can reroll failed gathers and auto-bank resources.",
-                                    "Echo harpoon also fishes 1 tick faster and can auto-cook catches.",
-                                ]);
-                                return;
-                            }
-                            if (choiceIndex === 2) {
-                                openNpcDialog(
-                                    `${convoId}_reclaim_echo_tool`,
-                                    reclaimLostEchoTool(player, services),
-                                );
-                                return;
-                            }
-
-                            const canQueueOverlay =
-                                services.queueWidgetEvent &&
-                                services.queueVarp &&
-                                services.queueVarbit;
-                            if (!canQueueOverlay) {
-                                openNpcDialog(`${convoId}_overlay_unavailable`, [
-                                    "I can't reopen that interface right now.",
-                                    "Try relogging if the tutorial panel is missing.",
-                                ]);
-                                return;
-                            }
-
-                            queueLeagueTutorialOverlayUi(
-                                player,
-                                {
-                                    queueWidgetEvent: services.queueWidgetEvent!,
-                                    queueVarp: services.queueVarp!,
-                                    queueVarbit: services.queueVarbit!,
-                                    isWidgetGroupOpenInLedger: () => false,
-                                },
-                                tutorialStep,
-                                { queueFlashsideVarbitOnStep3: true },
-                            );
-                            openNpcDialog(`${convoId}_overlay_done`, [
-                                "I've reopened the tutorial panel for you.",
-                                "Follow its highlighted steps to keep progressing.",
-                            ]);
-                        },
-                    });
-                },
-            );
+        const closeConversation = () => {
+            activeConvos.delete(pid);
         };
 
-        registry.registerNpcScript({
-            npcId: LEAGUE_TUTOR_NPC_ID,
-            option: "talk-to",
-            handler: openTutorConversation,
-        });
-        registry.registerNpcScript({
-            npcId: LEAGUE_TUTOR_NPC_ID,
-            option: undefined,
-            handler: openTutorConversation,
-        });
-    },
-};
+        const openNpcDialog = (id: string, lines: string[], onContinue?: () => void) =>
+            services.dialog.openDialog(player, {
+                kind: "npc",
+                id,
+                npcId: LEAGUE_TUTOR_NPC_ID,
+                npcName: LEAGUE_TUTOR_NAME,
+                lines,
+                clickToContinue: true,
+                closeOnContinue: !onContinue,
+                onContinue,
+                onClose: closeConversation,
+            });
+
+        const convoId = `league_tutor_${pid}`;
+        openNpcDialog(
+            `${convoId}_intro`,
+            tutorialActive
+                ? ["Welcome to Leagues!", "I can walk you through your next tutorial step."]
+                : ["Welcome back, adventurer.", "Need a refresher on Leagues systems?"],
+            () => {
+                services.dialog.closeDialog(player, `${convoId}_intro`);
+                services.dialog.openDialogOptions(player, {
+                    id: `${convoId}_options`,
+                    title: LEAGUE_TUTOR_NAME,
+                    options: tutorialActive
+                        ? [
+                              "What should I do right now?",
+                              "Remind me how tier-1 relic tools work.",
+                              "I've lost my Echo tool.",
+                              "Reopen the tutorial panel.",
+                          ]
+                        : [
+                              "Give me a quick Leagues refresher.",
+                              "Remind me how tier-1 relic tools work.",
+                              "I've lost my Echo tool.",
+                              "Reopen the Leagues tutorial panel.",
+                          ],
+                    onClose: closeConversation,
+                    onSelect: (choiceIndex) => {
+                        activeConvos.delete(pid);
+                        if (choiceIndex === 0) {
+                            openNpcDialog(
+                                `${convoId}_guidance`,
+                                getCurrentTutorialGuidance(tutorialStep, completeStep),
+                            );
+                            return;
+                        }
+                        if (choiceIndex === 1) {
+                            openNpcDialog(`${convoId}_tier1`, [
+                                "Power Miner, Animal Wrangler, and Lumberjack are tier-1 relics.",
+                                "Their Echo tools can reroll failed gathers and auto-bank resources.",
+                                "Echo harpoon also fishes 1 tick faster and can auto-cook catches.",
+                            ]);
+                            return;
+                        }
+                        if (choiceIndex === 2) {
+                            openNpcDialog(
+                                `${convoId}_reclaim_echo_tool`,
+                                reclaimLostEchoTool(player, services),
+                            );
+                            return;
+                        }
+
+                        const canQueueOverlay =
+                            services.variables.queueVarp &&
+                            services.variables.queueVarbit;
+                        if (!canQueueOverlay) {
+                            openNpcDialog(`${convoId}_overlay_unavailable`, [
+                                "I can't reopen that interface right now.",
+                                "Try relogging if the tutorial panel is missing.",
+                            ]);
+                            return;
+                        }
+
+                        queueLeagueTutorialOverlayUi(
+                            player,
+                            {
+                                queueWidgetEvent: services.dialog.queueWidgetEvent,
+                                queueVarp: services.variables.queueVarp!,
+                                queueVarbit: services.variables.queueVarbit!,
+                                isWidgetGroupOpenInLedger: () => false,
+                            },
+                            tutorialStep,
+                            { queueFlashsideVarbitOnStep3: true },
+                        );
+                        openNpcDialog(`${convoId}_overlay_done`, [
+                            "I've reopened the tutorial panel for you.",
+                            "Follow its highlighted steps to keep progressing.",
+                        ]);
+                    },
+                });
+            },
+        );
+    };
+
+    registry.registerNpcScript({
+        npcId: LEAGUE_TUTOR_NPC_ID,
+        option: "talk-to",
+        handler: openTutorConversation,
+    });
+    registry.registerNpcScript({
+        npcId: LEAGUE_TUTOR_NPC_ID,
+        option: undefined,
+        handler: openTutorConversation,
+    });
+}

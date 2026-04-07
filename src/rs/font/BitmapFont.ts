@@ -239,7 +239,7 @@ export class BitmapFont {
         var5: number,
         var6: number,
     ): number {
-        // Port of AbstractFont.method7754
+        // Draws text line with tag support
         const var7 = var2[var5] | 0; // top of a
         const var8 = var7 + (var4[var5] | 0); // bottom of a
         const var9 = var2[var6] | 0; // top of b
@@ -277,7 +277,7 @@ export class BitmapFont {
     }
 
     /**
-     * OSRS parity: AbstractFont.drawRandomAlphaAndSpacing
+     * AbstractFont.drawRandomAlphaAndSpacing
      *
      * Uses a deterministic Java RNG seeded by `seed` to generate:
      * - A global alpha value in [192, 223] (out of 256)
@@ -326,7 +326,7 @@ export class BitmapFont {
     /**
      * Draw OSRS-markup text with optional per-character x offsets.
      *
-     * OSRS parity: Mirrors the client AbstractFont.method7780 behavior for <col>/<shad>/<lt>/<gt>
+     * Handles <col>/<shad>/<lt>/<gt>
      * as used by drawRandomAlphaAndSpacing (top-left hover text) and menu rendering.
      *
      * Notes:
@@ -345,7 +345,7 @@ export class BitmapFont {
     ): void {
         let penX = x;
         let prev = -1;
-        let idx = 0; // "var9" in AbstractFont.method7780 (drawn char index)
+        let idx = 0;
         let tagStart = -1;
 
         let curColor = defaultColor;
@@ -396,7 +396,7 @@ export class BitmapFont {
                     continue;
                 }
 
-                // Tag handling (matches AbstractFont.method7780 structure)
+                // Tag handling
                 if (chRaw === ">" && tagStart !== -1) {
                     const tag = text.substring(tagStart + 1, i).toLowerCase();
                     tagStart = -1;
@@ -601,7 +601,7 @@ export class BitmapFont {
             }
 
             // Draw cached glyph using fast ctx.drawImage
-            // OSRS parity: AbstractFont.draw0 uses (y - ascent) before applying topBearings.
+            // AbstractFont.draw0 uses (y - ascent) before applying topBearings.
             // y is a baseline coordinate (e.g., widget text uses y = top + maxAscent).
             const baseY = Math.round(y - this.ascent);
             const dstX = Math.round(penX + lb);

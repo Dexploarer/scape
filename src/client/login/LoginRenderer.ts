@@ -66,7 +66,7 @@ export interface LoginLayoutConfig {
 
 /**
  * World data for world select display.
- * Mirrors OSRS World.java structure.
+ * World data structure for world select display.
  */
 export interface World {
     id: number;
@@ -677,7 +677,7 @@ export class LoginRenderer {
     }
 
     private getLogicalFirePositions(): { leftX: number; rightX: number; y: number } {
-        // OSRS parity:
+        //
         // left  = Login.xPadding - 22
         // right = Login.xPadding + 22 + 765 - 128
         const leftX = this.xPadding - 22;
@@ -1513,8 +1513,7 @@ export class LoginRenderer {
         buttonCenterX: number,
         buttonCenterY: number,
     ): boolean {
-        // OSRS parity: login button hit bounds are center +/-75 (x) and +/-20 (y).
-        // Reference: MusicTrackNoteMaskEntry.java loginIndex==0 checks.
+        // Login button hit bounds are center +/-75 (x) and +/-20 (y).
         const visualHalfW = 75;
         const visualHalfH = 20;
 
@@ -1822,7 +1821,7 @@ export class LoginRenderer {
         const barHeight = 34;
         const barX = centerX - barWidth / 2;
 
-        // OSRS loading bar structure (from class207.java drawTitle):
+        // Loading bar structure:
         // - Outer red border at (0,0) size 304x34
         // - Inner black border at (1,1) size 302x32
         // - Red progress fill at (2,2) width=percent*3, height=30
@@ -1847,13 +1846,13 @@ export class LoginRenderer {
         ctx.fillStyle = "#8c1111";
         ctx.fillRect(barX + 2, barY + 2, fillWidth, barHeight - 4);
 
-        // Draw text using fontBold12 (OSRS parity - class207.java uses fontBold12)
+        // Draw text using fontBold12
         // Falls back to Helvetica if bitmap font not loaded yet
         const loadingText = state.loadingText || `${state.loadingPercent}%`;
         const titleText = "RuneScape is loading - please wait...";
 
         if (this.fontBold12) {
-            // Use bitmap font (OSRS parity - class207.java uses fontBold12)
+            // Use bitmap font
             // BitmapFont.draw uses baseline Y like OSRS AbstractFont.draw
             // OSRS: title at Y=245-var3=225, loading at Y=276-var3=256, bar at Y=253-var3=233
             // Relative: title at barY-8, loading at barY+23
@@ -1882,7 +1881,7 @@ export class LoginRenderer {
         const barHeight = 34;
         const barX = centerX - barWidth / 2;
 
-        // OSRS uses Helvetica Bold 13pt for the loading bar (from GameEngine.java drawInitial)
+        // OSRS uses Helvetica Bold 13pt for the loading bar
         ctx.font = "bold 13px Helvetica, Arial, sans-serif";
         ctx.fillStyle = "white";
         ctx.textAlign = "center";

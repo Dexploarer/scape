@@ -494,7 +494,7 @@ export class MenuState {
 
     /**
      * Invoke the handler for a menu entry - OSRS style
-     * Calls menuAction() with the parallel array data matching class31.java
+     * Calls menuAction() with the parallel array data.
      * Calls local handlers only for non-world interaction opcodes.
      */
     invoke(index: number, screenX?: number, screenY?: number, ctx?: MenuClickContext): void {
@@ -532,7 +532,7 @@ export class MenuState {
                 screenY ?? 0, // screen Y position
             );
 
-            // OSRS parity: For world interactions, packet dispatch is already handled by menuAction.
+            // For world interactions, packet dispatch is already handled by menuAction.
             // Avoid firing parallel high-level interaction sends from local handlers.
             if (!isWorldInteractionOpcode(normalizedOpcode)) {
                 if (typeof handler === "function") {

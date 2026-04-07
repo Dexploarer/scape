@@ -5,7 +5,7 @@
  * NPC movement, chase, retreat, and retaliation authority remain in NpcManager.
  */
 import { SkillId } from "../../../../src/rs/skill/skills";
-import { getPoweredStaffSpellData, getSpellData } from "../../data/spells";
+import { getPoweredStaffSpellData, getSpellData } from "../spells/SpellDataProvider";
 import type { PathService } from "../../pathfinding/PathService";
 import {
     CardinalAdjacentRouteStrategy,
@@ -33,7 +33,7 @@ import {
 } from "./CombatAction";
 import { CombatEffectApplicator } from "./CombatEffectApplicator";
 import { CombatEngagementRegistry } from "./CombatEngagementRegistry";
-import * as CombatFormulas from "./CombatFormulas";
+import * as CombatFormulas from "./CombatFormulaProvider";
 import { resolvePlayerAttackReach, resolvePlayerAttackType } from "./CombatRules";
 import {
     CombatPhase,
@@ -55,7 +55,7 @@ import {
     calculateDragonClawsHits,
     isDarkBow,
     resolveAmmoModifiers,
-} from "./SpecialAttackRegistry";
+} from "./SpecialAttackProvider";
 
 // =============================================================================
 // Constants (from CombatSystem)
@@ -297,7 +297,7 @@ export class PlayerCombatManager {
         }
 
         // Create combat config from player
-        const config = extractPlayerCombatConfig(player);
+        const config = extractPlayerCombatConfig(player.combat);
 
         // Determine attack speeds
         const playerAttackSpeed = attackSpeed ?? DEFAULT_ATTACK_SPEED;
@@ -434,7 +434,7 @@ export class PlayerCombatManager {
     updateCombatConfig(player: PlayerState): void {
         const state = this.engagements.getState(player.id);
         if (state) {
-            state.config = extractPlayerCombatConfig(player);
+            state.config = extractPlayerCombatConfig(player.combat);
         }
     }
 
@@ -458,7 +458,7 @@ export class PlayerCombatManager {
         const attacksScheduled: Array<{ playerId: number; npcId: number; attackSpeed: number }> =
             [];
 
-        // OSRS parity: Process combat in PID order (ascending player ID)
+        // Process combat in PID order (ascending player ID)
         // Map iteration order is insertion order, not PID order
         // Reference: docs/tick-cycle-order.md
         const sortedStates = this.engagements.entriesSortedByPid();
@@ -504,9 +504,9 @@ export class PlayerCombatManager {
                 attackDelay: number,
                 currentTick: number,
             ): boolean => {
-                const spellId = player.combatSpellId;
+                const spellId = player.combat.spellId;
                 if (!(spellId > 0)) return false;
-                const modeRaw = player.autocastMode;
+                const modeRaw = player.combat.autocastMode;
                 const castMode =
                     modeRaw === "defensive_autocast" ? "defensive_autocast" : ("autocast" as const);
                 const res = this.actionScheduler!.requestAction(
@@ -597,10 +597,10 @@ export class PlayerCombatManager {
 
         // Handle auto-attack decay
         if (!state.engagement.playerAutoAttack) {
-            // OSRS parity: If autocast is still active with a valid spell, resume auto-attack.
+            // If autocast is still active with a valid spell, resume auto-attack.
             // This handles: manual cast interrupt, movement interrupt, etc.
             // Autocast should always resume as long as the configuration remains valid.
-            if (player.autocastEnabled && player.combatSpellId > 0) {
+            if (player.combat.autocastEnabled && player.combat.spellId > 0) {
                 state.engagement.playerAutoAttack = true;
                 state.engagement.aggroHoldTicks = DEFAULT_AGGRO_HOLD_TICKS;
             } else {
@@ -651,7 +651,7 @@ export class PlayerCombatManager {
                 if (ctx.schedulePlayerAttack && state.engagement.playerAutoAttack) {
                     const attackSpeed = ctx.pickAttackSpeed(player);
                     state.timing.attackSpeed = attackSpeed;
-                    player.attackDelay = attackSpeed;
+                    player.combat.attackDelay = attackSpeed;
 
                     const result = ctx.schedulePlayerAttack(player, npc, attackSpeed);
                     const ok = result.ok;
@@ -671,7 +671,7 @@ export class PlayerCombatManager {
                         const shouldRepeat = ctx.shouldRepeatAttack?.(player) ?? true;
                         state.engagement.playerAutoAttack = shouldRepeat;
 
-                        // OSRS parity: Do NOT trigger retaliation when attack is scheduled.
+                        // Do NOT trigger retaliation when attack is scheduled.
                         // Call confirmHitLanded() when the hitsplat is applied.
                         // This handles projectile delays correctly for ranged/magic.
 
@@ -702,7 +702,7 @@ export class PlayerCombatManager {
 
     /**
      * Called when a player's hit on an NPC actually lands (hitsplat applied).
-     * OSRS parity: NPC retaliation should only start after the first hit LANDS,
+     * NPC retaliation should only start after the first hit LANDS,
      * not when the attack is scheduled. This handles projectile delays correctly.
      *
      * @param playerId - The attacking player's ID
@@ -742,7 +742,7 @@ export class PlayerCombatManager {
         if (!state.engagement.retaliationEngaged) {
             state.engagement.retaliationEngaged = true;
 
-            // OSRS parity: Only apply retaliation delay if NPC wasn't already in combat.
+            // Only apply retaliation delay if NPC wasn't already in combat.
             // If NPC is already fighting (same or different player), it uses its existing
             // attack timer rather than resetting. This creates natural variance - NPCs
             // mid-combat may retaliate faster or slower depending on their current timer.
@@ -808,7 +808,7 @@ export class PlayerCombatManager {
             state.timing.attackSpeed = attackSpeed;
             state.timing.pendingAttackTick = undefined;
 
-            // OSRS parity: Do NOT trigger retaliation here.
+            // Do NOT trigger retaliation here.
             // Wait for confirmHitLanded() when the hitsplat actually applies.
             // This correctly handles projectile delays for ranged/magic.
         }
@@ -873,7 +873,7 @@ export class PlayerCombatManager {
             if (!npc) continue;
             if (npc.level !== player.level) continue;
 
-            const reach = resolvePlayerAttackReach(player);
+            const reach = resolvePlayerAttackReach(player.combat);
             if (this.isWithinAttackReachForMovement(player, npc, reach, pathService)) {
                 player.clearPath();
                 state.timing.unreachableSinceTick = undefined;
@@ -934,7 +934,7 @@ export class PlayerCombatManager {
             ctx.onCannotReachTarget?.(player);
             player.clearPath();
             player.clearInteraction();
-            player.removeCombatTarget();
+            player.combat.removeCombatTarget();
             player.stopAnimation();
             this.endCombat(playerId, ctx.tick, "no_path");
             this.playerManager?.finishNpcCombatByPlayerId(playerId, state.engagement.npcId);
@@ -958,7 +958,7 @@ export class PlayerCombatManager {
             const npc = ctx.npcLookup(npcId);
             if (!npc) continue;
 
-            const reach = resolvePlayerAttackReach(player);
+            const reach = resolvePlayerAttackReach(player.combat);
             if (reach > 1) continue;
             if (!this.isWithinAttackReachForMovement(player, npc, reach, pathService)) continue;
             player.clearPath();
@@ -1080,15 +1080,15 @@ export class PlayerCombatManager {
         }
 
         const playerAttackSpeed = Math.max(1, ctx.pickAttackSpeed(player));
-        player.attackDelay = playerAttackSpeed;
-        const weaponItemId = player.combatWeaponItemId ?? -1;
+        player.combat.attackDelay = playerAttackSpeed;
+        const weaponItemId = player.combat.weaponItemId ?? -1;
         let special: SpecialAttackPayload | undefined;
         let specialModifiers:
             | { accuracyMultiplier?: number; maxHitMultiplier?: number; forceHit?: boolean }
             | undefined;
         let hitCount = 1;
         const specialDef =
-            player.isSpecialActivated() && weaponItemId > 0
+            player.specEnergy.isActivated() && weaponItemId > 0
                 ? SpecialAttackRegistry.get(weaponItemId)
                 : undefined;
         const forceFirstHit = !!specialDef?.effects?.guaranteedFirstHit;
@@ -1250,7 +1250,7 @@ export class PlayerCombatManager {
         // to prevent double processing in executeCombatAttackAction.
         let magicAutocastHandled = false;
         if (basePlan.attackStyle.kind === "magic") {
-            const autocastActive = player.autocastEnabled && player.combatSpellId > 0;
+            const autocastActive = player.combat.autocastEnabled && player.combat.spellId > 0;
             const handlerResult = ctx.onMagicAttack?.({
                 player,
                 npc,
@@ -1266,7 +1266,7 @@ export class PlayerCombatManager {
                 magicAutocastHandled = true;
             }
             // Check for powered staff spell data first (built-in spells)
-            const weaponId = player.combatWeaponItemId ?? -1;
+            const weaponId = player.combat.weaponItemId ?? -1;
             const poweredStaffData = weaponId > 0 ? getPoweredStaffSpellData(weaponId) : undefined;
 
             // Determine cast spot animation
@@ -1276,8 +1276,8 @@ export class PlayerCombatManager {
                 castSpot = poweredStaffData.castSpotAnim ?? DEFAULT_MAGIC_CAST_SPOT;
             } else {
                 // Regular autocast spell
-                const autocastEnabled = player.autocastEnabled;
-                const combatSpellId = player.combatSpellId;
+                const autocastEnabled = player.combat.autocastEnabled;
+                const combatSpellId = player.combat.spellId;
                 const spellIdForGraphics =
                     autocastEnabled && combatSpellId > 0 ? combatSpellId : undefined;
                 const spellData = spellIdForGraphics ? getSpellData(spellIdForGraphics) : undefined;
@@ -1298,7 +1298,7 @@ export class PlayerCombatManager {
         // OSRS: Melee hits resolve 1 tick after the swing; ranged/magic use projectile travel.
         // Target spot (impact/splash) is emitted at hit execution time in wsServer.
         // Include attackStyleMode for combat XP calculation.
-        const combatSpellId = player.combatSpellId;
+        const combatSpellId = player.combat.spellId;
         const spellId =
             basePlan.attackStyle.kind === "magic" && combatSpellId > 0 ? combatSpellId : undefined;
         const spellDataForXp = spellId ? getSpellData(spellId) : undefined;
@@ -1406,8 +1406,8 @@ export class PlayerCombatManager {
      */
     private shouldRepeatAttackInternal(player: PlayerState): boolean {
         // Manual spell casts don't auto-repeat
-        const spellId = player.combatSpellId;
-        const autocastEnabled = player.autocastEnabled;
+        const spellId = player.combat.spellId;
+        const autocastEnabled = player.combat.autocastEnabled;
         if (spellId > 0 && !autocastEnabled) {
             return false;
         }
@@ -1422,14 +1422,14 @@ export class PlayerCombatManager {
             interaction?.kind === "npcCombat" && interaction.npcId === npcId
                 ? interaction.modifierFlags ?? 0
                 : 0;
-        let run = player.wantsToRun();
+        let run = player.energy.wantsToRun();
         if ((modifierFlags & 1) !== 0) {
             run = !run;
         }
         if (modifierFlags === 3) {
             run = true;
         }
-        return player.resolveRequestedRun(run);
+        return player.energy.resolveRequestedRun(run);
     }
 
     private applyPathSteps(player: PlayerState, steps: { x: number; y: number }[], run: boolean): boolean {
@@ -1638,7 +1638,7 @@ export class PlayerCombatManager {
         run: boolean,
     ): boolean {
         const normalizedReach = Math.max(1, reach);
-        const attackType = resolvePlayerAttackType(player);
+        const attackType = resolvePlayerAttackType(player.combat);
         const strategy =
             normalizedReach <= 1
                 ? new CardinalAdjacentRouteStrategy(
@@ -1697,7 +1697,7 @@ export class PlayerCombatManager {
             return hasDirectMeleeReach(player, npc, pathService);
         }
         const resolvedAttackType =
-            normalizeAttackType(player.getCurrentAttackType?.()) ?? resolvePlayerAttackType(player);
+            normalizeAttackType(player.getCurrentAttackType?.()) ?? resolvePlayerAttackType(player.combat);
         if (resolvedAttackType === "melee") {
             return hasDirectMeleePath(player, npc, pathService);
         }
@@ -1722,7 +1722,7 @@ export class PlayerCombatManager {
             if (reach > 1 && ctx.pathService) {
                 const resolvedAttackType =
                     normalizeAttackType(player.getCurrentAttackType?.()) ??
-                    resolvePlayerAttackType(player);
+                    resolvePlayerAttackType(player.combat);
                 if (resolvedAttackType === "melee") {
                     return hasDirectMeleePath(player, npc, ctx.pathService);
                 }
@@ -1769,7 +1769,7 @@ export class PlayerCombatManager {
                 ctx.getDistanceToNpc ?? ((player, npc) => distanceToNpcBounds(player, npc)),
             isWithinAttackReach,
             hasLineOfSight,
-            isPlayerFrozen: ctx.isPlayerFrozen ?? ((player, tick) => player.isFrozen(tick)),
+            isPlayerFrozen: ctx.isPlayerFrozen ?? ((player, tick) => player.combat.isFrozen(tick)),
             schedulePlayerAttack:
                 ctx.schedulePlayerAttack ??
                 ((player, npc, attackSpeed) => {

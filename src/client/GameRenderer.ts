@@ -124,7 +124,7 @@ export abstract class GameRenderer<T extends MapSquare = MapSquare> extends Rend
     queueLoadMap(mapX: number, mapY: number, streamGeneration?: number): void {}
 
     /**
-     * OSRS parity: collision flags for route reconstruction (e.g. run-step traversal).
+     * collision flags for route reconstruction (e.g. run-step traversal).
      * Default implementation returns 0 when not supported by the renderer.
      */
     getCollisionFlagAt(_plane: number, _tileX: number, _tileY: number): number {

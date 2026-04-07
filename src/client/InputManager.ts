@@ -92,7 +92,7 @@ export function getAxisDeadzone(axis: number, zone: number): number {
 }
 
 /**
- * Click modes matching OSRS GameApplet.java:
+ * Click modes:
  * - 0: No click / released
  * - 1: Left mouse button
  * - 2: Right mouse button
@@ -104,7 +104,7 @@ export const ClickMode = {
 } as const;
 
 /**
- * OSRS-parity input manager matching GameApplet.java variables:
+ * OSRS-parity input manager.
  *
  * Mouse state:
  * - mouseX, mouseY: Current mouse position
@@ -130,7 +130,7 @@ export class InputManager {
     // When true, double-click may request Pointer Lock (hides cursor).
     enablePointerLock: boolean = false;
 
-    // === OSRS Mouse State (GameApplet.java parity) ===
+    // === OSRS Mouse State ===
 
     /** Current mouse X position */
     mouseX: number = -1;
@@ -561,7 +561,7 @@ export class InputManager {
 
     /**
      * Mouse exited - OSRS GameApplet.mouseExited
-     * OSRS parity: only sets coordinates to -1, does NOT reset button state.
+     * only sets coordinates to -1, does NOT reset button state.
      * Java AWT's implicit mouse grab means mouseReleased still fires outside
      * the component — our document-level grab listeners handle that.
      */
@@ -628,7 +628,7 @@ export class InputManager {
 
     private onWheel = (event: WheelEvent) => {
         event.preventDefault();
-        // OSRS parity: mouse wheel input resets idle timer (prevents AFK logout while scrolling).
+        // mouse wheel input resets idle timer (prevents AFK logout while scrolling).
         this.idleTime = 0;
         this.lastInputTimeMs = this.nowMs();
         if (this.mouseWheelDown) {
@@ -824,7 +824,7 @@ export class InputManager {
             }
         }
 
-        // OSRS parity: widget onKey receives either an internal key code OR a typed character.
+        // widget onKey receives either an internal key code OR a typed character.
         // For typed characters: keyTyped = -1, keyPressed = charCode.
         // For key presses: keyTyped = osrsKeyCode, keyPressed = 0.
         if (charCode >= 32) {
@@ -961,7 +961,7 @@ export class InputManager {
         this.idleTime++;
     }
 
-    /** @deprecated Use onFrameStart() for OSRS parity */
+    /** @deprecated Use onFrameStart() for  */
     clearPick() {
         // No-op for compatibility
     }

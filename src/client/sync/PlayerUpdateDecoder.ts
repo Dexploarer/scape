@@ -93,7 +93,7 @@ export class PlayerUpdateDecoder {
         stream.initBitAccess();
         this.readUpdatePlayers(stream, context, movements, spawns);
         stream.finishBitAccess();
-        // OSRS parity: shift `field1355` and rebuild Players_indices/emptyIndices.
+        // Shift update flags and rebuild index lists.
         context.endUpdatePlayersCycle();
 
         const clientCycle = Number.isFinite(options.clientCycle)
@@ -107,7 +107,7 @@ export class PlayerUpdateDecoder {
             options.loopCycle,
             clientCycle,
         );
-        // OSRS parity: packet must be fully consumed (class388.updatePlayers final length check).
+        // Packet must be fully consumed.
         const expected = options.packetSize | 0 || stream.length;
         if ((stream.bytePosition | 0) !== (expected | 0)) {
             throw new RangeError(
@@ -173,7 +173,7 @@ export class PlayerUpdateDecoder {
                     }
                 }
             }
-            // OSRS parity: skip counter must end at 0 (class388.updatePlayers).
+            // Skip counter must end at 0.
             if (skip !== 0) {
                 throw new RangeError(`player sync: players pass skip=${skip}`);
             }
@@ -203,18 +203,18 @@ export class PlayerUpdateDecoder {
                             `player sync: readExternalPlayerUpdate pass=empty wantBit0=${wantBit0} index=${index} skip=${skip} (${message})`,
                         );
                     }
-                    // OSRS parity: only set bit2 when updateExternalPlayer returned true (spawned).
+                    // only set bit2 when updateExternalPlayer returned true (spawned).
                     if (spawned) flags[index] = (flags[index] | 2) & 0xff;
                 }
             }
-            // OSRS parity: skip counter must end at 0 (class388.updatePlayers).
+            // Skip counter must end at 0.
             if (skip !== 0) {
                 throw new RangeError(`player sync: empty pass skip=${skip}`);
             }
             skip = 0;
         };
 
-        // Mirrors `class388.updatePlayers` 4-pass structure.
+        // 4-pass update structure.
         processPlayers(0);
         stream.finishBitAccess();
         stream.initBitAccess();
@@ -295,8 +295,8 @@ export class PlayerUpdateDecoder {
                     movedTwoTiles: false,
                 };
             } else {
-                // OSRS parity: movementType (-1/0/1/2) mirrors class231.rsOrdinal(), but -1 means
-                // "use default" (field2458 = 1) and must not leak into per-step traversal.
+                // movementType (-1/0/1/2): -1 means
+                // "use default" and must not leak into per-step traversal.
                 const rawTraversal = clampTraversal(state.movementType);
                 const traversal =
                     rawTraversal === undefined || (rawTraversal | 0) < 0 ? 1 : rawTraversal | 0;
@@ -531,7 +531,7 @@ export class PlayerUpdateDecoder {
                     update.forcedChat = stream.readStringCp1252NullTerminated();
                 }
                 if ((mask & PlayerUpdateMask.FaceDirection) !== 0) {
-                    // Player update: face direction (Actor.field1208).
+                    // Player update: face direction.
                     update.faceDir = (stream.readUnsignedShortLE() | 0) & 2047;
                 }
 
@@ -593,7 +593,7 @@ export class PlayerUpdateDecoder {
                     fm.endTileY = (baseY + (fm.endDeltaY | 0)) | 0;
                     update.forcedMovement = fm;
 
-                    // OSRS parity: PlayerSlot.applyExactMove(...) immediately calls setPathStart(endX, endY),
+                    // PlayerSlot.applyExactMove(...) immediately calls setPathStart(endX, endY),
                     // and PlayerUpdateManager clears the pending-movement flag for that player.
                     state.tileX = fm.endTileX | 0;
                     state.tileY = fm.endTileY | 0;
@@ -614,13 +614,13 @@ export class PlayerUpdateDecoder {
                         if (slot0) update.spotAnimation = slot0;
                     }
                 }
-                if ((mask & PlayerUpdateMask.Field512) !== 0) {
-                    update.field512 = this.readField512(stream, clientCycle);
+                if ((mask & PlayerUpdateMask.ColorOverride) !== 0) {
+                    update.colorOverride = this.readColorOverride(stream, clientCycle);
                 }
 
                 blocks.set(index, update);
 
-                // OSRS parity: apply deferred movement after update blocks are decoded.
+                // apply deferred movement after update blocks are decoded.
                 if (state.pendingMove) {
                     const pending = state.pendingMove;
                     state.pendingMove = undefined;
@@ -716,7 +716,7 @@ export class PlayerUpdateDecoder {
         state.tileX += delta.dx;
         state.tileY += delta.dy;
         if (this.isOutsideScene(context, state.tileX, state.tileY)) {
-            // OSRS parity: out-of-scene step updates do not delete the player; they reset the path
+            // out-of-scene step updates do not delete the player; they reset the path
             // to the new coordinate (Player.resetPath), which is effectively a snap.
             state.running = false;
             state.hasKnownPosition = true;
@@ -758,7 +758,7 @@ export class PlayerUpdateDecoder {
         state.tileX = targetX | 0;
         state.tileY = targetY | 0;
         if (this.isOutsideScene(context, state.tileX, state.tileY)) {
-            // OSRS parity: out-of-scene movement updates reset path rather than removing the player.
+            // out-of-scene movement updates reset path rather than removing the player.
             state.running = false;
             state.hasKnownPosition = true;
             movements.push({
@@ -821,7 +821,7 @@ export class PlayerUpdateDecoder {
             const height = (packed >>> 16) & 0xffff;
             const delay = (packed & 0xffff) + (cycleBase | 0);
             const spotId = id === 65535 ? -1 : id;
-            // OSRS parity: id -1 removes the spot animation in that slot.
+            // id -1 removes the spot animation in that slot.
             list.push({ slot: slot & 0xff, id: spotId, height, delay });
         }
         return list;
@@ -841,24 +841,24 @@ export class PlayerUpdateDecoder {
         return [a, b, c];
     }
 
-    private readField512(
+    private readColorOverride(
         stream: BitStream,
         cycleBase: number,
     ): {
-        field1180: number;
-        field1233: number;
-        field1234: number;
-        field1193: number;
-        field1204: number;
-        field1237: number;
+        startCycle: number;
+        endCycle: number;
+        hue: number;
+        sat: number;
+        lum: number;
+        amount: number;
     } {
-        const field1180 = (cycleBase + (stream.readUnsignedShortLE() | 0)) | 0;
-        const field1233 = (cycleBase + (stream.readUnsignedShortLE() | 0)) | 0;
-        const field1234 = toSignedByte(stream.readUnsignedByteS()); // readByteSub
-        const field1193 = stream.readByte() | 0;
-        const field1204 = toSignedByte(stream.readUnsignedByteA()); // readByteAdd
-        const field1237 = toSignedByte(stream.readUnsignedByteC()); // readUnsignedByteNeg cast to byte
-        return { field1180, field1233, field1234, field1193, field1204, field1237 };
+        const startCycle = (cycleBase + (stream.readUnsignedShortLE() | 0)) | 0;
+        const endCycle = (cycleBase + (stream.readUnsignedShortLE() | 0)) | 0;
+        const hue = toSignedByte(stream.readUnsignedByteS());
+        const sat = stream.readByte() | 0;
+        const lum = toSignedByte(stream.readUnsignedByteA());
+        const amount = toSignedByte(stream.readUnsignedByteC());
+        return { startCycle, endCycle, hue, sat, lum, amount };
     }
 
     private readChat(stream: BitStream): ChatUpdate | undefined {
@@ -945,7 +945,7 @@ export class PlayerUpdateDecoder {
                 damage2 = -1;
             }
             const delay = stream.readUShortSmart() | 0;
-            // OSRS parity: even sentinel 32766 (type=-1) still calls Actor.addHitSplat.
+            // even sentinel 32766 (type=-1) still calls Actor.addHitSplat.
             // This affects slot rotation timing via hitSplatCount even when nothing is rendered.
             hits.push({
                 type,

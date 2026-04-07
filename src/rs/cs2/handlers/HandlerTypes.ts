@@ -128,7 +128,7 @@ export interface EventContext {
     mouseX: number;
     mouseY: number;
     opIndex: number;
-    field526: number;
+    opSubIndex: number;
     dragTarget: WidgetNode | null;
     keyTyped: number;
     keyPressed: number;
@@ -313,14 +313,14 @@ export interface HandlerContext {
     invokeEventHandler(
         widget: WidgetNode,
         eventType: WidgetEventType,
-        event?: { ints?: number[]; strings?: string[]; opIndex?: number; field526?: number },
+        event?: { ints?: number[]; strings?: string[]; opIndex?: number; opSubIndex?: number },
     ): boolean;
 
     // Event handler setting
     setEventHandler(widget: WidgetNode | null, eventType: WidgetEventType): void;
     setEventHandlerByUid(eventType: WidgetEventType): void;
 
-    // Deferred widget actions (OSRS parity: flushed on top-level return)
+    // Deferred widget actions (flushed on top-level return)
     queueResize(widget: WidgetNode): void;
     queueTriggerOp(widget: WidgetNode, opIndex: number): void;
     deferIfClose(): void;
@@ -362,7 +362,7 @@ export interface HandlerContext {
     writeConsole?: (text: string) => void;
 
     // Audio playback (for SOUND_SONG, SOUND_JINGLE, SOUND_SYNTH opcodes)
-    // OSRS parity: SOUND_SONG takes 5 params (trackId, outDelay, outDur, inDelay, inDur)
+    // SOUND_SONG takes 5 params (trackId, outDelay, outDur, inDelay, inDur)
     playSong?: (
         songId: number,
         fadeOutDelay: number,

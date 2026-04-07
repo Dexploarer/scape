@@ -1,5 +1,7 @@
 import { EventEmitter } from "events";
 
+import { logger } from "../utils/logger";
+
 export interface TickEvent {
     tick: number;
     time: number; // ms since epoch
@@ -55,8 +57,7 @@ export class GameTicker extends EventEmitter {
         const delay = Math.max(0, nextTarget - this.clock());
         this.timer = setTimeout(() => {
             this.tickLoop().catch((err) => {
-                // eslint-disable-next-line no-console
-                console.error?.("[GameTicker] tick loop exception", err);
+                logger.error("[GameTicker] tick loop exception", err);
             });
         }, delay);
     }
@@ -74,8 +75,7 @@ export class GameTicker extends EventEmitter {
                 const behindMs = now - this.lastScheduledAt;
                 if (behindMs >= this.tickMs) {
                     if (iterations >= this.maxCatchUpTicks) {
-                        // eslint-disable-next-line no-console
-                        console.warn?.(
+                        logger.warn(
                             `[GameTicker] unable to catch up after ${iterations} ticks (behind ${behindMs}ms); skipping ahead`,
                         );
                         this.lastScheduledAt = now;
@@ -84,8 +84,7 @@ export class GameTicker extends EventEmitter {
                     continue;
                 }
                 if (behindMs > this.driftWarnMs) {
-                    // eslint-disable-next-line no-console
-                    console.warn?.(
+                    logger.warn(
                         `[GameTicker] tick ${this.tickIdx} overran by ${behindMs}ms (budget=${this.tickMs}ms)`,
                     );
                 }
@@ -103,8 +102,7 @@ export class GameTicker extends EventEmitter {
             try {
                 await listener.call(this, payload);
             } catch (err) {
-                // eslint-disable-next-line no-console
-                console.error?.("[GameTicker] tick listener threw", err);
+                logger.error("[GameTicker] tick listener threw", err);
             }
         }
     }

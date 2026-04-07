@@ -23,7 +23,7 @@ export const PLANE_COUNT = 4;
 /**
  * Pack a template chunk reference into a 26-bit value.
  *
- * Bit layout (from MapLoader.java / Js5Archive.java):
+ * Bit layout:
  *   bits 24-25: source plane       (2 bits)
  *   bits 14-23: source chunk X     (10 bits, tile-level)
  *   bits  3-13: source chunk Y     (11 bits, tile-level)
@@ -56,7 +56,7 @@ export function unpackTemplateChunk(packed: number): UnpackedTemplateChunk {
 }
 
 // ============================================================================
-// Chunk rotation helpers (ported from MapLoader.java lines 1189-1262)
+// Chunk rotation helpers
 // ============================================================================
 
 /**
@@ -164,8 +164,7 @@ export function deriveRegionsFromTemplates(templateChunks: number[][][]): number
 
 /**
  * Derive the map region IDs for a normal (non-instance) region load.
- * Mirrors Js5Archive.loadRegions normal path: iterates map squares
- * from (regionX-6)/8 to (regionX+6)/8 in both axes.
+ * Iterates map squares from (regionX-6)/8 to (regionX+6)/8 in both axes.
  *
  * @param regionX Center chunk X coordinate
  * @param regionY Center chunk Y coordinate

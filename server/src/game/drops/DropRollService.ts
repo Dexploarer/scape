@@ -1,4 +1,5 @@
 import type { PendingNpcDrop } from "../npcManager";
+import { resolveDropTable } from "./helpers";
 import { NpcDropRegistry } from "./NpcDropRegistry";
 import type {
     DropConditionDefinition,
@@ -31,7 +32,7 @@ function matchesCondition(
     if (!condition) return true;
     if (condition.wildernessOnly && !context.isWilderness) return false;
     if (condition.minimumQuestPoints !== undefined) {
-        const questPoints = recipient.player?.getVarpValue(VARP_QUEST_POINTS) ?? 0;
+        const questPoints = recipient.player?.varps.getVarpValue(VARP_QUEST_POINTS) ?? 0;
         if (questPoints < condition.minimumQuestPoints) return false;
     }
     const requiredAnyEquippedItemIds = condition.requiredAnyEquippedItemIds ?? [];
@@ -139,7 +140,8 @@ export class DropRollService {
     constructor(private readonly registry: NpcDropRegistry) {}
 
     roll(context: DropContext): PendingNpcDrop[] {
-        const table = this.registry.get(context.npcTypeId);
+        const table = (context.tableOverride ? resolveDropTable(context.tableOverride) : undefined)
+            ?? this.registry.get(context.npcTypeId);
         if (!table) return [];
         const out: PendingNpcDrop[] = [];
         const recipients =

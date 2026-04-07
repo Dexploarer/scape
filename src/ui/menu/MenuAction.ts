@@ -1,5 +1,5 @@
 /**
- * menuAction - Port of class31.java menuAction method
+ * menuAction handler
  *
  * This handles menu click actions and sends the appropriate packets
  * to the server. Each opcode maps to a specific packet with OSRS-specific
@@ -648,10 +648,10 @@ export function menuAction(
                 : MODIFIER_FLAG_CTRL
             : 0;
 
-        // OSRS PARITY: Set destination marker for minimap flag
+        // Set destination marker for minimap flag
         ClientState.setDestination(localX, localY);
 
-        // Send MOVE_GAMECLICK packet (field3179)
+        // Send MOVE_GAMECLICK packet
         // Format: shortAddLE(y), byteNeg(modifierFlags), shortAddLE(x), shortAdd(objectId)
         // objectId is 0 for simple walk-here
         const pkt = createPacket(ClientPacket.MOVE_GAMECLICK);
@@ -668,7 +668,7 @@ export function menuAction(
 
     // WIDGET_TYPE1 (24) - Content-dependent click
     // Used for widgets with contentType that determines behavior (equipment slots, etc.)
-    // Reference: Sends IF_BUTTON (field3199, packet 13) with just widget ID (4 bytes)
+    // Sends IF_BUTTON with just widget ID (4 bytes)
     if (opcode === MenuOpcode.WidgetType1) {
         // arg1 = widget ID (parent << 16 | child)
         const pkt = createPacket(ClientPacket.IF_BUTTON);
@@ -677,7 +677,7 @@ export function menuAction(
     }
 
     // WIDGET_CLOSE (26) - Close interface
-    // Reference: class47.method910() sends IF_CLOSE (packet 55) with NO payload
+    // Sends IF_CLOSE with NO payload
     if (opcode === MenuOpcode.WidgetClose) {
         // Send IF_CLOSE packet with no payload
         const pkt = createPacket(ClientPacket.IF_CLOSE);
@@ -687,14 +687,14 @@ export function menuAction(
         ClientState.isSpellSelected = false;
         ClientState.isItemSelected = 0;
 
-        // Note: Reference also closes interfaces locally via class363.closeInterface
-        // and clears meslayerContinueWidget - that should be handled by the widget system
+        // Note: Also closes interfaces locally and clears meslayerContinueWidget -
+        // that should be handled by the widget system
     }
 
     // WIDGET_TYPE4 (28) - Toggle setting (toggles varp between 0 and 1)
     // Used for checkbox-style settings (Accept Aid, Hide Roofs, etc.)
-    // Reference: Sends IF_BUTTON (field3199, packet 13) with just widget ID (4 bytes)
-    // Also locally toggles varp: Varps_main[idx] = 1 - Varps_main[idx]
+    // Sends IF_BUTTON with just widget ID (4 bytes)
+    // Also locally toggles varp
     if (opcode === MenuOpcode.WidgetType4) {
         // arg1 = widget ID
         const pkt = createPacket(ClientPacket.IF_BUTTON);
@@ -705,7 +705,7 @@ export function menuAction(
 
     // WIDGET_TYPE5 (29) - Set specific value (radio button / slider notch style)
     // Used for settings that set a specific varp value
-    // Reference: Sends IF_BUTTON (field3199, packet 13) with just widget ID (4 bytes)
+    // Sends IF_BUTTON with just widget ID (4 bytes)
     // Also locally sets varp to specific value from cs1ComparisonValues
     if (opcode === MenuOpcode.WidgetType5) {
         // arg1 = widget ID
@@ -716,7 +716,6 @@ export function menuAction(
     }
 
     // WIDGET_CONTINUE (30) - Dialog continue button
-    // Matches Occluder.resumePauseWidget(widgetId, childIndex)
     if (opcode === MenuOpcode.WidgetContinue) {
         // arg1 = widget ID (parent << 16 | child)
         // arg0 = child index within dialog
@@ -728,7 +727,7 @@ export function menuAction(
     }
 
     // CC_OP (57, 1007) - Child component operation
-    // This is the main widget click handler matching class59.widgetDefaultMenuAction
+    // This is the main widget click handler
     // Sends IF_BUTTON1-10 based on opIndex with full 8-byte format
     if (opcode === MenuOpcode.CC_OP || opcode === MenuOpcode.CC_OP_LowPriority) {
         // Parameters:
@@ -898,7 +897,7 @@ export function menuAction(
         // invalidateWidget(selectedItemWidget)
     }
 
-    // OSRS parity: after any non-selection menu action, spell selection is cleared.
+    // after any non-selection menu action, spell selection is cleared.
     // (Opcode 25/38 return early above when entering selection modes.)
     if (ClientState.isSpellSelected) {
         clearSpellSelectionWithHandler();

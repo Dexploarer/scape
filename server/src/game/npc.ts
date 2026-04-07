@@ -150,7 +150,7 @@ export class NpcState extends Actor {
     readonly wanderRadius: number;
     /**
      * NPC attack speed in ticks. Loaded from cache param 14.
-     * OSRS parity: Most NPCs are 4 ticks, dragons are 6, some bosses vary.
+     * Most NPCs are 4 ticks, dragons are 6, some bosses vary.
      * Default fallback is 4 if not found in cache.
      */
     readonly attackSpeed: number;
@@ -264,7 +264,7 @@ export class NpcState extends Actor {
                 : -1;
         this.attackType = options.attackType;
         this.healthBarDefId = Math.max(0, options.healthBarDefId ?? 0);
-        // OSRS parity: Attack speed from cache param 14, default 4 ticks
+        // Attack speed from cache param 14, default 4 ticks
         this.attackSpeed = Math.max(1, options.attackSpeed ?? 4);
         // Aggression: default false unless explicitly set
         this.isAggressive = options.isAggressive ?? false;
@@ -473,7 +473,7 @@ export class NpcState extends Actor {
         const normalized = playerId;
         const changedTarget = this.combatTargetPlayerId !== normalized;
         this.combatTargetPlayerId = normalized;
-        // OSRS parity: ACTIVE_COMBAT_TIMER = 17 ticks (10.2 seconds)
+        // ACTIVE_COMBAT_TIMER = 17 ticks (10.2 seconds)
         this.combatTimeoutTick = currentTick + ACTIVE_COMBAT_TIMER_TICKS;
         // Face the combat target immediately (RSMod/OSRS behavior while chasing/attacking).
         this.setInteraction("player", normalized);
@@ -498,7 +498,7 @@ export class NpcState extends Actor {
             return;
         }
         if (currentTick > this.combatTimeoutTick) {
-            // OSRS parity: drop stale combat after the active-combat window expires
+            // drop stale combat after the active-combat window expires
             // so NPCs do not chase forever without any recent combat activity.
             this.disengageCombat();
             this.scheduleNextAggressionCheck(currentTick);

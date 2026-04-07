@@ -199,7 +199,7 @@ export function registerStringOps(handlers: HandlerMap): void {
 
     handlers.set(Opcodes.FROMDATE, (ctx) => {
         const days = ctx.intStack[--ctx.intStackSize];
-        // OSRS parity: date = (11745 + days) * 86400000 and format "d-MMM-yyyy".
+        // date = (11745 + days) * 86400000 and format "d-MMM-yyyy".
         const date = new Date((11745 + days) * 86_400_000);
         const day = date.getDate();
         const month = MONTHS[date.getMonth()] ?? "Jan";
@@ -213,7 +213,7 @@ export function registerStringOps(handlers: HandlerMap): void {
     // PARAWIDTH returns max line width after word-wrapping
 
     handlers.set(Opcodes.PARAHEIGHT, (ctx) => {
-        // Stack: [maxWidth, fontId] with fontId on top (OSRS: UrlRequest.java:163-170)
+        // Stack: [maxWidth, fontId] with fontId on top
         const fontId = ctx.intStack[--ctx.intStackSize] ?? 0;
         const maxWidth = ctx.intStack[--ctx.intStackSize] ?? 100;
         const str = ctx.stringStack[--ctx.stringStackSize] ?? "";
@@ -229,7 +229,7 @@ export function registerStringOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.PARAWIDTH, (ctx) => {
-        // Stack: [maxWidth, fontId] with fontId on top (OSRS: UrlRequest.java:172-180)
+        // Stack: [maxWidth, fontId] with fontId on top
         const fontId = ctx.intStack[--ctx.intStackSize] ?? 0;
         const maxWidth = ctx.intStack[--ctx.intStackSize] ?? 100;
         const str = ctx.stringStack[--ctx.stringStackSize] ?? "";

@@ -29,35 +29,15 @@ export type MenuClickContext = {
 };
 
 /**
- * OSRS parity: shouldLeftClickOpenMenu
+ * shouldLeftClickOpenMenu
  *
  * Determines if a left-click should open the menu instead of executing the default action.
- * Port of Client.java shouldLeftClickOpenMenu() method.
  *
  * Returns true when:
  * 1) leftClickOpensMenu setting is enabled AND menuOptionsCount > 2
  * 2) OR the top menu entry's opcode (after deprioritization) is CC_OP_LowPriority (1007)
  *
  * AND the top entry is NOT a shift-click action.
- *
- * Reference: Client.java lines 6159-6184
- * ```java
- * final boolean shouldLeftClickOpenMenu() {
- *     int var1 = menuOptionsCount - 1;
- *     boolean var3 = leftClickOpensMenu && menuOptionsCount > 2;
- *     if (!var3) {
- *         if (var1 < 0) {
- *             var4 = false;
- *         } else {
- *             int var5 = menuOpcodes[var1];
- *             if (var5 >= 2000) var5 -= 2000;
- *             var4 = (var5 == 1007);
- *         }
- *         var3 = var4;
- *     }
- *     return var3 && !menuShiftClick[var1];
- * }
- * ```
  *
  * @param entries - Normalized SimpleMenuEntry array
  * @param leftClickOpensMenu - User setting for left-click opens menu
@@ -95,9 +75,8 @@ export function shouldLeftClickOpenMenu(
         }
     }
 
-    // OSRS parity: If the top entry has shiftClick enabled, don't open menu
+    // If the top entry has shiftClick enabled, don't open menu
     // This allows shift-click to execute the action directly
-    // Reference: return var3 && !menuShiftClick[var1];
     if (shouldOpen && topEntry.shiftClick) {
         return false;
     }
@@ -107,14 +86,14 @@ export function shouldLeftClickOpenMenu(
 
 /**
  * Normalize menu entries:
- * - Preserve duplicates (OSRS parity: stacked entities can repeat)
- * - Sort deprioritized entries below normal entries (OSRS parity)
- * - Follow class131.method3113 + reverse rendering semantics
+ * - Preserve duplicates (stacked entities can repeat)
+ * - Sort deprioritized entries below normal entries ()
+ * - Follow bubble sort + reverse rendering semantics
  */
 export function normalizeMenuEntries(entries: SimpleMenuEntry[]): SimpleMenuEntry[] {
     if (!Array.isArray(entries) || entries.length === 0) return [];
 
-    // OSRS parity: class131.method3113 (bubble sort) moves all opcodes >= 1000 below opcodes < 1000,
+    // bubble sort moves all opcodes >= 1000 below opcodes < 1000,
     // and the menu is then rendered in reverse (last array element is the top option).
     //
     // Given entries in insertion order (OSRS array order, index 0 = first inserted),

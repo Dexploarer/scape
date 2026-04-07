@@ -139,7 +139,7 @@ export function getWidgetTargetLabelForMenu(w: any): string {
     return "";
 }
 
-// OSRS parity: spell selection verb comes from Widget.spellActionName.
+// spell selection verb comes from Widget.spellActionName.
 // Runtime code may mirror this into targetVerb, but spellActionName is the canonical source.
 function getWidgetTargetVerb(w: any, targetMask: number): string | undefined {
     const targetVerb = sanitizeText(w?.targetVerb);
@@ -148,10 +148,10 @@ function getWidgetTargetVerb(w: any, targetMask: number): string | undefined {
     return sanitizeText(w?.spellActionName);
 }
 
-// OSRS parity: "pause button" widgets (e.g., "Click here to continue") are clickable even when they have
+// "pause button" widgets (e.g., "Click here to continue") are clickable even when they have
 // no explicit actions/handlers in the widget definition. In the official client these send RESUME_PAUSEBUTTON.
-// Reference: class304.method5978 - (flags & 1) != 0
-// Reference: WorldMapSprite.java line 128 - only checks flags, no text-based fallback
+//
+// Only checks flags, no text-based fallback
 // Note: In OSRS, IF_SETEVENTS sets flags directly on each childIndex via Client.widgetFlags.
 // Dynamic children look up their own flags using key (id << 32) | childIndex.
 export function isPauseButtonWidget(
@@ -160,7 +160,7 @@ export function isPauseButtonWidget(
     _getWidgetByUid?: (uid: number) => any, // kept for API compatibility
 ): boolean {
     if (!w) return false;
-    // OSRS parity: Look up flags for this widget directly.
+    // Look up flags for this widget directly.
     // For static widgets: key = (uid << 32) | 0
     // For dynamic widgets: key = (parentUid << 32) | childIndex
     const flags =
@@ -170,10 +170,9 @@ export function isPauseButtonWidget(
 
 // Derive menu entries from widget actions[] and targetVerb.
 // If onlyBasic is true, only return Cancel (used when custom entries are provided)
-// OSRS parity: Menu options are only shown if:
+// Menu options are only shown if:
 // 1. The transmit flag for that action is set (bits 1-10), OR
 // 2. The widget has an onOp handler
-// Reference: HealthBarUpdate.java method2496
 export function deriveMenuEntriesForWidget(
     w: any,
     onlyBasic?: boolean,
@@ -198,7 +197,7 @@ export function deriveMenuEntriesForWidget(
     // Check if widget has onOp handler (either new or old style)
     const hasOnOpHandler = !!(w?.onOp || w?.eventHandlers?.onOp);
 
-    // OSRS parity: inventory/container item menus treat targetVerb ("Use") as its own entry,
+    // inventory/container item menus treat targetVerb ("Use") as its own entry,
     // not as a placeholder that fills empty action slots. Filling null action slots causes
     // "Use" to appear above the primary item action (e.g., Staff of air: Use, Wield, ...),
     // which is incorrect (should be Wield, Use, ...).
@@ -212,8 +211,8 @@ export function deriveMenuEntriesForWidget(
         const ops: Array<{ text: string; index: number }> = [];
         for (let i = 0; i < actions.length; i++) {
             const p = sanitizeText(actions[i]);
-            // OSRS parity: Only include action if transmit flag is set OR widget has onOp handler
-            // Reference: HealthBarUpdate.java method2496 - (flags >> (actionIndex + 1) & 1) != 0 || onOp != null
+            // Only include action if transmit flag is set OR widget has onOp handler
+            // Action flag and onOp check
             if (p && shouldShowMenuOption(flags, i, hasOnOpHandler)) {
                 ops.push({ text: p, index: i });
             }
@@ -238,13 +237,13 @@ export function deriveMenuEntriesForWidget(
         const ops: string[] = [];
         for (let i = 0; i < actions.length; i++) {
             const p = sanitizeText(actions[i]);
-            // OSRS parity: Only include action if transmit flag is set OR widget has onOp handler
+            // Only include action if transmit flag is set OR widget has onOp handler
             if (shouldShowMenuOption(flags, i, hasOnOpHandler)) {
                 if (p) ops.push(p);
                 else if (verb) ops.push(verb);
             }
         }
-        // OSRS parity: spell action (buttonType=2 / spellActionName) is an explicit menu entry,
+        // spell action (buttonType=2 / spellActionName) is an explicit menu entry,
         // not just a placeholder for empty op slots.
         if (ops.length === 0 && verb) {
             ops.push(verb);
@@ -253,10 +252,10 @@ export function deriveMenuEntriesForWidget(
     } else {
         if (verb) entries.push({ option: verb, target });
     }
-    // OSRS parity: widget menus use configured ops (actions + flags + handlers).
+    // widget menus use configured ops (actions + flags + handlers).
     // Do not synthesize fallback Examine options for item widgets here.
-    // OSRS parity: Pause button widgets (flags & 1) show "Continue" with empty target
-    // Reference: WorldMapSprite.java line 128-129
+    // Pause button widgets (flags & 1) show "Continue" with empty target
+    
     // This is added after ops are checked, only if no other actionable entries exist
     const hasActionableEntry = entries.some(
         (e) =>
@@ -424,7 +423,7 @@ export function findDropTarget(
                 }
             }
 
-            // OSRS PARITY: Visit InterfaceParent (mounted) interface roots LAST (topmost)
+            // Visit InterfaceParent (mounted) interface roots LAST (topmost)
             // and WITHOUT applying container scroll offsets.
             if (t === 0 && typeof getInterfaceParentRoots === "function") {
                 const mountRoots = getInterfaceParentRoots(uid);
@@ -444,7 +443,7 @@ export function findDropTarget(
         if (inRect(x, y, width, height) && inClip(clip)) {
             const flags = getWidgetFlags(w) | 0;
             const canReceiveDrop = isDropTarget(flags);
-            // OSRS parity: Multiple mechanisms make a widget a valid drop target:
+            // Multiple mechanisms make a widget a valid drop target:
             // 1. Bit 20 of flags set (explicit drop capability)
             // 2. onTargetEnter/onTargetLeave/onDragComplete handlers (receives drag events)
             // 3. isDraggable widgets (can both drag and receive drops from similar widgets)
@@ -495,10 +494,10 @@ export function findDropTarget(
 
 // Collect widgets under a point, returning from bottom to top (last is topmost)
 // Also stores _absX and _absY on each hit widget for event coordinate calculation
-// OSRS parity: getStaticChildren callback for parentUid filtering
-// OSRS parity: noClickThrough flag blocks widgets behind from receiving click events
-// OSRS parity: getInterfaceParentRoots callback for traversing InterfaceParent mounted sub-interfaces
-// Reference: WorldMapRegion.java lines 1451-1468
+// getStaticChildren callback for parentUid filtering
+// noClickThrough flag blocks widgets behind from receiving click events
+// getInterfaceParentRoots callback for traversing InterfaceParent mounted sub-interfaces
+// Widget menu entry builder
 export function collectWidgetsAtPoint(
     root: any,
     px: number,
@@ -542,12 +541,12 @@ export function collectWidgetsAtPoint(
         const height = Math.max(1, (w.height as number) | 0 || 0);
 
         // Calculate clip for this widget's children
-        // OSRS PARITY: Type 0/11 containers always clip their children to their bounds.
+        // Type 0/11 containers always clip their children to their bounds.
         const t = ((w.type as number) ?? 0) | 0;
         const isContainer = t === 0 || t === 11;
         const childClip = isContainer ? intersectClip(clip, x, y, width, height) : clip;
 
-        // OSRS PARITY: Record hit BEFORE traversing children so children end up later in `hits`
+        // Record hit BEFORE traversing children so children end up later in `hits`
         // and win when callers scan from the end (top-most).
         // This matches rendering order where a widget is drawn before its children.
         if (inRect(x, y, width, height) && inClip(clip)) {
@@ -555,8 +554,8 @@ export function collectWidgetsAtPoint(
             w._absX = x;
             w._absY = y;
             hits.push(w);
-            // OSRS PARITY: Check noClickThrough flag
-            // Reference: WorldMapRegion.java line 1451
+            // Check noClickThrough flag
+            
             // When noClickThrough is true on an IF3 widget, widgets behind it are blocked.
             // In OSRS, this clears pending script events for all widgets processed earlier.
             // We track the index so we can filter them out after traversal.
@@ -571,7 +570,7 @@ export function collectWidgetsAtPoint(
 
         // Traverse children after recording self so top-most child wins (children are later in `hits`).
         // Gate by container bounds.
-        // OSRS PARITY: Content containers (with children but scrollHeight=0) are transparent
+        // Content containers (with children but scrollHeight=0) are transparent
         // to hit testing - their children should be tested even if the container itself
         // is outside the visible area (due to scroll offset adjusting its position).
         // Only scroll containers (scrollHeight > 0) should gate their children.
@@ -582,7 +581,7 @@ export function collectWidgetsAtPoint(
             const cx = x - ((w.scrollX as number) || 0);
             const cy = y - ((w.scrollY as number) || 0);
 
-            // OSRS parity: traverse static children (via parentUid filtering)
+            // traverse static children (via parentUid filtering)
             if (getStaticChildren) {
                 const staticChildren = getStaticChildren(uid);
                 for (const c of staticChildren) visit(c, cx, cy, childClip);
@@ -595,7 +594,7 @@ export function collectWidgetsAtPoint(
                 }
             }
 
-            // OSRS PARITY: Traverse InterfaceParent (mounted) interface roots LAST and
+            // Traverse InterfaceParent (mounted) interface roots LAST and
             // WITHOUT applying container scroll offsets.
             if (t === 0 && typeof getInterfaceParentRoots === "function") {
                 const mountRoots = getInterfaceParentRoots(uid);
@@ -610,7 +609,7 @@ export function collectWidgetsAtPoint(
     const fullClip: HitClip = { x0: -Infinity, y0: -Infinity, x1: Infinity, y1: Infinity };
     visit(root, 0, 0, fullClip);
 
-    // OSRS PARITY: If a noClickThrough widget was hit, remove widgets behind it
+    // If a noClickThrough widget was hit, remove widgets behind it
     // Keep only the noClickThrough widget and widgets after it (children rendered on top)
     if (noClickThroughIndex >= 0) {
         return hits.slice(noClickThroughIndex);
@@ -732,8 +731,8 @@ export function findBlockingWidgetInHits(
     return null;
 }
 
-// OSRS PARITY: Check if a widget at a point should block scroll events from reaching widgets behind it
-// Reference: WorldMapRegion.java lines 1470-1476
+// Check if a widget at a point should block scroll events from reaching widgets behind it
+// Tooltip menu entry builder
 // Used to implement noScrollThrough behavior - when a widget with this flag is under the cursor,
 // onScroll events should not propagate to parent/sibling widgets.
 export function shouldBlockScrollThrough(
@@ -803,7 +802,7 @@ export function shouldBlockScrollThrough(
 // Collect ALL visible widgets with onKey handlers from a tree
 // OSRS dispatches key events to all widgets with onKey handlers, not just mouse-hovered ones
 // Also stores _absX and _absY on each widget for event coordinate calculation
-// OSRS parity: getStaticChildren callback for parentUid filtering
+// getStaticChildren callback for parentUid filtering
 export function collectWidgetsWithKeyHandlers(
     root: any,
     visible: Map<number, boolean>,
@@ -826,7 +825,7 @@ export function collectWidgetsWithKeyHandlers(
         }
         const cx = x - ((w.scrollX as number) || 0);
         const cy = y - ((w.scrollY as number) || 0);
-        // OSRS parity: traverse static children (via parentUid filtering)
+        // traverse static children (via parentUid filtering)
         if (getStaticChildren) {
             const staticChildren = getStaticChildren(uid);
             for (const c of staticChildren) visit(c, cx, cy);

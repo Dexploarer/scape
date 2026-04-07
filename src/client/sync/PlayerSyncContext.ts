@@ -11,14 +11,13 @@ export interface PlayerSyncState {
     rotation: number;
     hasKnownPosition: boolean;
     /**
-     * OSRS parity: per-player traversal / movement type (Players.field1348[index]).
-     * Mirrors `class231.rsOrdinal()` values: -1, 0, 1, 2 (default is 1 = field2458).
+     * Per-player traversal / movement type.
+     * Movement type values: -1, 0, 1, 2 (default is 1 = walk).
      */
     movementType: number;
 
     /**
-     * OSRS parity: deferred movement application when update blocks are present.
-     * Mirrors `Player.field1124` + `Player.tileX/tileY` target storage.
+     * Deferred movement application when update blocks are present.
      */
     pendingMove?: {
         tileX: number;
@@ -34,13 +33,12 @@ export interface PlayerSyncState {
 
     /**
      * Cached orientation for when player is removed from view.
-     * Reference: player-movement.md (readPlayerUpdate:144-146)
+
      */
     cachedOrientation?: number;
 
     /**
-     * Target index for interactions (field1208 in reference).
-     * Reference: player-movement.md (readPlayerUpdate:149)
+     * Target index for interactions.
      */
     targetIndex?: number;
 
@@ -60,14 +58,12 @@ export class PlayerSyncContext {
     readonly maxPlayers: number;
     readonly states: PlayerSyncState[];
     /**
-     * OSRS parity: `Players.field1355` bitset (per-index), used to drive the 4-pass update loop
-     * and skip-count compression (`class388.updatePlayers`).
+     * Per-index bitset used to drive the 4-pass update loop and skip-count compression.
      */
     readonly flags: Uint8Array;
 
     /**
-     * OSRS parity: `Players.Players_indices` and `Players.Players_emptyIndices`.
-     * These are rebuilt after every updatePlayers decode pass.
+     * Active and empty player index lists, rebuilt after every decode pass.
      */
     readonly playersIndices: number[] = [];
     readonly emptyIndices: number[] = [];
@@ -202,7 +198,7 @@ export class PlayerSyncContext {
 
     /**
      * Updates the cached orientation for a player when removed from view.
-     * Reference: player-movement.md (readPlayerUpdate:144-146)
+
      *
      * @param index Player index
      * @param orientation Orientation to cache
@@ -214,7 +210,7 @@ export class PlayerSyncContext {
 
     /**
      * Gets the cached orientation for a player, or current if no cache.
-     * Reference: player-movement.md (readPlayerUpdate:144-146)
+
      *
      * @param index Player index
      * @returns Cached or current orientation
@@ -231,7 +227,7 @@ export class PlayerSyncContext {
             const s = this.stateFor(local);
             s.active = true;
         }
-        // OSRS parity: player indices use slots 1..2047 (slot 0 is unused).
+        // player indices use slots 1..2047 (slot 0 is unused).
         for (let i = 1; i < this.maxPlayers; i++) {
             if (i === local) this.playersIndices.push(i);
             else this.emptyIndices.push(i);
@@ -239,11 +235,11 @@ export class PlayerSyncContext {
     }
 
     /**
-     * Mirrors the end of `class388.updatePlayers`: shift flags and rebuild the indices lists based
+     * Shift flags and rebuild the indices lists based
      * on whether a player object exists at each slot (here: {@link PlayerSyncState.active}).
      */
     endUpdatePlayersCycle(): void {
-        // OSRS parity: slots 1..2047 are used for players; slot 0 remains unused.
+        // slots 1..2047 are used for players; slot 0 remains unused.
         for (let i = 1; i < this.maxPlayers; i++) {
             this.flags[i] = (this.flags[i] >>> 1) & 0xff;
         }

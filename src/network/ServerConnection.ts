@@ -599,7 +599,6 @@ const pending: Map<
     number,
     (res: { ok: boolean; waypoints?: { x: number; y: number }[]; message?: string }) => void
 > = new Map();
-const hitsplatListeners = new Set<(payload: HitsplatServerPayload) => void>();
 const npcInfoListeners = new Set<(payload: NpcInfoPayload) => void>();
 const spellResultListeners = new Set<(payload: SpellResultPayload) => void>();
 const projectileListeners = new Set<(spawn: ProjectileLaunch) => void>();
@@ -1780,7 +1779,7 @@ function processServerMessage(msg: any): void {
 
             playerSyncContext.setBase(baseX, baseY);
             playerSyncContext.setLocalIndex(localIndex);
-            // OSRS parity: baseX/baseY are the scene base in *tiles* (8-aligned).
+            // baseX/baseY are the scene base in *tiles* (8-aligned).
             // Local coords are in 0..103 and world = base + local.
             ClientState.baseX = baseX | 0;
             ClientState.baseY = baseY | 0;
@@ -1859,14 +1858,6 @@ function processServerMessage(msg: any): void {
                 }
             } catch (err) {
                 console.warn("[debug] anim snapshot failed", err);
-            }
-        }
-    } else if (msg.type === "hitsplat") {
-        for (const cb of hitsplatListeners) {
-            try {
-                cb(msg.payload);
-            } catch (err) {
-                console.warn("hitsplat listener error", err);
             }
         }
     } else if (msg.type === "npc_info") {
@@ -2366,7 +2357,7 @@ function processServerMessage(msg: any): void {
             console.warn("runClientScript handler error", err);
         }
     } else if (msg.type === "if_settext") {
-        // Server-pushed IF_SETTEXT - update widget text (OSRS parity)
+        // Server-pushed IF_SETTEXT - update widget text ()
         try {
             const g: any = (typeof window !== "undefined" ? window : globalThis) as any;
             const mv = g?.__osrsClient;
@@ -2518,7 +2509,7 @@ export function getClientCycle(): number {
         try {
             const value = clientCycleProvider();
             if (Number.isFinite(value)) {
-                // OSRS PARITY: Never return 0. CS2 scripts use varcint vars that default to 0
+                // Never return 0. CS2 scripts use varcint vars that default to 0
                 // for dedup checks (e.g., rebuildchatbox checks `if (%varcint1112 = clientclock)`).
                 // If clientclock returns 0 and varcint1112 defaults to 0, the script returns early.
                 return Math.max(1, (value as number) | 0);
@@ -2534,11 +2525,11 @@ export function getClientCycle(): number {
     if (clientCycleFallbackStartMs === 0) {
         clientCycleFallbackStartMs = now;
         const cyclesPerTick = Math.max(1, Math.round((serverTickMs || 600) / CLIENT_TICK_MS));
-        // OSRS PARITY: Start at 1, not 0, to avoid dedup collisions with default varcint values
+        // Start at 1, not 0, to avoid dedup collisions with default varcint values
         clientCycleFallbackBaseCycle = Math.max(1, (currentTick | 0) * cyclesPerTick);
     }
     const elapsedMs = Math.max(0, now - clientCycleFallbackStartMs);
-    // OSRS PARITY: Never return 0 to avoid dedup collisions with default varcint values
+    // Never return 0 to avoid dedup collisions with default varcint values
     return Math.max(1, clientCycleFallbackBaseCycle + Math.floor(elapsedMs / CLIENT_TICK_MS));
 }
 
@@ -2670,10 +2661,10 @@ export function sendBankMove(
 }
 
 /**
- * OSRS parity: Send IF_BUTTOND binary packet for widget drag-to-widget operations.
+ * Send IF_BUTTOND binary packet for widget drag-to-widget operations.
  * Used for bank operations, item rearrangement, etc.
  *
- * Reference: Client.java line 6334 - onDragComplete sends field3250 packet
+ * onDragComplete sends the IF_BUTTOND packet.
  *
  * Packet format (16 bytes):
  * - targetWidgetId: IntLE (4 bytes)
@@ -2869,7 +2860,7 @@ function normalizeWidgetActionPayload(
 }
 
 /**
- * OSRS parity: Map opId (1-10) to IF_BUTTON packet IDs.
+ * Map opId (1-10) to IF_BUTTON packet IDs.
  * Op0 (targetVerb) uses IF_BUTTONT, handled separately.
  */
 const OP_TO_IF_BUTTON: Record<number, number> = {
@@ -2886,8 +2877,8 @@ const OP_TO_IF_BUTTON: Record<number, number> = {
 };
 
 /**
- * OSRS parity: Send widget action as binary IF_BUTTON packet.
- * Reference: class31.java menuAction method - sends IF_BUTTON1-10 packets for widget ops.
+ * Send widget action as binary IF_BUTTON packet.
+ * Sends IF_BUTTON1-10 packets for widget ops.
  *
  * Packet format (8 bytes):
  * - widgetId: int (4 bytes)
@@ -2899,7 +2890,7 @@ export function sendWidgetAction(payload: WidgetActionClientPayload): void {
     if (!normalized) {
         return;
     }
-    // OSRS parity: PlayerDesign (group 679) is client-only. Only the final APPEARANCE_SET packet is sent.
+    // PlayerDesign (group 679) is client-only. Only the final APPEARANCE_SET packet is sent.
     if ((((normalized.widgetId ?? 0) >>> 16) & 0xffff) === 679) {
         return;
     }
@@ -2916,7 +2907,7 @@ export function sendWidgetAction(payload: WidgetActionClientPayload): void {
 
     const pkt = createPacket(packetId);
     pkt.packetBuffer.writeInt(normalized.widgetId);
-    // OSRS parity: For IF_BUTTON packets, slot is 65535 when unused.
+    // For IF_BUTTON packets, slot is 65535 when unused.
     // Using 0 breaks server-side routing that distinguishes "no slot" (static component)
     // from "slot index" (inventory/dynamic child index).
     pkt.packetBuffer.writeShort(normalized.slot ?? 0xffff);
@@ -2947,7 +2938,7 @@ export function sendItemSpawnerSearchQuery(query: string): void {
 
 /**
  * IF_TRIGGEROPLOCAL (2929) forwarding packet.
- * Payload format mirrors class7.method121 (ClientPacket id 30, var-short).
+ * Payload format mirrors  (ClientPacket id 30, var-short).
  */
 export function sendIfTriggerOpLocal(
     widgetUid: number,
@@ -2980,7 +2971,7 @@ export function sendIfTriggerOpLocal(
     for (let i = 0; i < objectArgs.length; i++) {
         const arg = objectArgs[i];
         if (typeof arg === "number" && Number.isFinite(arg)) {
-            // method12408 parity: zigzag + LEB128-style varint.
+// zigzag + LEB128-style varint.
             let v = (((arg | 0) << 1) ^ ((arg | 0) >> 31)) >>> 0;
             while ((v & ~0x7f) !== 0) {
                 buf.writeByte((v & 0x7f) | 0x80);
@@ -3001,7 +2992,7 @@ export function sendIfTriggerOpLocal(
 
 /**
  * PlayerDesign (679): send final appearance selection to server.
- * This mirrors OSRS behavior where the client mutates appearance locally while editing,
+ * The client mutates appearance locally while editing,
  * and only transmits the final selection on confirm.
  */
 export function sendPlayerDesignConfirm(appearance: {
@@ -3016,7 +3007,6 @@ export function sendPlayerDesignConfirm(appearance: {
     const { createPacket, queuePacket } = require("./packet");
     const { ClientPacketId } = require("../shared/network/ClientPacketId");
 
-    // OSRS parity: ClientPacket.field3200 (opcode 37, len 13)
     // Payload: gender (1), kits[7] (7, -1=0xff), colors[5] (5)
     const pkt = createPacket(ClientPacketId.APPEARANCE_SET);
     const gender = (appearance.gender | 0) === 1 ? 1 : 0;
@@ -3066,10 +3056,6 @@ export function subscribePlayerSync(cb: (frame: PlayerSyncFrame) => void): () =>
     return () => playerSyncListeners.delete(cb);
 }
 
-export function subscribeHitsplats(cb: (payload: HitsplatServerPayload) => void): () => void {
-    hitsplatListeners.add(cb);
-    return () => hitsplatListeners.delete(cb);
-}
 
 export function subscribeNpcInfo(cb: (payload: NpcInfoPayload) => void): () => void {
     npcInfoListeners.add(cb);

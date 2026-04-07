@@ -1,3 +1,4 @@
+import { logger } from "../../utils/logger";
 import { PlayerState } from "../player";
 import {
     ActionInterruptionRegistry,
@@ -40,7 +41,7 @@ export class ActionScheduler {
     }
 
     /**
-     * OSRS parity: Sets a callback to check if player has modal open.
+     * Sets a callback to check if player has modal open.
      * When modal is open, skill actions are paused (not executed, kept in queue).
      */
     setModalChecker(checker?: (playerId: number) => boolean): void {
@@ -160,7 +161,7 @@ export class ActionScheduler {
             const player = this.playerLookup.get(playerId);
             if (!player) continue;
 
-            // OSRS parity: Check if player has modal open (level-up dialog, etc.)
+            // Check if player has modal open (level-up dialog, etc.)
             const hasModal = this.modalChecker?.(playerId) ?? false;
 
             const matured: ScheduledAction[] = [];
@@ -184,7 +185,7 @@ export class ActionScheduler {
         const priorityOf = (p: PlayerState) => {
             try {
                 if (this.priorityProvider) return this.priorityProvider(p);
-            } catch {}
+            } catch (err) { logger.warn("[action-scheduler] priority provider failed", err); }
             return p.id;
         };
 
@@ -202,9 +203,9 @@ export class ActionScheduler {
         for (const { player, state, action } of maturedGlobal) {
             // OSRS: dead players do not execute further actions this tick.
             try {
-                const hp = player.getHitpointsCurrent();
+                const hp = player.skillSystem.getHitpointsCurrent();
                 if (hp <= 0) continue;
-            } catch {}
+            } catch (err) { logger.warn("[action-scheduler] failed to check player hp", err); }
 
             const result = this.safeExecute(player, action, tick);
             this.applyResult(player, state, action, result, tick);
@@ -302,7 +303,7 @@ export class ActionScheduler {
     }
 
     /**
-     * OSRS parity: Check if an action is a skill action that should be paused
+     * Check if an action is a skill action that should be paused
      * while a modal dialog (like level-up) is open.
      */
     private isSkillAction(action: ScheduledAction): boolean {
@@ -325,7 +326,7 @@ export class ActionScheduler {
     }
 
     /**
-     * OSRS parity: Cancel all interruptible actions for a player.
+     * Cancel all interruptible actions for a player.
      * This uses the same prefix matching as isInterruptibleAction() for consistency.
      * Called when player walks, starts new interaction, teleports, etc.
      */

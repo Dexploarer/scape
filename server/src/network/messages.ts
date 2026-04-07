@@ -1,4 +1,5 @@
 import type { ProjectileLaunch } from "../../../src/shared/projectiles/ProjectileLaunch";
+import { logger } from "../utils/logger";
 import type { WidgetAction } from "../widgets/WidgetManager";
 import type { RoutedMessage } from "./MessageRouter";
 import { sendMessage, serverEncoder } from "./packet/BinaryProtocol";
@@ -256,7 +257,7 @@ export type SpellCastModifiers = {
 };
 
 export type SpellCastPayloadBase = {
-    // OSRS parity: Use widget references instead of hardcoded spell ID
+    // Use widget references instead of hardcoded spell ID
     spellbookGroupId?: number;
     widgetChildId?: number;
     selectedSpellWidgetId?: number;
@@ -274,7 +275,7 @@ export type SpellCastPlayerPayload = SpellCastPayloadBase & { playerId: number }
 export type SpellCastLocPayload = SpellCastPayloadBase & { locId: number };
 export type SpellCastObjPayload = SpellCastPayloadBase & { objId: number };
 export type SpellCastItemPayload = {
-    // OSRS parity: Use widget references instead of hardcoded spell ID
+    // Use widget references instead of hardcoded spell ID
     spellbookGroupId?: number;
     widgetChildId?: number;
     selectedSpellWidgetId?: number;
@@ -322,18 +323,6 @@ export type SpellResultPayload = {
     damage?: number;
     maxHit?: number;
     accuracy?: number;
-};
-
-export type HitsplatServerPayload = {
-    targetType: "player" | "npc";
-    targetId: number;
-    damage: number;
-    style?: number;
-    type2?: number;
-    damage2?: number;
-    /** Extra hitsplat delay in client cycles (20ms units). */
-    delayCycles?: number;
-    tick?: number;
 };
 
 export type SoundEffectPayload = {
@@ -423,7 +412,6 @@ export type ServerToClient =
     | { type: "skills"; payload: SkillsServerPayload }
     | { type: "combat"; payload: CombatStatePayload }
     | { type: "run_energy"; payload: RunEnergyPayload }
-    | { type: "hitsplat"; payload: HitsplatServerPayload }
     | {
           type: "spot";
           payload: {
@@ -500,14 +488,14 @@ export type ServerToClient =
                     kind: "projectiles_snapshot";
                     requestId: number;
                     fromId?: number;
-                    snapshot: any;
+                    snapshot: Record<string, unknown>;
                 }
               | { kind: "anim_request"; requestId: number }
               | {
                     kind: "anim_snapshot";
                     requestId: number;
                     fromId?: number;
-                    snapshot: any;
+                    snapshot: Record<string, unknown>;
                 };
       }
     | { type: "varp"; payload: { varpId: number; value: number } }
@@ -539,7 +527,6 @@ export type ClientToServer =
               run?: boolean;
               /**
                * Modifier key flags for walk command.
-               * Reference: player-movement.md (Client.java:94)
                * - 0: Normal (no modifiers)
                * - 1: Control pressed (force run)
                * - 2: Control + Shift (debug/staff teleport to minimap)
@@ -660,9 +647,9 @@ export type ClientToServer =
           type: "debug";
           payload:
               | { kind: "projectiles_request"; requestId?: number }
-              | { kind: "projectiles_snapshot"; requestId: number; snapshot: any }
+              | { kind: "projectiles_snapshot"; requestId: number; snapshot: Record<string, unknown> }
               | { kind: "anim_request"; requestId?: number }
-              | { kind: "anim_snapshot"; requestId: number; snapshot: any }
+              | { kind: "anim_snapshot"; requestId: number; snapshot: Record<string, unknown> }
               | { kind: "set_var"; value?: number; varbit?: number; varp?: number }
               | { kind: "raw"; raw: string };
       }
@@ -681,7 +668,7 @@ export function encodeMessage(msg: ServerToClient): Uint8Array {
  * All ServerToClient message types must have a binary encoder
  */
 function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
-    const { type, payload } = msg as any;
+    const { type, payload } = msg as unknown as { type: string; payload: Record<string, unknown> };
 
     switch (type) {
         case "welcome":
@@ -833,17 +820,6 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
         case "run_energy":
             return serverEncoder.encodeRunEnergy(payload.percent, !!payload.running);
 
-        case "hitsplat":
-            return serverEncoder.encodeHitsplat(
-                payload.targetType,
-                payload.targetId,
-                payload.damage,
-                payload.style,
-                payload.type2,
-                payload.damage2,
-                payload.delayCycles,
-            );
-
         case "spot":
             return serverEncoder.encodeSpotAnim(
                 payload.spotId,
@@ -994,12 +970,12 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
 
         default:
             // All message types should be handled above
-            console.warn(`[BinaryProtocol] Unknown message type: ${type}`);
+            logger.warn(`[BinaryProtocol] Unknown message type: ${type}`);
             throw new Error(`Binary encoder not implemented for message type: ${type}`);
     }
 }
 
-function encodeWidgetToBinary(payload: any): Uint8Array {
+function encodeWidgetToBinary(payload: WidgetServerPayload): Uint8Array {
     switch (payload.action) {
         case "open":
             return serverEncoder.encodeWidgetOpen(payload.groupId, !!payload.modal);
@@ -1051,7 +1027,7 @@ function encodeWidgetToBinary(payload: any): Uint8Array {
     }
 }
 
-function encodeShopToBinary(payload: any): Uint8Array {
+function encodeShopToBinary(payload: ShopServerPayload): Uint8Array {
     switch (payload.kind) {
         case "open":
             return serverEncoder.encodeShopOpen(
@@ -1078,7 +1054,7 @@ function encodeShopToBinary(payload: any): Uint8Array {
     }
 }
 
-function encodeSmithingToBinary(payload: any): Uint8Array {
+function encodeSmithingToBinary(payload: SmithingServerPayload): Uint8Array {
     switch (payload.kind) {
         case "open":
         case "update":
@@ -1098,7 +1074,7 @@ function encodeSmithingToBinary(payload: any): Uint8Array {
     }
 }
 
-function encodeTradeToBinary(payload: any): Uint8Array {
+function encodeTradeToBinary(payload: TradeServerPayload): Uint8Array {
     switch (payload.kind) {
         case "request":
             return serverEncoder.encodeTradeRequest(payload.fromId, payload.fromName);
@@ -1140,7 +1116,7 @@ export function decodeClientMessage(raw: string | Buffer | ArrayBuffer): RoutedM
 
     // JSON protocol removed - only binary is supported
     if (raw.constructor === String) {
-        console.warn("[messages] JSON messages no longer supported");
+        logger.warn("[messages] JSON messages no longer supported");
         return null;
     }
 

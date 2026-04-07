@@ -1,25 +1,27 @@
+import { logger } from "../../../utils/logger";
 import { EquipmentSlot } from "../../../../../src/rs/config/player/Equipment";
 import { SkillId } from "../../../../../src/rs/skill/skills";
-import { XpMode, getCombatStyle } from "../../../../data/weapons";
+import { XpMode } from "../../combat/WeaponDataProvider";
+import { getCombatStyle } from "../../combat/WeaponDataProvider";
 import { type ItemDefinition, getItemDefinition } from "../../../data/items";
 import {
     ProjectileParams,
     buildProjectileParamsFromArchetype,
     getProjectileParams,
-} from "../../../data/projectileParams";
+} from "../../data/ProjectileParamsProvider";
 import {
     calculatePoweredStaffBaseDamage,
     getPoweredStaffSpellData,
     getSpellData,
-} from "../../../data/spells";
+} from "../../spells/SpellDataProvider";
 import { doesBoltEffectActivate, getEnchantedBoltEffect } from "../../combat/AmmoSystem";
 import type { AttackType } from "../../combat/AttackType";
-import * as CombatFormulas from "../../combat/CombatFormulas";
+import * as CombatFormulas from "../../combat/CombatFormulaProvider";
 import {
     type SlayerTaskInfo,
     type TargetInfo,
     calculateEquipmentBonuses,
-} from "../../combat/EquipmentBonuses";
+} from "../../combat/EquipmentBonusProvider";
 import { HITMARK_BLOCK, HITMARK_DAMAGE } from "../../combat/HitEffects";
 import { type NpcCombatProfile as NpcCombatProfileResolved, NpcState } from "../../npc";
 import type { NpcCombatProfile } from "../../npc";
@@ -392,7 +394,7 @@ export class CombatEngine {
         const hitChance = forceHit
             ? 1
             : this.computeHitChance(attackProfile.attackRoll, defenceRoll);
-        // OSRS parity: Hit delays are now computed using authentic RSMod formulas
+        // Hit delays are now computed using authentic RSMod formulas
         // Melee: 0 ticks, Ranged: 1 + floor((3+dist)/6), Magic: 1 + floor((1+dist)/3)
         // CRITICAL: All player hits on NPCs get +1 tick delay because NPCs process before players.
         // Reference: docs/tick-cycle-order.md, docs/osrs-mechanics.md
@@ -506,7 +508,7 @@ export class CombatEngine {
         // OSRS: Dark bow fires 2 arrows, with the second hitting 1 tick after the first
         // Reference: docs/projectiles-hitdelay.md
         let additionalHits: AdditionalHit[] | undefined;
-        const weaponId = context.player.combatWeaponItemId;
+        const weaponId = context.player.combat.weaponItemId;
         if (this.isDarkBow(weaponId)) {
             // Second arrow: roll independent hit and damage
             const secondHitLanded = forceHit ? true : this.rng.next() < hitChance;
@@ -602,7 +604,7 @@ export class CombatEngine {
                     return overrideBlock;
                 }
             }
-        } catch {}
+        } catch (err) { logger.warn("[combat-engine] failed to resolve block animation", err); }
         return -1;
     }
 
@@ -628,7 +630,7 @@ export class CombatEngine {
 
             case "ranged": {
                 // Check if using thrown weapons (darts, knives, throwing axes, chinchompas)
-                const rangedWeaponId = context.player.combatWeaponItemId;
+                const rangedWeaponId = context.player.combat.weaponItemId;
                 const isThrown = this.isThrownWeapon(rangedWeaponId);
                 if (isThrown) {
                     // OSRS: Thrown weapons use 1 + floor(distance / 6)
@@ -658,7 +660,7 @@ export class CombatEngine {
      */
     private isThrownWeapon(weaponId: number | undefined): boolean {
         if (!weaponId || weaponId <= 0) return false;
-        // Complete list of thrown weapon IDs for OSRS parity
+        // Complete list of thrown weapon IDs for 
         const thrownWeapons = new Set([
             // Darts (bronze through amethyst)
             806, 807, 808, 809, 810, 811, 3093, 11230, 25849,
@@ -710,7 +712,7 @@ export class CombatEngine {
      * @deprecated Use computeHitDelay instead - this is kept for backwards compatibility
      */
     private pickHitDelay(_player: PlayerState, _npc?: NpcState): number {
-        // OSRS parity: melee hits have a 1 tick delay
+        // melee hits have a 1 tick delay
         return 1;
     }
 
@@ -974,13 +976,13 @@ export class CombatEngine {
 
     private getPlayerHitpoints(player: PlayerState): { current: number; max: number } {
         return {
-            current: Math.max(0, player.getHitpointsCurrent()),
-            max: Math.max(1, player.getHitpointsMax()),
+            current: Math.max(0, player.skillSystem.getHitpointsCurrent()),
+            max: Math.max(1, player.skillSystem.getHitpointsMax()),
         };
     }
 
     private getSlayerTaskInfo(player: PlayerState): SlayerTaskInfo {
-        return player.getSlayerTaskInfo();
+        return player.skillSystem.getSlayerTaskInfo(player.combat.slayerTask);
     }
 
     private buildTargetInfo(npc: NpcState): TargetInfo {
@@ -1241,19 +1243,19 @@ export class CombatEngine {
     }
 
     private resolveAttackStyle(player: PlayerState, bonuses: number[]): AttackStyle {
-        const category = player.combatWeaponCategory;
-        const styleSlot = Math.max(0, player.combatStyleSlot);
-        const autocastEnabled = player.autocastEnabled;
-        const hasCombatSpell = player.combatSpellId > 0;
+        const category = player.combat.weaponCategory;
+        const styleSlot = Math.max(0, player.combat.styleSlot);
+        const autocastEnabled = player.combat.autocastEnabled;
+        const hasCombatSpell = player.combat.spellId > 0;
         const mappedAttackType = player.getCurrentAttackType?.();
         const mappedMeleeBonusIndex = player.getCurrentMeleeBonusIndex?.();
 
-        // OSRS parity: Magic weapons (staves) have hybrid combat styles.
+        // Magic weapons (staves) have hybrid combat styles.
         // - Style 0 (Bash/Pound) = melee attack (crush)
         // - Style 1+ with autocast enabled = magic attack
         // If autocast is OFF, the melee styles should do melee attacks (punching).
         if (mappedAttackType === "magic" && hasCombatSpell) {
-            const autocastMode = player.autocastMode;
+            const autocastMode = player.combat.autocastMode;
             const mode: MagicStyleMode =
                 autocastMode === "defensive_autocast"
                     ? "defensive"
@@ -1270,17 +1272,17 @@ export class CombatEngine {
             return { kind: "ranged", mode, bonusIndex: AttackBonusIndex.Ranged };
         }
         if (mappedAttackType === "melee") {
-            // OSRS parity: Autocast overrides melee style on staves.
+            // Autocast overrides melee style on staves.
             // When autocast is enabled with a valid spell, the attack is magic even if
             // the style slot maps to a melee attack type (e.g., "Bash" on style 0).
             if (autocastEnabled && hasCombatSpell) {
-                const autocastMode = player.autocastMode;
+                const autocastMode = player.combat.autocastMode;
                 const mode: MagicStyleMode =
                     autocastMode === "defensive_autocast" ? "defensive" : "accurate";
                 return { kind: "magic", mode, bonusIndex: AttackBonusIndex.Magic };
             }
             // Use weapon-specific style data for correct XP mode
-            const weaponId = player.combatWeaponItemId ?? -1;
+            const weaponId = player.combat.weaponItemId ?? -1;
             const meleeMode = this.getMeleeStyleMode(weaponId, styleSlot);
             const bonusIndex =
                 mappedMeleeBonusIndex !== undefined
@@ -1300,7 +1302,7 @@ export class CombatEngine {
             }
             // Only use magic if autocast is enabled with a valid spell
             if (autocastEnabled && hasCombatSpell) {
-                const autocastMode = player.autocastMode;
+                const autocastMode = player.combat.autocastMode;
                 const mode: MagicStyleMode =
                     autocastMode === "defensive_autocast" ? "defensive" : "accurate";
                 return { kind: "magic", mode, bonusIndex: AttackBonusIndex.Magic };
@@ -1315,7 +1317,7 @@ export class CombatEngine {
         }
 
         // Use weapon-specific style data for correct XP mode
-        const weaponId = player.combatWeaponItemId ?? -1;
+        const weaponId = player.combat.weaponItemId ?? -1;
         const meleeMode = this.getMeleeStyleMode(weaponId, styleSlot);
         // Pick the best melee bonus index based on player's attack bonuses
         const bonusIndex =
@@ -1387,12 +1389,12 @@ export class CombatEngine {
      * Uses combatWeaponItemId which is set by wsServer.refreshCombatWeaponCategory.
      */
     private getPlayerWeaponId(player: PlayerState): number {
-        const weaponId = player.combatWeaponItemId;
+        const weaponId = player.combat.weaponItemId;
         return weaponId > 0 ? weaponId : 0;
     }
 
     private getActiveSpellId(player: PlayerState): number | undefined {
-        const spellId = player.combatSpellId;
+        const spellId = player.combat.spellId;
         if (spellId > 0) return spellId;
         return undefined;
     }
@@ -1419,7 +1421,7 @@ export class CombatEngine {
 
     /** Get player's boosted skill level. Public for use by PlayerCombatManager. */
     getBoostedLevel(player: PlayerState, skill: SkillId): number {
-        const entry = player.getSkill(skill);
+        const entry = player.skillSystem.getSkill(skill);
         const base = entry.baseLevel;
         const boost = entry.boost;
         const result = base + boost;
@@ -1439,7 +1441,7 @@ export class CombatEngine {
 
     private getPrayerMultiplier(player: PlayerState, stat: PrayerStat): number {
         const prayers: Set<string> | undefined = (() => {
-            const active = player.activePrayers;
+            const active = player.prayer.activePrayers;
             if (active instanceof Set) return active as Set<string>;
             if (Array.isArray(active)) return new Set(active as string[]);
             return undefined;
@@ -1458,7 +1460,7 @@ export class CombatEngine {
     }
 
     private computeMagicDefenceEffectiveLevel(defenceLevel: number, magicLevel: number): number {
-        // OSRS parity: Magic defence uses 70% magic, 30% defence (not reversed!)
+        // Magic defence uses 70% magic, 30% defence (not reversed!)
         // Formula: floor(magic * 0.7 + defence * 0.3) + 8
         // Reference: docs/combat-formulas.md
         return Math.max(1, Math.floor(magicLevel * 0.7 + defenceLevel * 0.3) + 8);
@@ -1509,7 +1511,7 @@ export class CombatEngine {
 
     /**
      * Compute player's defence roll against an NPC attack.
-     * OSRS parity: Magic defence uses 70% magic, 30% defence.
+     * Magic defence uses 70% magic, 30% defence.
      */
     private computePlayerDefenceRoll(
         defenceLevel: number,

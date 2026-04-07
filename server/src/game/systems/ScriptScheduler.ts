@@ -1,3 +1,5 @@
+import { logger } from "../../utils/logger";
+
 type ScriptHandler = (tick: number) => void;
 
 interface ScriptTask {
@@ -56,8 +58,7 @@ export class ScriptScheduler {
                 task.handler(currentTick);
             } catch (err) {
                 // swallow to keep tick loop resilient
-                // eslint-disable-next-line no-console
-                console.warn?.("[ScriptScheduler] task execution failed", err);
+                logger.warn("[ScriptScheduler] task execution failed", err);
             }
             if (task.repeatTicks && task.repeatTicks > 0) {
                 task.executeTick = currentTick + task.repeatTicks;

@@ -393,8 +393,17 @@ export function createCombatActionHandler(server: WSServerContext): CombatAction
         },
 
         // --- Gamemode Events ---
-        onNpcKill: (playerId, npcId, combatLevel) => {
-            server.gamemode.onNpcKill(playerId, npcId, combatLevel);
+        onNpcKill: (playerId, npcTypeId, combatLevel, npc) => {
+            server.gamemode.onNpcKill(playerId, npcTypeId, combatLevel);
+            server.eventBus.emit("npc:death", {
+                npc: npc!,
+                npcTypeId,
+                combatLevel,
+                killerPlayerId: playerId,
+                tile: npc
+                    ? { x: npc.tileX, y: npc.tileY, level: npc.level }
+                    : { x: 0, y: 0, level: 0 },
+            });
         },
     };
     return new CombatActionHandler(services);
@@ -1007,6 +1016,7 @@ export function createEquipmentHandler(server: WSServerContext): EquipmentHandle
         refreshAppearanceKits: (player) => server.appearanceService.refreshAppearanceKits(player),
         resetAutocast: (player) => server.equipmentService.resetAutocast(player),
         playLocSound: (opts) => server.soundService.playLocSound(opts),
+        eventBus: server.eventBus,
     };
     return new EquipmentHandler(services);
 }

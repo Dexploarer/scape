@@ -1,3 +1,4 @@
+import type { GameEventBus } from "../events/GameEventBus";
 import type { InterfaceService } from "../../widgets/InterfaceService";
 import type { WidgetAction } from "../../widgets/WidgetManager";
 import type { PlayerState } from "../player";
@@ -91,6 +92,7 @@ export interface GamemodeServerServices {
     registerTickCallback(callback: (tick: number) => void): void;
     isInSailingInstanceRegion?(player: PlayerState): boolean;
     initSailingInstance?(player: PlayerState): void;
+    eventBus: GameEventBus;
     logger: {
         debug(message: string, ...args: unknown[]): void;
         info(message: string, ...args: unknown[]): void;

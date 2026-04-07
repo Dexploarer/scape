@@ -2,6 +2,7 @@ import type { WebSocket } from "ws";
 
 import { logger } from "../../utils/logger";
 import type { SkillId } from "../../../../src/rs/skill/skills";
+import type { GameEventBus } from "../events/GameEventBus";
 import { getSpellBaseXp } from "../combat/SpellXpData";
 import {
     type AttackType as CombatXpAttackType,
@@ -29,6 +30,7 @@ export interface SkillServiceDeps {
     networkLayer: PlayerNetworkLayer;
     gamemode: GamemodeDefinition;
     enqueueLevelUpPopup: (player: PlayerState, popup: LevelUpPopup) => void;
+    eventBus?: GameEventBus;
 }
 
 /**
@@ -83,6 +85,14 @@ export class SkillService {
                 : baseDelta * gamemode.getSkillXpMultiplier(player);
             if (!(delta > 0)) return;
             player.skillSystem.setSkillXp(skillId, prev + delta);
+            const newXp = player.skillSystem.getSkill(skillId).xp;
+            this.deps.eventBus?.emit("skill:xpGain", {
+                player,
+                skillId,
+                xpGained: delta,
+                totalXp: newXp,
+                source: "skill",
+            });
             const newLevel = player.skillSystem.getSkill(skillId).baseLevel;
             if (newLevel > oldLevel) {
                 this.deps.enqueueLevelUpPopup(player, {
@@ -91,6 +101,12 @@ export class SkillService {
                     newLevel,
                     levelIncrement: Math.max(1, newLevel - oldLevel),
                 });
+                this.deps.eventBus?.emit("skill:levelUp", {
+                    player,
+                    skillId,
+                    oldLevel,
+                    newLevel,
+                });
             }
             const newCombatLevel = player.skillSystem.combatLevel;
             if (newCombatLevel > oldCombatLevel) {
@@ -98,6 +114,11 @@ export class SkillService {
                     kind: "combat",
                     newLevel: newCombatLevel,
                     levelIncrement: Math.max(1, newCombatLevel - oldCombatLevel),
+                });
+                this.deps.eventBus?.emit("combat:levelUp", {
+                    player,
+                    oldLevel: oldCombatLevel,
+                    newLevel: newCombatLevel,
                 });
             }
             const update = player.skillSystem.takeSkillSync();

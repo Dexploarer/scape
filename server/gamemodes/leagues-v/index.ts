@@ -34,6 +34,7 @@ import { getLeagueSkillXpMultiplier } from "./leagueXp";
 import { getActiveLeagueType, isLeagueVWorld, isLeagueWorld } from "./playerWorldRules";
 import { LEAGUE_SUMMARY_GROUP_ID } from "../../../src/shared/ui/leagueSummary";
 import { LeagueSummaryTracker } from "./leagueSummary";
+import type { EventSubscription } from "../../src/game/events";
 import type {
     GamemodeBridge,
     GamemodeInitContext,
@@ -62,6 +63,7 @@ export class LeaguesVGamemode extends VanillaGamemode {
     private leagueSummary: LeagueSummaryTracker | undefined;
     private uiBridge: GamemodeUiBridge | undefined;
     private contentProvider: LeagueContentProvider = new LeagueContentProvider();
+    private eventSubscriptions: EventSubscription[] = [];
 
     // === XP ===
 
@@ -178,12 +180,12 @@ export class LeaguesVGamemode extends VanillaGamemode {
         }
     }
 
-    override onNpcKill(playerId: number, npcTypeId: number, combatLevel?: number): void {
-        this.taskManager?.onNpcKill(playerId, npcTypeId, combatLevel);
+    override onNpcKill(_playerId: number, _npcTypeId: number, _combatLevel?: number): void {
+        // Handled by event bus subscription (npc:death)
     }
 
-    override onItemCraft(playerId: number, itemId: number, count: number): void {
-        this.taskManager?.onItemCraft(playerId, itemId, count);
+    override onItemCraft(_playerId: number, _itemId: number, _count: number): void {
+        // Handled by event bus subscription (item:craft)
     }
 
     // === Login / Handshake ===
@@ -409,9 +411,35 @@ export class LeaguesVGamemode extends VanillaGamemode {
         } catch (err) {
             console.log("[leagues-v] failed to initialize task manager", err);
         }
+
+        const eventBus = context.serverServices.eventBus;
+
+        this.eventSubscriptions.push(
+            eventBus.on("npc:death", (e) => {
+                if (e.killerPlayerId != null) {
+                    this.taskManager?.onNpcKill(e.killerPlayerId, e.npcTypeId, e.combatLevel);
+                }
+            }),
+        );
+
+        this.eventSubscriptions.push(
+            eventBus.on("equipment:equip", (e) => {
+                this.taskManager?.onItemEquip(e.player.id, e.itemId);
+            }),
+        );
+
+        this.eventSubscriptions.push(
+            eventBus.on("item:craft", (e) => {
+                this.taskManager?.onItemCraft(e.playerId, e.itemId, e.count);
+            }),
+        );
     }
 
     dispose(): void {
+        for (const sub of this.eventSubscriptions) {
+            sub.unsubscribe();
+        }
+        this.eventSubscriptions = [];
         this.taskManager = undefined;
         this.initBridge = undefined;
     }

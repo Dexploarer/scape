@@ -98,6 +98,7 @@ import type {
     NpcSyncManager,
 } from "./managers";
 import type { TickFrame, NpcViewSnapshot, NpcUpdatePayload, PlayerViewSnapshot } from "./wsServerTypes";
+import type { GameEventBus } from "../game/events/GameEventBus";
 import type { MusicRegionService } from "../audio/MusicRegionService";
 import type { DbRepository } from "../../../src/rs/config/db/DbRepository";
 
@@ -118,6 +119,7 @@ export interface WSServerContext {
     readonly gamemode: GamemodeDefinition;
     cacheEnv?: CacheEnv;
     activeFrame?: TickFrame;
+    readonly eventBus: GameEventBus;
 
     // ── Extracted services ────────────────────────────────────────────────
     readonly dataLoaderService: DataLoaderService;

@@ -1,6 +1,7 @@
 import type { WebSocket } from "ws";
 
 import type { GamemodeServerServices } from "../gamemodes/GamemodeDefinition";
+import type { GameEventBus } from "../events/GameEventBus";
 import type { DataLoaderService } from "./DataLoaderService";
 import type { VariableService } from "./VariableService";
 import type { MessagingService } from "./MessagingService";
@@ -43,6 +44,7 @@ export interface GamemodeServiceAdapterDeps {
     gamemodeTickCallbacks: Array<(tick: number) => void>;
     interfaceService: InterfaceService | undefined;
     sailingInstanceManager: SailingInstanceManager | undefined;
+    eventBus: GameEventBus;
 }
 
 /**
@@ -85,6 +87,7 @@ export function buildGamemodeServices(deps: GamemodeServiceAdapterDeps): Gamemod
             deps.sailingInstanceManager?.isInSailingInstanceRegion(player) ?? false,
         initSailingInstance: (player) =>
             deps.sailingInstanceManager?.initInstance(player),
+        eventBus: deps.eventBus,
         logger,
     };
 }

@@ -39,6 +39,7 @@ import type { PlayerManager } from "../PlayerManager";
 import type { PendingSpotAnimation, ForcedMovementBroadcast } from "../systems/BroadcastScheduler";
 import type { TickFrame } from "../tick/TickPhaseOrchestrator";
 import type { WidgetAction } from "../../widgets/WidgetManager";
+import type { GameEventBus } from "../events/GameEventBus";
 import type { WebSocket } from "ws";
 
 /**
@@ -91,6 +92,7 @@ export interface ScriptServiceAdapterDeps {
     closeInterruptibleInterfaces: (player: PlayerState) => void;
     activeFrame: () => TickFrame | undefined;
     gamemode?: { onItemCraft?: (playerId: number, itemId: number, count: number) => void };
+    eventBus?: GameEventBus;
 }
 
 /**
@@ -264,6 +266,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
 
         // --- SystemServices ---
         getCurrentTick: () => deps.getCurrentTick(),
+        eventBus: deps.eventBus,
 
         // --- CollectionLogServices ---
         sendCollectionLogSnapshot: (player) => deps.collectionLogService.sendCollectionLogSnapshot(player as PlayerState),
@@ -325,7 +328,10 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         getCookingRecipeByRawItemId: undefined,
 
         // --- ProductionServices ---
-        onItemCraft: (playerId, itemId, count) => deps.gamemode?.onItemCraft?.(playerId, itemId, count),
+        onItemCraft: (playerId, itemId, count) => {
+            deps.gamemode?.onItemCraft?.(playerId, itemId, count);
+            deps.eventBus?.emit("item:craft", { playerId, itemId, count });
+        },
         production: {
             takeInventoryItems: (player, inputs) => deps.inventoryService.takeInventoryItems(player, inputs),
             restoreInventoryRemovals: (player, removed) => deps.inventoryService.restoreInventoryRemovals(player, removed),

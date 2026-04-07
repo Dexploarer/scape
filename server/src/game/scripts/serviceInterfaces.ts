@@ -4,6 +4,7 @@ import type { InterfaceService } from "../../widgets/InterfaceService";
 import type { WidgetAction } from "../../widgets/WidgetManager";
 import type { DoorStateManager } from "../../world/DoorStateManager";
 import type { ActionRequest } from "../actions";
+import type { GameEventBus } from "../events/GameEventBus";
 import type { OwnedItemLocation } from "../items/playerItemOwnership";
 import type { NpcSpawnConfig, NpcState } from "../npc";
 import type { PlayerState } from "../player";
@@ -49,6 +50,7 @@ export interface SystemServices {
     hotReloadEnabled?: boolean;
     getCurrentTick?: () => number;
     gamemodeServices?: Record<string, unknown>;
+    eventBus?: GameEventBus;
 }
 
 // ============================================================================

@@ -8,6 +8,7 @@ import {
     pickEquipSound,
     unequipItemApply,
 } from "../equipment";
+import type { GameEventBus } from "../events/GameEventBus";
 import type { InventoryAddResult, PlayerAppearance, PlayerState } from "../player";
 
 const EQUIP_SLOT_COUNT = 14;
@@ -32,6 +33,7 @@ export interface EquipmentHandlerServices {
         tile: { x: number; y: number };
         level: number;
     }) => void;
+    eventBus?: GameEventBus;
 }
 
 export interface EquipResult {
@@ -113,6 +115,12 @@ export class EquipmentHandler {
             this.services.resetAutocast(player);
         }
 
+        this.services.eventBus?.emit("equipment:equip", {
+            player,
+            itemId,
+            slot: equipSlot,
+        });
+
         return { ok: true, categoryChanged, weaponItemChanged };
     }
 
@@ -124,6 +132,7 @@ export class EquipmentHandler {
         this.services.closeInterruptibleInterfaces(player);
 
         const appearance = this.ensureAppearance(player);
+        const removedItemId = ensureEquipArrayOn(appearance, EQUIP_SLOT_COUNT)[equipSlot] ?? -1;
 
         const result = unequipItemApply({
             appearance,
@@ -142,6 +151,12 @@ export class EquipmentHandler {
             if (equipSlot === EquipmentSlot.WEAPON && player.combat.autocastEnabled) {
                 this.services.resetAutocast(player);
             }
+
+            this.services.eventBus?.emit("equipment:unequip", {
+                player,
+                itemId: removedItemId,
+                slot: equipSlot,
+            });
         }
 
         return result.ok;

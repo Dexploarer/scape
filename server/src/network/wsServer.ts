@@ -91,6 +91,7 @@ import { GatheringSystemManager, ScriptScheduler, StatusEffectSystem, Projectile
 import {
     TickPhaseOrchestrator,
 } from "../game/tick";
+import { GameEventBus } from "../game/events/GameEventBus";
 import { GameTicker } from "../game/ticker";
 import { TradeManager } from "../game/trade/TradeManager";
 import { PathService } from "../pathfinding/PathService";
@@ -116,6 +117,12 @@ import { locCanResolveToId } from "../world/LocTransforms";
 import {
     ChatBroadcaster,
     ActorSyncBroadcaster,
+    SkillBroadcaster,
+    VarBroadcaster,
+    InventoryBroadcaster,
+    WidgetBroadcaster,
+    CombatBroadcaster,
+    MiscBroadcaster,
 } from "./broadcast";
 import * as ServiceWiring from "./ServiceWiring";
 import type { LocTypeLoader } from "../../../src/rs/config/loctype/LocTypeLoader";
@@ -188,6 +195,7 @@ export class WSServer {
     private defaultPlayerAnimMale?: PlayerAnimSet;
     private defaultPlayerAnimFemale?: PlayerAnimSet;
     private doorManager?: DoorStateManager;
+    readonly eventBus = new GameEventBus();
     private readonly statusEffects = new StatusEffectSystem();
     private readonly prayerSystem = new PrayerSystem();
     private readonly scriptScheduler = new ScriptScheduler();
@@ -299,6 +307,12 @@ export class WSServer {
     // Broadcast domain handlers
     private readonly chatBroadcaster = new ChatBroadcaster();
     private readonly actorSyncBroadcaster = new ActorSyncBroadcaster();
+    private readonly skillBroadcaster = new SkillBroadcaster();
+    private readonly varBroadcaster = new VarBroadcaster();
+    private inventoryBroadcaster!: InventoryBroadcaster;
+    private widgetBroadcaster!: WidgetBroadcaster;
+    private combatBroadcaster!: CombatBroadcaster;
+    private miscBroadcaster!: MiscBroadcaster;
 
     constructor(opts: WSServerOptions) {
         this.options = opts;
@@ -365,6 +379,23 @@ export class WSServer {
         );
         this.actionScheduler.setPriorityProvider((p) => p.getPidPriority());
         this.actionScheduler.setModalChecker((playerId) => this.hasModalOpen(playerId));
+
+        this.inventoryBroadcaster = new InventoryBroadcaster({
+            getPlayerById: (id) => this.players?.getById(id),
+            getInventory: (player) => this.inventoryService.getInventory(player),
+        });
+        this.widgetBroadcaster = new WidgetBroadcaster({
+            syncPostWidgetOpenState: () => {},
+        });
+        this.combatBroadcaster = new CombatBroadcaster({
+            enableBinaryNpcSync: false,
+            forEachPlayer: (fn) => this.players?.forEach(fn),
+            withDirectSendBypass: (ctx, fn) => this.networkLayer.withDirectSendBypass(ctx, fn),
+        });
+        this.miscBroadcaster = new MiscBroadcaster({
+            gamemodeSnapshotEncoders: this.gamemodeSnapshotEncoders,
+            forEachPlayer: (fn) => this.players?.forEach(fn),
+        });
     }
     private initWebSocketServer(opts: WSServerOptions): void {
         this.wss = new WebSocketServer({
@@ -631,6 +662,7 @@ export class WSServer {
                 closeInterruptibleInterfaces: (player) => this.interfaceManager.closeInterruptibleInterfaces(player),
                 activeFrame: () => this.activeFrame,
                 gamemode: this.gamemode,
+                eventBus: this.eventBus,
         };
         this.scriptRuntime = new ScriptRuntime({
             registry: this.scriptRegistry,
@@ -898,6 +930,7 @@ export class WSServer {
             networkLayer: this.networkLayer,
             gamemode: this.gamemode,
             enqueueLevelUpPopup: (player, popup) => this.interfaceManager.enqueueLevelUpPopup(player, popup as import("../game/services/InterfaceManager").LevelUpPopup),
+            eventBus: this.eventBus,
         });
         logger.info("[services] Phase 2 services initialized (Variable, Messaging, Skill)");
 
@@ -1153,6 +1186,7 @@ export class WSServer {
                     gamemodeTickCallbacks: this.gamemodeTickCallbacks,
                     interfaceService: this.interfaceService,
                     sailingInstanceManager: this.sailingInstanceManager,
+                    eventBus: this.eventBus,
                 }),
             });
             logger.info(`Boot: gamemode "${this.gamemode.id}" initialized`);

@@ -192,6 +192,9 @@ export interface LoginHandshakeServer {
     readonly npcTypeLoader: { load(id: number): unknown } | undefined;
     readonly objTypeLoader: { load(id: number): unknown } | undefined;
 
+    // --- Event Bus ---
+    readonly eventBus: import("../game/events/GameEventBus").GameEventBus;
+
     // --- Misc cleanup ---
     readonly playerDynamicLocSceneKeys: { delete(playerId: number): void };
     readonly tradeManager: {
@@ -811,6 +814,8 @@ export class LoginHandshakeService {
                 }
 
                 this.server.locationService.maybeReplayDynamicLocState(ws, p, true);
+
+                this.server.eventBus.emit("player:login", { player: p });
             }
         } catch (err) {
             logger.warn("[handshake] handleHandshakeMessage error:", err);
@@ -1044,6 +1049,10 @@ export class LoginHandshakeService {
                         }
                         this.server.followerCombatManager?.resetPlayer(player.id);
                         this.server.followerManager?.despawnFollowerForPlayer(player.id, false);
+                        this.server.eventBus.emit("player:logout", {
+                            playerId: player.id,
+                            username: player.name ?? "unknown",
+                        });
                         this.server.players?.remove(ws);
                         if (id != null) this.server.actionScheduler.unregisterPlayer(id);
                         if (id != null) logger.info(`Client disconnected id=${id}`);

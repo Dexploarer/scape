@@ -298,7 +298,7 @@ function evaluateCurveAtT(curve: Curve, t: number): number {
         rootFinderOutput[2] = 0.0;
         rootFinderOutput[3] = 0.0;
         rootFinderOutput[4] = 0.0;
-        const var4 = findPolynomialRoots;
+        const var4 = findPolynomialRoots(rootFinderInput, 3, 0.0, true, 1.0, true, rootFinderOutput);
         if (var4 === 1) {
             v1 = rootFinderOutput[0];
         } else {

@@ -99,6 +99,12 @@ import { getRangedImpactSound } from "../game/combat/WeaponDataProvider";
 import type { MessageRouter } from "./MessageRouter";
 import type { WidgetAction } from "../widgets/WidgetManager";
 import type { WSServerContext } from "./WSServerContext";
+import { CombatEffectService, type CombatEffectServiceDeps } from "../game/services/CombatEffectService";
+import type { TickPhaseServiceDeps } from "../game/services/TickPhaseService";
+import type { LoginHandshakeServer } from "./LoginHandshakeService";
+import { PlayerSyncSession } from "./PlayerSyncSession";
+import { NpcSyncSession } from "./NpcSyncSession";
+import { buildPlayerSaveKey } from "../game/state/PlayerSessionKeys";
 
 export function createNpcPacketEncoder(server: WSServerContext): NpcPacketEncoder {
     const services: NpcPacketEncoderServices = {
@@ -1289,5 +1295,276 @@ export function registerMessageHandlers(server: WSServerContext, router: Message
 
 
     // More handlers will be added incrementally...
+}
+
+// ---------------------------------------------------------------------------
+// CombatEffectService factory
+// ---------------------------------------------------------------------------
+
+export function createCombatEffectService(server: WSServerContext): CombatEffectService {
+    const deps: CombatEffectServiceDeps = {
+        getActiveFrame: () => server.activeFrame,
+        getCurrentTick: () => server.options.ticker.currentTick(),
+        getPlayer: (id) => server.players?.getById(id) ?? undefined,
+        getNpcManager: () => server.npcManager,
+        getPlayerCombatManager: () => server.playerCombatManager,
+        getCombatDataService: () => server.combatDataService,
+        getActionScheduler: () => server.actionScheduler,
+        getSeqTypeLoader: () => server.dataLoaderService.getSeqTypeLoader(),
+        getNpcTypeLoader: () => server.npcTypeLoader,
+        getGamemode: () => server.gamemode,
+        getBroadcastScheduler: () => server.broadcastScheduler,
+        getNetworkLayer: () => server.networkLayer,
+        getPlayers: () => server.players,
+        getGroundItems: () => server.groundItems,
+        queueCombatSnapshot: (playerId, weaponCategory, weaponItemId, autoRetaliate, activeStyle, activePrayers, activeSpellId) =>
+            server.queueCombatSnapshot(playerId, weaponCategory, weaponItemId, autoRetaliate, activeStyle, activePrayers, activeSpellId),
+        enqueueSpotAnimation: (event) => server.broadcastService.enqueueSpotAnimation(event),
+        broadcastSound: (request, tag) => server.broadcastService.broadcastSound(request, tag),
+        withDirectSendBypass: (tag, fn) => server.networkLayer.withDirectSendBypass(tag, fn),
+        messagingService: {
+            queueChatMessage: (msg) => server.messagingService.queueChatMessage(msg),
+        },
+        pickAttackSpeed: (player) => server.playerCombatService!.pickAttackSpeed(player),
+    };
+    return new CombatEffectService(deps);
+}
+
+// ---------------------------------------------------------------------------
+// TickPhaseService deps factory
+// ---------------------------------------------------------------------------
+
+export function createTickPhaseServiceDeps(server: WSServerContext): TickPhaseServiceDeps {
+    return {
+        // --- Managers (late-bound, use getters) ---
+        get players() { return server.players; },
+        get npcManager() { return server.npcManager; },
+        get followerManager() { return server.followerManager; },
+        get followerCombatManager() { return server.followerCombatManager; },
+        get playerCombatManager() { return server.playerCombatManager; },
+        get actionScheduler() { return server.actionScheduler; },
+
+        // --- Services (getters for uniform init-order safety) ---
+        get movementService() { return server.movementService; },
+        get movementSystem() { return server.movementSystem; },
+        get soundManager() { return server.soundManager!; },
+        get scriptRuntime() { return server.scriptRuntime; },
+        get scriptScheduler() { return server.scriptScheduler; },
+        get statusEffects() { return server.statusEffects; },
+        get prayerSystem() { return server.prayerSystem; },
+        get playerDeathService() { return server.playerDeathService; },
+        get gatheringSystem() { return server.gatheringSystem; },
+        get groundItems() { return server.groundItems; },
+        get tradeManager() { return server.tradeManager; },
+        get effectDispatcher() { return server.effectDispatcher!; },
+        get inventoryService() { return server.inventoryService; },
+        get accountSummary() { return server.accountSummary; },
+        get reportGameTime() { return server.reportGameTime; },
+        get gamemode() { return server.gamemode; },
+        get playerPersistence() { return server.playerPersistence; },
+
+        // --- Sync encoders ---
+        get npcSyncManager() { return server.npcSyncManager!; },
+        get playerPacketEncoder() { return server.playerPacketEncoder!; },
+        get npcPacketEncoder() { return server.npcPacketEncoder!; },
+        get worldEntityInfoEncoder() { return server.worldEntityInfoEncoder; },
+        get enableBinaryNpcSync() { return server.enableBinaryNpcSync ?? true; },
+
+        // --- Network ---
+        get networkLayer() { return server.networkLayer; },
+        get pendingDirectSends() { return server.pendingDirectSends; },
+        sendWithGuard: (sock, msg, context) => server.networkLayer.sendWithGuard(sock, msg, context),
+        broadcast: (msg, context) => server.broadcastService.broadcast(msg, context),
+
+        // --- Broadcasters ---
+        get skillBroadcaster() { return server.skillBroadcaster; },
+        get varBroadcaster() { return server.varBroadcaster; },
+        get chatBroadcaster() { return server.chatBroadcaster; },
+        get inventoryBroadcaster() { return server.inventoryBroadcaster; },
+        get widgetBroadcaster() { return server.widgetBroadcaster; },
+        get combatBroadcaster() { return server.combatBroadcaster; },
+        get miscBroadcaster() { return server.miscBroadcaster; },
+        get actorSyncBroadcaster() { return server.actorSyncBroadcaster; },
+
+        // --- Gamemode tick callbacks ---
+        get gamemodeTickCallbacks() { return server.gamemodeTickCallbacks; },
+
+        // --- Options ---
+        get tickMs() { return server.options.tickMs; },
+        get pathService() { return server.options.pathService!; },
+
+        // --- Extracted services ---
+        get appearanceService() { return server.appearanceService; },
+        get playerCombatService() { return server.playerCombatService!; },
+        get combatDataService() { return server.combatDataService; },
+        get combatEffectService() { return server.combatEffectService; },
+        get variableService() { return server.variableService; },
+        get varpSyncService() { return server.varpSyncService; },
+        get equipmentStatsUiService() { return server.equipmentStatsUiService; },
+        get interfaceManager() { return server.interfaceManager; },
+        get playerAppearanceManager() { return server.playerAppearanceManager!; },
+
+        // --- Callback deps (closures to underlying services) ---
+        queueWidgetEvent: (playerId, action) => server.queueWidgetEvent(playerId, action),
+        queueClientScript: (playerId, scriptId, ...args) =>
+            server.broadcastService.queueClientScript(playerId, scriptId, ...args),
+        queueCombatSnapshot: (playerId, weaponCategory, weaponItemId, autoRetaliate, activeStyle, activePrayers, activeSpellId) =>
+            server.queueCombatSnapshot(playerId, weaponCategory, weaponItemId, autoRetaliate, activeStyle, activePrayers, activeSpellId),
+        queueDirectSend: (sock, msg, context) => {
+            if (!sock || (sock as WebSocket).readyState !== WebSocket.OPEN) return;
+            if (server.pendingDirectSends.size > 512) {
+                server.pendingDirectSends.clear();
+            }
+            server.pendingDirectSends.set(sock, { message: msg, context });
+        },
+        withDirectSendBypass: (context, fn) => server.networkLayer.withDirectSendBypass(context, fn),
+        sendSkillsMessage: (_ws, player, update) => {
+            const sync = update ?? player.skillSystem.takeSkillSync();
+            if (sync) server.skillService.queueSkillSnapshot(player.id, sync);
+        },
+        sendCombatState: (_ws, player) => {
+            server.queueCombatSnapshot(
+                player.id,
+                player.combatWeaponCategory,
+                player.combatWeaponItemId,
+                !!player.autoRetaliate,
+                player.combatStyleSlot,
+                Array.from(player.activePrayers ?? []),
+                player.combatSpellId > 0 ? player.combatSpellId : undefined,
+            );
+        },
+        enqueueSpotAnimation: (event) => server.broadcastService.enqueueSpotAnimation(event),
+        ensurePlayerSyncSession: (ws) => {
+            let session = server.playerSyncSessions.get(ws);
+            if (!session) {
+                session = new PlayerSyncSession();
+                server.playerSyncSessions.set(ws, session);
+            }
+            return session;
+        },
+        getOrCreateNpcSyncSession: (ws) => {
+            let session = server.npcSyncSessions.get(ws);
+            if (!session) {
+                session = new NpcSyncSession();
+                server.npcSyncSessions.set(ws, session);
+            }
+            return session;
+        },
+        maybeReplayDynamicLocState: (sock, player) =>
+            server.locationService.maybeReplayDynamicLocState(sock, player, false),
+        maybeSendGroundItemSnapshot: (ws, player) =>
+            server.groundItemHandler?.maybeSendGroundItemSnapshot(ws, player),
+        getActiveFrame: () => server.activeFrame,
+
+        // --- Spell action handler ---
+        get spellActionHandler() { return server.spellActionHandler!; },
+    };
+}
+
+// ---------------------------------------------------------------------------
+// LoginHandshakeService server deps factory
+// ---------------------------------------------------------------------------
+
+export function createLoginHandshakeServerDeps(server: WSServerContext): LoginHandshakeServer {
+    return {
+        // --- Network helpers ---
+        withDirectSendBypass: (context, fn) => server.networkLayer.withDirectSendBypass(context, fn),
+        sendWithGuard: (ws, msg, context) => server.networkLayer.sendWithGuard(ws, msg, context),
+
+        // --- Message routing ---
+        get messageRouter() { return server.messageRouter; },
+
+        // --- Sync sessions ---
+        get playerSyncSessions() { return server.playerSyncSessions; },
+        get npcSyncSessions() { return server.npcSyncSessions as Map<WebSocket, unknown>; },
+
+        // --- Extracted services ---
+        get appearanceService() { return server.appearanceService; },
+        get equipmentService() { return server.equipmentService; },
+        get playerCombatService() { return server.playerCombatService!; },
+        get authService() { return server.authService; },
+        get inventoryService() { return server.inventoryService; },
+        get skillService() { return server.skillService; },
+        get movementService() { return server.movementService; },
+        get varpSyncService() { return server.varpSyncService; },
+        get collectionLogService() { return server.collectionLogService; },
+        get variableService() { return server.variableService; },
+        get messagingService() { return server.messagingService; },
+        get playerAppearanceManager() { return server.playerAppearanceManager!; },
+        get interfaceManager() { return server.interfaceManager; },
+
+        // --- Login validation ---
+        get maintenanceMode() { return server.maintenanceMode ?? false; },
+        get cacheEnv() { return server.cacheEnv; },
+
+        // --- Player manager ---
+        get players() { return server.players; },
+
+        // --- Gamemode ---
+        get gamemode() { return server.gamemode; },
+        get gamemodeUi() { return server.gamemodeUi; },
+
+        // --- Options / tick ---
+        get options() { return server.options; },
+
+        // --- Widget dialog handler ---
+        get widgetDialogHandler() { return server.widgetDialogHandler!; },
+
+        // --- Action scheduler ---
+        get actionScheduler() { return server.actionScheduler; },
+
+        // --- Player persistence ---
+        get playerPersistence() { return server.playerPersistence; },
+
+        // --- Player death ---
+        get playerDeathService() { return server.playerDeathService; },
+
+        // --- Follower ---
+        get followerManager() { return server.followerManager; },
+        get followerCombatManager() { return server.followerCombatManager; },
+
+        // --- Methods ---
+        getPlayerSaveKey: (name, id) => buildPlayerSaveKey(name, id),
+        sendCombatState: (_ws, player) => {
+            server.queueCombatSnapshot(
+                player.id,
+                player.combatWeaponCategory,
+                player.combatWeaponItemId,
+                !!player.autoRetaliate,
+                player.combatStyleSlot,
+                Array.from(player.activePrayers ?? []),
+                player.combatSpellId > 0 ? player.combatSpellId : undefined,
+            );
+        },
+        normalizeSideJournalState: (player) => server.normalizeSideJournalState(player),
+        queueWidgetEvent: (playerId, action) => server.queueWidgetEvent(playerId, action),
+        queueSideJournalGamemodeUi: (player) => server.queueSideJournalGamemodeUi(player),
+        queueActivateQuestSideTab: (playerId) => server.queueActivateQuestSideTab(playerId),
+        get locationService() { return server.locationService; },
+
+        // --- NPC ---
+        get npcManager() { return server.npcManager; },
+        get npcSyncManager() { return server.npcSyncManager!; },
+
+        // --- Ground items ---
+        get groundItems() { return server.groundItems; },
+        get groundItemHandler() { return server.groundItemHandler; },
+
+        // --- Cache loaders ---
+        get locTypeLoader() { return server.locTypeLoader; },
+        get npcTypeLoader() { return server.npcTypeLoader; },
+        get objTypeLoader() { return server.objTypeLoader; },
+
+        // --- Event Bus ---
+        get eventBus() { return server.eventBus; },
+
+        // --- Misc cleanup ---
+        get playerDynamicLocSceneKeys() { return server.playerDynamicLocSceneKeys; },
+        get tradeManager() { return server.tradeManager; },
+        get scriptRuntime() { return server.scriptRuntime; },
+        get interfaceService() { return server.interfaceService; },
+        get sailingInstanceManager() { return server.sailingInstanceManager; },
+        get worldEntityInfoEncoder() { return server.worldEntityInfoEncoder; },
+    };
 }
 

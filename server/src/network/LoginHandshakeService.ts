@@ -21,6 +21,7 @@ import {
     VARP_SIDE_JOURNAL_STATE,
 } from "../../../src/shared/vars";
 import { getItemDefinition } from "../data/items";
+import { DIARY_VARBITS } from "../../data/diaryVarbits";
 import { logger } from "../utils/logger";
 
 const NPC_STREAM_RADIUS_TILES = 15;

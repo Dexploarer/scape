@@ -50,8 +50,10 @@ import { getItemDefinition } from "../data/items";
 import { populateLocEffectsFromLoader } from "../data/locEffects";
 import {
     ActionScheduler,
+    CombatActionHandler,
     EffectDispatcher,
     InventoryActionHandler,
+    SpellActionHandler,
     WidgetDialogHandler,
 } from "../game/actions";
 
@@ -70,7 +72,7 @@ import {
 import { FollowerCombatManager } from "../game/followers/FollowerCombatManager";
 import { FollowerManager } from "../game/followers/FollowerManager";
 import { GroundItemManager } from "../game/items/GroundItemManager";
-import type { GamemodeDefinition } from "../game/gamemodes/GamemodeDefinition";
+import type { GamemodeDefinition, GamemodeUiController } from "../game/gamemodes/GamemodeDefinition";
 import { getGamemodeDataDir } from "../game/gamemodes/GamemodeRegistry";
 import { NpcState, type NpcUpdateDelta } from "../game/npc";
 import { NpcManager } from "../game/npcManager";
@@ -92,6 +94,7 @@ import { GatheringSystemManager, ScriptScheduler, StatusEffectSystem, Projectile
 import {
     TickPhaseOrchestrator,
 } from "../game/tick";
+import { PlayerDeathService } from "../game/death/PlayerDeathService";
 import { GameEventBus } from "../game/events/GameEventBus";
 import { GameTicker } from "../game/ticker";
 import { TradeManager } from "../game/trade/TradeManager";
@@ -132,16 +135,20 @@ import type { WSServerContext } from "./WSServerContext";
 import { MessageRouter, type MessageRouterServices } from "./MessageRouter";
 import { buildTeleportNpcUpdateDelta, upsertNpcUpdateDelta } from "./NpcExternalSync";
 import { PlayerSyncSession } from "./PlayerSyncSession";
+import { NpcSyncSession } from "./NpcSyncSession";
 import { AccountSummaryTracker } from "./accountSummary";
 import {
     Cs2ModalManager,
     GroundItemHandler,
+    NpcSyncManager,
     PlayerAppearanceManager,
     SoundManager,
 } from "./managers";
+import { NpcPacketEncoder, PlayerPacketEncoder } from "./encoding";
 import {
     encodeMessage,
 } from "./messages";
+import { encodeAppearanceBinary } from "./encoding/AppearanceEncoder";
 import { REPORT_GAME_TIME_GROUP_ID, ReportGameTimeTracker } from "./reportGameTime";
 import type {
     NpcViewSnapshot,
@@ -281,6 +288,7 @@ export class WSServer {
     // directSendWarningContexts moved to PlayerNetworkLayer
     // widgetOpenLedgerByPlayer, levelUpPopupQueue moved to InterfaceManager
     private playerSyncSessions = new Map<WebSocket, PlayerSyncSession>();
+    private npcSyncSessions = new Map<WebSocket, NpcSyncSession>();
     private activeFrame?: TickFrame;
     private npcTypeLoader?: NpcTypeLoader;
     private combatCategoryData?: CombatCategoryData;
@@ -299,10 +307,20 @@ export class WSServer {
     private playerAppearanceManager!: PlayerAppearanceManager;
     private soundManager!: SoundManager;
     private groundItemHandler!: GroundItemHandler;
+    playerDeathService?: PlayerDeathService;
     private accountSummary!: AccountSummaryTracker;
     private reportGameTime!: ReportGameTimeTracker;
     private scriptAdapterDeps!: ScriptServiceAdapterDeps;
     private cacheFactory: CacheLoaderFactory | undefined;
+    private gamemodeUi?: GamemodeUiController;
+    private npcPacketEncoder?: NpcPacketEncoder;
+    private playerPacketEncoder?: PlayerPacketEncoder;
+    private npcSyncManager?: NpcSyncManager;
+    private playerCombatService?: PlayerCombatService;
+    private spellActionHandler?: SpellActionHandler;
+    private combatActionHandler?: CombatActionHandler;
+    private playerGroundSerial = new Map<number, number>();
+    private playerGroundChunk = new Map<number, number>();
 
     // Broadcast domain handlers
     private readonly chatBroadcaster = new ChatBroadcaster();
@@ -354,8 +372,9 @@ export class WSServer {
             },
             this.autosaveIntervalTicks,
         );
-        this.loginHandshakeService = new LoginHandshakeService(this as unknown as import("./LoginHandshakeService").LoginHandshakeServer);
-        this.tickPhaseService = new TickPhaseService(this as unknown as WSServerContext);
+        const ctx = this as unknown as WSServerContext;
+        this.loginHandshakeService = new LoginHandshakeService(ServiceWiring.createLoginHandshakeServerDeps(ctx));
+        this.tickPhaseService = new TickPhaseService(ServiceWiring.createTickPhaseServiceDeps(ctx));
         this.wss.on("connection", (ws) => this.loginHandshakeService.onConnection(ws));
         opts.ticker.on("tick", (data) => this.tickFrameService.handleTick(data));
     }
@@ -835,10 +854,10 @@ export class WSServer {
     private initServiceWiring(_opts: WSServerOptions): void {
         const ctx = this.asContext;
         if (this.players) {
-            ServiceWiring.createNpcPacketEncoder(ctx);
-            ServiceWiring.createPlayerPacketEncoder(ctx);
-            ServiceWiring.createCombatActionHandler(ctx);
-            ServiceWiring.createSpellActionHandler(ctx);
+            this.npcPacketEncoder = ServiceWiring.createNpcPacketEncoder(ctx);
+            this.playerPacketEncoder = ServiceWiring.createPlayerPacketEncoder(ctx);
+            this.combatActionHandler = ServiceWiring.createCombatActionHandler(ctx);
+            this.spellActionHandler = ServiceWiring.createSpellActionHandler(ctx);
             // Initialize InventoryActionHandler
             this.inventoryActionHandler = ServiceWiring.createInventoryActionHandler(ctx);
             // Initialize EffectDispatcher
@@ -847,7 +866,7 @@ export class WSServer {
             this.widgetDialogHandler = ServiceWiring.createWidgetDialogHandler(ctx);
             // Initialize CS2 modal manager
             this.cs2ModalManager = ServiceWiring.createCs2ModalManager(ctx);
-            ServiceWiring.createNpcSyncManager(ctx);
+            this.npcSyncManager = ServiceWiring.createNpcSyncManager(ctx);
             // Initialize PlayerAppearanceManager
             this.playerAppearanceManager = ServiceWiring.createPlayerAppearanceManager(ctx);
             // Initialize SoundManager
@@ -855,13 +874,14 @@ export class WSServer {
             // soundManager → soundService wired in deferred block below
             // Initialize GroundItemHandler
             this.groundItemHandler = ServiceWiring.createGroundItemHandler(ctx);
-            ServiceWiring.createPlayerDeathService(ctx);
+            this.playerDeathService = ServiceWiring.createPlayerDeathService(ctx);
             // Initialize ProjectileSystem
             this.projectileSystem = ServiceWiring.createProjectileSystem(ctx);
             // Initialize GatheringSystemManager
             this.gatheringSystem = ServiceWiring.createGatheringSystem(ctx);
             // Initialize EquipmentHandler
             this.equipmentHandler = ServiceWiring.createEquipmentHandler(ctx);
+            this.combatEffectService = ServiceWiring.createCombatEffectService(ctx);
             // Phase 3 deferred deps wired in consolidated block below
             // Initialize TickPhaseOrchestrator
             this.tickOrchestrator = ServiceWiring.createTickOrchestrator(ctx);
@@ -887,6 +907,17 @@ export class WSServer {
                 this.groundItems.spawn(itemId, qty, tile, tick, opts, worldViewId ?? -1);
             });
         }
+
+        this.actionDispatchService = new ActionDispatchService({
+            inventoryActionHandler: this.inventoryActionHandler,
+            combatActionHandler: this.combatActionHandler!,
+            executeMovementTeleportAction: (player, data, tick) =>
+                this.movementService.executeMovementTeleportAction(player, data, tick),
+            executeEmotePlayAction: (player, data) =>
+                this.movementService.executeEmotePlayAction(player, data),
+            getScriptServices: () => this.scriptRuntime.getServices(),
+            findActionHandler: (kind) => this.scriptRegistry.findActionHandler(kind),
+        });
     }
 
     private initDeferredDeps(opts: WSServerOptions): void {
@@ -975,6 +1006,25 @@ export class WSServer {
         });
         logger.info("[services] Phase 4 combat data service initialized");
 
+        this.levelUpDisplayService = new LevelUpDisplayService({
+            queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
+            enqueueSpotAnimation: (anim) => this.broadcastService.enqueueSpotAnimation(anim),
+            sendJingle: (player, jingleId, delay) => this.soundManager?.sendJingle(player, jingleId, delay ?? 0),
+            sendSound: (player, soundId) => this.soundManager?.sendSound(player, soundId),
+            getCurrentTick: () => this.options.ticker.currentTick(),
+        });
+        this.equipmentStatsUiService = new EquipmentStatsUiService({
+            queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
+            computeEquipmentStatBonuses: (player) => this.equipmentService.computeEquipmentStatBonuses(player),
+            ensureEquipArray: (player) => this.equipmentService.ensureEquipArray(player),
+            formatEquipmentSignedInt: (v) => this.equipmentService.formatEquipmentSignedInt(v),
+            formatEquipmentSignedPercent: (v) => this.equipmentService.formatEquipmentSignedPercent(v),
+            formatEquipmentSignedIntPercent: (v) => this.equipmentService.formatEquipmentSignedIntPercent(v),
+            formatEquipmentAttackSpeedSeconds: (ticks) => this.equipmentService.formatEquipmentAttackSpeedSeconds(ticks),
+            resolveBaseAttackSpeed: (player) => this.playerCombatService.resolveBaseAttackSpeed(player),
+            pickAttackSpeed: (player) => this.playerCombatService.pickAttackSpeed(player),
+        });
+
         // --- Phase 5: Initialize location service ---
         this.locationService = new LocationService({
             getActiveFrame: () => this.activeFrame,
@@ -1059,7 +1109,7 @@ export class WSServer {
             cacheEnv: this.cacheEnv,
             players: undefined!,
         });
-        new PlayerCombatService({
+        this.playerCombatService = new PlayerCombatService({
             dataLoaders: this.dataLoaderService,
             weaponData: this.appearanceService.getWeaponData(),
             ensureEquipArray: (p) => this.equipmentService.ensureEquipArray(p),
@@ -1216,7 +1266,7 @@ export class WSServer {
             });
 
             if (this.gamemode.createUiController) {
-                this.gamemode.createUiController({
+                this.gamemodeUi = this.gamemode.createUiController({
                     queueWidgetEvent: (playerId, action) =>
                         this.queueWidgetEvent(playerId, action),
                     queueVarp: (playerId, varpId, value) =>
@@ -1302,6 +1352,18 @@ export class WSServer {
         } catch (err) { logger.warn("[bot] test bot spawn failed", err); }
     }
 
+    private serializeAppearancePayload(
+        view: import("./encoding/types").PlayerViewSnapshot,
+    ): Uint8Array {
+        const player = this.players?.getById(view.id);
+        return encodeAppearanceBinary(view, {
+            combatLevel: player?.combatLevel ?? 3,
+            skillLevel: player?.skillTotal ?? 32,
+            isHidden: false,
+            actions: ["", "", ""],
+        });
+    }
+
     private withDirectSendBypass<T>(context: string, fn: () => T): T {
         return this.networkLayer.withDirectSendBypass(context, fn);
     }
@@ -1312,6 +1374,22 @@ export class WSServer {
 
     getScriptScheduler(): ScriptScheduler {
         return this.scriptScheduler;
+    }
+
+    private normalizeSideJournalState(
+        player: PlayerState,
+        incomingStateVarp?: number,
+    ): { tab: number; stateVarp: number } {
+        return this.gamemodeUi?.normalizeSideJournalState(player, incomingStateVarp)
+            ?? { tab: 0, stateVarp: incomingStateVarp ?? 0 };
+    }
+
+    private queueSideJournalGamemodeUi(player: PlayerState): void {
+        this.gamemodeUi?.applySideJournalUi(player);
+    }
+
+    private queueActivateQuestSideTab(playerId: number): void {
+        this.gamemodeUi?.activateQuestTab(playerId);
     }
 
     private queueWidgetEvent(playerId: number, action: WidgetAction): void {

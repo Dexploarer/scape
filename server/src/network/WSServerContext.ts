@@ -73,6 +73,8 @@ import type { SpellCastingService } from "../game/services/SpellCastingService";
 import type { TickPhaseService } from "../game/services/TickPhaseService";
 import type { TickFrameService } from "../game/services/TickFrameService";
 import type { CombatEffectService } from "../game/services/CombatEffectService";
+import type { VarpSyncService } from "../game/services/VarpSyncService";
+import type { EquipmentStatsUiService } from "../game/services/EquipmentStatsUiService";
 import type { ProjectileTimingService } from "../game/services/ProjectileTimingService";
 import type { InventoryMessageService } from "../game/services/InventoryMessageService";
 
@@ -83,13 +85,29 @@ import type { DoorStateManager } from "../world/DoorStateManager";
 import type { InterfaceService } from "../widgets/InterfaceService";
 import type { WidgetAction } from "../widgets/WidgetManager";
 
+import type {
+    ChatBroadcaster,
+    ActorSyncBroadcaster,
+    SkillBroadcaster,
+    VarBroadcaster,
+    InventoryBroadcaster,
+    WidgetBroadcaster,
+    CombatBroadcaster,
+    MiscBroadcaster,
+} from "./broadcast";
+import type { AccountSummaryTracker } from "./accountSummary";
+import type { ReportGameTimeTracker } from "./reportGameTime";
 import type { AuthenticationService } from "./AuthenticationService";
+import type { MessageRouter } from "./MessageRouter";
 import type { BroadcastService } from "./BroadcastService";
 import type { LoginHandshakeService } from "./LoginHandshakeService";
 import type { PlayerNetworkLayer } from "./PlayerNetworkLayer";
 import type { PlayerSyncSession } from "./PlayerSyncSession";
+import type { NpcSyncSession } from "./NpcSyncSession";
 import type { SailingInstanceManager } from "../game/sailing/SailingInstanceManager";
 import type { WorldEntityInfoEncoder } from "./encoding/WorldEntityInfoEncoder";
+import type { PlayerPacketEncoder } from "./encoding";
+import type { NpcPacketEncoder } from "./encoding";
 import type {
     Cs2ModalManager,
     GroundItemHandler,
@@ -139,10 +157,25 @@ export interface WSServerContext {
     readonly soundService: SoundService;
     readonly movementService: MovementService;
     readonly combatEffectService: CombatEffectService;
+    readonly varpSyncService: VarpSyncService;
+    readonly equipmentStatsUiService: EquipmentStatsUiService;
     readonly tickPhaseService: TickPhaseService;
     readonly tickFrameService: TickFrameService;
     readonly broadcastService: BroadcastService;
     readonly loginHandshakeService: LoginHandshakeService;
+    readonly messageRouter: MessageRouter;
+    readonly accountSummary: AccountSummaryTracker;
+    readonly reportGameTime: ReportGameTimeTracker;
+
+    // ── Broadcasters ─────────────────────────────────────────────────────
+    readonly chatBroadcaster: ChatBroadcaster;
+    readonly actorSyncBroadcaster: ActorSyncBroadcaster;
+    readonly skillBroadcaster: SkillBroadcaster;
+    readonly varBroadcaster: VarBroadcaster;
+    readonly inventoryBroadcaster: InventoryBroadcaster;
+    readonly widgetBroadcaster: WidgetBroadcaster;
+    readonly combatBroadcaster: CombatBroadcaster;
+    readonly miscBroadcaster: MiscBroadcaster;
 
     // ── Systems / managers ────────────────────────────────────────────────
     readonly actionScheduler: ActionScheduler;
@@ -165,6 +198,8 @@ export interface WSServerContext {
     readonly prayerSystem: PrayerSystem;
     interfaceService?: InterfaceService;
     readonly worldEntityInfoEncoder: WorldEntityInfoEncoder;
+    playerPacketEncoder?: PlayerPacketEncoder;
+    npcPacketEncoder?: NpcPacketEncoder;
 
     // ── Network managers ──────────────────────────────────────────────────
     cs2ModalManager?: Cs2ModalManager;
@@ -207,6 +242,10 @@ export interface WSServerContext {
         { snapshots: NpcViewSnapshot[]; updates: NpcUpdatePayload[]; despawns: number[] }
     >;
     readonly playerSyncSessions: Map<WebSocket, PlayerSyncSession>;
+    readonly npcSyncSessions: Map<WebSocket, NpcSyncSession>;
+    readonly pendingDirectSends: Map<WebSocket, { message: string | Uint8Array; context: string }>;
+    readonly playerDynamicLocSceneKeys: Map<number, string>;
+    enableBinaryNpcSync?: boolean;
     readonly gamemodeTickCallbacks: Array<(tick: number) => void>;
     readonly gamemodeSnapshotEncoders: Map<
         string,
@@ -254,6 +293,7 @@ export interface WSServerContext {
     hasModalOpen(playerId: number): boolean;
     normalizeSideJournalState(player: PlayerState, value?: number): { stateVarp: number; tab: number };
     queueSideJournalGamemodeUi(player: PlayerState): void;
+    queueActivateQuestSideTab(playerId: number): void;
     serializeAppearancePayload(view: PlayerViewSnapshot): Uint8Array;
     createTickFrame(opts: { tick: number; time: number }): TickFrame;
     restorePendingFrame(frame: TickFrame): void;

@@ -8,6 +8,7 @@ import type {
 } from "../../src/game/gamemodes/GamemodeDefinition";
 import type { PlayerState } from "../../src/game/player";
 import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
+import { PlayerType } from "../../../src/rs/chat/PlayerType";
 
 import {
     FEATURE_FLAG_LEAGUES,
@@ -77,10 +78,6 @@ export class LeaguesVGamemode extends VanillaGamemode {
 
     override getDropRateMultiplier(player: PlayerState | undefined): number {
         return getLeagueVDropRateMultiplier(player);
-    }
-
-    override isDropBoostEligible(entry: { dropBoostEligible?: boolean }): boolean {
-        return entry.dropBoostEligible === true;
     }
 
     override transformDropItemId(npcTypeId: number, itemId: number, player: PlayerState | undefined): number {
@@ -326,17 +323,14 @@ export class LeaguesVGamemode extends VanillaGamemode {
 
     // === Display ===
 
-    override getDisplayName(player: PlayerState, baseName: string, isAdmin: boolean): string {
-        if (!baseName) return "";
-        if (!isAdmin || !isLeagueWorld(player)) return baseName;
-        const ADMIN_CROWN_ICON = 1;
-        const prefix = `<img=${ADMIN_CROWN_ICON}>`;
-        return baseName.startsWith(prefix) ? baseName : `${prefix}${baseName}`;
-    }
-
-    override getChatPlayerType(player: PlayerState, isAdmin: boolean): number {
-        if (isLeagueWorld(player)) return 6;
-        return isAdmin ? 2 : 0;
+    override getPlayerTypes(player: PlayerState, isAdmin: boolean): PlayerType[] {
+        const types: PlayerType[] = [];
+        if (isAdmin) types.push(PlayerType.JagexModerator);
+        if (isLeagueWorld(player)) {
+            types.push(PlayerType.LeagueWorld);
+        }
+        if (types.length === 0) types.push(PlayerType.Normal);
+        return types;
     }
 
     // === Scripts ===

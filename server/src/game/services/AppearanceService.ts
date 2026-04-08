@@ -304,11 +304,7 @@ export class AppearanceService {
     }
 
     getAppearanceDisplayName(player: PlayerState | undefined): string {
-        const baseName = player?.name ?? "";
-        return this.services.gamemode.getDisplayName(
-            player as PlayerState,
-            baseName,
-            this.services.authService.isAdminPlayer(player),
-        );
+        if (!player) return "";
+        return this.services.authService.resolvePlayerDisplay(player).displayName;
     }
 }

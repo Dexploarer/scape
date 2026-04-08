@@ -7,7 +7,7 @@ import { getEmoteSeq } from "../emotes";
 import { LockState } from "../model/LockState";
 import type { PlayerState } from "../player";
 import type { ServerServices } from "../ServerServices";
-import { buildRebuildRegionPayload } from "../../network/encoding/RebuildRegionEncoder";
+import { buildRebuildRegionPayload } from "../../world/InstanceManager";
 import { logger } from "../../utils/logger";
 
 export interface RunEnergyPayload {

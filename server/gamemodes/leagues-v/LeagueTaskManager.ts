@@ -37,7 +37,7 @@ function queuePackedVarpUpdates(
     updates: Array<{ id: number; value: number }>,
 ): void {
     for (const update of updates) {
-        services.variables.queueVarp(playerId, update.id, update.value);
+        services.queueVarp(playerId, update.id, update.value);
     }
 }
 
@@ -140,12 +140,12 @@ export class LeagueTaskManager {
         const packedVarpUpdates = syncLeaguePackedVarps(player);
         queuePackedVarpUpdates(this.services, playerId, packedVarpUpdates);
 
-        this.services.variables.queueVarbit(
+        this.services.queueVarbit(
             playerId,
             VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND,
             nextPointsToSpend,
         );
-        this.services.variables.queueVarbit(playerId, VARBIT_LEAGUE_MASTERY_POINTS_EARNED, nextPointsEarned);
+        this.services.queueVarbit(playerId, VARBIT_LEAGUE_MASTERY_POINTS_EARNED, nextPointsEarned);
 
         logger.info(
             `[LeagueTaskManager] Awarded mastery point to player ${playerId} (now ${nextPointsToSpend} to spend, ${nextPointsEarned} earned)`,
@@ -261,12 +261,12 @@ export class LeagueTaskManager {
         if (result.changed) {
             // Queue varp updates
             for (const v of result.varpUpdates) {
-                this.services.variables.queueVarp(playerId, v.id, v.value);
+                this.services.queueVarp(playerId, v.id, v.value);
             }
 
             // Queue varbit updates
             for (const v of result.varbitUpdates) {
-                this.services.variables.queueVarbit(playerId, v.id, v.value);
+                this.services.queueVarbit(playerId, v.id, v.value);
             }
 
             // Queue notification
@@ -301,11 +301,11 @@ export class LeagueTaskManager {
 
         if (result.changed) {
             for (const v of result.varpUpdates) {
-                this.services.variables.queueVarp(playerId, v.id, v.value);
+                this.services.queueVarp(playerId, v.id, v.value);
             }
 
             for (const v of result.varbitUpdates) {
-                this.services.variables.queueVarbit(playerId, v.id, v.value);
+                this.services.queueVarbit(playerId, v.id, v.value);
             }
 
             if (result.notification) {
@@ -406,7 +406,7 @@ export class LeagueTaskManager {
                 player.varps.setVarbitValue(varbitId, 1);
                 const packedVarpUpdates = syncLeaguePackedVarps(player);
                 queuePackedVarpUpdates(this.services, playerId, packedVarpUpdates);
-                this.services.variables.queueVarbit(playerId, varbitId, 1);
+                this.services.queueVarbit(playerId, varbitId, 1);
 
                 const notification = {
                     kind: "league_task",
@@ -430,7 +430,7 @@ export class LeagueTaskManager {
             player.varps.setVarbitValue(varbitId, 1);
             const packedVarpUpdates = syncLeaguePackedVarps(player);
             queuePackedVarpUpdates(this.services, playerId, packedVarpUpdates);
-            this.services.variables.queueVarbit(playerId, varbitId, 1);
+            this.services.queueVarbit(playerId, varbitId, 1);
 
             const notification = {
                 kind: "league_task",

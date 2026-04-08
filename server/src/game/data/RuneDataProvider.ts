@@ -1,3 +1,5 @@
+import { getProviderRegistry } from "../providers/ProviderRegistry";
+
 export type RuneId = {
     AIR: number;
     WATER: number;
@@ -48,8 +50,6 @@ export interface RuneDataProvider {
 // Provider Registration & Delegation
 // =============================================================================
 
-import { getProviderRegistry } from "../providers/ProviderRegistry";
-
 export function registerRuneDataProvider(provider: RuneDataProvider): void {
     getProviderRegistry().runeData = provider;
 }
@@ -77,8 +77,9 @@ export const RUNE_IDS: RuneId = new Proxy(
 
 export const ALL_RUNE_ITEM_IDS: number[] = new Proxy([] as number[], {
     get(target, prop, receiver) {
-        if (_provider) {
-            const ids = _provider.getAllRuneItemIds();
+        const provider = getRuneDataProvider();
+        if (provider) {
+            const ids = provider.getAllRuneItemIds();
             if (prop === "length") return ids.length;
             if (prop === Symbol.iterator) return ids[Symbol.iterator].bind(ids);
             if (typeof prop === "string" && !isNaN(Number(prop))) {
@@ -94,8 +95,9 @@ export const COMBINATION_RUNES: CombinationRune[] = new Proxy(
     [] as CombinationRune[],
     {
         get(target, prop, receiver) {
-            if (_provider) {
-                const runes = _provider.getCombinationRunes();
+            const provider = getRuneDataProvider();
+            if (provider) {
+                const runes = provider.getCombinationRunes();
                 if (prop === "length") return runes.length;
                 if (prop === Symbol.iterator) return runes[Symbol.iterator].bind(runes);
                 if (typeof prop === "string" && !isNaN(Number(prop))) {
@@ -112,8 +114,9 @@ export const STAFF_SUBSTITUTIONS: StaffSubstitution[] = new Proxy(
     [] as StaffSubstitution[],
     {
         get(target, prop, receiver) {
-            if (_provider) {
-                const subs = _provider.getStaffSubstitutions();
+            const provider = getRuneDataProvider();
+            if (provider) {
+                const subs = provider.getStaffSubstitutions();
                 if (prop === "length") return subs.length;
                 if (prop === Symbol.iterator) return subs[Symbol.iterator].bind(subs);
                 if (typeof prop === "string" && !isNaN(Number(prop))) {

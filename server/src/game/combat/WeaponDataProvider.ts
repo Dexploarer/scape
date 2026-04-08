@@ -1,3 +1,5 @@
+import { getProviderRegistry } from "../providers/ProviderRegistry";
+
 export type AttackTypeValue = "stab" | "slash" | "crush" | "ranged" | "magic";
 
 export const AttackType = {
@@ -171,8 +173,6 @@ export const CombatCategoryConst = {
 // Provider Registration & Delegation
 // =============================================================================
 
-import { getProviderRegistry } from "../providers/ProviderRegistry";
-
 export function registerWeaponDataProvider(provider: WeaponDataProvider): void {
     getProviderRegistry().weaponData = provider;
 }
@@ -320,8 +320,9 @@ export function getRangedImpactSound(weaponId: number) {
 /** @deprecated Access weapon data through WeaponDataProvider instead */
 export const weaponDataEntries: WeaponDataEntry[] = new Proxy([] as WeaponDataEntry[], {
     get(target, prop, receiver) {
-        if (_provider) {
-            const entries = _provider.getAllEntries();
+        const provider = getWeaponDataProvider();
+        if (provider) {
+            const entries = provider.getAllEntries();
             if (prop === "length") return entries.length;
             if (prop === Symbol.iterator) return entries[Symbol.iterator].bind(entries);
             if (typeof prop === "string" && !isNaN(Number(prop))) {
@@ -338,8 +339,9 @@ export const weaponDataMap: Map<number, WeaponDataEntry> = new Proxy(
     new Map<number, WeaponDataEntry>(),
     {
         get(target, prop, receiver) {
-            if (_provider) {
-                const map = _provider.getEntryMap();
+            const provider = getWeaponDataProvider();
+            if (provider) {
+                const map = provider.getEntryMap();
                 if (prop === "get") return map.get.bind(map);
                 if (prop === "has") return map.has.bind(map);
                 if (prop === "size") return map.size;

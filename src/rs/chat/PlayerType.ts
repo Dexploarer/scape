@@ -1,4 +1,15 @@
-// OSRS `PlayerType` mapping.
+export const enum PlayerType {
+    Normal = 0,
+    PlayerModerator = 1,
+    JagexModerator = 2,
+    Ironman = 3,
+    UltimateIronman = 4,
+    HardcoreIronman = 5,
+    LeagueWorld = 6,
+    GroupIronman = 7,
+    HardcoreGroupIronman = 8,
+    UnrankedGroupIronman = 9,
+}
 
 export type PlayerTypeInfo = {
     id: number;
@@ -35,4 +46,35 @@ export function getPlayerTypeInfo(playerTypeId: number): PlayerTypeInfo | undefi
 export function playerTypeIdToModIcon(playerTypeId: number | undefined | null): number {
     if (playerTypeId == null) return -1;
     return getPlayerTypeInfo(playerTypeId)?.modIcon ?? -1;
+}
+
+/**
+ * Given an ordered list of PlayerTypes, resolves the protocol playerType
+ * and display name with stacked mod icons.
+ *
+ * The last entry becomes the protocol playerType (the client auto-prepends
+ * its modIcon). All preceding entries with valid modIcons get their icons
+ * prepended as `<img=X>` tags to the display name.
+ */
+export function resolvePlayerDisplay(
+    types: PlayerType[],
+    baseName: string,
+): { playerType: number; displayName: string } {
+    if (types.length === 0) {
+        return { playerType: PlayerType.Normal, displayName: baseName };
+    }
+
+    const protocolType = types[types.length - 1];
+    let prefix = "";
+    for (let i = 0; i < types.length - 1; i++) {
+        const modIcon = playerTypeIdToModIcon(types[i]);
+        if (modIcon >= 0) {
+            prefix += `<img=${modIcon}>`;
+        }
+    }
+
+    return {
+        playerType: protocolType,
+        displayName: prefix ? prefix + baseName : baseName,
+    };
 }

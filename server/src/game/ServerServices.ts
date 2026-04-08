@@ -171,7 +171,7 @@ export interface ServerServices {
     maintenanceMode?: boolean;
 
     // ── Cache / data loaders ─────────────────────────────────────────────
-    cacheEnv?: CacheEnv;
+    cacheEnv: CacheEnv;
     npcTypeLoader?: NpcTypeLoader;
     locTypeLoader?: LocTypeLoader;
     objTypeLoader?: ObjTypeLoader;

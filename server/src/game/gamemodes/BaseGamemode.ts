@@ -1,3 +1,4 @@
+import { PlayerType } from "../../../../src/rs/chat/PlayerType";
 import type { PlayerState } from "../player";
 import type { IScriptRegistry, ScriptServices } from "../scripts/types";
 import type {
@@ -67,10 +68,6 @@ export abstract class BaseGamemode implements GamemodeDefinition {
         return 1;
     }
 
-    isDropBoostEligible(_entry: { dropBoostEligible?: boolean }): boolean {
-        return false;
-    }
-
     transformDropItemId(_npcTypeId: number, itemId: number, _player: PlayerState | undefined): number {
         return itemId;
     }
@@ -109,12 +106,8 @@ export abstract class BaseGamemode implements GamemodeDefinition {
 
     // === Display ===
 
-    getDisplayName(_player: PlayerState, baseName: string, _isAdmin: boolean): string {
-        return baseName;
-    }
-
-    getChatPlayerType(_player: PlayerState, _isAdmin: boolean): number {
-        return 0;
+    getPlayerTypes(_player: PlayerState, _isAdmin: boolean): PlayerType[] {
+        return [PlayerType.Normal];
     }
 
     // === Scripts ===

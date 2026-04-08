@@ -1,3 +1,4 @@
+import { resolvePlayerDisplay } from "../../../src/rs/chat/PlayerType";
 import { VARBIT_ACCOUNT_TYPE } from "../../../src/shared/vars";
 import type { GamemodeDefinition } from "../game/gamemodes/GamemodeDefinition";
 import type { PlayerState } from "../game/player";
@@ -82,8 +83,13 @@ export class AuthenticationService {
         return normalized >= 0 && normalized <= 5 ? normalized : 0;
     }
 
+    resolvePlayerDisplay(player: PlayerState): { playerType: number; displayName: string } {
+        const types = this.gamemode.getPlayerTypes(player, this.isAdminPlayer(player));
+        return resolvePlayerDisplay(types, player.name ?? "");
+    }
+
     getPublicChatPlayerType(player: PlayerState): number {
-        return this.gamemode.getChatPlayerType(player, this.isAdminPlayer(player));
+        return this.resolvePlayerDisplay(player).playerType;
     }
 
     syncAccountTypeVarbit(

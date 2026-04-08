@@ -23,7 +23,6 @@ const STUB_GAMEMODE = {
     name: "Stress Test",
     getSkillXpMultiplier: () => 1,
     getDropRateMultiplier: () => 1,
-    isDropBoostEligible: () => false,
     transformDropItemId: (_n: number, id: number) => id,
     canInteract: () => true,
     initializePlayer: () => {},
@@ -34,8 +33,7 @@ const STUB_GAMEMODE = {
     getSpawnLocation: () => ({ x: 3222, y: 3218, level: 0 }),
     onPlayerHandshake: () => {},
     onPlayerLogin: () => {},
-    getDisplayName: (_p: unknown, name: string) => name,
-    getChatPlayerType: () => 0,
+    getPlayerTypes: () => [0 /* PlayerType.Normal */],
     registerHandlers: () => {},
     initialize: () => {},
 } as unknown as GamemodeDefinition;

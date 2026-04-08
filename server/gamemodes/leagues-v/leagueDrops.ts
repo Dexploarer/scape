@@ -49,6 +49,11 @@ export function getLeagueVDropRateMultiplier(player: PlayerState | undefined): n
     return 1;
 }
 
+/**
+ * Swaps specific drop items on league worlds to match Leagues V parity.
+ * e.g. Zulrah drops Uncharged Toxic Trident instead of Magic Fang,
+ * Cerberus drops Eternal Boots instead of Eternal Crystal.
+ */
 export function getLeagueVReplacementItemId(
     npcTypeId: number,
     itemId: number,

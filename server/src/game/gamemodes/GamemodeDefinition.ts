@@ -131,7 +131,6 @@ export interface GamemodeDefinition {
 
     // === Drops ===
     getDropRateMultiplier(player: PlayerState | undefined): number;
-    isDropBoostEligible(entry: { dropBoostEligible?: boolean }): boolean;
     transformDropItemId(npcTypeId: number, itemId: number, player: PlayerState | undefined): number;
     /** Override or provide a custom drop table for an NPC type. */
     getDropTable?(npcTypeId: number): import("../drops/types").NpcDropTableDefinition | undefined;
@@ -177,8 +176,7 @@ export interface GamemodeDefinition {
     onPlayerDisconnect?(playerId: number): void;
 
     // === Display ===
-    getDisplayName(player: PlayerState, baseName: string, isAdmin: boolean): string;
-    getChatPlayerType(player: PlayerState, isAdmin: boolean): number;
+    getPlayerTypes(player: PlayerState, isAdmin: boolean): import("../../../../src/rs/chat/PlayerType").PlayerType[];
 
     // === Scripts ===
     registerHandlers(registry: IScriptRegistry, services: ScriptServices): void;

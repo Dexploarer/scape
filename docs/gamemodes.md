@@ -307,7 +307,6 @@ The full interface is defined in `server/src/game/gamemodes/GamemodeDefinition.t
 |--------|---------|
 | `getSkillXpMultiplier()` | `1` |
 | `getDropRateMultiplier()` | `1` |
-| `isDropBoostEligible()` | `false` |
 | `transformDropItemId()` | passthrough |
 | `canInteract()` | `true` |
 | `initializePlayer()` | no-op |
@@ -318,8 +317,7 @@ The full interface is defined in `server/src/game/gamemodes/GamemodeDefinition.t
 | `getSpawnLocation()` | Lumbridge (3222, 3218, 0) |
 | `onPlayerHandshake()` | no-op |
 | `onPlayerLogin()` | no-op |
-| `getDisplayName()` | passthrough |
-| `getChatPlayerType()` | `0` |
+| `getPlayerTypes()` | `[PlayerType.Normal]` |
 | `registerHandlers()` | no-op |
 | `initialize()` | no-op |
 

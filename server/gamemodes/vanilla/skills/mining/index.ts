@@ -147,7 +147,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
 
     if (success) {
         if (hasEchoPickaxePerk) {
-            const banked = services.addItemToBank?.(player, rock.oreItemId, 1);
+            const banked = services.banking?.addItemToBank?.(player, rock.oreItemId, 1);
             if (!banked) {
                 return failMiningPrecheck(player, services, "Your bank is too full to hold any more ore.");
             }
@@ -195,7 +195,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         effects.push({ type: "inventorySnapshot", playerId: player.id });
     }
     if (bankSnapshot) {
-        services.queueBankSnapshot(player);
+        services.banking?.queueBankSnapshot?.(player);
     }
 
     let continueMining = !services.gathering?.getTracker("mining")?.has(nodeKey);

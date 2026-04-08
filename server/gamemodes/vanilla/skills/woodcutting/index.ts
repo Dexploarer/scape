@@ -154,7 +154,7 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
     }
     if (success) {
         if (hasEchoAxePerk) {
-            const banked = services.addItemToBank?.(player, tree.logItemId, 1);
+            const banked = services.banking?.addItemToBank?.(player, tree.logItemId, 1);
             if (!banked) {
                 const logName = describeItem(services, tree.logItemId);
                 return failGatheringPrecheck(player, services, `Your bank is too full to hold any more ${logName}.`);
@@ -199,7 +199,7 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
         effects.push({ type: "inventorySnapshot", playerId: player.id });
     }
     if (bankSnapshot) {
-        services.queueBankSnapshot(player);
+        services.banking?.queueBankSnapshot?.(player);
     }
 
     let continueChopping = !treeDepleted && !services.gathering?.getTracker("woodcutting")?.has(nodeKey);

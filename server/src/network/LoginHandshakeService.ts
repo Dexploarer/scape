@@ -838,7 +838,12 @@ export class LoginHandshakeService {
                     if (id !== undefined) {
                         this.svc.widgetDialogHandler!.cleanupPlayerDialogState(id);
                     }
-                    this.svc.scriptRuntime.getServices().shopping?.closeShop?.(player);
+                    const widgetCloseHandlers = this.svc.scriptRuntime.getServices().widgetCloseHandlers;
+                    if (widgetCloseHandlers) {
+                        for (const handler of widgetCloseHandlers.values()) {
+                            handler(player);
+                        }
+                    }
                     this.svc.interfaceService?.onPlayerDisconnect(player);
                     try {
                         const closedWidgets = player.widgets.closeAll({ silent: true });

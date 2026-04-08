@@ -5,13 +5,13 @@ import { WidgetGroup, BankMainChild, BankSideChild, slotToTabIndex, BankLimits, 
 
 export function registerBankingHandlers(registry: IScriptRegistry, services: ScriptServices): void {
     registry.registerNpcAction("bank", ({ player, services }) => {
-        services.openBank(player, { mode: "bank" });
+        services.banking?.openBank?.(player, { mode: "bank" });
     });
     registry.registerNpcAction("collect", ({ player, services }) => {
-        services.openBank(player, { mode: "collect" });
+        services.banking?.openBank?.(player, { mode: "collect" });
     });
     registry.registerLocAction("bank", ({ player, services }) => {
-        services.openBank(player, { mode: "bank" });
+        services.banking?.openBank?.(player, { mode: "bank" });
     });
 
     registerBankWidgetHandlers(registry, services);
@@ -21,13 +21,13 @@ export function registerBankingHandlers(registry: IScriptRegistry, services: Scr
     registry.registerClientMessageHandler("bank_deposit_inventory", (event) => {
         const tab = event.payload?.tab;
         const tabValue = tab !== undefined && (tab as number) > 0 ? (tab as number) : undefined;
-        event.services.depositInventoryToBank?.(event.player, tabValue);
+        event.services.banking?.depositInventoryToBank?.(event.player, tabValue);
     });
 
     registry.registerClientMessageHandler("bank_deposit_equipment", (event) => {
         const tab = event.payload?.tab;
         const tabValue = tab !== undefined && (tab as number) > 0 ? (tab as number) : undefined;
-        event.services.depositEquipmentToBank?.(event.player, tabValue);
+        event.services.banking?.depositEquipmentToBank?.(event.player, tabValue);
     });
 
     registry.registerClientMessageHandler("bank_deposit_item", (event) => {
@@ -37,7 +37,7 @@ export function registerBankingHandlers(registry: IScriptRegistry, services: Scr
         const quantity = typeof payload.quantity === "number" ? payload.quantity : 0;
         const itemIdHint = payload.itemId as number | undefined;
         const tab = payload.tab !== undefined && (payload.tab as number) > 0 ? (payload.tab as number) : undefined;
-        const result = event.services.depositInventoryItemToBank?.(
+        const result = event.services.banking?.depositInventoryItemToBank?.(
             event.player, slot, quantity, { itemIdHint, tab },
         );
         if (result && !result.ok && result.message) {
@@ -58,7 +58,7 @@ export function registerBankingHandlers(registry: IScriptRegistry, services: Scr
                 : modeRaw === "swap"
                 ? false
                 : event.player.bank.getBankInsertMode();
-        const entry = event.services.getBankEntryAtClientSlot?.(event.player, from);
+        const entry = event.services.banking?.getBankEntryAtClientSlot?.(event.player, from);
         if (!entry) return;
         const banking = event.services.gamemodeServices?.banking as BankingProvider | undefined;
         if (banking?.moveBankSlot) {

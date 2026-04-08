@@ -299,7 +299,7 @@ export interface ScriptRegistrationResult {
     unregister(): void;
 }
 
-export { type BankingServices, type ShoppingServices, type GatheringServices } from "./serviceInterfaces";
+export { type BankingServices, type ShoppingServices, type GatheringServices, type WidgetCloseHandler, type ModalActionHandler } from "./serviceInterfaces";
 export { DisplayMode, BaseComponentUids, type InterfaceMount, type SmithingOptionMessage, type SmithingServerPayload, type WidgetAction } from "./serviceInterfaces";
 export { getMainmodalUid, getSidemodalUid, getPrayerTabUid, getViewportTrackerFrontUid } from "../../widgets/viewport";
 export type { DoorToggleResult, GateDef, GatePair, GateOpenStyle, DoorPartnerResult } from "./serviceInterfaces";
@@ -336,7 +336,7 @@ export type { DropEligibility, NpcLootConfig } from "./serviceInterfaces";
 export { applyAutocastState, clearAutocastState } from "./serviceInterfaces";
 export { getEmoteSeq, getSkillcapeSeqId, getSkillcapeSpotId } from "./serviceInterfaces";
 
-import type { GatheringServices, MessagingFacade, VariableFacade, SkillFacade, DataLoaderFacade, SystemFacade, InventoryFacade, EquipmentFacade, AnimationFacade, SoundFacade, AppearanceFacade, DialogFacade, MovementFacade, LocationFacade, CombatFacade, NpcFacade, CollectionLogFacade, ViewportFacade, FollowerServiceFacade, ProductionServiceFacade, SailingServiceFacade, BankingServices, ShoppingServices } from "./serviceInterfaces";
+import type { GatheringServices, MessagingFacade, VariableFacade, SkillFacade, DataLoaderFacade, SystemFacade, InventoryFacade, EquipmentFacade, AnimationFacade, SoundFacade, AppearanceFacade, DialogFacade, MovementFacade, LocationFacade, CombatFacade, NpcFacade, CollectionLogFacade, ViewportFacade, FollowerServiceFacade, ProductionServiceFacade, SailingServiceFacade, BankingServices, ShoppingServices, WidgetCloseHandler, ModalActionHandler } from "./serviceInterfaces";
 
 export interface ScriptServices extends GatheringServices {
     messaging: MessagingFacade;
@@ -362,4 +362,6 @@ export interface ScriptServices extends GatheringServices {
     sailing?: SailingServiceFacade;
     banking?: BankingServices;
     shopping?: ShoppingServices;
+    widgetCloseHandlers?: Map<number, WidgetCloseHandler>;
+    modalActionHandlers?: Map<number, ModalActionHandler>;
 }

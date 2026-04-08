@@ -197,7 +197,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         }
 
         if (hasEchoHarpoonPerk) {
-            const banked = services.addItemToBank?.(player, rewardItemId, quantity);
+            const banked = services.banking?.addItemToBank?.(player, rewardItemId, quantity);
             if (!banked) {
                 return failFishingPrecheck(player, services, "Your bank is too full to hold any more fish.");
             }
@@ -239,7 +239,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         effects.push({ type: "inventorySnapshot", playerId: player.id });
     }
     if (bankSnapshot) {
-        services.queueBankSnapshot(player);
+        services.banking?.queueBankSnapshot?.(player);
     }
 
     let continueFishing = true;

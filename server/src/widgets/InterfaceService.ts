@@ -22,23 +22,11 @@ import { getMainmodalUid, getSidemodalUid } from "./viewport";
 
 // =============== INTERFACE CONSTANTS ===============
 
-/** Shop main interface */
-export const SHOP_INTERFACE_ID = 300;
-
-/** Shop inventory side panel */
-export const SHOP_INVENTORY_INTERFACE_ID = 301;
-
 /** Normal inventory interface */
 export const INVENTORY_INTERFACE_ID = 149;
 
 /** Player inventory ID (inv 93) */
 export const PLAYER_INV_ID = 93;
-
-/** Shop stock inventory ID (inv 516) */
-export const SHOP_STOCK_INV_ID = 516;
-
-/** Shop stock component within interface 300 */
-export const SHOP_STOCK_COMPONENT = 16;
 
 // =============== DIALOG INTERFACE CONSTANTS ===============
 
@@ -76,17 +64,6 @@ export const VARBIT_DIALOG_MODE = 5983;
 
 // =============== IF_SETEVENTS FLAGS ===============
 
-/**
- * Flags for shop stock widget (300:16)
- * Enables: ops 1-6 (buy 1/5/10/50), op 9, op 10 (examine)
- */
-export const SHOP_STOCK_FLAGS = 1662;
-
-/**
- * Flags for shop inventory widget (301:0)
- * Enables: ops 1-5 (sell 1/5/10/50), op 10 (examine)
- */
-export const SHOP_INV_FLAGS = 1086;
 
 /**
  * Flags for normal inventory widget (149:0)
@@ -123,11 +100,6 @@ export const SCRIPT_FOCUS_TAB = 915;
 
 // =============== SCRIPT IDS ===============
 
-/** interface_inv_init - initializes inventory side panel with sell options */
-export const SCRIPT_INTERFACE_INV_INIT = 149;
-
-/** shop_main_init - initializes main shop interface */
-export const SCRIPT_SHOP_MAIN_INIT = 1074;
 
 /** inventory_init - initializes normal inventory with drag/drop */
 export const SCRIPT_INVENTORY_INIT = 6007;
@@ -171,16 +143,16 @@ export interface InterfaceHookRegistry {
  * const interfaceService = new InterfaceService(dispatcher);
  *
  * // Register hooks (typically at server startup)
- * interfaceService.onInterfaceOpen(SHOP_INTERFACE_ID, (player, ctx) => {
+ * interfaceService.onInterfaceOpen(300, (player, ctx) => {
  *     ctx.service.openInventorySidePanel(player, { ... });
  * });
  *
- * interfaceService.onInterfaceClose(SHOP_INTERFACE_ID, (player, ctx) => {
+ * interfaceService.onInterfaceClose(300, (player, ctx) => {
  *     ctx.service.restoreNormalInventory(player);
  * });
  *
  * // Open shop (hooks execute automatically)
- * interfaceService.openModal(player, SHOP_INTERFACE_ID, { shopData });
+ * interfaceService.openModal(player, 300, { shopData });
  *
  * // Close shop (hooks execute automatically)
  * interfaceService.closeModal(player);

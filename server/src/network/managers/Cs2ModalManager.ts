@@ -6,44 +6,15 @@ import {
     INDEXED_MENU_SCRIPT_ID,
 } from "../../../../src/shared/ui/indexedMenu";
 import {
-    SMITHING_BAR_MODAL_COMPONENT_ADAMANT,
-    SMITHING_BAR_MODAL_COMPONENT_ADAMANT_ICON,
-    SMITHING_BAR_MODAL_COMPONENT_ADAMANT_TEXT,
     SMITHING_BAR_MODAL_COMPONENT_BODY,
-    SMITHING_BAR_MODAL_COMPONENT_BRONZE,
-    SMITHING_BAR_MODAL_COMPONENT_BRONZE_ICON,
-    SMITHING_BAR_MODAL_COMPONENT_BRONZE_TEXT,
     SMITHING_BAR_MODAL_COMPONENT_CLOSE,
     SMITHING_BAR_MODAL_COMPONENT_FRAME,
-    SMITHING_BAR_MODAL_COMPONENT_IRON,
-    SMITHING_BAR_MODAL_COMPONENT_IRON_ICON,
-    SMITHING_BAR_MODAL_COMPONENT_IRON_TEXT,
-    SMITHING_BAR_MODAL_COMPONENT_LOVAKITE,
-    SMITHING_BAR_MODAL_COMPONENT_LOVAKITE_ICON,
-    SMITHING_BAR_MODAL_COMPONENT_LOVAKITE_TEXT,
-    SMITHING_BAR_MODAL_COMPONENT_MITHRIL,
-    SMITHING_BAR_MODAL_COMPONENT_MITHRIL_ICON,
-    SMITHING_BAR_MODAL_COMPONENT_MITHRIL_TEXT,
-    SMITHING_BAR_MODAL_COMPONENT_RUNE,
-    SMITHING_BAR_MODAL_COMPONENT_RUNE_ICON,
-    SMITHING_BAR_MODAL_COMPONENT_RUNE_TEXT,
-    SMITHING_BAR_MODAL_COMPONENT_STEEL,
-    SMITHING_BAR_MODAL_COMPONENT_STEEL_ICON,
-    SMITHING_BAR_MODAL_COMPONENT_STEEL_TEXT,
     SMITHING_BAR_MODAL_COMPONENT_TITLE,
     SMITHING_BAR_MODAL_GROUP_ID,
 } from "../../../../src/shared/ui/widgets";
 import { FONT_BOLD_12 } from "../../../../src/ui/fonts";
 import type { ServerServices } from "../../game/ServerServices";
 import type { PlayerState } from "../../game/player";
-
-type SmithingBarOption = {
-    barType: number;
-    buttonComponentId: number;
-    iconComponentId: number;
-    textComponentId: number;
-    label: string;
-};
 
 export type IndexedMenuRequest = {
     title: string;
@@ -64,70 +35,16 @@ const SCRIPT_STEELBORDER_NOCLOSE = 3737;
 const SCRIPT_STONEBUTTON_INIT = 2424;
 
 const STONEBUTTON_STYLE_OUTLINE = 0;
-const SMITHING_BAR_OPTIONS: readonly SmithingBarOption[] = [
-    {
-        barType: 1,
-        buttonComponentId: SMITHING_BAR_MODAL_COMPONENT_BRONZE,
-        iconComponentId: SMITHING_BAR_MODAL_COMPONENT_BRONZE_ICON,
-        textComponentId: SMITHING_BAR_MODAL_COMPONENT_BRONZE_TEXT,
-        label: "Bronze",
-    },
-    {
-        barType: 2,
-        buttonComponentId: SMITHING_BAR_MODAL_COMPONENT_IRON,
-        iconComponentId: SMITHING_BAR_MODAL_COMPONENT_IRON_ICON,
-        textComponentId: SMITHING_BAR_MODAL_COMPONENT_IRON_TEXT,
-        label: "Iron",
-    },
-    {
-        barType: 3,
-        buttonComponentId: SMITHING_BAR_MODAL_COMPONENT_STEEL,
-        iconComponentId: SMITHING_BAR_MODAL_COMPONENT_STEEL_ICON,
-        textComponentId: SMITHING_BAR_MODAL_COMPONENT_STEEL_TEXT,
-        label: "Steel",
-    },
-    {
-        barType: 4,
-        buttonComponentId: SMITHING_BAR_MODAL_COMPONENT_MITHRIL,
-        iconComponentId: SMITHING_BAR_MODAL_COMPONENT_MITHRIL_ICON,
-        textComponentId: SMITHING_BAR_MODAL_COMPONENT_MITHRIL_TEXT,
-        label: "Mithril",
-    },
-    {
-        barType: 5,
-        buttonComponentId: SMITHING_BAR_MODAL_COMPONENT_ADAMANT,
-        iconComponentId: SMITHING_BAR_MODAL_COMPONENT_ADAMANT_ICON,
-        textComponentId: SMITHING_BAR_MODAL_COMPONENT_ADAMANT_TEXT,
-        label: "Adamant",
-    },
-    {
-        barType: 6,
-        buttonComponentId: SMITHING_BAR_MODAL_COMPONENT_RUNE,
-        iconComponentId: SMITHING_BAR_MODAL_COMPONENT_RUNE_ICON,
-        textComponentId: SMITHING_BAR_MODAL_COMPONENT_RUNE_TEXT,
-        label: "Rune",
-    },
-    {
-        barType: 7,
-        buttonComponentId: SMITHING_BAR_MODAL_COMPONENT_LOVAKITE,
-        iconComponentId: SMITHING_BAR_MODAL_COMPONENT_LOVAKITE_ICON,
-        textComponentId: SMITHING_BAR_MODAL_COMPONENT_LOVAKITE_TEXT,
-        label: "Lovakite",
-    },
-] as const;
 
 /**
  * Reusable manager for custom CS2-driven modals mounted in mainmodal.
  */
 export class Cs2ModalManager {
-    private readonly activeSmithingBarModalPlayers = new Set<number>();
     private readonly activeIndexedMenus = new Map<number, IndexedMenuState>();
 
     constructor(private readonly svc: ServerServices) {}
 
     openSmithingBarModal(player: PlayerState): void {
-        const playerId = player.id;
-        this.activeSmithingBarModalPlayers.add(playerId);
         this.svc.interfaceService?.openModal(player, SMITHING_BAR_MODAL_GROUP_ID);
         this.applySmithingBarModalLayout(player);
     }
@@ -192,15 +109,12 @@ export class Cs2ModalManager {
         option?: string,
         itemId?: number,
     ): boolean {
-        const normalizedGroupId = groupId;
-        if (normalizedGroupId === SMITHING_BAR_MODAL_GROUP_ID) {
-            return this.handleSmithingBarModalAction(player, componentId, option);
+        const handler = this.svc.scriptRuntime.getServices().modalActionHandlers?.get(groupId);
+        if (handler) {
+            return handler(player, componentId, option);
         }
         const playerId = player.id;
         const currentModal = this.svc.interfaceService?.getCurrentModal(player);
-        if (currentModal !== SMITHING_BAR_MODAL_GROUP_ID) {
-            this.activeSmithingBarModalPlayers.delete(playerId);
-        }
         if (currentModal !== INDEXED_MENU_GROUP_ID) {
             this.activeIndexedMenus.delete(playerId);
         }
@@ -208,10 +122,6 @@ export class Cs2ModalManager {
     }
 
     handleWidgetCloseState(player: PlayerState, groupId: number): void {
-        if (groupId === SMITHING_BAR_MODAL_GROUP_ID) {
-            this.activeSmithingBarModalPlayers.delete(player.id);
-            return;
-        }
         if (groupId === INDEXED_MENU_GROUP_ID) {
             this.activeIndexedMenus.delete(player.id);
         }
@@ -219,7 +129,6 @@ export class Cs2ModalManager {
 
     clearPlayerState(player: PlayerState): void {
         const playerId = player.id;
-        this.activeSmithingBarModalPlayers.delete(playerId);
         this.activeIndexedMenus.delete(playerId);
     }
 
@@ -243,39 +152,6 @@ export class Cs2ModalManager {
             toSlot: state.options.length - 1,
             flags: INDEXED_MENU_PAUSE_BUTTON_FLAGS,
         });
-    }
-
-    private handleSmithingBarModalAction(
-        player: PlayerState,
-        componentId: number,
-        option?: string,
-    ): boolean {
-        const playerId = player.id;
-        if (!this.activeSmithingBarModalPlayers.has(playerId)) {
-            return false;
-        }
-
-        const component = componentId;
-        if (component === SMITHING_BAR_MODAL_COMPONENT_CLOSE || option === "Close") {
-            this.closeSmithingBarModal(player);
-            return true;
-        }
-
-        const selected = SMITHING_BAR_OPTIONS.find(
-            (entry) =>
-                entry.buttonComponentId === component ||
-                entry.iconComponentId === component ||
-                entry.textComponentId === component,
-        );
-        if (!selected) {
-            return false;
-        }
-
-        player.varps.setVarbitValue(3216, selected.barType);
-        this.activeSmithingBarModalPlayers.delete(playerId);
-        this.svc.interfaceService?.closeModal(player);
-        this.svc.scriptRuntime.getServices().production?.openForgeInterface?.(player);
-        return true;
     }
 
     private applySmithingBarModalLayout(player: PlayerState): void {
@@ -305,12 +181,6 @@ export class Cs2ModalManager {
             SMITHING_BAR_MODAL_COMPONENT_BODY,
             "Choose a metal type, then the anvil list updates to that bar.",
         );
-    }
-
-    private closeSmithingBarModal(player: PlayerState): void {
-        const playerId = player.id;
-        this.activeSmithingBarModalPlayers.delete(playerId);
-        this.svc.interfaceService?.closeModal(player);
     }
 
     private drawStoneButtonInGroup(

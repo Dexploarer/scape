@@ -30,7 +30,7 @@ import {
     SHOP_STOCK_COMPONENT,
     SHOP_STOCK_FLAGS,
     SHOP_STOCK_INV_ID,
-} from "../../../src/widgets/InterfaceService";
+} from "./shopConstants";
 
 /**
  * Shop snapshot data passed when opening a shop.

@@ -3,7 +3,7 @@ import type { PlayerState } from "../../src/game/player";
 import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
 import type { ObjType } from "../../../src/rs/config/objtype/ObjType";
 import type { GamemodeBridge, GamemodeDefinition, GamemodeInitContext, GamemodeServerServices, HandshakeBridge } from "../../src/game/gamemodes/GamemodeDefinition";
-import { SHOP_INTERFACE_ID } from "../../src/widgets/InterfaceService";
+import { SHOP_INTERFACE_ID } from "./shops/shopConstants";
 import { BankingManager, registerBankingHandlers } from "./banking";
 import { registerBankInterfaceHooks } from "./banking";
 import { registerEquipmentHandlers } from "./equipment/equipment";
@@ -37,6 +37,8 @@ import { registerSettingsWidgetHandlers } from "./widgets/settingsWidgets";
 import { registerQuestJournalWidgetHandlers } from "./widgets/questJournalWidgets";
 import { registerAccountSummaryWidgetHandlers } from "./widgets/accountSummaryWidgets";
 import { registerCollectionLogWidgetHandlers } from "./widgets/collectionLogWidgets";
+import { registerWidgetCloseHandlers } from "./widgets/widgetCloseHandlers";
+import { registerSmithingBarModalHandler } from "./widgets/smithingBarModalHandler";
 import type { NpcLootConfig } from "../../src/game/combat/DamageTracker";
 import { DEFAULT_LOGIN_VARBITS } from "./data/loginVarbits";
 import { DEFAULT_LOGIN_VARPS } from "./data/loginVarps";
@@ -147,50 +149,64 @@ export class VanillaGamemode implements GamemodeDefinition {
         // Banking services
         const bm = this.bankingManager;
         if (bm) {
-            services.openBank = (player, opts) => bm.openBank(player, opts);
-            services.depositInventoryToBank = (player, tab) => bm.depositInventory(player, tab);
-            services.depositEquipmentToBank = (player, tab) => bm.depositEquipment(player, tab);
-            services.depositInventoryItemToBank = (player, slot, quantity, opts) => {
-                const slotIndex = Math.trunc(slot);
-                const amount = Math.trunc(quantity);
-                const itemIdHintRaw = opts?.itemIdHint;
-                const tabRaw = opts?.tab;
-                return bm.depositItem(
-                    player,
-                    slotIndex,
-                    amount,
-                    itemIdHintRaw !== undefined && Number.isFinite(itemIdHintRaw)
-                        ? Math.trunc(itemIdHintRaw)
-                        : undefined,
-                    tabRaw !== undefined && Number.isFinite(tabRaw)
-                        ? Math.trunc(tabRaw)
-                        : undefined,
-                );
+            services.banking = {
+                openBank: (player, opts) => bm.openBank(player, opts),
+                depositInventoryToBank: (player, tab) => bm.depositInventory(player, tab),
+                depositEquipmentToBank: (player, tab) => bm.depositEquipment(player, tab),
+                depositInventoryItemToBank: (player, slot, quantity, opts) => {
+                    const slotIndex = Math.trunc(slot);
+                    const amount = Math.trunc(quantity);
+                    const itemIdHintRaw = opts?.itemIdHint;
+                    const tabRaw = opts?.tab;
+                    return bm.depositItem(
+                        player,
+                        slotIndex,
+                        amount,
+                        itemIdHintRaw !== undefined && Number.isFinite(itemIdHintRaw)
+                            ? Math.trunc(itemIdHintRaw)
+                            : undefined,
+                        tabRaw !== undefined && Number.isFinite(tabRaw)
+                            ? Math.trunc(tabRaw)
+                            : undefined,
+                    );
+                },
+                withdrawFromBankSlot: (player, slot, quantity, opts) =>
+                    bm.withdraw(player, slot, quantity, { overrideNoted: opts?.noted }),
+                getBankEntryAtClientSlot: (player, clientSlot) =>
+                    bm.getBankEntryAtClientSlot(player, clientSlot),
+                queueBankSnapshot: (player) => bm.queueBankSnapshot(player),
+                sendBankTabVarbits: (player) => bm.sendBankTabVarbits(player),
+                addItemToBank: (player, itemId, qty) => bm.addItemToBank(player, itemId, qty),
             };
-            services.withdrawFromBankSlot = (player, slot, quantity, opts) =>
-                bm.withdraw(player, slot, quantity, { overrideNoted: opts?.noted });
-            services.getBankEntryAtClientSlot = (player, clientSlot) =>
-                bm.getBankEntryAtClientSlot(player, clientSlot);
-            services.queueBankSnapshot = (player) => bm.queueBankSnapshot(player);
-            services.sendBankTabVarbits = (player) => bm.sendBankTabVarbits(player);
-            services.addItemToBank = (player, itemId, qty) => bm.addItemToBank(player, itemId, qty);
         }
 
         // Shop services
         const sm = this.shopManager;
         const ss = this.serverServices;
         if (sm && ss) {
-            services.openShop = (player, opts) => this.openShopInterface(player, opts);
-            services.closeShop = (player) => this.closeShopInterface(player);
-            services.buyFromShop = (player, params) => this.handleShopBuy(player, params);
-            services.sellToShop = (player, params) => this.handleShopSell(player, params);
-            services.setShopBuyMode = (player, mode) => this.updateShopMode(player, "buy", mode);
-            services.setShopSellMode = (player, mode) => this.updateShopMode(player, "sell", mode);
-            services.getShopSlotValue = (player, slotIndex) =>
-                sm.getShopSlotValue(player, slotIndex) ?? undefined;
-            services.getInventoryItemSellValue = (player, itemId) =>
-                sm.getInventoryItemSellValue(player, itemId) ?? undefined;
+            services.shopping = {
+                openShop: (player, opts) => this.openShopInterface(player, opts),
+                closeShop: (player) => this.closeShopInterface(player),
+                buyFromShop: (player, params) => this.handleShopBuy(player, params),
+                sellToShop: (player, params) => this.handleShopSell(player, params),
+                setShopBuyMode: (player, mode) => this.updateShopMode(player, "buy", mode),
+                setShopSellMode: (player, mode) => this.updateShopMode(player, "sell", mode),
+                getShopSlotValue: (player, slotIndex) =>
+                    sm.getShopSlotValue(player, slotIndex) ?? undefined,
+                getInventoryItemSellValue: (player, itemId) =>
+                    sm.getInventoryItemSellValue(player, itemId) ?? undefined,
+            };
         }
+
+        // Widget close handlers
+        registerWidgetCloseHandlers(services, {
+            closeModal: (player) => ss?.getInterfaceService()?.closeModal(player),
+        });
+
+        // Smithing bar modal handler
+        registerSmithingBarModalHandler(services, {
+            closeModal: (player) => ss?.getInterfaceService()?.closeModal(player),
+        });
     }
 
     registerHandlers(registry: IScriptRegistry, services: ScriptServices): void {

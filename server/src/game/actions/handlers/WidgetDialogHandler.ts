@@ -135,8 +135,6 @@ const DOUBLE_SPRITE_TEXT_COMPONENT = 2;
 const DOUBLE_SPRITE_RIGHT_ITEM_COMPONENT = 3;
 const DOUBLE_SPRITE_CONTINUE_COMPONENT = 4;
 
-const SHOP_GROUP_ID = 300;
-const BANK_GROUP_ID = 12;
 
 // ============================================================================
 // WidgetDialogHandler
@@ -728,13 +726,8 @@ export class WidgetDialogHandler {
         if (active && active.groupId === groupId) {
             this.triggerAndClearActiveDialogCloseHandler(player.id, groupId);
         }
-        if (groupId === SHOP_GROUP_ID) {
-            this.svc.scriptRuntime.getServices().shopping?.closeShop?.(player);
-        } else if (groupId === BANK_GROUP_ID) {
-            this.svc.interfaceService?.closeModal(player);
-        } else if (groupId === 312) {
-            this.svc.broadcastService.queueSmithingInterfaceMessage(player.id, { kind: "close" } as any);
-        }
+        const handler = this.svc.scriptRuntime.getServices().widgetCloseHandlers?.get(groupId);
+        handler?.(player);
     }
 
     // ========================================================================

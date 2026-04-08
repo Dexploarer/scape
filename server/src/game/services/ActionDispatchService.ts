@@ -74,11 +74,6 @@ export class ActionDispatchService {
                 return this.services.movementService.executeMovementTeleportAction(player, action.data as MovementTeleportActionData, tick);
             case "emote.play":
                 return this.services.movementService.executeEmotePlayAction(player, action.data as EmotePlayActionData);
-            case "npc.trade": {
-                const tradeData = action.data as { npcTypeId?: number; shopId?: string };
-                this.services.scriptRuntime.getServices().shopping?.openShop?.(player, tradeData);
-                return { ok: true, effects: [] };
-            }
             default: {
                 const scriptHandler = this.services.scriptRegistry.findActionHandler(action.kind);
                 if (scriptHandler) {

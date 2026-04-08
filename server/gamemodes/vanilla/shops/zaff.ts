@@ -126,7 +126,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
         switch (selected) {
             case "Yes, please!":
                 activeConvos.delete(pid);
-                services.openShop?.(player, { npcTypeId: ZAFF_NPC_ID });
+                services.shopping?.openShop?.(player, { npcTypeId: ZAFF_NPC_ID });
                 break;
 
             case "No, thank you.":

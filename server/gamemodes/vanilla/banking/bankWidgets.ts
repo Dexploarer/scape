@@ -90,7 +90,7 @@ const handleWithdrawOp = (event: WidgetActionEvent, opId: number): void => {
 
     const { player, services } = event;
 
-    const entry = services.getBankEntryAtClientSlot(player, event.slot);
+    const entry = services.banking?.getBankEntryAtClientSlot?.(player, event.slot);
     if (!entry || entry.itemId <= 0 || entry.quantity <= 0) return;
 
     if (event.itemId !== undefined && event.itemId > 0 && event.itemId !== entry.itemId) {
@@ -104,7 +104,7 @@ const handleWithdrawOp = (event: WidgetActionEvent, opId: number): void => {
     if (!(quantity > 0)) return;
 
     const noted = player.bank.getBankWithdrawNotes();
-    const result = services.withdrawFromBankSlot(player, event.slot, quantity, { noted });
+    const result = services.banking!.withdrawFromBankSlot!(player, event.slot, quantity, { noted });
     if (!result.ok && result.message) {
         services.messaging.sendGameMessage(player, result.message);
     }
@@ -127,7 +127,7 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
         widgetId: BANK_WIDGET_DEPOSIT_INV,
         handler: ({ player, services, groupId }) => {
             if (groupId !== BANK_GROUP_ID) return;
-            const moved = services.depositInventoryToBank(player);
+            const moved = services.banking?.depositInventoryToBank?.(player);
             services.system.logger.debug?.(
                 `[script:bank-widgets] deposit inventory player=${player.id} moved=${moved}`,
             );
@@ -138,7 +138,7 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
         widgetId: BANK_WIDGET_DEPOSIT_WORN,
         handler: ({ player, services, groupId }) => {
             if (groupId !== BANK_GROUP_ID) return;
-            const moved = services.depositEquipmentToBank(player);
+            const moved = services.banking?.depositEquipmentToBank?.(player);
             services.system.logger.debug?.(
                 `[script:bank-widgets] deposit equipment player=${player.id} moved=${moved}`,
             );
@@ -243,8 +243,8 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
             `[script:bank-widgets] release placeholders player=${player.id} cleared=${cleared}`,
         );
         if (cleared > 0) {
-            services.queueBankSnapshot(player);
-            services.sendBankTabVarbits(player);
+            services.banking?.queueBankSnapshot?.(player);
+            services.banking?.sendBankTabVarbits?.(player);
         }
     });
 
@@ -276,7 +276,7 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
             }
         }
         if (filled > 0) {
-            services.queueBankSnapshot(player);
+            services.banking?.queueBankSnapshot?.(player);
             services.system.logger.debug?.(
                 `[script:bank-widgets] fillers enabled player=${player.id} count=${filled}`,
             );
@@ -298,7 +298,7 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
             }
         }
         if (cleared > 0) {
-            services.queueBankSnapshot(player);
+            services.banking?.queueBankSnapshot?.(player);
             services.system.logger.debug?.(
                 `[script:bank-widgets] fillers released player=${player.id} cleared=${cleared}`,
             );

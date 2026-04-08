@@ -106,6 +106,14 @@ export interface BankingServices {
 }
 
 // ============================================================================
+// Widget Lifecycle (gamemode-contributed)
+// ============================================================================
+
+export type WidgetCloseHandler = (player: PlayerState) => void;
+
+export type ModalActionHandler = (player: PlayerState, componentId: number, option?: string) => boolean;
+
+// ============================================================================
 // Shopping (gamemode-contributed)
 // ============================================================================
 

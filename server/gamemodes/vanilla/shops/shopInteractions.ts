@@ -87,7 +87,7 @@ function openAuburyStandardOptions(
                             break;
                         case "I'd like to view your store please.":
                         case "Yes please!":
-                            services.openShop?.(player, { npcTypeId });
+                            services.shopping?.openShop?.(player, { npcTypeId });
                             break;
                         case "No thank you.":
                         case "Oh, it's a rune shop. No thank you, then.":
@@ -137,6 +137,11 @@ function openPlayerDialog(
 }
 
 export function registerShopInteractionHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+    registry.registerActionHandler("npc.trade", ({ player, data, services }) => {
+        const tradeData = data as { npcTypeId?: number; shopId?: string };
+        services.shopping?.openShop?.(player, tradeData);
+        return { ok: true, effects: [] };
+    });
     registry.registerNpcAction("trade", ({ player, services, npc, tick }) => {
         if (npc?.typeId == null) return;
         services.combat.requestAction(

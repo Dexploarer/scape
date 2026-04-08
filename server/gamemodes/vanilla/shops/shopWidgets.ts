@@ -2,7 +2,7 @@ import {
     SHOP_INTERFACE_ID,
     SHOP_INVENTORY_INTERFACE_ID,
     SHOP_STOCK_COMPONENT,
-} from "../../../src/widgets/InterfaceService";
+} from "./shopConstants";
 import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
 
 // Widget UIDs for shop stock (300:16) and shop inventory (301:0)
@@ -59,7 +59,7 @@ export function registerShopWidgetHandlers(registry: IScriptRegistry, _services:
             if (slot === undefined) return;
             const slotIndex = childIndexToSlot(slot);
             if (slotIndex < 0) return;
-            const info = services.getShopSlotValue?.(player, slotIndex);
+            const info = services.shopping?.getShopSlotValue?.(player, slotIndex);
             if (info) {
                 const priceText =
                     info.buyPrice === 0
@@ -80,7 +80,7 @@ export function registerShopWidgetHandlers(registry: IScriptRegistry, _services:
                 if (slot === undefined) return;
                 const slotIndex = childIndexToSlot(slot);
                 if (slotIndex < 0) return;
-                services.buyFromShop?.(player, { slotIndex, quantity });
+                services.shopping?.buyFromShop?.(player, { slotIndex, quantity });
             },
         });
     }
@@ -95,7 +95,7 @@ export function registerShopWidgetHandlers(registry: IScriptRegistry, _services:
         opId: SHOP_OP_VALUE,
         handler: ({ player, services, itemId }) => {
             if (itemId === undefined || itemId <= 0) return;
-            const info = services.getInventoryItemSellValue?.(player, itemId);
+            const info = services.shopping?.getInventoryItemSellValue?.(player, itemId);
             if (info) {
                 const priceText =
                     info.sellPrice === 0
@@ -114,7 +114,7 @@ export function registerShopWidgetHandlers(registry: IScriptRegistry, _services:
             opId,
             handler: ({ player, services, slot, itemId }) => {
                 if (slot === undefined || itemId === undefined) return;
-                services.sellToShop?.(player, {
+                services.shopping?.sellToShop?.(player, {
                     inventorySlot: slot,
                     itemId: itemId,
                     quantity,

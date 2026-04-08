@@ -326,8 +326,7 @@ export class LoginHandshakeService {
                 this.svc.varpSyncService.sendSavedAutocastTransmitVarbits(ws, p);
                 this.svc.varpSyncService.sendSavedSpellbookState(ws, p);
                 this.svc.varpSyncService.syncAccountTypeVarbit(ws, p);
-                const sideJournalState = this.svc.gamemodeUi?.normalizeSideJournalState(p)
-                    ?? { tab: 0, stateVarp: 0 };
+                const sideJournalState = this.svc.gamemodeUi.normalizeSideJournalState(p);
                 this.svc.networkLayer.withDirectSendBypass("varp", () =>
                     this.svc.networkLayer.sendWithGuard(
                         ws,
@@ -452,8 +451,7 @@ export class LoginHandshakeService {
                         const questVarbits: Record<number, number> = {};
                         if (intf.groupId === SIDE_JOURNAL_GROUP_ID) {
                             const gamemodeSideJournalBootstrap =
-                                this.svc.gamemodeUi?.getSideJournalBootstrapState(p)
-                                ?? { varps: {}, varbits: {} };
+                                this.svc.gamemodeUi.getSideJournalBootstrapState(p);
                             Object.assign(questVarps, gamemodeSideJournalBootstrap.varps);
                             Object.assign(questVarbits, gamemodeSideJournalBootstrap.varbits);
                         }
@@ -487,14 +485,14 @@ export class LoginHandshakeService {
                         });
 
                         if (intf.groupId === SIDE_JOURNAL_GROUP_ID) {
-                            this.svc.gamemodeUi?.applySideJournalUi(p);
+                            this.svc.gamemodeUi.applySideJournalUi(p);
                         }
                     }
                     if (tutorialMode && !preStartMode) {
-                        this.svc.gamemodeUi?.activateQuestTab(p.id);
+                        this.svc.gamemodeUi.activateQuestTab(p.id);
                     }
                     if (p.account.accountStage >= 1 && this.svc.gamemode.isTutorialActive(p)) {
-                        this.svc.gamemodeUi?.queueTutorialOverlay(p);
+                        this.svc.gamemodeUi.queueTutorialOverlay(p);
                     }
 
                     // IF_SETEVENTS for inventory widget slots
@@ -736,7 +734,7 @@ export class LoginHandshakeService {
                             }
 
                             if (this.svc.gamemode.isTutorialActive(p)) {
-                                this.svc.gamemodeUi?.queueTutorialOverlay(p, { queueFlashsideVarbitOnStep3: true });
+                                this.svc.gamemodeUi.queueTutorialOverlay(p, { queueFlashsideVarbitOnStep3: true });
                             } else {
                                 p.account.accountStage = 2;
                                 const displayMode = p.displayMode ?? 1;

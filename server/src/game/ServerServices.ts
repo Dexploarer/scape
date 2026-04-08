@@ -163,7 +163,7 @@ export interface ServerServices {
     readonly ticker: GameTicker;
     readonly tickMs: number;
     readonly gamemode: GamemodeDefinition;
-    gamemodeUi?: GamemodeUiController;
+    gamemodeUi: GamemodeUiController;
     readonly pathService?: PathService;
     readonly mapService?: MapCollisionService;
     readonly eventBus: GameEventBus;

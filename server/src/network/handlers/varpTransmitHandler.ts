@@ -86,7 +86,7 @@ function handleSideJournalVarp(
     }
     services.getGamemode()?.onVarpTransmit?.(p, VARP_SIDE_JOURNAL_STATE, value, previousVarpValue);
     if (sideJournalSelectionChanged) {
-        services.getGamemodeUi()?.applySideJournalUi(p);
+        services.getGamemodeUi().applySideJournalUi(p);
     }
 }
 

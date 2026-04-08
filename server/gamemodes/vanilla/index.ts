@@ -2,14 +2,15 @@ import type { BankingProviderServices } from "./banking/BankingProvider";
 import type { PlayerState } from "../../src/game/player";
 import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
 import type { ObjType } from "../../../src/rs/config/objtype/ObjType";
-import type { GamemodeBridge, GamemodeDefinition, GamemodeInitContext, GamemodeServerServices, HandshakeBridge } from "../../src/game/gamemodes/GamemodeDefinition";
+import type { GamemodeDefinition, GamemodeInitContext, GamemodeServerServices } from "../../src/game/gamemodes/GamemodeDefinition";
+import { BaseGamemode } from "../../src/game/gamemodes/BaseGamemode";
 import { SHOP_INTERFACE_ID } from "./shops/shopConstants";
 import { BankingManager, registerBankingHandlers } from "./banking";
 import { registerBankInterfaceHooks } from "./banking";
 import { registerEquipmentHandlers } from "./equipment/equipment";
 import { registerEquipmentWidgetHandlers } from "./equipment/equipmentWidgets";
 import { registerEquipmentStatsInterfaceHooks } from "./equipment/EquipmentStatsInterfaceHooks";
-import { isPlayerOnDockedSailingBoat, restoreDockedSailingState, restoreSailingInstanceUi } from "./skills/sailing";
+import { handleSailingPlayerRestore } from "./skills/sailing";
 import { register as registerSkillHandlers } from "./skills";
 import { ShopManager, type ShopStockEntry, type ShopOpenData } from "./shops";
 import { registerShopInterfaceHooks } from "./shops";
@@ -47,43 +48,17 @@ import { DEFAULT_LOGIN_VARPS } from "./data/loginVarps";
 import { NPC_LOOT_CONFIGS } from "./data/lootDistribution";
 import { registerLevelUpHandlers, handleResumePauseButton, handleDismiss } from "./scripts/levelup";
 
-const DEFAULT_SPAWN = { x: 3222, y: 3218, level: 0 };
-
-export class VanillaGamemode implements GamemodeDefinition {
-    readonly id = "vanilla";
-    readonly name = "Vanilla";
+export class VanillaGamemode extends BaseGamemode {
+    override readonly id = "vanilla";
+    override readonly name = "Vanilla";
 
     private bankingManager: BankingManager | undefined;
     private shopManager: ShopManager | undefined;
     private serverServices: GamemodeServerServices | undefined;
     private scriptServices: ScriptServices | undefined;
 
-    getSkillXpMultiplier(_player: PlayerState): number {
-        return 1;
-    }
-
-    getDropRateMultiplier(_player: PlayerState | undefined): number {
-        return 1;
-    }
-
-    isDropBoostEligible(_entry: { dropBoostEligible?: boolean }): boolean {
-        return false;
-    }
-
-    transformDropItemId(_npcTypeId: number, itemId: number, _player: PlayerState | undefined): number {
-        return itemId;
-    }
-
     getLootDistributionConfig(npcTypeId: number): NpcLootConfig | undefined {
         return NPC_LOOT_CONFIGS.get(npcTypeId);
-    }
-
-    hasInfiniteRunEnergy(_player: PlayerState): boolean {
-        return false;
-    }
-
-    canInteract(_player: PlayerState): boolean {
-        return true;
     }
 
     getLoginVarbits(_player: PlayerState): Array<[number, number]> {
@@ -94,47 +69,11 @@ export class VanillaGamemode implements GamemodeDefinition {
         return DEFAULT_LOGIN_VARPS;
     }
 
-    initializePlayer(_player: PlayerState): void {}
-
-    serializePlayerState(_player: PlayerState): Record<string, unknown> | undefined {
-        return undefined;
-    }
-
-    deserializePlayerState(_player: PlayerState, _data: Record<string, unknown>): void {}
-
-    onNpcKill(_playerId: number, _npcTypeId: number): void {}
-
-    isTutorialActive(_player: PlayerState): boolean {
-        return false;
-    }
-
-    getSpawnLocation(_player: PlayerState): { x: number; y: number; level: number } {
-        return DEFAULT_SPAWN;
-    }
-
-    onPlayerHandshake(_player: PlayerState, _bridge: HandshakeBridge): void {}
-
-    onPlayerLogin(_player: PlayerState, _bridge: GamemodeBridge): void {}
-
     onPlayerRestore(player: PlayerState): void {
-        const ss = this.serverServices;
         const services = this.scriptServices;
-        if (!ss || !services) return;
+        if (!services) return;
 
-        if (isPlayerOnDockedSailingBoat(player)) {
-            restoreDockedSailingState(player, services);
-        } else if (ss.isInSailingInstanceRegion?.(player)) {
-            ss.initSailingInstance?.(player);
-            restoreSailingInstanceUi(player, services);
-        }
-    }
-
-    getDisplayName(_player: PlayerState, baseName: string, _isAdmin: boolean): string {
-        return baseName;
-    }
-
-    getChatPlayerType(_player: PlayerState, _isAdmin: boolean): number {
-        return 0;
+        handleSailingPlayerRestore(player, services);
     }
 
     getGamemodeServices(): Record<string, unknown> {
@@ -216,7 +155,7 @@ export class VanillaGamemode implements GamemodeDefinition {
         });
     }
 
-    registerHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+    override registerHandlers(registry: IScriptRegistry, services: ScriptServices): void {
         // Banking, equipment, shops
         registerBankingHandlers(registry, services);
         registerEquipmentHandlers(registry, services);
@@ -261,7 +200,7 @@ export class VanillaGamemode implements GamemodeDefinition {
         }
     }
 
-    initialize(context: GamemodeInitContext): void {
+    override initialize(context: GamemodeInitContext): void {
         const ss = context.serverServices;
         this.serverServices = ss;
 

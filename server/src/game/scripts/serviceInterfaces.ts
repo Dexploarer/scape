@@ -201,6 +201,7 @@ export interface SailingServiceFacade {
     queueWorldEntityMask: (playerId: number, entityIndex: number, mask: { animationId?: number; sequenceFrame?: number; actionMask?: number }) => void;
     initSailingInstance: (player: PlayerState) => void;
     disposeSailingInstance: (player: PlayerState) => void;
+    isInSailingInstanceRegion: (player: PlayerState) => boolean;
     buildSailingDockedCollision: () => void;
 }
 

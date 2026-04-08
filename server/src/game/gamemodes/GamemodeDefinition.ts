@@ -90,8 +90,6 @@ export interface GamemodeServerServices {
     getInterfaceService(): InterfaceService | undefined;
     getCurrentTick(): number;
     registerTickCallback(callback: (tick: number) => void): void;
-    isInSailingInstanceRegion?(player: PlayerState): boolean;
-    initSailingInstance?(player: PlayerState): void;
     eventBus: GameEventBus;
     logger: {
         debug(message: string, ...args: unknown[]): void;

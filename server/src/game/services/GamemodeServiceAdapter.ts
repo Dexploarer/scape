@@ -10,7 +10,6 @@ import type { EquipmentService } from "./EquipmentService";
 import type { AppearanceService } from "./AppearanceService";
 import type { PlayerState } from "../player";
 import type { InterfaceService } from "../../widgets/InterfaceService";
-import type { SailingInstanceManager } from "../sailing/SailingInstanceManager";
 import type { WidgetEvent } from "../../network/wsServerTypes";
 import { logger } from "../../utils/logger";
 
@@ -43,7 +42,6 @@ export interface GamemodeServiceAdapterDeps {
     ) => void;
     gamemodeTickCallbacks: Array<(tick: number) => void>;
     interfaceService: InterfaceService | undefined;
-    sailingInstanceManager: SailingInstanceManager | undefined;
     eventBus: GameEventBus;
 }
 
@@ -83,10 +81,6 @@ export function buildGamemodeServices(deps: GamemodeServiceAdapterDeps): Gamemod
         getInterfaceService: () => deps.interfaceService,
         getCurrentTick: () => deps.getCurrentTick(),
         registerTickCallback: (callback) => deps.gamemodeTickCallbacks.push(callback),
-        isInSailingInstanceRegion: (player) =>
-            deps.sailingInstanceManager?.isInSailingInstanceRegion(player) ?? false,
-        initSailingInstance: (player) =>
-            deps.sailingInstanceManager?.initInstance(player),
         eventBus: deps.eventBus,
         logger,
     };

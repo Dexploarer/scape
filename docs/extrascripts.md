@@ -1,21 +1,46 @@
 # Extrascripts
 
-Extrascripts are **optional content modules** that work independently of which gamemode is running. They're for universal functionality — things like debug tools, admin commands, or content that applies to any server.
+Extrascripts are **optional content modules** that work independently of which gamemode is running. They're for universal functionality — things like debug tools, admin commands, or content that should exist on any server regardless of gamemode.
 
 Extrascripts live in `server/extrascripts/{id}/` and export a `register` function.
 
-## Example
+## Creating an Extrascript
 
 ```typescript
+// server/extrascripts/my-script/index.ts
 import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
 
 export function register(registry: IScriptRegistry, services: ScriptServices): void {
-    registry.registerCommand("itemspawner", (event) => { ... });
-    registry.registerItemAction(ITEM_ID, (event) => { ... });
+    registry.registerCommand("hello", (event) => {
+        services.system.sendGameMessage(event.player, "Hello from my extrascript!");
+    });
 }
 ```
 
-Extrascripts are discovered and loaded automatically at startup. They can register commands, item actions, NPC interactions, loc interactions, and more through the `IScriptRegistry`.
+That's it. Drop a folder in `server/extrascripts/` with an `index.ts` exporting `register`, and it's loaded automatically at startup.
+
+## What extrascripts can do
+
+Extrascripts have access to the same `IScriptRegistry` as gamemodes. They can register:
+
+- **Commands** — `::mycommand` chat commands
+- **NPC interactions** — talk-to, attack, pickpocket, etc.
+- **Loc interactions** — object click handlers
+- **Item actions** — inventory item options, item-on-item, item-on-loc
+- **Widget buttons** — UI button click handlers
+- **Region events** — enter/leave region triggers
+- **Tick handlers** — per-tick logic
+
+## Load Order
+
+1. Gamemode calls `registerHandlers()` first
+2. All extrascripts call `register()` after
+
+This means extrascript handlers run alongside gamemode handlers. If both register a handler for the same interaction, both will be evaluated — the registry determines priority.
+
+## Hot Reload
+
+Extrascripts support hot-reload during development. Set the `SCRIPT_HOT_RELOAD=1` environment variable and the server will watch for file changes, reloading extrascripts without a full restart.
 
 ## Gamemodes vs Extrascripts
 
@@ -24,12 +49,21 @@ Extrascripts are discovered and loaded automatically at startup. They can regist
 | Server-specific rules (XP rates, tutorials, progression) | [Gamemode](gamemodes.md) |
 | Universal tools (debug commands, admin utilities) | Extrascript |
 | Content that only matters for one gamemode | Gamemode `registerHandlers()` |
+| Content that should work on any server | Extrascript |
+
+**Rule of thumb:** if it makes sense on every server, it's an extrascript. If it defines or changes how the server plays, it's a gamemode.
+
+## Current Extrascripts
+
+| Extrascript | Description |
+|-------------|-------------|
+| `item-spawner` | Admin debug tool for spawning items |
 
 ## Skill Implementations
 
-Skill implementations are owned by the vanilla gamemode and registered via its `registerHandlers()` call. Gamemodes that extend vanilla (such as Leagues V) inherit all skill handlers through `super.registerHandlers()`.
+Skills are owned by the vanilla gamemode and registered via its `registerHandlers()` call. Gamemodes that extend vanilla (such as Leagues V) inherit all skill handlers through `super.registerHandlers()`.
 
-Skills register their own action handlers via `registerActionHandler`, making them fully self-contained — the engine has no hardcoded knowledge of any skill's logic. The action dispatch falls through to registered handlers for any action kind not built into the engine.
+Skills register their own action handlers via `registerActionHandler`, making them fully self-contained — the engine has no hardcoded knowledge of any skill's logic.
 
 ```
 server/gamemodes/vanilla/skills/

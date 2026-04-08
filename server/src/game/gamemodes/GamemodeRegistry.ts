@@ -35,8 +35,8 @@ export function listAvailableGamemodes(): string[] {
                 const full = path.resolve(GAMEMODES_DIR, entry);
                 return (
                     fs.statSync(full).isDirectory() &&
-                    fs.existsSync(path.resolve(full, "index.ts")) ||
-                    fs.existsSync(path.resolve(full, "index.js"))
+                    (fs.existsSync(path.resolve(full, "index.ts")) ||
+                    fs.existsSync(path.resolve(full, "index.js")))
                 );
             });
     } catch {

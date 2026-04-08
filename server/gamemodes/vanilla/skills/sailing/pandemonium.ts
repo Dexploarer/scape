@@ -1162,6 +1162,18 @@ export function restoreSailingInstanceUi(
     openSailingUi(player, services);
 }
 
+export function handleSailingPlayerRestore(
+    player: PlayerState,
+    services: ScriptServices,
+): void {
+    if (isPlayerOnDockedSailingBoat(player)) {
+        restoreDockedSailingState(player, services);
+    } else if (services.sailing?.isInSailingInstanceRegion(player)) {
+        services.sailing.initSailingInstance(player);
+        restoreSailingInstanceUi(player, services);
+    }
+}
+
 // ============================================================================
 // Ready Dialogue (returning after state 4)
 // ============================================================================

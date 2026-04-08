@@ -312,7 +312,7 @@ export class WSServer {
     private reportGameTime!: ReportGameTimeTracker;
     private scriptAdapterDeps!: ScriptServiceAdapterDeps;
     private cacheFactory: CacheLoaderFactory | undefined;
-    private gamemodeUi?: GamemodeUiController;
+    private gamemodeUi!: GamemodeUiController;
     private npcPacketEncoder?: NpcPacketEncoder;
     private playerPacketEncoder?: PlayerPacketEncoder;
     private npcSyncManager?: NpcSyncManager;
@@ -785,8 +785,8 @@ export class WSServer {
                 prayerSystem: this.prayerSystem,
                 gatheringSystem: undefined!, // Deferred: wired after creation
                 cs2ModalManager: undefined!, // Deferred: wired after creation
-                followerManager: undefined!, // Deferred: wired after creation
-                followerCombatManager: undefined!, // Deferred: wired after creation
+                followerManager: undefined, // Deferred: wired after creation
+                followerCombatManager: undefined, // Deferred: wired after creation
                 sailingInstanceManager: this.sailingInstanceManager!,
                 worldEntityInfoEncoder: this.worldEntityInfoEncoder,
                 playerPersistence: this.playerPersistence,
@@ -1084,8 +1084,8 @@ export class WSServer {
         this.scriptAdapterDeps.widgetDialogHandler = this.widgetDialogHandler;
         this.scriptAdapterDeps.gatheringSystem = this.gatheringSystem;
         this.scriptAdapterDeps.cs2ModalManager = this.cs2ModalManager;
-        this.scriptAdapterDeps.followerManager = this.followerManager!;
-        this.scriptAdapterDeps.followerCombatManager = this.followerCombatManager!;
+        this.scriptAdapterDeps.followerManager = this.followerManager;
+        this.scriptAdapterDeps.followerCombatManager = this.followerCombatManager;
         this.scriptAdapterDeps.inventoryActionHandler = this.inventoryActionHandler;
         this.scriptAdapterDeps.effectDispatcher = this.effectDispatcher;
 
@@ -1184,7 +1184,6 @@ export class WSServer {
                     registerSnapshotEncoder: (k, e, o) => this.registerSnapshotEncoder(k, e, o),
                     gamemodeTickCallbacks: this.gamemodeTickCallbacks,
                     interfaceService: this.interfaceService,
-                    sailingInstanceManager: this.sailingInstanceManager,
                     eventBus: this.eventBus,
                 }),
             });
@@ -1212,19 +1211,17 @@ export class WSServer {
                 return true;
             });
 
-            if (this.gamemode.createUiController) {
-                this.gamemodeUi = this.gamemode.createUiController({
-                    queueWidgetEvent: (playerId, action) =>
-                        this.queueWidgetEvent(playerId, action),
-                    queueVarp: (playerId, varpId, value) =>
-                        this.variableService.queueVarp(playerId, varpId, value),
-                    queueVarbit: (playerId, varbitId, value) =>
-                        this.variableService.queueVarbit(playerId, varbitId, value),
-                    isWidgetGroupOpenInLedger: (playerId, groupId) =>
-                        this.interfaceManager.isWidgetGroupOpenInLedger(playerId, groupId),
-                });
-                logger.info(`Boot: gamemode UI controller created`);
-            }
+            this.gamemodeUi = this.gamemode.createUiController!({
+                queueWidgetEvent: (playerId, action) =>
+                    this.queueWidgetEvent(playerId, action),
+                queueVarp: (playerId, varpId, value) =>
+                    this.variableService.queueVarp(playerId, varpId, value),
+                queueVarbit: (playerId, varbitId, value) =>
+                    this.variableService.queueVarbit(playerId, varbitId, value),
+                isWidgetGroupOpenInLedger: (playerId, groupId) =>
+                    this.interfaceManager.isWidgetGroupOpenInLedger(playerId, groupId),
+            });
+            logger.info(`Boot: gamemode UI controller created`);
 
         }
     }
@@ -1327,16 +1324,15 @@ export class WSServer {
         player: PlayerState,
         incomingStateVarp?: number,
     ): { tab: number; stateVarp: number } {
-        return this.gamemodeUi?.normalizeSideJournalState(player, incomingStateVarp)
-            ?? { tab: 0, stateVarp: incomingStateVarp ?? 0 };
+        return this.gamemodeUi.normalizeSideJournalState(player, incomingStateVarp);
     }
 
     private queueSideJournalGamemodeUi(player: PlayerState): void {
-        this.gamemodeUi?.applySideJournalUi(player);
+        this.gamemodeUi.applySideJournalUi(player);
     }
 
     private queueActivateQuestSideTab(playerId: number): void {
-        this.gamemodeUi?.activateQuestTab(playerId);
+        this.gamemodeUi.activateQuestTab(playerId);
     }
 
     private queueWidgetEvent(playerId: number, action: WidgetAction): void {

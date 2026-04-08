@@ -116,4 +116,27 @@ For backends that need setup/teardown (database connections), implement `Managed
 
 ## Content Systems
 
-All gameplay content (skills, combat, shops, UI, etc.) is registered through the **script system** via `ScriptRegistry`. Content is organized into [Gamemodes](/gamemodes) (server identity and rules) and [Extrascripts](/extrascripts) (universal modules).
+All gameplay content (skills, combat, shops, UI, etc.) is registered through the **script system** via `ScriptRegistry`. Content is organized into [Gamemodes](gamemodes.md) (server identity and rules) and [Extrascripts](extrascripts.md) (universal modules).
+
+### Gamemode Hierarchy
+
+```
+BaseGamemode (abstract — OSRS defaults, no content)
+  └─ VanillaGamemode (banking, shops, combat providers, skills, widgets)
+       └─ LeaguesVGamemode (league-specific rules and content)
+```
+
+`BaseGamemode` (`server/src/game/gamemodes/BaseGamemode.ts`) provides sensible defaults for every `GamemodeDefinition` hook — 1x XP, Lumbridge spawn, no tutorial, standard drop rates. It registers no content.
+
+`VanillaGamemode` (`server/gamemodes/vanilla/index.ts`) extends BaseGamemode with the full OSRS experience: banking, shops, equipment, all 12 global combat/spell providers, skill implementations, and UI widget handlers.
+
+Most community gamemodes extend VanillaGamemode and override what they need. See [Gamemodes](gamemodes.md) for details.
+
+### Script Loading
+
+At startup, the bootstrap pipeline:
+1. Resets the script registry
+2. Calls `gamemode.registerHandlers()` (registers all gamemode content)
+3. Discovers and loads all extrascripts (registers universal content)
+
+Extrascripts are loaded after the gamemode, so they can complement but not replace gamemode handlers.

@@ -294,7 +294,7 @@ export interface MessageHandlerServices {
     handleCs2ModalCloseState: (player: PlayerState, groupId: number) => void;
     handleDialogCloseState: (player: PlayerState, groupId: number) => void;
     getInterfaceService: () => InterfaceService | undefined;
-    getGamemodeUi: () => GamemodeUiController | undefined;
+    getGamemodeUi: () => GamemodeUiController;
     getGamemode: () => GamemodeDefinition;
 }
 

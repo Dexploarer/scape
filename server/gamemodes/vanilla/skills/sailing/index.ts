@@ -5,6 +5,7 @@ export {
     isPlayerOnDockedSailingBoat,
     restoreDockedSailingState,
     restoreSailingInstanceUi,
+    handleSailingPlayerRestore,
     resetSailingState,
 } from "./pandemonium";
 

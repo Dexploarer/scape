@@ -75,7 +75,7 @@ export function createWidgetHandler(services: MessageHandlerServices): MessageHa
                 } else if (interfaceService && !handledByInterfaceService) {
                     interfaceService.triggerCloseHooksForExternalClose(p, groupId);
                 }
-                services.getGamemodeUi()?.handleWidgetClose(p, groupId);
+                services.getGamemodeUi().handleWidgetClose(p, groupId);
             }
         } catch (err) { logger.warn("[widget] failed to handle widget close", err); }
     };

@@ -85,9 +85,9 @@ export interface ScriptServiceAdapterDeps {
     prayerSystem: PrayerSystem;
     gatheringSystem: GatheringSystemManager;
     cs2ModalManager: Cs2ModalManager;
-    followerManager: FollowerManager;
-    followerCombatManager: FollowerCombatManager;
-    sailingInstanceManager: SailingInstanceManager;
+    followerManager?: FollowerManager;
+    followerCombatManager?: FollowerCombatManager;
+    sailingInstanceManager?: SailingInstanceManager;
     worldEntityInfoEncoder: WorldEntityInfoEncoder;
     playerPersistence: PersistenceProvider;
     musicCatalogService: MusicCatalogService | undefined;
@@ -145,24 +145,24 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             openSmithingBarModal: undefined,
             getBarTypeByItemId: (_itemId) => undefined,
         },
-        followers: {
+        followers: deps.followerManager ? {
             summonFollowerFromItem: (player, itemId, npcTypeId) => {
-                const result = deps.followerManager?.summonFollowerFromItem(player, itemId, npcTypeId) ?? { ok: false as const, reason: "spawn_failed" };
+                const result = deps.followerManager!.summonFollowerFromItem(player, itemId, npcTypeId) ?? { ok: false as const, reason: "spawn_failed" };
                 if (result.ok) deps.followerCombatManager?.resetPlayer(player.id);
                 return result;
             },
             pickupFollower: (player, npcId) => {
-                const result = deps.followerManager?.pickupFollower(player, npcId) ?? { ok: false as const, reason: "missing" };
+                const result = deps.followerManager!.pickupFollower(player, npcId) ?? { ok: false as const, reason: "missing" };
                 if (result.ok) deps.followerCombatManager?.resetPlayer(player.id);
                 return result;
             },
             metamorphFollower: (player, npcId) => {
-                const result = deps.followerManager?.metamorphFollower(player, npcId) ?? { ok: false as const, reason: "missing" };
+                const result = deps.followerManager!.metamorphFollower(player, npcId) ?? { ok: false as const, reason: "missing" };
                 if (result.ok) deps.followerCombatManager?.resetPlayer(player.id);
                 return result;
             },
             callFollower: (player) => {
-                const result = deps.followerManager?.callFollower(player) ?? { ok: false as const, reason: "missing" };
+                const result = deps.followerManager!.callFollower(player) ?? { ok: false as const, reason: "missing" };
                 if (result.ok) {
                     deps.followerCombatManager?.resetPlayer(player.id);
                     const npc = deps.npcManager?.getById(result.npcId);
@@ -172,15 +172,16 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             },
             despawnFollowerForPlayer: (playerId, clearPersistentState) => {
                 deps.followerCombatManager?.resetPlayer(playerId);
-                return deps.followerManager?.despawnFollowerForPlayer(playerId, clearPersistentState) ?? false;
+                return deps.followerManager!.despawnFollowerForPlayer(playerId, clearPersistentState) ?? false;
             },
             getItemDefinitions: () => FOLLOWER_ITEM_DEFINITIONS,
             getDefinitionByItemId: (itemId) => getFollowerDefinitionByItemId(itemId),
             getDefinitionByNpcTypeId: (npcTypeId) => getFollowerDefinitionByNpcTypeId(npcTypeId),
-        },
-        sailing: {
-            initSailingInstance: (player) => deps.sailingInstanceManager?.initInstance(player),
-            disposeSailingInstance: (player) => deps.sailingInstanceManager?.disposeInstance(player),
+        } : undefined,
+        sailing: deps.sailingInstanceManager ? {
+            initSailingInstance: (player) => deps.sailingInstanceManager!.initInstance(player),
+            disposeSailingInstance: (player) => deps.sailingInstanceManager!.disposeInstance(player),
+            isInSailingInstanceRegion: (player) => deps.sailingInstanceManager!.isInSailingInstanceRegion(player),
             teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
                 deps.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
             sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode) =>
@@ -189,8 +190,8 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             queueWorldEntityPosition: (playerId, entityIndex, position) => deps.worldEntityInfoEncoder.queuePosition(playerId, entityIndex, position),
             setWorldEntityPosition: (playerId, entityIndex, position) => deps.worldEntityInfoEncoder.setPosition(playerId, entityIndex, position),
             queueWorldEntityMask: (playerId, entityIndex, mask) => deps.worldEntityInfoEncoder.queueMaskUpdate(playerId, entityIndex, mask),
-            buildSailingDockedCollision: () => deps.sailingInstanceManager?.buildDockedCollision(),
-        },
+            buildSailingDockedCollision: () => deps.sailingInstanceManager!.buildDockedCollision(),
+        } : undefined,
 
         // Grouped facades - constructed directly from deps
         messaging: {

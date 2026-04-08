@@ -77,10 +77,6 @@ export abstract class BaseGamemode implements GamemodeDefinition {
 
     // === Player Rules ===
 
-    hasInfiniteRunEnergy(_player: PlayerState): boolean {
-        return false;
-    }
-
     canInteract(_player: PlayerState): boolean {
         return true;
     }

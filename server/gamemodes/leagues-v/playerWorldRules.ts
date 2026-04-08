@@ -11,10 +11,6 @@ export interface PlayerWorldRulesState {
     getVarbitValue?: (id: number) => number;
 }
 
-export interface PlayerMovementCapabilities {
-    hasInfiniteRunEnergy: boolean;
-}
-
 export function getActiveLeagueType(player: PlayerWorldRulesState | undefined): number {
     if (!player) return 0;
     return player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
@@ -28,18 +24,6 @@ export function isLeagueWorld(player: PlayerWorldRulesState | undefined): boolea
 
 export function isLeagueVWorld(player: PlayerWorldRulesState | undefined): boolean {
     return isLeagueWorld(player) && getActiveLeagueType(player) === 5;
-}
-
-export function getPlayerMovementCapabilities(
-    player: PlayerWorldRulesState | undefined,
-): PlayerMovementCapabilities {
-    return {
-        hasInfiniteRunEnergy: isLeagueVWorld(player),
-    };
-}
-
-export function hasInfiniteRunEnergy(player: PlayerWorldRulesState | undefined): boolean {
-    return getPlayerMovementCapabilities(player).hasInfiniteRunEnergy;
 }
 
 /**

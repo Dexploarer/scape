@@ -45,7 +45,7 @@ import { getLeagueVDropRateMultiplier, getLeagueVReplacementItemId, isLeagueVWor
 import { syncLeagueGeneralVarp } from "./leagueGeneral";
 import { getLeaguePackedVarpsForPlayer } from "./leaguePackedVarps";
 import { getLeagueSkillXpMultiplier } from "./leagueXp";
-import { getActiveLeagueType, getTutorialCompleteStep, isLeagueVWorld, isLeagueWorld } from "./playerWorldRules";
+import { getActiveLeagueType, getTutorialCompleteStep, isLeagueWorld } from "./playerWorldRules";
 import { registerLeagueTutorHandlers } from "./scripts/leagueTutor";
 import { registerLeagueWidgetHandlers } from "./scripts/leagueWidgets";
 import { registerLeagueTutorialWidgetHandlers } from "./scripts/leagueTutorialWidgets";
@@ -89,10 +89,6 @@ export class LeaguesVGamemode extends VanillaGamemode {
 
     // === Player Rules ===
 
-    override hasInfiniteRunEnergy(player: PlayerState): boolean {
-        return isLeagueVWorld(player);
-    }
-
     override canInteract(player: PlayerState): boolean {
         const tutorialStep = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         return tutorialStep >= getTutorialCompleteStep(player);
@@ -108,6 +104,7 @@ export class LeaguesVGamemode extends VanillaGamemode {
     // === Player Lifecycle ===
 
     override initializePlayer(player: PlayerState): void {
+        player.energy.drainEnabled = false;
         if (player.varps.getVarbitValue(VARBIT_LEAGUE_TYPE) === 0) {
             player.varps.setVarbitValue(VARBIT_LEAGUE_TYPE, 5);
         }

@@ -298,7 +298,7 @@ export class MovementService {
         currentTick: number,
     ): void {
         player.energy.tickStaminaEffect(currentTick);
-        if (player.energy.syncInfiniteRunEnergy()) return;
+        if (player.energy.syncMaxEnergy()) return;
         const agilityLevel = this.getPlayerAgilityLevel(player);
         if (activity.ran) {
             const weight = this.computePlayerWeightKg(player);
@@ -325,7 +325,7 @@ export class MovementService {
 
     buildRunEnergyPayload(player: PlayerState | undefined): RunEnergyPayload | undefined {
         if (!player) return undefined;
-        player.energy.syncInfiniteRunEnergy();
+        player.energy.syncMaxEnergy();
         const currentTick = this.services.ticker.currentTick();
         const staminaEffectTicks = player.energy.getStaminaEffectRemainingTicks(currentTick) ?? 0;
         const staminaMultiplier = player.energy.getRunEnergyDrainMultiplier(currentTick) ?? 1;

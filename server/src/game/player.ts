@@ -273,7 +273,6 @@ export class PlayerState extends Actor {
     /** Composed run energy & stamina state */
     readonly energy = new PlayerRunEnergyState(
         this as unknown as RunEnergyOwner,
-        () => this.gamemode.hasInfiniteRunEnergy(this),
     );
     /** Composed aggression tolerance tracker */
     readonly aggression = new PlayerAggressionTracker();

@@ -27,10 +27,10 @@ export class PlayerRunEnergyState {
     private staminaEffectExpiryTick: number = 0;
     private staminaDrainMultiplier: number = 1;
     private remainder: number = 0;
+    private _drainEnabled: boolean = true;
 
     constructor(
         private readonly owner: RunEnergyOwner,
-        private readonly hasInfiniteEnergy: () => boolean,
     ) {}
 
     // ------------------------------------------------------------------
@@ -138,15 +138,22 @@ export class PlayerRunEnergyState {
     }
 
     // ------------------------------------------------------------------
-    // Infinite run energy (gamemode-driven)
+    // Drain control
     // ------------------------------------------------------------------
 
-    hasInfiniteRunEnergy(): boolean {
-        return this.hasInfiniteEnergy();
+    get drainEnabled(): boolean {
+        return this._drainEnabled;
     }
 
-    syncInfiniteRunEnergy(): boolean {
-        if (!this.hasInfiniteRunEnergy()) {
+    set drainEnabled(enabled: boolean) {
+        this._drainEnabled = enabled;
+        if (!enabled) {
+            this.syncMaxEnergy();
+        }
+    }
+
+    syncMaxEnergy(): boolean {
+        if (this._drainEnabled) {
             return false;
         }
         if (this.getRunEnergyUnits() < RUN_ENERGY_MAX) {
@@ -164,7 +171,7 @@ export class PlayerRunEnergyState {
     }
 
     hasAvailableRunEnergy(): boolean {
-        return this.hasInfiniteRunEnergy() || this.getRunEnergyUnits() > 0;
+        return !this._drainEnabled || this.getRunEnergyUnits() > 0;
     }
 
     resolveRequestedRun(run: boolean): boolean {

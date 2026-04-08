@@ -74,8 +74,8 @@ class MyGamemode extends VanillaGamemode {
         return 3;
     }
 
-    override hasInfiniteRunEnergy(): boolean {
-        return true;
+    override initializePlayer(player: PlayerState): void {
+        player.energy.drainEnabled = false;
     }
 
     override registerHandlers(registry: IScriptRegistry, services: ScriptServices): void {
@@ -309,7 +309,6 @@ The full interface is defined in `server/src/game/gamemodes/GamemodeDefinition.t
 | `getDropRateMultiplier()` | `1` |
 | `isDropBoostEligible()` | `false` |
 | `transformDropItemId()` | passthrough |
-| `hasInfiniteRunEnergy()` | `false` |
 | `canInteract()` | `true` |
 | `initializePlayer()` | no-op |
 | `serializePlayerState()` | `undefined` |

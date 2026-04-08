@@ -141,7 +141,6 @@ export interface GamemodeDefinition {
     getLootDistributionConfig?(npcTypeId: number): import("../combat/DamageTracker").NpcLootConfig | undefined;
 
     // === Player Rules ===
-    hasInfiniteRunEnergy(player: PlayerState): boolean;
     canInteract(player: PlayerState): boolean;
     canInteractWithNpc?(player: PlayerState, npcTypeId: number, option: string): boolean;
 

@@ -25,7 +25,6 @@ const STUB_GAMEMODE = {
     getDropRateMultiplier: () => 1,
     isDropBoostEligible: () => false,
     transformDropItemId: (_n: number, id: number) => id,
-    hasInfiniteRunEnergy: () => false,
     canInteract: () => true,
     initializePlayer: () => {},
     serializePlayerState: () => undefined,

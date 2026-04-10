@@ -657,7 +657,20 @@ export class WSServer {
             if (httpServer) {
                 httpServer.removeAllListeners("request");
                 httpServer.on("request", (req: import("http").IncomingMessage, res: import("http").ServerResponse) => {
-                    if (req.url === "/status") {
+                    const url = req.url ?? "/";
+                    // Preflight — permissively allow cross-origin cache
+                    // fetches from the static-site client host.
+                    if (req.method === "OPTIONS") {
+                        res.writeHead(204, {
+                            "Access-Control-Allow-Origin": "*",
+                            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                            "Access-Control-Allow-Headers": "Range, Content-Type",
+                            "Access-Control-Max-Age": "86400",
+                        });
+                        res.end();
+                        return;
+                    }
+                    if (url === "/status") {
                         const count = this.players?.getRealPlayerCount() ?? 0;
                         res.writeHead(200, {
                             "Content-Type": "application/json",
@@ -668,10 +681,72 @@ export class WSServer {
                             playerCount: count,
                             maxPlayers: opts.maxPlayers ?? config.maxPlayers,
                         }));
-                    } else {
-                        res.writeHead(426);
-                        res.end();
+                        return;
                     }
+                    // /caches/* — serve OSRS cache files to the client
+                    // over the same origin as the WebSocket. The cache
+                    // lives on disk at ./caches/ on the server (the
+                    // same directory ensure-cache.ts populates), and
+                    // the React client builds its cachePath from
+                    // REACT_APP_CACHE_URL which points at this host.
+                    //
+                    // We intentionally only serve under the /caches/
+                    // prefix and refuse any path containing '..' so a
+                    // malformed client can't read arbitrary files.
+                    if (url.startsWith("/caches/") && (req.method === "GET" || req.method === "HEAD")) {
+                        const rawPath = url.slice("/caches/".length).split("?")[0]!;
+                        if (rawPath.includes("..") || rawPath.includes("\0")) {
+                            res.writeHead(400, { "Access-Control-Allow-Origin": "*" });
+                            res.end();
+                            return;
+                        }
+                        // Node imports kept lazy so they only happen
+                        // once on first cache request, not on every
+                        // server boot.
+                        void import("node:fs").then((fsMod) => {
+                            void import("node:path").then((pathMod) => {
+                                const filePath = pathMod.resolve("caches", rawPath);
+                                const cachesRoot = pathMod.resolve("caches");
+                                if (!filePath.startsWith(cachesRoot)) {
+                                    res.writeHead(400, { "Access-Control-Allow-Origin": "*" });
+                                    res.end();
+                                    return;
+                                }
+                                fsMod.stat(filePath, (err, stat) => {
+                                    if (err || !stat.isFile()) {
+                                        res.writeHead(404, {
+                                            "Access-Control-Allow-Origin": "*",
+                                            "Content-Type": "text/plain",
+                                        });
+                                        res.end("cache file not found");
+                                        return;
+                                    }
+                                    const contentType = rawPath.endsWith(".json")
+                                        ? "application/json"
+                                        : "application/octet-stream";
+                                    res.writeHead(200, {
+                                        "Content-Type": contentType,
+                                        "Content-Length": String(stat.size),
+                                        "Cache-Control": "public, max-age=3600, immutable",
+                                        "Access-Control-Allow-Origin": "*",
+                                        "Access-Control-Expose-Headers": "Content-Length",
+                                    });
+                                    if (req.method === "HEAD") {
+                                        res.end();
+                                        return;
+                                    }
+                                    const stream = fsMod.createReadStream(filePath);
+                                    stream.on("error", () => {
+                                        try { res.destroy(); } catch {}
+                                    });
+                                    stream.pipe(res);
+                                });
+                            });
+                        });
+                        return;
+                    }
+                    res.writeHead(426);
+                    res.end();
                 });
             }
         });

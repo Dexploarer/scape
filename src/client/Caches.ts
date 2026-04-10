@@ -3,7 +3,30 @@ import { CacheInfo, getLatestCache } from "../rs/cache/CacheInfo";
 import { CacheType, detectCacheType } from "../rs/cache/CacheType";
 import { IndexType } from "../rs/cache/IndexType";
 
-const CACHE_PATH = "/caches/";
+/**
+ * Where the client fetches OSRS cache files from. Resolved at build
+ * time from `REACT_APP_CACHE_URL`, which the deployed static site
+ * sets to the game server's HTTPS origin — the game server has an
+ * HTTP handler that serves `/caches/*` with CORS (see
+ * server/src/network/wsServer.ts).
+ *
+ * Local dev falls back to the relative path `/caches/`, which the
+ * craco dev server wires to `express.static("caches")` in
+ * craco.config.js's setupMiddlewares. That keeps `bun run start` a
+ * zero-config workflow for LAN testing.
+ *
+ * Always normalized so `CACHE_PATH + "caches.json"` produces a
+ * sensible URL regardless of whether the operator included a
+ * trailing slash on the env var.
+ */
+const CACHE_PATH = (() => {
+    const raw = process.env.REACT_APP_CACHE_URL?.trim();
+    if (raw && raw.length > 0) {
+        // Strip any trailing slashes and append /caches/ exactly once.
+        return raw.replace(/\/+$/, "") + "/caches/";
+    }
+    return "/caches/";
+})();
 
 function shouldSkipDat2MainCacheWrite(): boolean {
     if (typeof navigator === "undefined") return false;

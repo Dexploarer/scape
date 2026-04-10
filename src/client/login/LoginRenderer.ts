@@ -304,13 +304,65 @@ export class LoginRenderer {
             if (res.ok) {
                 const data = await res.json();
                 if (Array.isArray(data) && data.length > 0) {
-                    this.serverList = data.map((s: any) => ({
+                    const remote: ServerListEntry[] = data.map((s: any) => ({
                         name: s.name ?? "Unknown",
                         address: s.address ?? "",
                         secure: s.secure ?? false,
                         playerCount: null,
                         maxPlayers: s.maxPlayers ?? 2047,
                     }));
+
+                    // Never let the remote list point a deployed
+                    // build at an address the user physically can't
+                    // reach. Two guard rails:
+                    //
+                    //   1. If REACT_APP_WS_URL is set at build time
+                    //      (i.e. this is a hosted deployment), drop
+                    //      any remote entries whose host is loopback
+                    //      — the xrsps.com dev default is
+                    //      `localhost:43594` and it's useless from a
+                    //      browser loading a cloud URL.
+                    //
+                    //   2. Always prepend the build-time server so
+                    //      a hosted visitor sees "their" deployment
+                    //      as the default in the list, even when the
+                    //      remote returns a different one.
+                    const pageHost =
+                        typeof window !== "undefined" && window.location
+                            ? window.location.hostname.toLowerCase()
+                            : "";
+                    const hostedBuild =
+                        pageHost !== "" &&
+                        pageHost !== "localhost" &&
+                        pageHost !== "127.0.0.1" &&
+                        pageHost !== "::1" &&
+                        !pageHost.endsWith(".localhost");
+
+                    const loopbackHostRe =
+                        /^(localhost|127\.0\.0\.1|::1|0\.0\.0\.0)(:\d+)?$/i;
+                    const filtered = hostedBuild
+                        ? remote.filter(
+                              (entry) =>
+                                  entry.address.length > 0 &&
+                                  !loopbackHostRe.test(entry.address),
+                          )
+                        : remote;
+
+                    const defaultEntry: ServerListEntry = {
+                        name: DEFAULT_SERVER.name,
+                        address: DEFAULT_SERVER.address,
+                        secure: DEFAULT_SERVER.secure,
+                        playerCount: null,
+                        maxPlayers: 2047,
+                    };
+                    const alreadyHasDefault = filtered.some(
+                        (entry) =>
+                            entry.address === defaultEntry.address &&
+                            entry.secure === defaultEntry.secure,
+                    );
+                    this.serverList = alreadyHasDefault
+                        ? filtered
+                        : [defaultEntry, ...filtered];
                 }
             }
         } catch {

@@ -38,8 +38,45 @@ export class LoginState {
             const raw = localStorage.getItem(STORAGE_KEY_LAST_SERVER);
             if (raw) {
                 const parsed = JSON.parse(raw);
+                const persistedAddress =
+                    typeof parsed.address === "string" ? parsed.address : null;
+
+                // Ignore a persisted localhost address when we're being
+                // served from a non-localhost origin. This is almost
+                // always a user who ran the dev server locally, then
+                // visited a production deployment of the same client —
+                // their localStorage still points at 127.0.0.1:43594
+                // and every login attempt times out. Fall through to
+                // `DEFAULT_SERVER` (which was baked in at build time
+                // from `REACT_APP_WS_URL`) instead.
+                const pageHost =
+                    typeof window !== "undefined" && window.location
+                        ? window.location.hostname.toLowerCase()
+                        : "";
+                const pageIsLocal =
+                    pageHost === "localhost" ||
+                    pageHost === "127.0.0.1" ||
+                    pageHost === "::1" ||
+                    pageHost === "" ||
+                    pageHost.endsWith(".localhost");
+                const persistedIsLocal =
+                    persistedAddress !== null &&
+                    /^(localhost|127\.0\.0\.1|::1|0\.0\.0\.0)(:\d+)?$/i.test(
+                        persistedAddress,
+                    );
+
+                if (persistedIsLocal && !pageIsLocal) {
+                    // Stale dev-mode persisted server. Wipe it so the
+                    // next save writes the build-time default instead,
+                    // and don't override DEFAULT_SERVER for this load.
+                    try {
+                        localStorage.removeItem(STORAGE_KEY_LAST_SERVER);
+                    } catch {}
+                    return;
+                }
+
                 if (typeof parsed.name === "string") this.serverName = parsed.name;
-                if (typeof parsed.address === "string") this.serverAddress = parsed.address;
+                if (persistedAddress !== null) this.serverAddress = persistedAddress;
                 if (typeof parsed.secure === "boolean") this.serverSecure = parsed.secure;
             }
         } catch {}

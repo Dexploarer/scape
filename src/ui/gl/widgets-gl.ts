@@ -2555,9 +2555,24 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     // Begin WebGL minimap rendering
                     minimapRenderer.begin(centerX, centerY, radius, cameraYaw, adjustedZoom);
 
-                    // Get the base path for map images
+                    // Get the base path for map images. Prefer the
+                    // build-time REACT_APP_CACHE_URL if set (hosted
+                    // deployments serve the ~40 MB tile set from the
+                    // same object-storage bucket that holds the OSRS
+                    // cache), otherwise fall back to the relative
+                    // /map-images/ path that the craco dev server
+                    // exposes via express.static("public/map-images").
                     const cacheName = osrsClient.loadedCache?.info?.name;
-                    const mapImageBasePath = cacheName ? `/map-images/${cacheName}` : "/map-images";
+                    const mapImagesRoot = (() => {
+                        const raw = process.env.REACT_APP_CACHE_URL?.trim();
+                        if (raw && raw.length > 0) {
+                            return `${raw.replace(/\/+$/, "")}/map-images`;
+                        }
+                        return "/map-images";
+                    })();
+                    const mapImageBasePath = cacheName
+                        ? `${mapImagesRoot}/${cacheName}`
+                        : mapImagesRoot;
 
                     // Draw 3x3 grid of map tiles
                     // Each tile is 64 tiles = 256 minimap pixels at 4px/tile

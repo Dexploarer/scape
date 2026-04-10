@@ -50,12 +50,20 @@ caches
 # subtrees (verified by tracing the server's import graph from
 # server/src/index.ts). Excluding them keeps the image lean.
 src/client
-src/ui
 src/components
 src/picogl
 src/media
 src/webgl
 public
+
+# `src/ui` is almost entirely client-side React code, but one
+# server gamemode file (server/gamemodes/vanilla/modals/
+# smithingBarModalHandler.ts) imports numeric font constants from
+# src/ui/fonts.ts. Exclude the whole src/ui tree except that one
+# file so the server can resolve the import without pulling in the
+# rest of the client UI layer.
+src/ui/**
+!src/ui/fonts.ts
 
 # Client build tooling — irrelevant to the server image.
 craco.config.*

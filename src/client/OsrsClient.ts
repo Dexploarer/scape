@@ -9516,6 +9516,45 @@ export class OsrsClient {
             const password = params.get("password");
             if (!username || !password) return;
 
+            // This whole flow exists for the dev-mode mprocs agent
+            // launcher at scripts/agent-dev.ts, which opens the
+            // browser at `http://localhost:3000/?username=…&password=…&autoplay=1`
+            // for zero-friction local testing. Running it against a
+            // production deployment is always wrong:
+            //
+            //   1. It forces the WebSocket URL to `ws://localhost:43594`
+            //      which from a cloud-hosted page obviously fails.
+            //   2. It means credentials ride in the URL on the wire,
+            //      which we don't want outside of a trusted dev host.
+            //
+            // So: hard-gate the auto-login flow on a loopback origin.
+            // Any visitor to the hosted build who still has stale
+            // `?username=&password=` params from an earlier dev launch
+            // has them silently stripped and lands on the normal
+            // login screen, which uses DEFAULT_SERVER from
+            // REACT_APP_WS_URL.
+            const pageHost =
+                typeof window !== "undefined" && window.location
+                    ? window.location.hostname.toLowerCase()
+                    : "";
+            const pageIsLocal =
+                pageHost === "localhost" ||
+                pageHost === "127.0.0.1" ||
+                pageHost === "::1" ||
+                pageHost === "" ||
+                pageHost.endsWith(".localhost");
+            if (!pageIsLocal) {
+                const cleanUrl = new URL(window.location.href);
+                cleanUrl.searchParams.delete("username");
+                cleanUrl.searchParams.delete("password");
+                cleanUrl.searchParams.delete("autoplay");
+                window.history.replaceState({}, "", cleanUrl.toString());
+                console.warn(
+                    "[auto-login] ignored: cannot auto-login against a non-loopback origin",
+                );
+                return;
+            }
+
             // `autoplay=1` flips on the in-browser agent loop. The user
             // and the agent share this tab: once LOGGED_IN fires we
             // start walking the character around a drifting anchor.
@@ -9529,9 +9568,8 @@ export class OsrsClient {
             window.history.replaceState({}, "", url.toString());
 
             // Force localhost — auto-login is strictly a dev-workflow
-            // affordance. Production builds don't have a script
-            // putting credentials in the URL, and we don't want this
-            // path accidentally firing against a deployed xRSPS.
+            // affordance and we've already confirmed above that we're
+            // on a loopback origin.
             setServerUrl("ws://localhost:43594");
             this.loginState.serverAddress = "localhost:43594";
             this.loginState.serverName = "Local Development";

@@ -16,11 +16,28 @@
  */
 
 function readEnv(key: string): string | undefined {
-    // `process.env` can be undefined in some non-CRA bundlers, and direct
-    // property access on a missing global throws. Guard defensively.
-    if (typeof process === "undefined" || !process.env) return undefined;
-    const value = process.env[key];
-    return typeof value === "string" && value.length > 0 ? value : undefined;
+    // CRA's webpack rewrites `process.env.REACT_APP_FOO` to a literal
+    // at build time, even when `key` is a variable (the whole
+    // `process.env` object is injected as a hardcoded literal object
+    // that we then index into). That means `process.env[key]` never
+    // actually hits the Node `process` global in the browser.
+    //
+    // Do NOT guard with `typeof process === "undefined"` here —
+    // modern CRA builds do not ship a process polyfill, so in the
+    // browser `typeof process === "undefined"` is `true`, the guard
+    // returns early, and the inlined object lookup below is never
+    // reached. The net effect is that DEFAULT_SERVER silently falls
+    // back to the hardcoded localhost LOCAL_FALLBACK on every hosted
+    // deployment, regardless of what REACT_APP_WS_URL is set to.
+    // That bug took hours to track down — do not reintroduce the
+    // `typeof process` guard.
+    try {
+        const value = (process as { env?: Record<string, string | undefined> })
+            .env?.[key];
+        return typeof value === "string" && value.length > 0 ? value : undefined;
+    } catch {
+        return undefined;
+    }
 }
 
 export interface DefaultServer {

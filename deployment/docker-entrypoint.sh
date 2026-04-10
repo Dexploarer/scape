@@ -17,12 +17,23 @@ log() {
   printf '[entrypoint] %s\n' "$*"
 }
 
+# Bun 1.3.12's `bunx tsx` fails to resolve tsx's own CJS bootstrap
+# inside this image (error: Cannot find module './cjs/index.cjs'
+# from ''). Invoke tsx's CLI entrypoint directly via bun instead —
+# this sidesteps bunx's binary-resolution path entirely and runs
+# the same tsx code we'd use locally.
+TSX_CLI="/app/node_modules/tsx/dist/cli.mjs"
+if [ ! -f "$TSX_CLI" ]; then
+  log "tsx CLI missing at $TSX_CLI — check that bun install ran in the image"
+  exit 1
+fi
+
 log "ensuring OSRS cache is present (downloads on first boot only)..."
-bunx tsx scripts/ensure-cache.ts --server
+bun "$TSX_CLI" scripts/ensure-cache.ts --server
 
 if [ ! -d "/app/server/data" ]; then
   mkdir -p /app/server/data
 fi
 
 log "starting xRSPS server..."
-exec bunx tsx server/src/index.ts
+exec bun "$TSX_CLI" server/src/index.ts

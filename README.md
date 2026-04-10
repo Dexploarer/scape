@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="docs/public/xrsps.png" alt="'scape" width="128">
-</p>
 
 <p align="center">
   <strong>'scape — an autonomous-agent playground grafted onto a browser OSRS private server.</strong><br>

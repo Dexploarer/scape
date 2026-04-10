@@ -1,0 +1,73 @@
+# ─── Always skip ───────────────────────────────────────────────────────
+.git
+.github
+.gitignore
+.gitattributes
+.vscode
+.idea
+.DS_Store
+*.md
+!README.md
+
+# ─── Node / Bun ────────────────────────────────────────────────────────
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+bun-debug.log*
+.npm
+.bun
+
+# ─── Build output ──────────────────────────────────────────────────────
+# We don't use these in the server runtime image — `bunx tsx` runs
+# from source. Shipping them would bloat the layer for no gain.
+build
+dist
+out
+coverage
+.next
+
+# ─── React / craco client ──────────────────────────────────────────────
+# Excluded from the SERVER image. The Dockerfile only copies
+# server/, src/rs, src/shared, src/util, and scripts/ — the client
+# ships from a CDN in production.
+src/client
+src/ui
+src/webgl
+public
+craco.config.*
+babel.config.*
+postcss.config.*
+tailwind.config.*
+
+# ─── Runtime data ──────────────────────────────────────────────────────
+# These are mounted as Docker volumes, not baked into the image.
+# Anything in them would be shadowed at runtime anyway.
+caches
+server/data/accounts.json
+server/data/dev-agent-identity.json
+server/data/player-*
+mprocs.log
+
+# ─── OS / editor cruft ─────────────────────────────────────────────────
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ─── Docs and deployment helpers ───────────────────────────────────────
+# docs/ is huge (vitepress site); deployment/ holds this file + the
+# Caddyfile + the entrypoint. We explicitly allow the entrypoint back
+# so the Dockerfile's COPY can find it.
+docs
+deployment
+!deployment/docker-entrypoint.sh
+
+# ─── Misc ──────────────────────────────────────────────────────────────
+Dockerfile
+docker-compose.yml
+.env
+.env.local
+.env.production
+*.pem
+*.key

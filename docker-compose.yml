@@ -1,0 +1,126 @@
+# docker-compose.yml — production-ready xRSPS deployment.
+#
+# Two services:
+#
+#   1. scape-server — the Bun game server. Binds 43594 to loopback
+#      only (the reverse proxy in front of it terminates TLS and
+#      forwards WS traffic). Persists player state + OSRS cache to
+#      named volumes.
+#
+#   2. caddy — Caddy v2. Provisions and renews a Let's Encrypt cert
+#      for your domain automatically. Forwards WebSocket upgrades to
+#      the game server.
+#
+# Run locally (loopback-only, no TLS):
+#   docker compose up scape-server
+#
+# Run with TLS on a real host:
+#   export SCAPE_DOMAIN=game.yourdomain.com
+#   export SCAPE_ACME_EMAIL=you@yourdomain.com
+#   export SCAPE_ALLOWED_ORIGINS="https://play.yourdomain.com"
+#   docker compose up -d
+#
+# Deploy to Oracle Cloud Always Free (ARM Ampere A1):
+#   1. Create a 2 OCPU / 12 GB VM.Canonical-Ubuntu-22.04 image.
+#   2. Install docker + docker-compose-plugin.
+#   3. Open ports 80 + 443 in the VM's security list AND run
+#      `sudo ufw allow 80,443/tcp`.
+#   4. Clone the repo, set the env vars above, `docker compose up -d`.
+#
+# Deploy to Fly.io / Railway / Koyeb / any container host:
+#   Run ONLY the `scape-server` service (they handle TLS themselves).
+#   See README for host-specific notes.
+
+services:
+  scape-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/dexploarer/-scape:latest
+    container_name: scape-server
+    restart: unless-stopped
+
+    # Loopback-only when Caddy is in front. For "run directly on the
+    # internet" deployments (Fly/Railway/etc., where TLS is handled by
+    # the platform), replace with `"43594:43594"` or use the
+    # platform's port expose mechanism.
+    ports:
+      - "127.0.0.1:43594:43594"
+
+    environment:
+      # The server boots in its own NODE_ENV-aware mode. See
+      # server/src/config/index.ts.
+      NODE_ENV: production
+
+      # Origin allowlist — comma-separated list of origins that are
+      # allowed to open a WebSocket to this server. Required in
+      # production: without this the server rejects all connections
+      # from non-loopback hosts. See server/src/config/index.ts.
+      ALLOWED_ORIGINS: "${SCAPE_ALLOWED_ORIGINS:-https://localhost:3000}"
+
+      # Bot-SDK shared secret. Unset → bot-SDK endpoint disabled.
+      # If you run the milady @elizaos/app-scape plugin, set this to
+      # a real random value and mirror it in the milady plugin's
+      # SCAPE_BOT_SDK_TOKEN runtime setting.
+      BOT_SDK_TOKEN: "${BOT_SDK_TOKEN:-}"
+
+    volumes:
+      # OSRS cache — downloads on first boot (~700 MB). Persist this
+      # or you re-download on every container restart.
+      - scape_cache:/app/caches
+
+      # Player state, account database, agent identity file. Persist
+      # this or players lose their characters.
+      - scape_data:/app/server/data
+
+    # Wait for the server to accept WebSocket traffic before marking
+    # the container "healthy". Caddy uses this to know when to start
+    # routing traffic.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:43594/ | grep -qE '^(400|426)$$'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: scape-caddy
+    restart: unless-stopped
+    depends_on:
+      scape-server:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+
+    environment:
+      # These get substituted into the Caddyfile via Caddy's own
+      # env expansion. Set them in the host shell before `docker
+      # compose up`:
+      #   export SCAPE_DOMAIN=game.yourdomain.com
+      #   export SCAPE_ACME_EMAIL=you@yourdomain.com
+      SCAPE_DOMAIN: "${SCAPE_DOMAIN:-localhost}"
+      SCAPE_ACME_EMAIL: "${SCAPE_ACME_EMAIL:-}"
+
+    volumes:
+      - ./deployment/Caddyfile.docker:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data           # cert storage — survives container rebuilds
+      - caddy_config:/config
+
+    # Optional: run on a specific Caddy profile so `docker compose up
+    # scape-server` (without --profile tls) skips Caddy. Handy for
+    # container hosts that terminate TLS themselves.
+    profiles:
+      - tls
+
+volumes:
+  scape_cache:
+    name: scape_cache
+  scape_data:
+    name: scape_data
+  caddy_data:
+    name: scape_caddy_data
+  caddy_config:
+    name: scape_caddy_config

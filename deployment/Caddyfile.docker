@@ -1,0 +1,48 @@
+# Caddyfile for docker-compose. Uses env-var substitution so you
+# don't have to edit this file between environments — set
+# SCAPE_DOMAIN and SCAPE_ACME_EMAIL in the shell before
+# `docker compose up`.
+#
+# The site block forwards every HTTP request (and every WebSocket
+# upgrade) on SCAPE_DOMAIN to the scape-server container on its
+# internal port 43594. The container is not published to the
+# internet; it's only reachable over the compose network.
+#
+# On first boot Caddy contacts Let's Encrypt and provisions a cert
+# for SCAPE_DOMAIN. Certs persist in the caddy_data volume so
+# rebuilding the container doesn't re-issue them.
+
+{
+	# Let's Encrypt email (recommended but not required)
+	email {$SCAPE_ACME_EMAIL}
+
+	# Enable HTTP/3 on 443/udp. docker-compose.yml publishes the udp
+	# port so this works.
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+{$SCAPE_DOMAIN} {
+	# Forward every request to the game server. The `ws` library
+	# handles WebSocket upgrades on any path, so reverse_proxy
+	# without a matcher is correct.
+	reverse_proxy scape-server:43594 {
+		header_up Host {host}
+		header_up Origin {http.request.header.Origin}
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto https
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	log {
+		output file /data/scape-access.log
+		format json
+	}
+}

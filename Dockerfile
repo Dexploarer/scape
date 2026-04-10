@@ -68,17 +68,13 @@ RUN bun install --frozen-lockfile && \
     ls -la /app/node_modules/.bin/tsx
 
 # ─── Source ────────────────────────────────────────────────────────────
-# We only need the server runtime, the shared RS helpers it imports
-# from `src/`, and the scripts that run at boot. We intentionally
-# skip the React client (src/client, src/ui, src/webgl) to keep the
-# image lean — the client ships from a CDN in production.
-COPY server ./server
-COPY src/rs ./src/rs
-COPY src/shared ./src/shared
-COPY src/util ./src/util
-COPY scripts ./scripts
-COPY target.txt ./
-COPY tsconfig.json ./
+# Copy the whole repo and let .dockerignore strip out the React
+# client, docs, git history, and other build cruft. The server's
+# import graph reaches into half the src/ subdirectories
+# (src/custom, src/cache, src/io, src/chat, src/rs, src/shared,
+# src/util) so enumerating directories in the Dockerfile is a
+# losing game — every new shared helper would break the image.
+COPY . .
 
 # ─── Runtime state directories ─────────────────────────────────────────
 # Declared as VOLUMEs so operators who forget to mount them don't lose

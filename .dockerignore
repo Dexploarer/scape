@@ -1,4 +1,4 @@
-# ─── Always skip ───────────────────────────────────────────────────────
+# Things to always skip — caches, git, editor cruft, secrets.
 .git
 .github
 .gitignore
@@ -6,10 +6,19 @@
 .vscode
 .idea
 .DS_Store
-*.md
-!README.md
+Thumbs.db
+*.swp
+*.swo
+*~
+.env
+.env.local
+.env.production
+.env.worktree
+*.pem
+*.key
 
-# ─── Node / Bun ────────────────────────────────────────────────────────
+# Node / Bun install artifacts (we do our own fresh install inside
+# the image — never ship the host machine's node_modules).
 node_modules
 npm-debug.log*
 yarn-debug.log*
@@ -18,56 +27,61 @@ bun-debug.log*
 .npm
 .bun
 
-# ─── Build output ──────────────────────────────────────────────────────
-# We don't use these in the server runtime image — `bunx tsx` runs
-# from source. Shipping them would bloat the layer for no gain.
+# Build output from local runs.
 build
 dist
 out
 coverage
 .next
+*.bun-build
+**/*.bun-build
+*.tsbuildinfo
 
-# ─── React / craco client ──────────────────────────────────────────────
-# Excluded from the SERVER image. The Dockerfile only copies
-# server/, src/rs, src/shared, src/util, and scripts/ — the client
-# ships from a CDN in production.
+# mprocs + runtime state — these live in mounted volumes at
+# runtime; shipping the host's copies into the image would shadow
+# the volume mounts.
+mprocs.log
+server/data/accounts.json
+server/data/dev-agent-identity.json
+server/data/player-*
+caches
+
+# React client — the xRSPS server does not import from these
+# subtrees (verified by tracing the server's import graph from
+# server/src/index.ts). Excluding them keeps the image lean.
 src/client
 src/ui
+src/components
+src/picogl
+src/media
 src/webgl
 public
+
+# Client build tooling — irrelevant to the server image.
 craco.config.*
 babel.config.*
 postcss.config.*
 tailwind.config.*
 
-# ─── Runtime data ──────────────────────────────────────────────────────
-# These are mounted as Docker volumes, not baked into the image.
-# Anything in them would be shadowed at runtime anyway.
-caches
-server/data/accounts.json
-server/data/dev-agent-identity.json
-server/data/player-*
-mprocs.log
-
-# ─── OS / editor cruft ─────────────────────────────────────────────────
-Thumbs.db
-*.swp
-*.swo
-*~
-
-# ─── Docs and deployment helpers ───────────────────────────────────────
-# docs/ is huge (vitepress site); deployment/ holds this file + the
-# Caddyfile + the entrypoint. We explicitly allow the entrypoint back
-# so the Dockerfile's COPY can find it.
+# Docs and long-form markdown (keep README + CLAUDE.md).
 docs
-deployment
-!deployment/docker-entrypoint.sh
+*.md
+!README.md
+!CLAUDE.md
 
-# ─── Misc ──────────────────────────────────────────────────────────────
+# Test / scratch files.
+tmp
+.tmp
+coverage
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# The Dockerfile + compose + entrypoint live in this repo but
+# don't need to be inside the image. `.dockerignore` rules apply
+# to the build context, not to the COPY --from of the entrypoint
+# (which is a separate, explicit COPY in the Dockerfile).
 Dockerfile
 docker-compose.yml
-.env
-.env.local
-.env.production
-*.pem
-*.key
+.dockerignore

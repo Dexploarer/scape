@@ -724,13 +724,28 @@ export class WSServer {
                                     const contentType = rawPath.endsWith(".json")
                                         ? "application/json"
                                         : "application/octet-stream";
-                                    res.writeHead(200, {
+                                    // Cloudflare's free plan rejects any
+                                    // response whose Content-Length exceeds
+                                    // ~100 MB with an upstream 500. The OSRS
+                                    // main_file_cache.dat2 is ~194 MB. Skip
+                                    // setting Content-Length entirely —
+                                    // Node falls back to chunked transfer
+                                    // encoding which has no upper bound.
+                                    // We only set Content-Length for files
+                                    // safely under the CF limit so the
+                                    // browser can still report download
+                                    // progress for the small index files.
+                                    const SAFE_CF_SIZE = 90 * 1024 * 1024;
+                                    const headers: Record<string, string> = {
                                         "Content-Type": contentType,
-                                        "Content-Length": String(stat.size),
                                         "Cache-Control": "public, max-age=3600, immutable",
                                         "Access-Control-Allow-Origin": "*",
                                         "Access-Control-Expose-Headers": "Content-Length",
-                                    });
+                                    };
+                                    if (stat.size <= SAFE_CF_SIZE) {
+                                        headers["Content-Length"] = String(stat.size);
+                                    }
+                                    res.writeHead(200, headers);
                                     if (req.method === "HEAD") {
                                         res.end();
                                         return;

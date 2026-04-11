@@ -1,3 +1,5 @@
+import type { Duplex } from "node:stream";
+import http from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
 import { config } from "../config";
 import { GameContext } from "../game/GameContext";
@@ -202,6 +204,13 @@ export interface WSServerOptions {
 
 export class WSServer {
     private wss!: WebSocketServer;
+    /**
+     * The bare Node HTTP server that underpins both WebSocket endpoints
+     * (main game + bot-SDK). Created in {@link initWebSocketServer}, owns
+     * the upgrade routing that dispatches `/botsdk` requests to the bot-SDK
+     * WSS and everything else to the main game WSS.
+     */
+    private httpServer!: http.Server;
     private options: WSServerOptions;
     private players?: PlayerManager;
     private npcManager?: NpcManager;
@@ -632,33 +641,25 @@ export class WSServer {
         const allowedOrigins = config.allowedOrigins ?? [];
         const hasOriginAllowlist = allowedOrigins.length > 0;
 
+        // Create a bare HTTP server we fully control. We own the upgrade
+        // dispatch so we can route `/botsdk` requests to the bot-SDK
+        // WebSocketServer and everything else to the main game
+        // WebSocketServer. Sharing one HTTP server (and therefore one
+        // TCP port) means Sevalla's ingress terminates TLS once and both
+        // endpoints are reachable over the same `wss://` origin — no
+        // TCP proxy, no second port, no `ws://` plaintext fallback.
+        this.httpServer = http.createServer();
+
         this.wss = new WebSocketServer({
-            host: opts.host,
-            port: opts.port,
+            noServer: true,
             perMessageDeflate: {
                 zlibDeflateOptions: { level: 6 },
                 zlibInflateOptions: { chunkSize: 10 * 1024 },
                 threshold: 128, // Only compress messages larger than 128 bytes
                 concurrencyLimit: 10,
             },
-            // If an origin allowlist is configured, reject the WS upgrade before
-            // it completes. Empty allowlist = allow everything (dev/LAN default).
-            verifyClient: hasOriginAllowlist
-                ? (info, cb) => {
-                      const origin = (info.origin ?? "").trim();
-                      if (!origin) {
-                          logger.warn(`[ws] rejecting connection: missing Origin header (allowlist active)`);
-                          cb(false, 403, "Forbidden");
-                          return;
-                      }
-                      if (!allowedOrigins.includes(origin)) {
-                          logger.warn(`[ws] rejecting connection: Origin "${origin}" not in allowlist`);
-                          cb(false, 403, "Forbidden");
-                          return;
-                      }
-                      cb(true);
-                  }
-                : undefined,
+            // verifyClient is not honored in noServer mode, so we enforce
+            // the origin allowlist inline in the upgrade handler below.
         });
 
         if (hasOriginAllowlist) {
@@ -666,120 +667,188 @@ export class WSServer {
         } else {
             logger.info(`[ws] Origin allowlist disabled — all origins accepted`);
         }
-        this.wss.on("listening", () => {
-            logger.info(`WS listening on ws://${opts.host}:${opts.port}`);
 
-            const httpServer = (this.wss as unknown as { _server?: import("http").Server })._server;
-            if (httpServer) {
-                httpServer.removeAllListeners("request");
-                httpServer.on("request", (req: import("http").IncomingMessage, res: import("http").ServerResponse) => {
-                    const url = req.url ?? "/";
-                    // Preflight — permissively allow cross-origin cache
-                    // fetches from the static-site client host.
-                    if (req.method === "OPTIONS") {
-                        res.writeHead(204, {
-                            "Access-Control-Allow-Origin": "*",
-                            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-                            "Access-Control-Allow-Headers": "Range, Content-Type",
-                            "Access-Control-Max-Age": "86400",
-                        });
+        // Reject any upgrade whose Origin isn't on the allowlist
+        // (empty allowlist = accept everything, preserving the LAN/dev
+        // behavior).
+        const originAllowed = (req: http.IncomingMessage): boolean => {
+            if (!hasOriginAllowlist) return true;
+            const origin = (req.headers.origin ?? "").trim();
+            if (!origin) {
+                logger.warn(
+                    `[ws] rejecting connection: missing Origin header (allowlist active)`,
+                );
+                return false;
+            }
+            if (!allowedOrigins.includes(origin)) {
+                logger.warn(
+                    `[ws] rejecting connection: Origin "${origin}" not in allowlist`,
+                );
+                return false;
+            }
+            return true;
+        };
+
+        // Route WS upgrades by URL path. `/botsdk` → bot-SDK; `/` (and
+        // anything else) → main game. The bot-SDK server may be null or
+        // gated off — in that case we 404 the upgrade so operators don't
+        // accidentally expose an unauthenticated endpoint.
+        this.httpServer.on(
+            "upgrade",
+            (req: http.IncomingMessage, socket: Duplex, head: Buffer) => {
+                const url = req.url ?? "/";
+                const pathname = url.split("?")[0]!;
+
+                if (!originAllowed(req)) {
+                    socket.write(
+                        "HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n",
+                    );
+                    try { socket.destroy(); } catch {}
+                    return;
+                }
+
+                if (pathname === "/botsdk") {
+                    const bot = this.botSdkServer;
+                    if (bot && bot.canAcceptUpgrade()) {
+                        bot.handleUpgrade(req, socket, head);
+                        return;
+                    }
+                    // bot-SDK disabled (no BOT_SDK_TOKEN) or not yet
+                    // constructed — 404 so callers know the endpoint
+                    // isn't live, rather than hanging the upgrade.
+                    socket.write(
+                        "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n",
+                    );
+                    try { socket.destroy(); } catch {}
+                    return;
+                }
+
+                // Default: main game WebSocket.
+                this.wss.handleUpgrade(req, socket, head, (ws) => {
+                    this.wss.emit("connection", ws, req);
+                });
+            },
+        );
+
+        // Listen for regular HTTP requests (/status, /caches/*, OPTIONS
+        // preflight, and the 426 fall-through for anything else).
+        this.httpServer.on(
+            "request",
+            (req: http.IncomingMessage, res: http.ServerResponse) => {
+                const url = req.url ?? "/";
+                // Preflight — permissively allow cross-origin cache
+                // fetches from the static-site client host.
+                if (req.method === "OPTIONS") {
+                    res.writeHead(204, {
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                        "Access-Control-Allow-Headers": "Range, Content-Type",
+                        "Access-Control-Max-Age": "86400",
+                    });
+                    res.end();
+                    return;
+                }
+                if (url === "/status") {
+                    const count = this.players?.getRealPlayerCount() ?? 0;
+                    res.writeHead(200, {
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Origin": "*",
+                    });
+                    res.end(JSON.stringify({
+                        serverName: opts.serverName ?? config.serverName,
+                        playerCount: count,
+                        maxPlayers: opts.maxPlayers ?? config.maxPlayers,
+                    }));
+                    return;
+                }
+                // /caches/* — serve OSRS cache files to the client
+                // over the same origin as the WebSocket. The cache
+                // lives on disk at ./caches/ on the server (the same
+                // directory ensure-cache.ts populates), and the React
+                // client builds its cachePath from REACT_APP_CACHE_URL
+                // which points at this host.
+                //
+                // We intentionally only serve under the /caches/
+                // prefix and refuse any path containing '..' so a
+                // malformed client can't read arbitrary files.
+                if (url.startsWith("/caches/") && (req.method === "GET" || req.method === "HEAD")) {
+                    const rawPath = url.slice("/caches/".length).split("?")[0]!;
+                    if (rawPath.includes("..") || rawPath.includes("\0")) {
+                        res.writeHead(400, { "Access-Control-Allow-Origin": "*" });
                         res.end();
                         return;
                     }
-                    if (url === "/status") {
-                        const count = this.players?.getRealPlayerCount() ?? 0;
-                        res.writeHead(200, {
-                            "Content-Type": "application/json",
-                            "Access-Control-Allow-Origin": "*",
-                        });
-                        res.end(JSON.stringify({
-                            serverName: opts.serverName ?? config.serverName,
-                            playerCount: count,
-                            maxPlayers: opts.maxPlayers ?? config.maxPlayers,
-                        }));
-                        return;
-                    }
-                    // /caches/* — serve OSRS cache files to the client
-                    // over the same origin as the WebSocket. The cache
-                    // lives on disk at ./caches/ on the server (the
-                    // same directory ensure-cache.ts populates), and
-                    // the React client builds its cachePath from
-                    // REACT_APP_CACHE_URL which points at this host.
-                    //
-                    // We intentionally only serve under the /caches/
-                    // prefix and refuse any path containing '..' so a
-                    // malformed client can't read arbitrary files.
-                    if (url.startsWith("/caches/") && (req.method === "GET" || req.method === "HEAD")) {
-                        const rawPath = url.slice("/caches/".length).split("?")[0]!;
-                        if (rawPath.includes("..") || rawPath.includes("\0")) {
-                            res.writeHead(400, { "Access-Control-Allow-Origin": "*" });
-                            res.end();
-                            return;
-                        }
-                        // Node imports kept lazy so they only happen
-                        // once on first cache request, not on every
-                        // server boot.
-                        void import("node:fs").then((fsMod) => {
-                            void import("node:path").then((pathMod) => {
-                                const filePath = pathMod.resolve("caches", rawPath);
-                                const cachesRoot = pathMod.resolve("caches");
-                                if (!filePath.startsWith(cachesRoot)) {
-                                    res.writeHead(400, { "Access-Control-Allow-Origin": "*" });
+                    // Node imports kept lazy so they only happen
+                    // once on first cache request, not on every
+                    // server boot.
+                    void import("node:fs").then((fsMod) => {
+                        void import("node:path").then((pathMod) => {
+                            const filePath = pathMod.resolve("caches", rawPath);
+                            const cachesRoot = pathMod.resolve("caches");
+                            if (!filePath.startsWith(cachesRoot)) {
+                                res.writeHead(400, { "Access-Control-Allow-Origin": "*" });
+                                res.end();
+                                return;
+                            }
+                            fsMod.stat(filePath, (err, stat) => {
+                                if (err || !stat.isFile()) {
+                                    res.writeHead(404, {
+                                        "Access-Control-Allow-Origin": "*",
+                                        "Content-Type": "text/plain",
+                                    });
+                                    res.end("cache file not found");
+                                    return;
+                                }
+                                const contentType = rawPath.endsWith(".json")
+                                    ? "application/json"
+                                    : "application/octet-stream";
+                                // Cloudflare's free plan rejects any
+                                // response whose Content-Length exceeds
+                                // ~100 MB with an upstream 500. The OSRS
+                                // main_file_cache.dat2 is ~194 MB. Skip
+                                // setting Content-Length entirely —
+                                // Node falls back to chunked transfer
+                                // encoding which has no upper bound.
+                                // We only set Content-Length for files
+                                // safely under the CF limit so the
+                                // browser can still report download
+                                // progress for the small index files.
+                                const SAFE_CF_SIZE = 90 * 1024 * 1024;
+                                const headers: Record<string, string> = {
+                                    "Content-Type": contentType,
+                                    "Cache-Control": "public, max-age=3600, immutable",
+                                    "Access-Control-Allow-Origin": "*",
+                                    "Access-Control-Expose-Headers": "Content-Length",
+                                };
+                                if (stat.size <= SAFE_CF_SIZE) {
+                                    headers["Content-Length"] = String(stat.size);
+                                }
+                                res.writeHead(200, headers);
+                                if (req.method === "HEAD") {
                                     res.end();
                                     return;
                                 }
-                                fsMod.stat(filePath, (err, stat) => {
-                                    if (err || !stat.isFile()) {
-                                        res.writeHead(404, {
-                                            "Access-Control-Allow-Origin": "*",
-                                            "Content-Type": "text/plain",
-                                        });
-                                        res.end("cache file not found");
-                                        return;
-                                    }
-                                    const contentType = rawPath.endsWith(".json")
-                                        ? "application/json"
-                                        : "application/octet-stream";
-                                    // Cloudflare's free plan rejects any
-                                    // response whose Content-Length exceeds
-                                    // ~100 MB with an upstream 500. The OSRS
-                                    // main_file_cache.dat2 is ~194 MB. Skip
-                                    // setting Content-Length entirely —
-                                    // Node falls back to chunked transfer
-                                    // encoding which has no upper bound.
-                                    // We only set Content-Length for files
-                                    // safely under the CF limit so the
-                                    // browser can still report download
-                                    // progress for the small index files.
-                                    const SAFE_CF_SIZE = 90 * 1024 * 1024;
-                                    const headers: Record<string, string> = {
-                                        "Content-Type": contentType,
-                                        "Cache-Control": "public, max-age=3600, immutable",
-                                        "Access-Control-Allow-Origin": "*",
-                                        "Access-Control-Expose-Headers": "Content-Length",
-                                    };
-                                    if (stat.size <= SAFE_CF_SIZE) {
-                                        headers["Content-Length"] = String(stat.size);
-                                    }
-                                    res.writeHead(200, headers);
-                                    if (req.method === "HEAD") {
-                                        res.end();
-                                        return;
-                                    }
-                                    const stream = fsMod.createReadStream(filePath);
-                                    stream.on("error", () => {
-                                        try { res.destroy(); } catch {}
-                                    });
-                                    stream.pipe(res);
+                                const stream = fsMod.createReadStream(filePath);
+                                stream.on("error", () => {
+                                    try { res.destroy(); } catch {}
                                 });
+                                stream.pipe(res);
                             });
                         });
-                        return;
-                    }
-                    res.writeHead(426);
-                    res.end();
-                });
-            }
+                    });
+                    return;
+                }
+                // Non-WS HTTP requests get 426 Upgrade Required so
+                // tooling and healthchecks see a clean protocol error.
+                res.writeHead(426);
+                res.end();
+            },
+        );
+
+        this.httpServer.listen(opts.port, opts.host, () => {
+            logger.info(
+                `WS listening on ws://${opts.host}:${opts.port} (main=/, bot-sdk=/botsdk)`,
+            );
         });
     }
 

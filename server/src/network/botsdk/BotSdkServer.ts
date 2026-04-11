@@ -17,6 +17,8 @@
  * inadvertently expose an additional unauthenticated endpoint.
  */
 
+import type { IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
 
 import type { PlayerState } from "../../game/player";
@@ -49,6 +51,16 @@ export interface BotSdkServerOptions {
     serverName?: string;
     /** Perception emission cadence; default 3 game ticks. */
     perceptionEveryNTicks?: number;
+    /**
+     * When true, open a dedicated WebSocketServer on `{host, port}` —
+     * the legacy behavior. When false (default), run in `noServer: true`
+     * mode and expect the main HTTP server to route `/botsdk` upgrades
+     * into {@link BotSdkServer.handleUpgrade}. The shared-HTTP path is
+     * the only one that works behind Sevalla's single-port ingress, so
+     * it's the default. Standalone is kept for local CLI / test
+     * scenarios that don't want to boot the whole WSServer.
+     */
+    standalone?: boolean;
 }
 
 export interface BotSdkServerDeps {
@@ -86,6 +98,15 @@ export class BotSdkServer {
      * Bring the endpoint up. Must be called after the rest of the server
      * is wired, because the action router needs a live `PlayerManager`.
      * No-op (with a warning) if `BOT_SDK_TOKEN` is empty.
+     *
+     * In the shared-HTTP-server topology the BotSdkServer does NOT open
+     * its own port — instead it creates a {@link WebSocketServer} in
+     * `noServer: true` mode that the main wsServer routes `/botsdk`
+     * upgrades into via {@link handleUpgrade}. Set `BOT_SDK_PORT=0`
+     * (or just don't set it; the main server ignores it in shared mode)
+     * to use that path. To retain the legacy standalone behavior
+     * (separate port), pass a nonzero `options.port` AND set
+     * `options.standalone === true`.
      */
     start(): void {
         if (!this.options.token || this.options.token.length === 0) {
@@ -95,19 +116,37 @@ export class BotSdkServer {
             return;
         }
 
-        this.wss = new WebSocketServer({
-            host: this.options.host,
-            port: this.options.port,
-        });
-        this.wss.on("listening", () => {
+        if (this.options.standalone) {
+            // Legacy mode: open our own port. Useful for local dev
+            // and tests that don't want to wire up the shared HTTP
+            // server.
+            this.wss = new WebSocketServer({
+                host: this.options.host,
+                port: this.options.port,
+            });
+            this.wss.on("listening", () => {
+                logger.info(
+                    `[botsdk] (standalone) listening on ws://${this.options.host}:${this.options.port} (token=set)`,
+                );
+            });
+            this.wss.on("error", (err) => {
+                logger.error("[botsdk] server error:", err);
+            });
+            this.wss.on("connection", (ws) => this.handleConnection(ws));
+        } else {
+            // Shared-HTTP mode: create the WSS with no listener of its
+            // own. The main wsServer calls handleUpgrade() when a
+            // `/botsdk` upgrade request lands. We still own the
+            // connection lifecycle after handoff.
+            this.wss = new WebSocketServer({ noServer: true });
+            this.wss.on("connection", (ws) => this.handleConnection(ws));
+            this.wss.on("error", (err) => {
+                logger.error("[botsdk] server error:", err);
+            });
             logger.info(
-                `[botsdk] listening on ws://${this.options.host}:${this.options.port} (token=set)`,
+                `[botsdk] attached to main HTTP server at path /botsdk (token=set)`,
             );
-        });
-        this.wss.on("error", (err) => {
-            logger.error("[botsdk] server error:", err);
-        });
-        this.wss.on("connection", (ws) => this.handleConnection(ws));
+        }
 
         this.emitter = new BotSdkPerceptionEmitter(
             () => this.iterAgentPlayers(),
@@ -122,6 +161,39 @@ export class BotSdkServer {
             { everyNTicks: this.options.perceptionEveryNTicks },
         );
         this.deps.hookTicker((tick) => this.emitter?.onTick(tick));
+    }
+
+    /**
+     * True when the server is ready to accept incoming upgrades at the
+     * `/botsdk` path. False if BOT_SDK_TOKEN is unset (start() bailed)
+     * or if start() hasn't been called yet. The main wsServer's upgrade
+     * handler consults this before delegating to {@link handleUpgrade}.
+     */
+    canAcceptUpgrade(): boolean {
+        return this.wss !== null && !this.options.standalone;
+    }
+
+    /**
+     * Handle a WebSocket upgrade request routed from the main HTTP
+     * server. Only valid in shared-HTTP mode (see {@link start}).
+     */
+    handleUpgrade(
+        req: IncomingMessage,
+        socket: Duplex,
+        head: Buffer,
+    ): void {
+        if (!this.wss) {
+            try {
+                socket.write(
+                    "HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n",
+                );
+                socket.destroy();
+            } catch {}
+            return;
+        }
+        this.wss.handleUpgrade(req, socket, head, (ws) => {
+            this.wss!.emit("connection", ws, req);
+        });
     }
 
     stop(): void {

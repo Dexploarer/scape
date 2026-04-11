@@ -32,6 +32,7 @@ import { ActionDispatchService } from "../game/services/ActionDispatchService";
 import { InventoryMessageService } from "../game/services/InventoryMessageService";
 import { AuthenticationService } from "./AuthenticationService";
 import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
+import { buildWorldDirectory } from "./WorldDirectory";
 
 import { ConfigType } from "../../../src/rs/cache/ConfigType";
 import { IndexType } from "../../../src/rs/cache/IndexType";
@@ -696,7 +697,7 @@ export class WSServer {
         this.httpServer.on(
             "upgrade",
             (req: http.IncomingMessage, socket: Duplex, head: Buffer) => {
-                const url = req.url ?? "/";
+                const url = (req.url ?? "/").split("?")[0] ?? "/";
                 const pathname = url.split("?")[0]!;
 
                 if (!originAllowed(req)) {
@@ -759,6 +760,26 @@ export class WSServer {
                         playerCount: count,
                         maxPlayers: opts.maxPlayers ?? config.maxPlayers,
                     }));
+                    return;
+                }
+                if (url === "/servers.json" || url === "/worlds") {
+                    const count = this.players?.getRealPlayerCount() ?? 0;
+                    res.writeHead(200, {
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Origin": "*",
+                    });
+                    res.end(JSON.stringify(buildWorldDirectory({
+                        serverName: opts.serverName ?? config.serverName,
+                        maxPlayers: opts.maxPlayers ?? config.maxPlayers,
+                        playerCount: count,
+                        hostHeader: req.headers.host,
+                        forwardedProto:
+                            typeof req.headers["x-forwarded-proto"] === "string"
+                                ? req.headers["x-forwarded-proto"]
+                                : undefined,
+                        publicWsUrl: process.env.PUBLIC_WS_URL,
+                        rawDirectoryJson: process.env.SERVER_DIRECTORY_JSON,
+                    })));
                     return;
                 }
                 // /caches/* — serve OSRS cache files to the client

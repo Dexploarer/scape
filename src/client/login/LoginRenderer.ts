@@ -9,6 +9,12 @@ import { DEFAULT_SERVER } from "../../util/serverDefaults";
 import { GameState, LoginIndex } from "./GameState";
 import { LoginAction, LoginActions } from "./LoginAction";
 import { LoginScreenAnimation } from "./LoginScreenAnimation";
+import {
+    createDefaultServerDirectoryEntry,
+    fetchServerDirectory,
+    probeServerDirectory,
+    type ServerDirectoryEntry,
+} from "./serverDirectory";
 import type { LoginState } from "./LoginState";
 
 /** Type alias for rendering context (supports both regular and offscreen canvas) */
@@ -131,29 +137,6 @@ const MOCK_WORLDS: World[] = [
     { id: 315, population: 234, location: 0, activity: "Free-to-play", properties: 0 },
     { id: 316, population: 1567, location: 0, activity: "Members", properties: 1 },
 ];
-
-/**
- * Server list entry for the server browser.
- */
-export interface ServerListEntry {
-    name: string;
-    address: string;
-    secure: boolean;
-    playerCount: number | null;
-    maxPlayers: number;
-}
-
-const FALLBACK_SERVERS: ServerListEntry[] = [
-    {
-        name: DEFAULT_SERVER.name,
-        address: DEFAULT_SERVER.address,
-        secure: DEFAULT_SERVER.secure,
-        playerCount: null,
-        maxPlayers: 2047,
-    },
-];
-
-const SERVER_LIST_URL = "https://xrsps.com/servers.json";
 
 /**
  * Login screen renderer.
@@ -286,7 +269,7 @@ export class LoginRenderer {
     mouseY: number = 0;
 
     /** Server list entries */
-    serverList: ServerListEntry[] = FALLBACK_SERVERS;
+    serverList: ServerDirectoryEntry[] = [createDefaultServerDirectoryEntry()];
 
     /** Whether the remote server list has been fetched */
     serverListFetched: boolean = false;
@@ -300,73 +283,9 @@ export class LoginRenderer {
     async fetchServerList(): Promise<void> {
         if (this.serverListFetched) return;
         try {
-            const res = await fetch(SERVER_LIST_URL, { signal: AbortSignal.timeout(5000) });
-            if (res.ok) {
-                const data = await res.json();
-                if (Array.isArray(data) && data.length > 0) {
-                    const remote: ServerListEntry[] = data.map((s: any) => ({
-                        name: s.name ?? "Unknown",
-                        address: s.address ?? "",
-                        secure: s.secure ?? false,
-                        playerCount: null,
-                        maxPlayers: s.maxPlayers ?? 2047,
-                    }));
-
-                    // Never let the remote list point a deployed
-                    // build at an address the user physically can't
-                    // reach. Two guard rails:
-                    //
-                    //   1. If REACT_APP_WS_URL is set at build time
-                    //      (i.e. this is a hosted deployment), drop
-                    //      any remote entries whose host is loopback
-                    //      — the xrsps.com dev default is
-                    //      `localhost:43594` and it's useless from a
-                    //      browser loading a cloud URL.
-                    //
-                    //   2. Always prepend the build-time server so
-                    //      a hosted visitor sees "their" deployment
-                    //      as the default in the list, even when the
-                    //      remote returns a different one.
-                    const pageHost =
-                        typeof window !== "undefined" && window.location
-                            ? window.location.hostname.toLowerCase()
-                            : "";
-                    const hostedBuild =
-                        pageHost !== "" &&
-                        pageHost !== "localhost" &&
-                        pageHost !== "127.0.0.1" &&
-                        pageHost !== "::1" &&
-                        !pageHost.endsWith(".localhost");
-
-                    const loopbackHostRe =
-                        /^(localhost|127\.0\.0\.1|::1|0\.0\.0\.0)(:\d+)?$/i;
-                    const filtered = hostedBuild
-                        ? remote.filter(
-                              (entry) =>
-                                  entry.address.length > 0 &&
-                                  !loopbackHostRe.test(entry.address),
-                          )
-                        : remote;
-
-                    const defaultEntry: ServerListEntry = {
-                        name: DEFAULT_SERVER.name,
-                        address: DEFAULT_SERVER.address,
-                        secure: DEFAULT_SERVER.secure,
-                        playerCount: null,
-                        maxPlayers: 2047,
-                    };
-                    const alreadyHasDefault = filtered.some(
-                        (entry) =>
-                            entry.address === defaultEntry.address &&
-                            entry.secure === defaultEntry.secure,
-                    );
-                    this.serverList = alreadyHasDefault
-                        ? filtered
-                        : [defaultEntry, ...filtered];
-                }
-            }
+            this.serverList = await fetchServerDirectory();
         } catch {
-            // keep fallback
+            this.serverList = [createDefaultServerDirectoryEntry()];
         }
         this.serverListFetched = true;
     }
@@ -375,50 +294,14 @@ export class LoginRenderer {
         if (this.probing) return;
         this.probed = false;
         this.probing = true;
-
-        const promises = this.serverList.map(async (server) => {
-            const protocol = server.secure ? "https" : "http";
-            let httpOk = false;
-            try {
-                const res = await fetch(`${protocol}://${server.address}/status`, {
-                    signal: AbortSignal.timeout(8000),
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    server.playerCount = typeof data.playerCount === "number" ? data.playerCount : null;
-                    if (typeof data.maxPlayers === "number") server.maxPlayers = data.maxPlayers;
-                    if (typeof data.serverName === "string") server.name = data.serverName;
-                    httpOk = true;
-                }
-            } catch { /* fall through to ws probe */ }
-
-            if (!httpOk) {
-                const wsProto = server.secure ? "wss" : "ws";
-                const alive = await this.probeWebSocket(`${wsProto}://${server.address}`, 5000);
-                server.playerCount = alive ? -1 : null;
-            }
-        });
-
-        Promise.all(promises).finally(() => {
-            this.probing = false;
-            this.probed = true;
-        });
-    }
-
-    private probeWebSocket(url: string, timeoutMs: number): Promise<boolean> {
-        return new Promise((resolve) => {
-            let settled = false;
-            const ws = new WebSocket(url);
-            const timer = setTimeout(() => {
-                if (!settled) { settled = true; ws.close(); resolve(false); }
-            }, timeoutMs);
-            ws.addEventListener("open", () => {
-                if (!settled) { settled = true; clearTimeout(timer); ws.close(); resolve(true); }
+        probeServerDirectory(this.serverList)
+            .then((entries) => {
+                this.serverList = entries;
+            })
+            .finally(() => {
+                this.probing = false;
+                this.probed = true;
             });
-            ws.addEventListener("error", () => {
-                if (!settled) { settled = true; clearTimeout(timer); resolve(false); }
-            });
-        });
     }
 
     /** World sorting option (0=world, 1=players, 2=location, 3=type) */
@@ -2800,7 +2683,7 @@ export class LoginRenderer {
 
         // Discord notice
         this.drawCenteredText(
-            ctx, this.fontPlain12!, "Get your server added through the Discord",
+            ctx, this.fontPlain12!, "World availability refreshes from the configured directory feed",
             panelX + panelW / 2, panelY - 8, 0xaaaaaa,
         );
 

@@ -1,7 +1,7 @@
 export { GameState, LoginIndex } from "./GameState";
 export { LoginState } from "./LoginState";
 export { LoginRenderer } from "./LoginRenderer";
-export type { ServerListEntry } from "./LoginRenderer";
+export type { ServerDirectoryEntry as ServerListEntry } from "./serverDirectory";
 export {
     isLoginMusicState,
     shouldFadeOutLoginMusicForTransition,

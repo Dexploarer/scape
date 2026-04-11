@@ -41,22 +41,52 @@ export interface ServerConfig {
     botSdkPerceptionEveryNTicks: number;
 }
 
-const portEnv = process.env.PORT?.trim();
-const tickMsEnv = process.env.TICK_MS?.trim();
+type ServerConfigFile = Partial<
+    Pick<
+        ServerConfig,
+        | "serverName"
+        | "maxPlayers"
+        | "gamemode"
+        | "accountsFilePath"
+        | "minPasswordLength"
+        | "allowedOrigins"
+        | "botSdkHost"
+        | "botSdkPort"
+        | "botSdkToken"
+        | "botSdkPerceptionEveryNTicks"
+    >
+>;
 
-let serverName = "Local Development";
-let maxPlayers = 2047;
-let gamemode = "vanilla";
-let accountsFilePath = resolve(__dirname, "../../data/accounts.json");
-let minPasswordLength = 8;
-let allowedOrigins: string[] = [];
-let botSdkHost = "127.0.0.1";
-let botSdkPort = 43595;
-let botSdkToken = "";
-let botSdkPerceptionEveryNTicks = 3;
-try {
-    const raw = readFileSync(resolve(__dirname, "../../config.json"), "utf-8");
-    const parsed = JSON.parse(raw);
+function readServerConfigFile(): ServerConfigFile {
+    try {
+        const raw = readFileSync(resolve(__dirname, "../../config.json"), "utf-8");
+        return JSON.parse(raw) as ServerConfigFile;
+    } catch (err) {
+        logger.info("[config] failed to load config.json", err);
+        return {};
+    }
+}
+
+export function createServerConfig(options: {
+    env?: NodeJS.ProcessEnv;
+    fileConfig?: ServerConfigFile;
+} = {}): ServerConfig {
+    const env = options.env ?? process.env;
+    const parsed = options.fileConfig ?? readServerConfigFile();
+    const portEnv = env.PORT?.trim();
+    const tickMsEnv = env.TICK_MS?.trim();
+
+    let serverName = "Local Development";
+    let maxPlayers = 2047;
+    let gamemode = "vanilla";
+    let accountsFilePath = resolve(__dirname, "../../data/accounts.json");
+    let minPasswordLength = 8;
+    let allowedOrigins: string[] = [];
+    let botSdkHost = "127.0.0.1";
+    let botSdkPort = 43595;
+    let botSdkToken = "";
+    let botSdkPerceptionEveryNTicks = 3;
+
     if (typeof parsed.serverName === "string") serverName = parsed.serverName;
     if (typeof parsed.maxPlayers === "number") maxPlayers = parsed.maxPlayers;
     if (typeof parsed.gamemode === "string") gamemode = parsed.gamemode;
@@ -73,46 +103,55 @@ try {
     if (typeof parsed.botSdkPerceptionEveryNTicks === "number") {
         botSdkPerceptionEveryNTicks = parsed.botSdkPerceptionEveryNTicks;
     }
-} catch (err) { logger.info("[config] failed to load config.json", err); }
 
-// Env vars override config.json
-if (process.env.ACCOUNTS_FILE_PATH?.trim()) {
-    accountsFilePath = resolve(process.env.ACCOUNTS_FILE_PATH.trim());
-}
-if (process.env.AUTH_MIN_PASSWORD_LENGTH?.trim()) {
-    const parsed = parseInt(process.env.AUTH_MIN_PASSWORD_LENGTH.trim(), 10);
-    if (Number.isFinite(parsed) && parsed > 0) minPasswordLength = parsed;
-}
-if (process.env.ALLOWED_ORIGINS?.trim()) {
-    allowedOrigins = process.env.ALLOWED_ORIGINS.split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-}
-if (process.env.BOT_SDK_HOST?.trim()) botSdkHost = process.env.BOT_SDK_HOST.trim();
-if (process.env.BOT_SDK_PORT?.trim()) {
-    const parsed = parseInt(process.env.BOT_SDK_PORT.trim(), 10);
-    if (Number.isFinite(parsed) && parsed > 0) botSdkPort = parsed;
-}
-if (process.env.BOT_SDK_TOKEN?.trim()) botSdkToken = process.env.BOT_SDK_TOKEN.trim();
-if (process.env.BOT_SDK_PERCEPTION_EVERY_N_TICKS?.trim()) {
-    const parsed = parseInt(process.env.BOT_SDK_PERCEPTION_EVERY_N_TICKS.trim(), 10);
-    if (Number.isFinite(parsed) && parsed > 0) botSdkPerceptionEveryNTicks = parsed;
+    // Env vars override config.json
+    if (env.SERVER_NAME?.trim()) serverName = env.SERVER_NAME.trim();
+    if (env.ACCOUNTS_FILE_PATH?.trim()) {
+        accountsFilePath = resolve(env.ACCOUNTS_FILE_PATH.trim());
+    }
+    if (env.AUTH_MIN_PASSWORD_LENGTH?.trim()) {
+        const parsedPasswordLength = parseInt(env.AUTH_MIN_PASSWORD_LENGTH.trim(), 10);
+        if (Number.isFinite(parsedPasswordLength) && parsedPasswordLength > 0) {
+            minPasswordLength = parsedPasswordLength;
+        }
+    }
+    if (env.ALLOWED_ORIGINS?.trim()) {
+        allowedOrigins = env.ALLOWED_ORIGINS.split(",")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+    }
+    if (env.BOT_SDK_HOST?.trim()) botSdkHost = env.BOT_SDK_HOST.trim();
+    if (env.BOT_SDK_PORT?.trim()) {
+        const parsedBotSdkPort = parseInt(env.BOT_SDK_PORT.trim(), 10);
+        if (Number.isFinite(parsedBotSdkPort) && parsedBotSdkPort > 0) {
+            botSdkPort = parsedBotSdkPort;
+        }
+    }
+    if (env.BOT_SDK_TOKEN?.trim()) botSdkToken = env.BOT_SDK_TOKEN.trim();
+    if (env.BOT_SDK_PERCEPTION_EVERY_N_TICKS?.trim()) {
+        const parsedPerceptionTicks = parseInt(env.BOT_SDK_PERCEPTION_EVERY_N_TICKS.trim(), 10);
+        if (Number.isFinite(parsedPerceptionTicks) && parsedPerceptionTicks > 0) {
+            botSdkPerceptionEveryNTicks = parsedPerceptionTicks;
+        }
+    }
+
+    return {
+        // Bind all interfaces by default so LAN/mobile clients can reach the WS server.
+        host: env.HOST || "0.0.0.0",
+        port: portEnv ? parseInt(portEnv, 10) || 43594 : 43594, // classic RuneScape default port
+        tickMs: tickMsEnv ? parseInt(tickMsEnv, 10) || 600 : 600, // 0.6s tick
+        serverName,
+        maxPlayers,
+        gamemode: env.GAMEMODE || gamemode,
+        accountsFilePath,
+        minPasswordLength,
+        allowedOrigins,
+        botSdkEnabled: botSdkToken.length > 0,
+        botSdkHost,
+        botSdkPort,
+        botSdkToken,
+        botSdkPerceptionEveryNTicks,
+    };
 }
 
-export const config: ServerConfig = {
-    // Bind all interfaces by default so LAN/mobile clients can reach the WS server.
-    host: process.env.HOST || "0.0.0.0",
-    port: portEnv ? parseInt(portEnv, 10) || 43594 : 43594, // classic RuneScape default port
-    tickMs: tickMsEnv ? parseInt(tickMsEnv, 10) || 600 : 600, // 0.6s tick
-    serverName,
-    maxPlayers,
-    gamemode: process.env.GAMEMODE || gamemode,
-    accountsFilePath,
-    minPasswordLength,
-    allowedOrigins,
-    botSdkEnabled: botSdkToken.length > 0,
-    botSdkHost,
-    botSdkPort,
-    botSdkToken,
-    botSdkPerceptionEveryNTicks,
-};
+export const config: ServerConfig = createServerConfig();

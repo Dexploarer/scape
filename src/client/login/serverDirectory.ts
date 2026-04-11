@@ -34,6 +34,11 @@ export function createDefaultServerDirectoryUrl(
 
 export const DEFAULT_SERVER_DIRECTORY_URL = createDefaultServerDirectoryUrl();
 
+export function appendCacheBustParam(url: string, token: string): string {
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}cb=${encodeURIComponent(token)}`;
+}
+
 function normalizeAddress(
     rawAddress: unknown,
     secureOverride?: boolean,
@@ -174,7 +179,10 @@ export async function fetchServerDirectory(
     url: string = DEFAULT_SERVER_DIRECTORY_URL,
 ): Promise<ServerDirectoryEntry[]> {
     try {
-        const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        const response = await fetch(appendCacheBustParam(url, Date.now().toString(36)), {
+            signal: AbortSignal.timeout(5000),
+            cache: "no-store",
+        });
         if (!response.ok) {
             return normalizeServerDirectoryEntries([]);
         }
@@ -226,9 +234,13 @@ export async function probeServerDirectory(
             const protocol = entry.secure ? "https" : "http";
             let httpOk = false;
             try {
-                const response = await fetch(`${protocol}://${entry.address}/status`, {
-                    signal: AbortSignal.timeout(8000),
-                });
+                const response = await fetch(
+                    appendCacheBustParam(`${protocol}://${entry.address}/status`, Date.now().toString(36)),
+                    {
+                        signal: AbortSignal.timeout(8000),
+                        cache: "no-store",
+                    },
+                );
                 if (response.ok) {
                     const data = await response.json();
                     entry.playerCount =

@@ -754,6 +754,7 @@ export class WSServer {
                     res.writeHead(200, {
                         "Content-Type": "application/json",
                         "Access-Control-Allow-Origin": "*",
+                        "Cache-Control": "no-store, no-cache, must-revalidate",
                     });
                     res.end(JSON.stringify({
                         serverName: opts.serverName ?? config.serverName,
@@ -767,6 +768,7 @@ export class WSServer {
                     res.writeHead(200, {
                         "Content-Type": "application/json",
                         "Access-Control-Allow-Origin": "*",
+                        "Cache-Control": "no-store, no-cache, must-revalidate",
                     });
                     res.end(JSON.stringify(buildWorldDirectory({
                         serverName: opts.serverName ?? config.serverName,

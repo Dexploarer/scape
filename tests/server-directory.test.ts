@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+    appendCacheBustParam,
     createDefaultServerDirectoryUrl,
     createDefaultServerDirectoryEntry,
     normalizeServerDirectoryEntries,
@@ -8,6 +9,18 @@ import {
 import { shouldBypassWorldSelection } from "../src/client/worldSelectionGate";
 
 describe("normalizeServerDirectoryEntries", () => {
+    test("appends a cache-busting query param to bare URLs", () => {
+        expect(appendCacheBustParam("https://scape-96cxt.sevalla.app/status", "abc123")).toBe(
+            "https://scape-96cxt.sevalla.app/status?cb=abc123",
+        );
+    });
+
+    test("appends a cache-busting query param to URLs with existing query params", () => {
+        expect(appendCacheBustParam("https://scape-96cxt.sevalla.app/status?foo=1", "abc123")).toBe(
+            "https://scape-96cxt.sevalla.app/status?foo=1&cb=abc123",
+        );
+    });
+
     test("derives the default directory URL from the websocket host when no override is set", () => {
         expect(createDefaultServerDirectoryUrl({
             address: "scape-96cxt.sevalla.app",

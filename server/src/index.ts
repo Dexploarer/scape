@@ -2,6 +2,7 @@ import path from "path";
 
 import { getCacheLoaderFactory } from "../../src/rs/cache/loader/CacheLoaderFactory";
 import { config } from "./config";
+import { createAccountStore } from "./game/state/createAccountStore";
 import { initSpellWidgetMapping } from "./game/spells/SpellDataProvider";
 import { damageTracker } from "./game/combat/DamageTracker";
 import { createGamemode } from "./game/gamemodes/GamemodeRegistry";
@@ -61,6 +62,19 @@ async function main() {
     }
     logger.info(`Boot: gamemode "${gamemode.name}" created`);
 
+    // Build the account store BEFORE the WSServer constructor so the
+    // sync `new JsonAccountStore(...)` fallback inside initBroadcasters
+    // never runs when DATABASE_URL is set. createAccountStore awaits
+    // the Postgres schema + initial load, so by the time the store
+    // reaches the WSServer it's fully hydrated.
+    logger.info("Boot: initializing account store...");
+    const accountStore = await createAccountStore({
+        databaseUrl: process.env.DATABASE_URL,
+        jsonFilePath: config.accountsFilePath,
+        minPasswordLength: config.minPasswordLength,
+    });
+    logger.info(`Boot: account store ready (${accountStore.size()} account(s))`);
+
     logger.info("Boot: constructing WebSocket server...");
     const server = new WSServer({
         host: config.host,
@@ -74,6 +88,7 @@ async function main() {
         serverName: config.serverName,
         maxPlayers: config.maxPlayers,
         gamemode,
+        accountStore,
     });
     logger.info("Boot: WebSocket server constructed");
 

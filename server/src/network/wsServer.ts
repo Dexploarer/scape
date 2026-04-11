@@ -189,6 +189,15 @@ export interface WSServerOptions {
     serverName?: string;
     maxPlayers?: number;
     gamemode: GamemodeDefinition;
+    /**
+     * Pre-built, already-loaded account store. When provided, skips
+     * the in-constructor `new JsonAccountStore(...)` path and uses
+     * this store instead — which is how the server opts into the
+     * Postgres-backed store without making the constructor async.
+     * See server/src/game/state/createAccountStore.ts and
+     * server/src/index.ts for the wiring.
+     */
+    accountStore?: AccountStore;
 }
 
 export class WSServer {
@@ -584,10 +593,17 @@ export class WSServer {
         this.playerPersistence = new PlayerPersistence({
             dataDir: getGamemodeDataDir(this.gamemode.id),
         });
-        this.accountStore = new JsonAccountStore({
-            filePath: config.accountsFilePath,
-            minPasswordLength: config.minPasswordLength,
-        });
+        // Prefer a pre-built AccountStore from the caller (main() in
+        // server/src/index.ts does the async Postgres init before
+        // reaching us). Fall back to the default JSON file store so
+        // the existing test harness and any callers that don't know
+        // about the new option still work.
+        this.accountStore =
+            this.options.accountStore ??
+            new JsonAccountStore({
+                filePath: config.accountsFilePath,
+                minPasswordLength: config.minPasswordLength,
+            });
         this.accountSummary = new AccountSummaryTracker(this.svc);
         this.reportGameTime = new ReportGameTimeTracker(this.svc);
         this.actionScheduler = new ActionScheduler((player, action, tick) =>

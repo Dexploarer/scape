@@ -1,0 +1,5 @@
+{
+    "name": "@scape/control-plane-module",
+    "private": true,
+    "type": "module"
+}

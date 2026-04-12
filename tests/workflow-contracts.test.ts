@@ -18,6 +18,7 @@ describe("workflow contracts", () => {
         expect(source).toContain("uses: ./.github/actions/setup-bun");
         expect(source).toContain("run: bun test");
         expect(source).toContain("run: bun run server:build");
+        expect(source).toContain("run: bun run spacetimedb:build");
         expect(source).toContain("run: bun run build");
         expect(source).toContain("run: bun run docs:build");
     });

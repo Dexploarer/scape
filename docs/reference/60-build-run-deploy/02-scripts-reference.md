@@ -34,6 +34,10 @@ REACT_APP_WS_URL=wss://game.example.com REACT_APP_SERVER_NAME="My Server" bun ru
 
 Runs `tsc -p server/tsconfig.json`. Type-checks the server — useful in CI. In production you typically run the server via `bun server/src/index.ts` directly (Bun transpiles TypeScript on the fly) rather than pre-compiling.
 
+### `bun run spacetimedb:build`
+
+Runs `tsc -p spacetimedb/tsconfig.json`. Type-checks the shared SpacetimeDB control-plane module scaffold under `spacetimedb/`. This is the canonical schema for hosted worlds, principals, world characters, trajectories, and world-builder metadata. It validates the module shape in CI without requiring a live Spacetime host.
+
 ### `bun run build:all`
 
 Runs both the client and server builds in parallel via `mprocs --config mprocs.build.yaml`.
@@ -98,11 +102,11 @@ Runs `husky install` once after dependencies are installed, so git hooks are wir
 
 ## Canonical facts
 
-- **Package file**: `package.json`.
-- **Dev orchestrator**: `mprocs.yaml`.
-- **Build orchestrator**: `mprocs.build.yaml`.
-- **Cache ensurer**: `scripts/ensure-cache.ts`.
-- **Cache exporters**: `scripts/cache/*.ts`.
-- **Agent dev bot**: `scripts/agent-dev.ts`.
-- **Auth smoke test**: `scripts/test-auth.ts`.
-- **Rule**: prefer Bun — `bun run <script>` over `npm run <script>`.
+-   **Package file**: `package.json`.
+-   **Dev orchestrator**: `mprocs.yaml`.
+-   **Build orchestrator**: `mprocs.build.yaml`.
+-   **Cache ensurer**: `scripts/ensure-cache.ts`.
+-   **Cache exporters**: `scripts/cache/*.ts`.
+-   **Agent dev bot**: `scripts/agent-dev.ts`.
+-   **Auth smoke test**: `scripts/test-auth.ts`.
+-   **Rule**: prefer Bun — `bun run <script>` over `npm run <script>`.

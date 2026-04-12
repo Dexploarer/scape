@@ -21,14 +21,21 @@ browsers  ──HTTPS──►  static host (Vercel / Netlify / Cloudflare Pages
 
 The game server and the client are intentionally separate hosts. The client has no "home" origin — it's a static bundle that connects out to whatever WebSocket URL was baked in at build time (`REACT_APP_WS_URL`).
 
+There is now also a staged shared control-plane module under `spacetimedb/`. It is not the active production persistence backend yet, but it is the canonical hosted-world schema for:
+
+-   global principals
+-   world-scoped character branches
+-   trajectory/event capture
+-   world package / release / patch / prefab metadata
+
 ## 1. Provision the game server host
 
 Any Linux host with:
 
-- Public IPv4 (and ideally IPv6).
-- A DNS A/AAAA record pointing to it — say `game.example.com`.
-- Ports 80 + 443 open (for Caddy's automatic LetsEncrypt cert issuance).
-- Port 43594 **not** open externally — it's fronted by Caddy.
+-   Public IPv4 (and ideally IPv6).
+-   A DNS A/AAAA record pointing to it — say `game.example.com`.
+-   Ports 80 + 443 open (for Caddy's automatic LetsEncrypt cert issuance).
+-   Port 43594 **not** open externally — it's fronted by Caddy.
 
 Minimum size for a small world is modest: 1 vCPU, 2 GB RAM is plenty for dozens of concurrent players. Memory grows with player count because the cache is held in memory.
 Production startup now fails fast when `DATABASE_URL` is missing, because hosted app updates replace the container filesystem and would otherwise wipe `server/data/accounts.json`.
@@ -67,18 +74,35 @@ bun run server:build-collision
 
 Edit `server/src/config/ServerConfig.ts` (or provide a config override — the server supports loading a JSON config via an env var). Key fields:
 
-- **`host`** — bind address. Use `127.0.0.1` so only Caddy can reach it.
-- **`port`** — `43594` (default).
-- **`tickMs`** — `600` (default OSRS tick).
-- **`serverName`** — shown to players.
-- **`maxPlayers`** — `2047` (max OSRS player index).
-- **`gamemode`** — `"vanilla"` or `"leagues-v"`.
-- **`DATABASE_URL`** — managed Postgres connection string for durable account storage.
-- **`accountsFilePath`** — path to the JSON account store. Default is `server/data/accounts.json`. Dev-only unless you mounted durable storage.
-- **`minPasswordLength`** — enforced at registration.
-- **`allowedOrigins`** — list of Origin headers the WebSocket will accept. Put your client host here (e.g. `["https://xrsps.example.com"]`).
-- **`ALLOW_JSON_ACCOUNT_FALLBACK`** — optional escape hatch; when `true`, a broken Postgres bootstrap falls back to the JSON account file.
-- **`ALLOW_JSON_ACCOUNT_STORE_IN_PRODUCTION`** — optional escape hatch; when `true`, production may use the JSON account file. Leave unset unless you mounted durable storage yourself.
+-   **`host`** — bind address. Use `127.0.0.1` so only Caddy can reach it.
+-   **`port`** — `43594` (default).
+-   **`tickMs`** — `600` (default OSRS tick).
+-   **`serverName`** — shown to players.
+-   **`maxPlayers`** — `2047` (max OSRS player index).
+-   **`gamemode`** — `"vanilla"` or `"leagues-v"`.
+-   **`DATABASE_URL`** — managed Postgres connection string for durable account storage.
+-   **`accountsFilePath`** — path to the JSON account store. Default is `server/data/accounts.json`. Dev-only unless you mounted durable storage.
+-   **`minPasswordLength`** — enforced at registration.
+-   **`allowedOrigins`** — list of Origin headers the WebSocket will accept. Put your client host here (e.g. `["https://xrsps.example.com"]`).
+-   **`ALLOW_JSON_ACCOUNT_FALLBACK`** — optional escape hatch; when `true`, a broken Postgres bootstrap falls back to the JSON account file.
+-   **`ALLOW_JSON_ACCOUNT_STORE_IN_PRODUCTION`** — optional escape hatch; when `true`, production may use the JSON account file. Leave unset unless you mounted durable storage yourself.
+-   **`SPACETIMEDB_URI` / `SPACETIMEDB_DATABASE` / `SPACETIMEDB_AUTH_TOKEN`** — staged shared control-plane connection details. These are parsed today so the server/runtime adapters can cut over without another config format change.
+
+## Shared control plane module
+
+Validate the staged module before publishing or wiring adapters:
+
+```sh
+bun run spacetimedb:build
+```
+
+When you are ready to publish the control plane itself:
+
+```sh
+cd spacetimedb
+spacetime login
+spacetime publish <database-name>
+```
 
 ## 6. Run the server under a supervisor
 
@@ -169,9 +193,9 @@ bun run build
 
 The output is a static site in `build/`. Host it anywhere:
 
-- **Vercel / Netlify / Cloudflare Pages** — point at the repo, set the build command to `bun run build`, set the `REACT_APP_*` env vars, publish.
-- **S3 / CloudFront** — upload `build/` behind a CloudFront distribution with `index.html` as the default root object.
-- **Caddy** — add a second site block serving the static `build/` dir.
+-   **Vercel / Netlify / Cloudflare Pages** — point at the repo, set the build command to `bun run build`, set the `REACT_APP_*` env vars, publish.
+-   **S3 / CloudFront** — upload `build/` behind a CloudFront distribution with `index.html` as the default root object.
+-   **Caddy** — add a second site block serving the static `build/` dir.
 
 ## 9. Test
 
@@ -179,27 +203,28 @@ Open the client URL in a browser. The login screen should appear. Try to connect
 
 ## Operating notes
 
-- **Backups** — Postgres is the source of truth for player accounts in production. Back it up using your provider snapshots/backups. Only back up `server/data/accounts.json` if you explicitly opted into JSON storage on durable disk.
-- **Updates** — XRSPS does not support rolling upgrades. To push a new build: stop the server (systemd-stop → graceful save), `git pull`, rebuild if needed, start again. Clients auto-reconnect after a short window.
-- **Cache version** — make sure the client and server are built from the same git commit. See [40.2](../40-protocol/02-binary-encoding.md) — there is no protocol version byte; pairing is 1-to-1.
-- **Scaling beyond one box** — XRSPS is single-process. For more players, scale vertically (more CPU) or run multiple separate worlds.
-- **Persistence migration** — Postgres is the supported production path. See [20.10](../20-server/10-persistence.md) if you need a custom provider.
+-   **Backups** — Postgres is the source of truth for player accounts in production. Back it up using your provider snapshots/backups. Only back up `server/data/accounts.json` if you explicitly opted into JSON storage on durable disk.
+-   **Updates** — XRSPS does not support rolling upgrades. To push a new build: stop the server (systemd-stop → graceful save), `git pull`, rebuild if needed, start again. Clients auto-reconnect after a short window.
+-   **Cache version** — make sure the client and server are built from the same git commit. See [40.2](../40-protocol/02-binary-encoding.md) — there is no protocol version byte; pairing is 1-to-1.
+-   **Scaling beyond one box** — XRSPS is single-process. For more players, scale vertically (more CPU) or run multiple separate worlds.
+-   **Persistence migration** — Postgres is the supported production path. See [20.10](../20-server/10-persistence.md) if you need a custom provider.
+-   **Shared backend migration** — the `spacetimedb/` module is the staged substrate for the future shared hosted backend. Keep the game server authoritative while adapters move accounts, snapshots, and telemetry over incrementally.
 
 ## Firewall checklist
 
-- **Inbound 80** — open (Caddy LE challenge).
-- **Inbound 443** — open (client WebSocket via Caddy).
-- **Inbound 22** — open (SSH).
-- **Inbound 43594** — closed (Caddy proxies to loopback).
-- **Inbound 43595** — closed unless you explicitly use standalone local-style bot-SDK mode.
+-   **Inbound 80** — open (Caddy LE challenge).
+-   **Inbound 443** — open (client WebSocket via Caddy).
+-   **Inbound 22** — open (SSH).
+-   **Inbound 43594** — closed (Caddy proxies to loopback).
+-   **Inbound 43595** — closed unless you explicitly use standalone local-style bot-SDK mode.
 
 ## Canonical facts
 
-- **Reference Caddyfile**: `deployment/Caddyfile`.
-- **Default bind**: `127.0.0.1:43594`.
-- **Default bot-SDK path**: `/botsdk` on the main world server.
-- **Client build command**: `bun run build`.
-- **Required client env vars**: `REACT_APP_WS_URL`, optionally `REACT_APP_SERVER_NAME`.
-- **Production account storage**: Postgres via `DATABASE_URL`.
-- **JSON account storage**: `server/data/accounts.json` by default, intended for local/dev unless you mounted durable storage.
-- **Rule**: client and server must be built from the same git commit.
+-   **Reference Caddyfile**: `deployment/Caddyfile`.
+-   **Default bind**: `127.0.0.1:43594`.
+-   **Default bot-SDK path**: `/botsdk` on the main world server.
+-   **Client build command**: `bun run build`.
+-   **Required client env vars**: `REACT_APP_WS_URL`, optionally `REACT_APP_SERVER_NAME`.
+-   **Production account storage**: Postgres via `DATABASE_URL`.
+-   **JSON account storage**: `server/data/accounts.json` by default, intended for local/dev unless you mounted durable storage.
+-   **Rule**: client and server must be built from the same git commit.

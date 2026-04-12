@@ -1,4 +1,3 @@
-
 <p align="center">
   <strong>'scape — an autonomous-agent playground grafted onto a browser OSRS private server.</strong><br>
   Multiverse experiments, LLM-driven NPCs, and PvP wars like Gielinor has never seen.
@@ -16,10 +15,10 @@
 
 The real goal: use this as a substrate for experiments that don't fit in any vanilla RSPS.
 
-- **Autonomous agents.** LLM-driven characters with persistent memory (the "Scape Journal"), goals, perception snapshots, and a full OSRS toolbelt — walk, chat, attack, loot, bank, equip, cast, mine, chop, fish, remember, set goals, complete goals. State flows to the model as [TOON](https://github.com/toon-format/toon) (Token-Oriented Object Notation, ~40–60% fewer tokens than JSON) so the per-step cost stays cheap enough for long sessions.
-- **Multiverse experiments.** Multiple worlds, multiple rulesets, multiple populations of agents coexisting. Run a PvE world and a scorched-earth world side by side. Seed them with different persona prompts and watch the economies diverge. Swap gamemodes without touching the base server.
-- **PvP wars like Gielinor has never seen.** Because the agents are entities and not scripts, a war between two agent factions is just a normal PvP fight at scale — except the combatants coordinate, remember grudges, and retreat to bank. Human players drop in and pick a side.
-- **Agent-operator steering.** The `@elizaos/app-scape` milady plugin exposes a `/prompt` endpoint so you can direct agents mid-session (`"push east and draw them into multi"`) without disconnecting. Directed prompts become high-priority goals in the next LLM step.
+-   **Autonomous agents.** LLM-driven characters with persistent memory (the "Scape Journal"), goals, perception snapshots, and a full OSRS toolbelt — walk, chat, attack, loot, bank, equip, cast, mine, chop, fish, remember, set goals, complete goals. State flows to the model as [TOON](https://github.com/toon-format/toon) (Token-Oriented Object Notation, ~40–60% fewer tokens than JSON) so the per-step cost stays cheap enough for long sessions.
+-   **Multiverse experiments.** Multiple worlds, multiple rulesets, multiple populations of agents coexisting. Run a PvE world and a scorched-earth world side by side. Seed them with different persona prompts and watch the economies diverge. Swap gamemodes without touching the base server.
+-   **PvP wars like Gielinor has never seen.** Because the agents are entities and not scripts, a war between two agent factions is just a normal PvP fight at scale — except the combatants coordinate, remember grudges, and retreat to bank. Human players drop in and pick a side.
+-   **Agent-operator steering.** The `@elizaos/app-scape` milady plugin exposes a `/prompt` endpoint so you can direct agents mid-session (`"push east and draw them into multi"`) without disconnecting. Directed prompts become high-priority goals in the next LLM step.
 
 ## Architecture sketch
 
@@ -48,6 +47,28 @@ The real goal: use this as a substrate for experiments that don't fit in any van
 │     actions/          ← walk, chat, attack, remember, …     │
 │     providers/        ← bot-state, inventory, nearby, …    │
 └─────────────────────────────────────────────────────────────┘
+                         │ world identity / telemetry / hosted ops
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Shared control plane (SpacetimeDB, staged)                  │
+│   world / principal / world_character                        │
+│   trajectories / live events / world packages / prefabs      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Shared control plane
+
+The shared hosted-world control plane now has a typed SpacetimeDB scaffold under [`spacetimedb/`](./spacetimedb). It is not the live persistence path yet, but it is the canonical schema direction for:
+
+-   global principals
+-   world-scoped character branches
+-   hot trajectory capture
+-   world-package / release / patch / prefab metadata
+
+Validate it locally with:
+
+```bash
+bun run spacetimedb:build
 ```
 
 ## Quick start
@@ -77,9 +98,9 @@ If you want the full LLM-driven agent (not just the in-browser random-walk loop)
 
 This is an active experiment, not a production RSPS. Expect:
 
-- Things to break when gamemodes are swapped mid-session.
-- The TOON protocol and `AgentComponent` shape to evolve.
-- Agent behavior to be impressive one session and hilariously stuck the next — that's the nature of LLM-driven gameplay.
+-   Things to break when gamemodes are swapped mid-session.
+-   The TOON protocol and `AgentComponent` shape to evolve.
+-   Agent behavior to be impressive one session and hilariously stuck the next — that's the nature of LLM-driven gameplay.
 
 ## Credits
 

@@ -147,4 +147,18 @@ describe("createServerConfig", () => {
         expect(config.hostedSessionSecret).toBe("hosted-secret");
         expect(config.runtimeMode).toBe("development");
     });
+
+    test("SpacetimeDB control-plane env vars are parsed and trimmed", () => {
+        const config = createServerConfig({
+            env: {
+                SPACETIMEDB_URI: " wss://control-plane.example.com ",
+                SPACETIMEDB_DATABASE: " hosted-scape ",
+                SPACETIMEDB_AUTH_TOKEN: " signed-token ",
+            },
+        });
+
+        expect(config.spacetimeUri).toBe("wss://control-plane.example.com");
+        expect(config.spacetimeDatabase).toBe("hosted-scape");
+        expect(config.spacetimeAuthToken).toBe("signed-token");
+    });
 });

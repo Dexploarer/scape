@@ -17,6 +17,8 @@ import type { ServerRuntimeMode } from "../../config";
 import type { AccountStore } from "./AccountStore";
 import { JsonAccountStore } from "./AccountStore";
 import { PostgresAccountStore } from "./PostgresAccountStore";
+import { SpacetimeControlPlaneClient } from "../../controlplane/SpacetimeControlPlaneClient";
+import { SpacetimeAccountStore } from "./SpacetimeAccountStore";
 
 export interface CreateAccountStoreOptions {
     /**
@@ -35,6 +37,12 @@ export interface CreateAccountStoreOptions {
     allowJsonFallbackOnDatabaseError?: boolean;
     /** Server runtime mode used to enforce durable storage in production. */
     runtimeMode?: ServerRuntimeMode;
+    /** Shared SpacetimeDB control-plane URI. */
+    spacetimeUri?: string;
+    /** Shared SpacetimeDB database name. */
+    spacetimeDatabase?: string;
+    /** Optional shared SpacetimeDB auth token. */
+    spacetimeAuthToken?: string;
     /**
      * When true, allow JSON-backed accounts even in production mode.
      * Only use this with an explicitly durable mounted volume.
@@ -59,6 +67,36 @@ function assertJsonStoreAllowed(opts: CreateAccountStoreOptions): void {
 export async function createAccountStore(
     opts: CreateAccountStoreOptions,
 ): Promise<AccountStore> {
+    const spacetimeUri = opts.spacetimeUri?.trim();
+    const spacetimeDatabase = opts.spacetimeDatabase?.trim();
+    if (spacetimeUri && spacetimeDatabase) {
+        logger.info("[accounts] SPACETIMEDB_* set → using SpacetimeAccountStore");
+        try {
+            const client = await SpacetimeControlPlaneClient.connect({
+                uri: spacetimeUri,
+                database: spacetimeDatabase,
+                authToken: opts.spacetimeAuthToken,
+            });
+            return await SpacetimeAccountStore.create({
+                client,
+                minPasswordLength: opts.minPasswordLength,
+            });
+        } catch (err) {
+            if (!opts.allowJsonFallbackOnDatabaseError) {
+                logger.error(
+                    "[accounts] SpacetimeDB init failed and JSON fallback is disabled",
+                    err,
+                );
+                throw err instanceof Error ? err : new Error(String(err));
+            }
+            assertJsonStoreAllowed(opts);
+            logger.error(
+                "[accounts] SpacetimeDB init failed, falling back to JsonAccountStore",
+                err,
+            );
+        }
+    }
+
     const url = opts.databaseUrl?.trim();
     if (url && url.length > 0) {
         logger.info("[accounts] DATABASE_URL set → using PostgresAccountStore");

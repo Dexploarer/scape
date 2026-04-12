@@ -19,9 +19,10 @@ From the repo root:
 
 ```sh
 bun run spacetimedb:build
+bun run spacetimedb:generate:bindings
 ```
 
-This validates the module shape and keeps CI honest, but it does not publish the module.
+`spacetimedb:build` validates the module shape and keeps CI honest. `spacetimedb:generate:bindings` refreshes the checked-in TypeScript client bindings consumed by the server runtime under `server/src/controlplane/module_bindings/`.
 
 ## Publish flow
 

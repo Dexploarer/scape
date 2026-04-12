@@ -74,6 +74,9 @@ async function main() {
         minPasswordLength: config.minPasswordLength,
         allowJsonFallbackOnDatabaseError: config.allowJsonAccountFallback,
         runtimeMode: config.runtimeMode,
+        spacetimeUri: config.spacetimeUri,
+        spacetimeDatabase: config.spacetimeDatabase,
+        spacetimeAuthToken: config.spacetimeAuthToken,
         allowJsonStoreInProduction: config.allowJsonAccountStoreInProduction,
     });
     logger.info(`Boot: account store ready (${accountStore.size()} account(s))`);

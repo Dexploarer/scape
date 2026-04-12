@@ -72,6 +72,7 @@ const worldCharacterColumns = {
     world_id: t.string(),
     principal_id: t.string(),
     display_name: t.string(),
+    save_key: t.string().optional(),
     branch_kind: t.string().optional(),
     created_at: t.u64(),
     last_seen_at: t.u64().optional(),
@@ -143,8 +144,9 @@ const liveEventColumns = {
 };
 
 const scheduledJobColumns = {
-    job_id: t.string().primaryKey(),
-    schedule_at: t.scheduleAt(),
+    scheduled_id: t.u64().primaryKey().autoInc(),
+    scheduled_at: t.scheduleAt(),
+    job_id: t.string(),
     world_id: t.string().optional(),
     job_kind: t.string(),
     payload_json: t.string(),
@@ -231,6 +233,11 @@ const world_character = table(
     {
         name: "world_character",
         indexes: [
+            {
+                accessor: "by_world_save_key",
+                algorithm: "btree",
+                columns: ["world_id", "save_key"] as const,
+            },
             {
                 accessor: "by_world_principal",
                 algorithm: "btree",
@@ -332,6 +339,7 @@ const scheduled_job = table(
         // rather than degrading type safety throughout the module.
         scheduled: () => drain_scheduled_job_ref as any,
         indexes: [
+            { accessor: "by_job_id", algorithm: "btree", columns: ["job_id"] as const },
             { accessor: "by_kind", algorithm: "btree", columns: ["job_kind"] as const },
             { accessor: "by_world", algorithm: "btree", columns: ["world_id"] as const },
         ],
@@ -412,6 +420,23 @@ const control_plane = schema(
 );
 
 export default control_plane;
+
+const loginAccountRow = t.row("LoginAccountRow", loginAccountColumns);
+const worldCharacterRow = t.row("WorldCharacterRow", worldCharacterColumns);
+const playerSnapshotRow = t.row("PlayerSnapshotRow", playerSnapshotColumns);
+
+function findWorldCharacterBySaveKey(
+    ctx: any,
+    worldId: string,
+    saveKey: string,
+) {
+    for (const row of ctx.db.world_character.iter()) {
+        if (row.world_id === worldId && row.save_key === saveKey) {
+            return row;
+        }
+    }
+    return null;
+}
 
 export const init = control_plane.init(() => {
     // Intentionally blank: hosted worlds seed themselves through reducers so
@@ -511,6 +536,7 @@ export const upsert_world_character = control_plane.reducer(
             world_id: requiredText("world_id", payload.world_id),
             principal_id: requiredText("principal_id", payload.principal_id),
             display_name: requiredText("display_name", payload.display_name),
+            save_key: optionalText(payload.save_key),
             branch_kind: optionalText(payload.branch_kind),
         };
         return upsertRow(
@@ -543,6 +569,97 @@ export const touch_world_character = control_plane.reducer(
             },
         );
     },
+);
+
+export const list_login_accounts = control_plane.procedure(
+    t.array(loginAccountRow),
+    (ctx) => ctx.withTx((tx) => Array.from(tx.db.login_account.iter())),
+);
+
+export const get_login_account = control_plane.procedure(
+    {
+        username: t.string(),
+    },
+    loginAccountRow.optional(),
+    (ctx, payload) => ctx.withTx((tx) =>
+        tx.db.login_account.username.find(
+            requiredText("username", payload.username).toLowerCase(),
+        ) ?? undefined),
+);
+
+export const get_world_character = control_plane.procedure(
+    {
+        world_character_id: t.string(),
+    },
+    worldCharacterRow.optional(),
+    (ctx, payload) => ctx.withTx((tx) =>
+        tx.db.world_character.world_character_id.find(
+            requiredText("world_character_id", payload.world_character_id),
+        ) ?? undefined),
+);
+
+export const get_world_character_by_save_key = control_plane.procedure(
+    {
+        world_id: t.string(),
+        save_key: t.string(),
+    },
+    worldCharacterRow.optional(),
+    (ctx, payload) => ctx.withTx((tx) =>
+        findWorldCharacterBySaveKey(
+            tx,
+            requiredText("world_id", payload.world_id),
+            requiredText("save_key", payload.save_key),
+        ) ?? undefined),
+);
+
+export const get_player_snapshot = control_plane.procedure(
+    {
+        world_character_id: t.string(),
+    },
+    playerSnapshotRow.optional(),
+    (ctx, payload) => ctx.withTx((tx) =>
+        tx.db.player_snapshot.world_character_id.find(
+            requiredText("world_character_id", payload.world_character_id),
+        ) ?? undefined),
+);
+
+export const get_player_snapshot_by_save_key = control_plane.procedure(
+    {
+        world_id: t.string(),
+        save_key: t.string(),
+    },
+    playerSnapshotRow.optional(),
+    (ctx, payload) => ctx.withTx((tx) => {
+        const worldCharacter = findWorldCharacterBySaveKey(
+            tx,
+            requiredText("world_id", payload.world_id),
+            requiredText("save_key", payload.save_key),
+        );
+        if (!worldCharacter) {
+            return undefined;
+        }
+        return (
+            tx.db.player_snapshot.world_character_id.find(worldCharacter.world_character_id) ??
+            undefined
+        );
+    }),
+);
+
+export const list_player_snapshots_for_world = control_plane.procedure(
+    {
+        world_id: t.string(),
+    },
+    t.array(playerSnapshotRow),
+    (ctx, payload) => ctx.withTx((tx) => {
+        const worldId = requiredText("world_id", payload.world_id);
+        const rows = [];
+        for (const row of tx.db.player_snapshot.iter()) {
+            if (row.world_id === worldId) {
+                rows.push(row);
+            }
+        }
+        return rows;
+    }),
 );
 
 export const put_player_snapshot = control_plane.reducer(playerSnapshotColumns, (ctx, payload) => {
@@ -669,19 +786,20 @@ export const enqueue_scheduled_job = control_plane.reducer(
     },
     (ctx, payload) => {
         const job_id = requiredText("job_id", payload.job_id);
-        return upsertRow(
-            ctx.db.scheduled_job.job_id.find(job_id),
-            (row) => ctx.db.scheduled_job.delete(row),
-            (row) => ctx.db.scheduled_job.insert(row),
-            {
-                job_id,
-                schedule_at: ScheduleAt.interval(payload.delay_millis * 1000n),
-                world_id: optionalText(payload.world_id),
-                job_kind: requiredText("job_kind", payload.job_kind),
-                payload_json: requiredText("payload_json", payload.payload_json),
-                created_at: ctx.timestamp.microsSinceUnixEpoch,
-            },
-        );
+        for (const row of ctx.db.scheduled_job.iter()) {
+            if (row.job_id === job_id) {
+                ctx.db.scheduled_job.delete(row);
+            }
+        }
+        return ctx.db.scheduled_job.insert({
+            scheduled_id: 0n,
+            scheduled_at: ScheduleAt.interval(payload.delay_millis * 1000n),
+            job_id,
+            world_id: optionalText(payload.world_id),
+            job_kind: requiredText("job_kind", payload.job_kind),
+            payload_json: requiredText("payload_json", payload.payload_json),
+            created_at: ctx.timestamp.microsSinceUnixEpoch,
+        });
     },
 );
 
@@ -692,7 +810,7 @@ export const drain_scheduled_job = control_plane.reducer(
             throw new SenderError("drain_scheduled_job is reserved for scheduled execution");
         }
 
-        const existing = ctx.db.scheduled_job.job_id.find(job.job_id);
+        const existing = ctx.db.scheduled_job.scheduled_id.find(job.scheduled_id);
         if (existing) {
             ctx.db.scheduled_job.delete(existing);
         }

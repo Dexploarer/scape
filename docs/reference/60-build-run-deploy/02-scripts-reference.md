@@ -38,6 +38,10 @@ Runs `tsc -p server/tsconfig.json`. Type-checks the server — useful in CI. In 
 
 Runs `tsc -p spacetimedb/tsconfig.json`. Type-checks the shared SpacetimeDB control-plane module scaffold under `spacetimedb/`. This is the canonical schema for hosted worlds, principals, world characters, trajectories, and world-builder metadata. It validates the module shape in CI without requiring a live Spacetime host.
 
+### `bun run spacetimedb:generate:bindings`
+
+Runs `spacetime generate --lang typescript ...` against the local `spacetimedb/` module and refreshes the checked-in TypeScript bindings under `server/src/controlplane/module_bindings/`. Run this whenever you change the control-plane tables, reducers, or procedures and need the server-side adapters to pick up the new contract.
+
 ### `bun run build:all`
 
 Runs both the client and server builds in parallel via `mprocs --config mprocs.build.yaml`.

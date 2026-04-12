@@ -4,8 +4,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { JsonAccountStore } from "../server/src/game/state/AccountStore";
+import { SpacetimeControlPlaneClient } from "../server/src/controlplane/SpacetimeControlPlaneClient";
 import { createAccountStore } from "../server/src/game/state/createAccountStore";
 import { PostgresAccountStore } from "../server/src/game/state/PostgresAccountStore";
+import { SpacetimeAccountStore } from "../server/src/game/state/SpacetimeAccountStore";
 
 const tempFiles: string[] = [];
 
@@ -112,5 +114,38 @@ describe("createAccountStore", () => {
         });
 
         expect(store).toBeInstanceOf(JsonAccountStore);
+    });
+
+    test("prefers SpacetimeDB account storage when control-plane env is configured", async () => {
+        const fakeStore = {
+            verifyOrRegister: () => ({ kind: "wrong_password" as const }),
+            exists: () => false,
+            size: () => 0,
+        };
+        const originalConnect = SpacetimeControlPlaneClient.connect;
+        const originalCreate = SpacetimeAccountStore.create;
+        const spacetimeControlPlaneClient = SpacetimeControlPlaneClient as unknown as {
+            connect: typeof SpacetimeControlPlaneClient.connect;
+        };
+        const spacetimeAccountStore = SpacetimeAccountStore as unknown as {
+            create: typeof SpacetimeAccountStore.create;
+        };
+        spacetimeControlPlaneClient.connect = (async () => ({}) as never) as typeof SpacetimeControlPlaneClient.connect;
+        spacetimeAccountStore.create = (async () => fakeStore as never) as typeof SpacetimeAccountStore.create;
+
+        try {
+            const store = await createAccountStore({
+                jsonFilePath: makeTempFilePath("spacetime-preferred"),
+                minPasswordLength: 8,
+                spacetimeUri: "https://control-plane.example.com",
+                spacetimeDatabase: "hosted-scape",
+                spacetimeAuthToken: "signed-token",
+            });
+
+            expect(store).toBe(fakeStore);
+        } finally {
+            spacetimeControlPlaneClient.connect = originalConnect;
+            spacetimeAccountStore.create = originalCreate;
+        }
     });
 });

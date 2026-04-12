@@ -54,6 +54,7 @@
         "server:prod": "NODE_ENV=production bun scripts/ensure-cache.ts --server && NODE_ENV=production bun server/src/index.ts",
         "server:build": "tsc -p server/tsconfig.json",
         "spacetimedb:build": "tsc -p spacetimedb/tsconfig.json",
+        "spacetimedb:generate:bindings": "mkdir -p server/src/controlplane/module_bindings && spacetime generate --lang typescript --out-dir server/src/controlplane/module_bindings --module-path spacetimedb --include-private --yes",
         "server:build-collision": "bunx tsx server/scripts/build-collision-cache.ts --include-models --force",
         "dev": "mprocs",
         "build:all": "mprocs --config mprocs.build.yaml",

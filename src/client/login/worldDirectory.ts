@@ -19,9 +19,15 @@ export interface WorldDirectoryEntry extends Omit<WorldServerEntry, "playerCount
 const WORLD_ID_BASE = 301;
 const DEFAULT_MAX_PLAYERS = 2047;
 
-function readEnv(key: string): string | undefined {
-    if (typeof process === "undefined" || !process.env) return undefined;
-    const value = process.env[key];
+const WORLD_DIRECTORY_ENV = {
+    REACT_APP_SECONDARY_WS_URL: process.env.REACT_APP_SECONDARY_WS_URL,
+    REACT_APP_WORLD_2_WS_URL: process.env.REACT_APP_WORLD_2_WS_URL,
+    REACT_APP_SECONDARY_SERVER_NAME: process.env.REACT_APP_SECONDARY_SERVER_NAME,
+    REACT_APP_WORLD_2_SERVER_NAME: process.env.REACT_APP_WORLD_2_SERVER_NAME,
+} as const;
+
+function readEnv(key: keyof typeof WORLD_DIRECTORY_ENV): string | undefined {
+    const value = WORLD_DIRECTORY_ENV[key];
     return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 

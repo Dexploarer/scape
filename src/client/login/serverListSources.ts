@@ -11,9 +11,12 @@ export interface ServerListSourceEntry {
     maxPlayers?: number;
 }
 
-function readEnv(key: string): string | undefined {
-    if (typeof process === "undefined" || !process.env) return undefined;
-    const value = process.env[key];
+const CLIENT_SERVER_LIST_ENV = {
+    REACT_APP_SERVER_LIST_URL: process.env.REACT_APP_SERVER_LIST_URL,
+} as const;
+
+function readEnv(key: keyof typeof CLIENT_SERVER_LIST_ENV): string | undefined {
+    const value = CLIENT_SERVER_LIST_ENV[key];
     return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 

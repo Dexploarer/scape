@@ -1,10 +1,18 @@
-function readEnv(key: string): string | undefined {
-    if (typeof process === "undefined" || !process.env) return undefined;
-    const value = process.env[key];
+const CLIENT_ASSET_ENV = {
+    REACT_APP_CACHE_BASE_URL: process.env.REACT_APP_CACHE_BASE_URL,
+    REACT_APP_CACHE_URL: process.env.REACT_APP_CACHE_URL,
+    REACT_APP_MAP_IMAGE_BASE_URL: process.env.REACT_APP_MAP_IMAGE_BASE_URL,
+    REACT_APP_MAP_IMAGES_URL: process.env.REACT_APP_MAP_IMAGES_URL,
+} as const;
+
+type ClientAssetEnvKey = keyof typeof CLIENT_ASSET_ENV;
+
+function readEnv(key: ClientAssetEnvKey): string | undefined {
+    const value = CLIENT_ASSET_ENV[key];
     return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-function readFirstEnv(keys: string[]): string | undefined {
+function readFirstEnv(keys: ClientAssetEnvKey[]): string | undefined {
     for (const key of keys) {
         const value = readEnv(key);
         if (value) {

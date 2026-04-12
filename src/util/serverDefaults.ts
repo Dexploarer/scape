@@ -15,11 +15,13 @@
  * and craco will inline them at build time.
  */
 
-function readEnv(key: string): string | undefined {
-    // `process.env` can be undefined in some non-CRA bundlers, and direct
-    // property access on a missing global throws. Guard defensively.
-    if (typeof process === "undefined" || !process.env) return undefined;
-    const value = process.env[key];
+const DEFAULT_SERVER_ENV = {
+    REACT_APP_WS_URL: process.env.REACT_APP_WS_URL,
+    REACT_APP_SERVER_NAME: process.env.REACT_APP_SERVER_NAME,
+} as const;
+
+function readEnv(key: keyof typeof DEFAULT_SERVER_ENV): string | undefined {
+    const value = DEFAULT_SERVER_ENV[key];
     return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 

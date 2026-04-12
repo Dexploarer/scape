@@ -573,10 +573,11 @@ type ClientToServer =
               | { kind: "anim_snapshot"; requestId: number; snapshot: any };
       }
     | { type: "logout"; payload?: Record<string, never> };
-// Accessing process.env directly throws in browser-only bundles (e.g. toolkit/esbuild) where
-// the Node `process` global is missing. Guard the lookup so we fall back safely.
-const getEnv = (key: string): string | undefined =>
-    typeof process !== "undefined" && process.env ? process.env[key] : undefined;
+const CLIENT_RUNTIME_ENV = {
+    REACT_APP_VERSION: process.env.REACT_APP_VERSION,
+} as const;
+
+const getEnv = (key: keyof typeof CLIENT_RUNTIME_ENV): string | undefined => CLIENT_RUNTIME_ENV[key];
 
 const DEFAULT_URL = DEFAULT_WS_URL;
 const LOGIN_CONNECT_RETRY_DELAY_MS = 1000;

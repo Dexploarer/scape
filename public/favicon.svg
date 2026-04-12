@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">-scape favicon</title>
+  <desc id="desc">A dark square icon with a gold -s monogram for -scape.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1f1a12" />
+      <stop offset="100%" stop-color="#0d0c1c" />
+    </linearGradient>
+    <linearGradient id="ink" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff1bf" />
+      <stop offset="100%" stop-color="#c89a48" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="52" fill="url(#bg)" />
+  <path
+    d="M64 110c0-22 18-40 40-40h84v24h-84c-9 0-16 7-16 16s7 16 16 16h48c22 0 40 18 40 40s-18 40-40 40H68v-24h84c9 0 16-7 16-16s-7-16-16-16h-48c-22 0-40-18-40-40Z"
+    fill="url(#ink)"
+  />
+</svg>

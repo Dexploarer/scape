@@ -1,17 +1,18 @@
 {
-  "name": "OSRS Client",
-  "short_name": "osrs-typescript",
+  "name": "-scape",
+  "short_name": "-scape",
   "start_url": ".",
   "display": "standalone",
   "orientation": "landscape",
   "background_color": "#0d0c1c",
   "theme_color": "#0d0c1c",
-  "description": "RuneScape typescript client rebuilt for the web.",
+  "description": "A browser MMO sandbox for exploring, building, and sharing custom worlds in -scape.",
   "icons": [
     {
-      "src": "favicon.png",
-      "sizes": "32x32",
-      "type": "image/png"
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }

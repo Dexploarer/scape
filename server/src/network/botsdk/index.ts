@@ -8,4 +8,11 @@ export { BotSdkServer, type BotSdkServerOptions, type BotSdkServerDeps } from ".
 export { BotSdkActionRouter, type ActionDispatchResult } from "./BotSdkActionRouter";
 export { AgentPlayerFactory, type AgentSpawnRequest, type AgentSpawnResult } from "./AgentPlayerFactory";
 export { decodeClientFrame, encodeServerFrame } from "./BotSdkCodec";
-export type { ClientFrame, ServerFrame, SpawnFrame, WalkToAction } from "./BotSdkProtocol";
+export type {
+    BotSdkFeature,
+    ClientFrame,
+    RuntimeEventFrame,
+    ServerFrame,
+    SpawnFrame,
+    WalkToAction,
+} from "./BotSdkProtocol";

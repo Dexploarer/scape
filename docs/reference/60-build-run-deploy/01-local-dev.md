@@ -31,7 +31,7 @@ bun run dev
 
 This launches `mprocs` with `mprocs.yaml`, which brings up three tabs:
 
-- **server** — the game server (WebSocket on `127.0.0.1:43594`, bot-SDK on `43595`).
+- **server** — the game server (WebSocket on `127.0.0.1:43594`, bot-SDK on `ws://127.0.0.1:43594/botsdk`).
 - **client** — the React dev server on `http://localhost:3000`.
 - **agent-dev** — a headless bot that connects to the bot-SDK and random-walks around. Good for verifying the server is alive at a glance.
 
@@ -96,7 +96,7 @@ In mprocs: `Ctrl-A q`. The child procs shut down cleanly — the server runs a f
 - **Server entrypoint**: `server/src/index.ts`.
 - **Client entrypoint**: `src/index.tsx`.
 - **Default server port**: `43594`.
-- **Default bot-SDK port**: `43595`.
+- **Default bot-SDK path**: `/botsdk` on the main game socket. Standalone `43595` is local-only.
 - **Default client dev port**: `3000`.
 - **Accounts file**: `server/data/accounts.json`.
 - **Rule**: Bun is the preferred runtime; avoid `npm`/`yarn`/`pnpm` and `ts-node`/`jest`/`vitest`.

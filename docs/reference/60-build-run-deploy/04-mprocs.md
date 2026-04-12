@@ -70,7 +70,7 @@ mprocs -n client
 
 ### The dev bot agent
 
-`scripts/agent-dev.ts` is a Bun script that connects to the bot-SDK port (`43595`), authenticates with `BOT_SDK_TOKEN`, and issues random walk commands. It retries on `ECONNREFUSED` so it survives a server restart. Handy for:
+`scripts/agent-dev.ts` is a Bun script that connects to the bot-SDK path (`ws://127.0.0.1:43594/botsdk` by default), authenticates with `BOT_SDK_TOKEN`, and issues random walk commands. It retries on `ECONNREFUSED` so it survives a server restart. Handy for:
 
 - Verifying the server is running without opening a browser.
 - Generating incidental packet traffic.
@@ -115,5 +115,5 @@ Use this when you want a clean production-ish build of both the client and serve
 - **Installed via**: `bun install` (transitive dep).
 - **Default key prefix**: `Ctrl-A`.
 - **Agent dev script**: `scripts/agent-dev.ts`.
-- **Bot-SDK port**: `43595`.
+- **Bot-SDK path**: `/botsdk` on the main world server. Standalone `43595` is local-only.
 - **Rule**: `bun run dev` is the default entrypoint; individual procs run with `mprocs -n <name>`.

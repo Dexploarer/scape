@@ -18,7 +18,7 @@ import { MapCollisionService } from "./world/MapCollisionService";
 
 async function main() {
     logger.info(
-        `Boot: starting server mode=${config.runtimeMode} tickMs=${config.tickMs}, host=${config.host}, port=${config.port}`,
+        `Boot: starting server mode=${config.runtimeMode} world=${config.worldId} tickMs=${config.tickMs}, host=${config.host}, port=${config.port}`,
     );
     const ticker = new GameTicker(config.tickMs);
 
@@ -108,6 +108,7 @@ async function main() {
     const shutdown = (signal: string) => () => {
         logger.info(`Received ${signal}, shutting down...`);
         ticker.stop();
+        server.dispose();
         gamemode.dispose?.();
         process.exit(0);
     };

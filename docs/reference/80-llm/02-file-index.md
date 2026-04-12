@@ -164,7 +164,7 @@ Paths are relative to the repo root.
 | `server/src/network/AuthenticationService.ts` | Login auth |
 | `server/src/network/LoginHandshakeService.ts` | Handshake state machine |
 | `server/src/network/ServiceWiring.ts` | Network service wiring |
-| `server/src/network/botsdk/` | Bot SDK port (43595) |
+| `server/src/network/botsdk/` | Bot SDK endpoint (`/botsdk` on the main world server; standalone `43595` in local-only mode) |
 | `server/src/network/anim/` | Animation packet helpers |
 | `server/src/network/messages.ts` | Canonical chat message strings |
 | `server/src/network/accountSummary.ts` | Welcome/login response payload |

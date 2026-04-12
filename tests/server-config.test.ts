@@ -7,6 +7,7 @@ describe("createServerConfig", () => {
         const config = createServerConfig({
             env: {
                 SERVER_NAME: "Toonscape",
+                WORLD_ID: "toonscape",
                 HOST: "0.0.0.0",
                 PORT: "43594",
             },
@@ -17,6 +18,7 @@ describe("createServerConfig", () => {
         });
 
         expect(config.serverName).toBe("Toonscape");
+        expect(config.worldId).toBe("toonscape");
         expect(config.maxPlayers).toBe(2047);
         expect(config.host).toBe("0.0.0.0");
         expect(config.port).toBe(43594);
@@ -123,5 +125,26 @@ describe("createServerConfig", () => {
                 PUBLIC_WS_URL: "ws://localhost:43594",
             }),
         ).toBe("development");
+    });
+
+    test("WORLD_ID normalizes world-scoped persistence identifiers", () => {
+        const config = createServerConfig({
+            env: {
+                WORLD_ID: " Toon scape / Alpha ",
+            },
+        });
+
+        expect(config.worldId).toBe("toon-scape-alpha");
+    });
+
+    test("HOSTED_SESSION_SECRET enables hosted session verification without affecting local defaults", () => {
+        const config = createServerConfig({
+            env: {
+                HOSTED_SESSION_SECRET: " hosted-secret ",
+            },
+        });
+
+        expect(config.hostedSessionSecret).toBe("hosted-secret");
+        expect(config.runtimeMode).toBe("development");
     });
 });

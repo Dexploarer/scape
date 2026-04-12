@@ -102,7 +102,7 @@ Caddy's access logs rotate automatically under systemd on most distros.
 
 ## Bot-SDK for automated observation
 
-The bot-SDK (default port `43595`) accepts connections from headless clients authenticated with `BOT_SDK_TOKEN`. You can use this for:
+The bot-SDK (default path `/botsdk` on the main world server) accepts connections from headless clients authenticated with `BOT_SDK_TOKEN`. Standalone `43595` is still available for local-only mode. You can use this for:
 
 - **Smoke tests** — a bot that logs in on every deploy and confirms the world loaded.
 - **Synthetic monitoring** — a bot that runs a fixed script and reports timing.
@@ -118,6 +118,6 @@ The dev bot at `scripts/agent-dev.ts` is a minimal example.
 - **Sync dump env var**: `SYNC_DUMP=1`.
 - **PerfSnapshot shape**: `src/shared/debug/PerfSnapshot.ts`.
 - **Dev overlay toggle**: backtick key (configurable).
-- **Bot-SDK port**: `43595`.
+- **Bot-SDK path**: `/botsdk` on the main world server.
 - **Bot token env var**: `BOT_SDK_TOKEN`.
 - **Rule**: there's no built-in metrics endpoint; roll your own via `Bun.serve` on a side port.

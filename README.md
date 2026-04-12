@@ -38,7 +38,7 @@ The real goal: use this as a substrate for experiments that don't fit in any van
 │   MovementService, CombatService, InventoryService, …       │
 │   Gamemodes: vanilla, infinite-run, sailing, …              │
 └────────────────────────┬────────────────────────────────────┘
-                         │ TOON bot-SDK (:43595, optional)
+                         │ TOON bot-SDK (/botsdk, optional)
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ milady runtime                                              │

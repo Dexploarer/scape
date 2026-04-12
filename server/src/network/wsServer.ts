@@ -2,6 +2,7 @@ import type { Duplex } from "node:stream";
 import http from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
 import { config } from "../config";
+import { HostedSessionService } from "../auth/HostedSessionService";
 import { GameContext } from "../game/GameContext";
 import { DataLoaderService } from "../game/services/DataLoaderService";
 import { VariableService } from "../game/services/VariableService";
@@ -79,7 +80,6 @@ import { FollowerCombatManager } from "../game/followers/FollowerCombatManager";
 import { FollowerManager } from "../game/followers/FollowerManager";
 import { GroundItemManager } from "../game/items/GroundItemManager";
 import type { GamemodeDefinition, GamemodeUiController } from "../game/gamemodes/GamemodeDefinition";
-import { getGamemodeDataDir } from "../game/gamemodes/GamemodeRegistry";
 import { NpcState, type NpcUpdateDelta } from "../game/npc";
 import { NpcManager } from "../game/npcManager";
 import {
@@ -94,7 +94,8 @@ import {
     BotSdkServer,
 } from "./botsdk";
 import { JsonAccountStore, type AccountStore } from "../game/state/AccountStore";
-import { PlayerPersistence } from "../game/state/PlayerPersistence";
+import { createPersistenceProvider } from "../game/state/createPersistenceProvider";
+import type { ManagedPersistenceProvider } from "../game/state/PersistenceProvider";
 import {
     BroadcastScheduler,
     EquipmentHandler,
@@ -203,6 +204,8 @@ export interface WSServerOptions {
      * server/src/index.ts for the wiring.
      */
     accountStore?: AccountStore;
+    /** Optional injected persistence backend. Defaults to JSON file storage. */
+    persistenceProvider?: ManagedPersistenceProvider;
 }
 
 export class WSServer {
@@ -239,8 +242,9 @@ export class WSServer {
     private readonly scriptScheduler = new ScriptScheduler();
     private readonly scriptRegistry = new ScriptRegistry();
     private scriptRuntime!: ScriptRuntime;
-    private playerPersistence!: PlayerPersistence;
+    private playerPersistence!: ManagedPersistenceProvider;
     private accountStore!: AccountStore;
+    private hostedSessionService?: HostedSessionService;
     private botSdkServer!: BotSdkServer;
     private agentPlayerFactory!: AgentPlayerFactory;
     private botSdkActionRouter!: BotSdkActionRouter;
@@ -411,9 +415,11 @@ export class WSServer {
     private initBotSdk(opts: WSServerOptions): void {
         this.agentPlayerFactory = new AgentPlayerFactory({
             players: () => this.players,
+            worldId: config.worldId,
             gamemode: this.gamemode,
             accountStore: this.accountStore,
             playerPersistence: this.playerPersistence,
+            hostedSessionService: this.hostedSessionService,
         });
         this.botSdkActionRouter = new BotSdkActionRouter({
             players: () => this.players,
@@ -427,6 +433,8 @@ export class WSServer {
                 token: config.botSdkToken,
                 serverName: config.serverName,
                 perceptionEveryNTicks: config.botSdkPerceptionEveryNTicks,
+                worldId: config.worldId,
+                trajectoryLogPath: config.trajectoryLogPath,
             },
             {
                 factory: this.agentPlayerFactory,
@@ -440,6 +448,24 @@ export class WSServer {
         );
     }
 
+    dispose(): void {
+        try {
+            this.botSdkServer?.stop();
+        } catch (err) {
+            logger.warn("[ws] failed to stop bot-sdk server during shutdown", err);
+        }
+        try {
+            this.playerPersistence?.dispose?.();
+        } catch (err) {
+            logger.warn("[ws] failed to dispose persistence provider during shutdown", err);
+        }
+        try {
+            this.httpServer?.close();
+        } catch (err) {
+            logger.warn("[ws] failed to close HTTP server during shutdown", err);
+        }
+    }
+
     /**
      * Populate the shared ServerServices context from all initialized services.
      * Called once at the end of the constructor, after all services are created.
@@ -451,6 +477,7 @@ export class WSServer {
         // Config & infrastructure
         s.ticker = this.options.ticker;
         s.tickMs = this.options.tickMs;
+        s.worldId = config.worldId;
         s.gamemode = this.gamemode;
         s.pathService = this.options.pathService;
         s.mapService = this.options.mapService;
@@ -515,6 +542,7 @@ export class WSServer {
         // Required services (always present by this point)
         s.playerPersistence = this.playerPersistence;
         s.accountStore = this.accountStore;
+        s.hostedSessionService = this.hostedSessionService;
         s.botSdkServer = this.botSdkServer;
         s.dataLoaderService = this.dataLoaderService;
         s.networkLayer = this.networkLayer;
@@ -605,9 +633,12 @@ export class WSServer {
     }
 
     private initBroadcasters(): void {
-        this.playerPersistence = new PlayerPersistence({
-            dataDir: getGamemodeDataDir(this.gamemode.id),
+        this.playerPersistence = createPersistenceProvider({
+            gamemodeId: this.gamemode.id,
+            worldId: config.worldId,
+            provider: this.options.persistenceProvider,
         });
+        this.playerPersistence.initialize?.();
         // Prefer a pre-built AccountStore from the caller (main() in
         // server/src/index.ts does the async Postgres init before
         // reaching us). Fall back to the default JSON file store so
@@ -619,6 +650,11 @@ export class WSServer {
                 filePath: config.accountsFilePath,
                 minPasswordLength: config.minPasswordLength,
             });
+        if (config.hostedSessionSecret.length > 0) {
+            this.hostedSessionService = new HostedSessionService({
+                secret: config.hostedSessionSecret,
+            });
+        }
         this.accountSummary = new AccountSummaryTracker(this.svc);
         this.reportGameTime = new ReportGameTimeTracker(this.svc);
         this.actionScheduler = new ActionScheduler((player, action, tick) =>

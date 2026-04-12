@@ -151,7 +151,7 @@ Never import `src/client/` or `src/ui/` from `server/`. Never import `server/` f
 |---|---|
 | `REACT_APP_WS_URL` | Client → server WebSocket URL (baked at client build time) |
 | `REACT_APP_SERVER_NAME` | Display name of the server in the client UI |
-| `BOT_SDK_TOKEN` | Secret for bot-SDK port 43595 |
+| `BOT_SDK_TOKEN` | Secret for the bot-SDK endpoint (`/botsdk` on the main world server, or standalone `43595` in local-only mode) |
 | `LOG_LEVEL` | Server logger threshold |
 | `TICK_PROFILE` | `1` to dump per-phase tick timings |
 | `SYNC_DUMP` | `1` to dump PLAYER_SYNC / NPC_INFO bit layouts |

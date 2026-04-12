@@ -584,6 +584,9 @@ let loginConnectAttemptId = 0;
 // Session credentials for automatic re-login on reconnect
 let sessionUsername: string | null = null;
 let sessionPassword: string | null = null;
+let sessionToken: string | null = null;
+let sessionWorldCharacterId: string | null = null;
+let sessionLoginMode: "password" | "hosted" | null = null;
 let sessionRevision: number = 0;
 let currentTick = 0;
 const tickListeners = new Set<(tick: number, time: number) => void>();
@@ -615,6 +618,33 @@ const soundListeners = new Set<
         volume?: number;
     }) => void
 >();
+
+function hasReconnectableSession(): boolean {
+    return (
+        (sessionLoginMode === "password" &&
+            sessionUsername !== null &&
+            sessionPassword !== null) ||
+        (sessionLoginMode === "hosted" && sessionToken !== null)
+    );
+}
+
+function buildSessionLoginPayload(): Record<string, unknown> | null {
+    if (sessionLoginMode === "password" && sessionUsername !== null && sessionPassword !== null) {
+        return {
+            username: sessionUsername,
+            password: sessionPassword,
+            revision: sessionRevision,
+        };
+    }
+    if (sessionLoginMode === "hosted" && sessionToken !== null) {
+        return {
+            sessionToken,
+            worldCharacterId: sessionWorldCharacterId ?? undefined,
+            revision: sessionRevision,
+        };
+    }
+    return null;
+}
 const playSongListeners = new Set<
     (payload: {
         trackId: number;
@@ -1538,11 +1568,12 @@ export function initServerConnection(url: string = DEFAULT_URL) {
             });
 
             // If reconnecting with stored credentials, automatically re-login
-            if (wasReconnecting && sessionUsername && sessionPassword) {
+            const reconnectLoginPayload = buildSessionLoginPayload();
+            if (wasReconnecting && reconnectLoginPayload) {
                 console.log("[ws] Reconnected - attempting session resumption...");
                 send({
                     type: "login",
-                    payload: { username: sessionUsername, password: sessionPassword, revision: sessionRevision },
+                    payload: reconnectLoginPayload,
                 } as any);
             }
             // Only auto-send handshake if flag is set (for backwards compatibility)
@@ -2400,7 +2431,7 @@ function initSocketCloseHandler(ws: WebSocket): void {
             const isIntentionalClose =
                 evt.wasClean && (evt.reason === "logout" || evt.reason === "page unload");
             // Only reconnect if we have stored session credentials (were previously logged in)
-            const hasSession = sessionUsername !== null && sessionPassword !== null;
+            const hasSession = hasReconnectableSession();
             const shouldReconnect =
                 hasSession &&
                 !suppress &&
@@ -3176,6 +3207,9 @@ export function sendLogin(username: string, password: string, revision: number =
     // Store credentials for session resumption on reconnect
     sessionUsername = username;
     sessionPassword = password;
+    sessionToken = null;
+    sessionWorldCharacterId = null;
+    sessionLoginMode = "password";
     sessionRevision = revision;
     const attemptId = ++loginConnectAttemptId;
 
@@ -3254,6 +3288,93 @@ export function sendLogin(username: string, password: string, revision: number =
     sendLoginPayload();
 }
 
+export function sendHostedLogin(
+    sessionTokenValue: string,
+    options: { worldCharacterId?: string; revision?: number } = {},
+): void {
+    sessionUsername = null;
+    sessionPassword = null;
+    sessionToken = sessionTokenValue;
+    sessionWorldCharacterId = options.worldCharacterId ?? null;
+    sessionLoginMode = "hosted";
+    sessionRevision = options.revision ?? 0;
+    const attemptId = ++loginConnectAttemptId;
+
+    try {
+        const g: any = (typeof window !== "undefined" ? window : globalThis) as any;
+        g[WS_SUPPRESS_RECONNECT_KEY] = false;
+    } catch {}
+
+    const sendLoginPayload = () => {
+        const payload = buildSessionLoginPayload();
+        if (!payload) return;
+        send({
+            type: "login",
+            payload,
+        } as any);
+    };
+
+    const attachLoginOnOpen = (targetSocket: WebSocket) => {
+        const sendLoginOnOpen = () => {
+            targetSocket.removeEventListener("open", sendLoginOnOpen);
+            if (attemptId !== loginConnectAttemptId) return;
+            if (socket !== targetSocket || targetSocket.readyState !== WebSocket.OPEN) return;
+            clearLoginConnectRetryTimer();
+            sendLoginPayload();
+        };
+
+        targetSocket.addEventListener("open", sendLoginOnOpen);
+    };
+
+    const connectForLogin = (url: string, forceFreshSocket: boolean) => {
+        const currentSocket = socket;
+        if (
+            forceFreshSocket &&
+            currentSocket &&
+            (currentSocket.readyState === WebSocket.OPEN ||
+                currentSocket.readyState === WebSocket.CONNECTING)
+        ) {
+            socket = null;
+            try {
+                currentSocket.close(1000, "login retry");
+            } catch {}
+        }
+
+        initServerConnection(url);
+        if (socket) {
+            if (socket.readyState === WebSocket.OPEN) {
+                if (attemptId === loginConnectAttemptId) {
+                    clearLoginConnectRetryTimer();
+                    sendLoginPayload();
+                }
+            } else {
+                attachLoginOnOpen(socket);
+            }
+        }
+    };
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+        console.log("[ws] Socket not open, reconnecting before hosted login...");
+        clearLoginConnectRetryTimer();
+        connectForLogin(lastUrl, false);
+
+        loginConnectRetryTimer = setTimeout(() => {
+            loginConnectRetryTimer = null;
+            if (attemptId !== loginConnectAttemptId) return;
+            if (socket && socket.readyState === WebSocket.OPEN) return;
+
+            console.log(
+                `[ws] Hosted login connect not established after ${LOGIN_CONNECT_RETRY_DELAY_MS}ms, retrying direct websocket connect...`,
+            );
+            connectForLogin(lastUrl, true);
+        }, LOGIN_CONNECT_RETRY_DELAY_MS);
+        return;
+    }
+
+    clearLoginConnectRetryTimer();
+    sendLoginPayload();
+}
+
 /**
  * Send logout request to server.
  * Server will check if player can logout (not in combat, etc.) and respond.
@@ -3276,6 +3397,9 @@ export function suppressReconnection(): void {
     // Clear session credentials - user logged out intentionally
     sessionUsername = null;
     sessionPassword = null;
+    sessionToken = null;
+    sessionWorldCharacterId = null;
+    sessionLoginMode = null;
     clearLoginConnectRetryTimer();
     try {
         const g: any = (typeof window !== "undefined" ? window : globalThis) as any;

@@ -15,6 +15,8 @@
 
 import type { AgentPerceptionSnapshot } from "../../agent";
 
+export type BotSdkFeature = "hostedSessions" | "liveEvents";
+
 // ────────────────────────────────────────────────────────────────────────
 //  Authentication / session frames
 // ────────────────────────────────────────────────────────────────────────
@@ -26,6 +28,8 @@ export interface AuthFrame {
     token: string;
     /** Optional protocol version bump (currently always 1). */
     version?: number;
+    /** Optional client feature negotiation. */
+    features?: BotSdkFeature[];
 }
 
 /**
@@ -53,7 +57,13 @@ export interface SpawnFrame {
      * Subject to the same minimum-length policy as human accounts
      * (AUTH_MIN_PASSWORD_LENGTH, default 8).
      */
-    password: string;
+    password?: string;
+    /** Hosted Milady/ElizaOS session token. Distinct from password mode. */
+    sessionToken?: string;
+    /** Optional hosted world identifier. Must match the server's configured world. */
+    worldId?: string;
+    /** Hosted world-character branch. */
+    worldCharacterId?: string;
     /** Optional persona string fed into the LLM's system prompt. */
     persona?: string;
     /** Controller mode for this agent. Defaults to `"hybrid"`. */
@@ -145,6 +155,8 @@ export interface AuthOkFrame {
     server: string;
     /** Protocol version the server speaks. */
     version: number;
+    /** Server-supported optional features. */
+    features?: BotSdkFeature[];
 }
 
 /** Auth or spawn failed. Session is closed after this frame. */
@@ -214,6 +226,21 @@ export interface OperatorCommandFrame {
     fromPlayerName?: string;
 }
 
+/**
+ * High-signal server event for event-driven agent wakeups.
+ *
+ * Older clients may not understand this frame kind, so the server only sends
+ * it when the client opts into `features: ["liveEvents"]` during auth.
+ */
+export interface RuntimeEventFrame {
+    kind: "event";
+    event: string;
+    timestamp: number;
+    playerId?: number;
+    worldId?: string;
+    payload?: Record<string, unknown>;
+}
+
 /** All server-originated frames. */
 export type ServerFrame =
     | AuthOkFrame
@@ -221,4 +248,5 @@ export type ServerFrame =
     | SpawnOkFrame
     | ActionAckFrame
     | PerceptionFrame
-    | OperatorCommandFrame;
+    | OperatorCommandFrame
+    | RuntimeEventFrame;

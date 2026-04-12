@@ -191,13 +191,13 @@ Open the client URL in a browser. The login screen should appear. Try to connect
 - **Inbound 443** — open (client WebSocket via Caddy).
 - **Inbound 22** — open (SSH).
 - **Inbound 43594** — closed (Caddy proxies to loopback).
-- **Inbound 43595** — closed unless you want to expose the bot-SDK to remote bots.
+- **Inbound 43595** — closed unless you explicitly use standalone local-style bot-SDK mode.
 
 ## Canonical facts
 
 - **Reference Caddyfile**: `deployment/Caddyfile`.
 - **Default bind**: `127.0.0.1:43594`.
-- **Default bot-SDK port**: `43595`.
+- **Default bot-SDK path**: `/botsdk` on the main world server.
 - **Client build command**: `bun run build`.
 - **Required client env vars**: `REACT_APP_WS_URL`, optionally `REACT_APP_SERVER_NAME`.
 - **Production account storage**: Postgres via `DATABASE_URL`.

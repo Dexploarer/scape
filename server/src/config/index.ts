@@ -8,6 +8,7 @@ export interface ServerConfig {
     port: number;
     tickMs: number;
     runtimeMode: "development" | "production";
+    worldId: string;
     serverName: string;
     maxPlayers: number;
     gamemode: string;
@@ -55,6 +56,20 @@ export interface ServerConfig {
     botSdkToken: string;
     /** Emit perception every N game ticks. Default 3. */
     botSdkPerceptionEveryNTicks: number;
+    /**
+     * Shared HMAC secret for hosted Milady/ElizaOS login tickets.
+     * Empty = hosted session mode disabled.
+     */
+    hostedSessionSecret: string;
+    /** Shared backend / control-plane connection details (future SpacetimeDB path). */
+    spacetimeUri?: string;
+    spacetimeDatabase?: string;
+    spacetimeAuthToken?: string;
+    /**
+     * Optional JSONL sink for autonomous-agent trajectories.
+     * Empty = disable local file export.
+     */
+    trajectoryLogPath?: string;
 }
 
 export type ServerRuntimeMode = "development" | "production";
@@ -65,6 +80,7 @@ type ServerConfigFile = Partial<
         | "serverName"
         | "maxPlayers"
         | "gamemode"
+        | "worldId"
         | "accountsFilePath"
         | "minPasswordLength"
         | "allowJsonAccountFallback"
@@ -74,8 +90,19 @@ type ServerConfigFile = Partial<
         | "botSdkPort"
         | "botSdkToken"
         | "botSdkPerceptionEveryNTicks"
+        | "hostedSessionSecret"
+        | "spacetimeUri"
+        | "spacetimeDatabase"
+        | "trajectoryLogPath"
     >
 >;
+
+function normalizeWorldId(value: string | undefined): string | undefined {
+    const trimmed = value?.trim().toLowerCase();
+    if (!trimmed) return undefined;
+    const normalized = trimmed.replace(/[^a-z0-9:_-]+/g, "-").replace(/-+/g, "-");
+    return normalized.length > 0 ? normalized : undefined;
+}
 
 function readServerConfigFile(): ServerConfigFile {
     try {
@@ -156,6 +183,7 @@ export function createServerConfig(options: {
     let serverName = "Local Development";
     let maxPlayers = 2047;
     let gamemode = "vanilla";
+    let worldId = "vanilla";
     let accountsFilePath = resolve(__dirname, "../../data/accounts.json");
     let minPasswordLength = 8;
     let allowJsonAccountFallback = false;
@@ -165,10 +193,15 @@ export function createServerConfig(options: {
     let botSdkPort = 43595;
     let botSdkToken = "";
     let botSdkPerceptionEveryNTicks = 3;
+    let hostedSessionSecret = "";
+    let spacetimeUri: string | undefined;
+    let spacetimeDatabase: string | undefined;
+    let trajectoryLogPath: string | undefined;
 
     if (typeof parsed.serverName === "string") serverName = parsed.serverName;
     if (typeof parsed.maxPlayers === "number") maxPlayers = parsed.maxPlayers;
     if (typeof parsed.gamemode === "string") gamemode = parsed.gamemode;
+    if (typeof parsed.worldId === "string") worldId = parsed.worldId;
     if (typeof parsed.accountsFilePath === "string") {
         accountsFilePath = resolve(__dirname, "../../", parsed.accountsFilePath);
     }
@@ -188,9 +221,20 @@ export function createServerConfig(options: {
     if (typeof parsed.botSdkPerceptionEveryNTicks === "number") {
         botSdkPerceptionEveryNTicks = parsed.botSdkPerceptionEveryNTicks;
     }
+    if (typeof parsed.hostedSessionSecret === "string") {
+        hostedSessionSecret = parsed.hostedSessionSecret;
+    }
+    if (typeof parsed.spacetimeUri === "string") spacetimeUri = parsed.spacetimeUri;
+    if (typeof parsed.spacetimeDatabase === "string") {
+        spacetimeDatabase = parsed.spacetimeDatabase;
+    }
+    if (typeof parsed.trajectoryLogPath === "string") {
+        trajectoryLogPath = resolve(__dirname, "../../", parsed.trajectoryLogPath);
+    }
 
     // Env vars override config.json
     if (env.SERVER_NAME?.trim()) serverName = env.SERVER_NAME.trim();
+    if (env.WORLD_ID?.trim()) worldId = env.WORLD_ID.trim();
     if (env.ACCOUNTS_FILE_PATH?.trim()) {
         accountsFilePath = resolve(env.ACCOUNTS_FILE_PATH.trim());
     }
@@ -234,6 +278,21 @@ export function createServerConfig(options: {
             botSdkPerceptionEveryNTicks = parsedPerceptionTicks;
         }
     }
+    if (env.HOSTED_SESSION_SECRET?.trim()) {
+        hostedSessionSecret = env.HOSTED_SESSION_SECRET.trim();
+    }
+    if (env.SPACETIMEDB_URI?.trim()) {
+        spacetimeUri = env.SPACETIMEDB_URI.trim();
+    }
+    if (env.SPACETIMEDB_DATABASE?.trim()) {
+        spacetimeDatabase = env.SPACETIMEDB_DATABASE.trim();
+    }
+    const spacetimeAuthToken = env.SPACETIMEDB_AUTH_TOKEN?.trim() || undefined;
+    if (env.TRAJECTORY_LOG_PATH?.trim()) {
+        trajectoryLogPath = resolve(env.TRAJECTORY_LOG_PATH.trim());
+    }
+
+    const resolvedWorldId = normalizeWorldId(worldId) ?? normalizeWorldId(gamemode) ?? "vanilla";
 
     return {
         // Bind all interfaces by default so LAN/mobile clients can reach the WS server.
@@ -241,6 +300,7 @@ export function createServerConfig(options: {
         port: portEnv ? parseInt(portEnv, 10) || 43594 : 43594, // classic RuneScape default port
         tickMs: tickMsEnv ? parseInt(tickMsEnv, 10) || 600 : 600, // 0.6s tick
         runtimeMode,
+        worldId: resolvedWorldId,
         serverName,
         maxPlayers,
         gamemode: env.GAMEMODE || gamemode,
@@ -254,6 +314,11 @@ export function createServerConfig(options: {
         botSdkPort,
         botSdkToken,
         botSdkPerceptionEveryNTicks,
+        hostedSessionSecret,
+        spacetimeUri,
+        spacetimeDatabase,
+        spacetimeAuthToken,
+        trajectoryLogPath,
     };
 }
 

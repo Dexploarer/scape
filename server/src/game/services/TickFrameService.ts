@@ -4,7 +4,7 @@ import type { TickFrame } from "../tick/TickPhaseOrchestrator";
 import type { ServerServices } from "../ServerServices";
 import type { PlayerState } from "../player";
 import { upsertNpcUpdateDelta } from "../../network/NpcExternalSync";
-import { buildPlayerSaveKey } from "../state/PlayerSessionKeys";
+import { buildScopedPlayerSaveKey } from "../state/PlayerSessionKeys";
 
 export class TickFrameService {
     private autosaveIntervalTicks: number;
@@ -202,7 +202,13 @@ export class TickFrameService {
         if (!players) return;
         const entries: Array<{ key: string; player: PlayerState }> = [];
         players.forEach((_ws, player) => {
-            const key = player.__saveKey ?? buildPlayerSaveKey(player.name, player.id);
+            const key =
+                player.__saveKey ??
+                buildScopedPlayerSaveKey({
+                    worldId: this.svc.worldId,
+                    name: player.name,
+                    id: player.id,
+                });
             if (key && key.length > 0) {
                 entries.push({ key, player });
             }

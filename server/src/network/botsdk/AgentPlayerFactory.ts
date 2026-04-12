@@ -32,10 +32,11 @@ import {
     type AccountStore,
 } from "../../game/state/AccountStore";
 import {
-    buildPlayerSaveKey,
+    buildScopedPlayerSaveKey,
     normalizePlayerAccountName,
 } from "../../game/state/PlayerSessionKeys";
 import type { PersistenceProvider } from "../../game/state/PersistenceProvider";
+import type { HostedSessionService } from "../../auth/HostedSessionService";
 import type { AgentComponent } from "../../agent";
 import { AgentActionQueue } from "../../agent";
 import type { GamemodeDefinition } from "../../game/gamemodes/GamemodeDefinition";
@@ -48,7 +49,11 @@ export interface AgentSpawnRequest {
     /** In-game display name (becomes the account username). */
     displayName: string;
     /** Plaintext password for scrypt verification / auto-registration. */
-    password: string;
+    password?: string;
+    /** Hosted Milady/ElizaOS session token. Mutually exclusive with password mode. */
+    sessionToken?: string;
+    /** World-scoped character branch for hosted sessions. */
+    worldCharacterId?: string;
     /** Controller mode for the first session. */
     controller: "llm" | "user" | "hybrid";
     /** Optional persona string fed into LLM prompts. */
@@ -61,9 +66,11 @@ export type AgentSpawnResult =
 
 export interface AgentPlayerFactoryDeps {
     players: () => PlayerManager | undefined;
+    worldId: string;
     gamemode: GamemodeDefinition;
     accountStore: AccountStore;
     playerPersistence: PersistenceProvider;
+    hostedSessionService?: HostedSessionService;
 }
 
 export class AgentPlayerFactory {
@@ -84,15 +91,15 @@ export class AgentPlayerFactory {
             };
         }
 
-        const normalized = normalizePlayerAccountName(request.displayName);
-        if (!normalized) {
+        const hostedTokenMode = typeof request.sessionToken === "string" && request.sessionToken.length > 0;
+        if (hostedTokenMode && typeof request.password === "string" && request.password.length > 0) {
             return {
                 ok: false,
-                code: "invalid_name",
-                message: "displayName must be a non-empty string.",
+                code: "mixed_auth_modes",
+                message: "Use either password auth or hosted session auth, not both.",
             };
         }
-        if (typeof request.password !== "string" || request.password.length === 0) {
+        if (!hostedTokenMode && (typeof request.password !== "string" || request.password.length === 0)) {
             return {
                 ok: false,
                 code: "missing_password",
@@ -100,49 +107,94 @@ export class AgentPlayerFactory {
             };
         }
 
-        // 1. Name collision — covers humans AND bots (agents).
-        if (players.hasConnectedPlayer(normalized)) {
+        let resolvedDisplayName = request.displayName;
+        let normalized = normalizePlayerAccountName(resolvedDisplayName);
+        if (!hostedTokenMode && !normalized) {
+            return {
+                ok: false,
+                code: "invalid_name",
+                message: "displayName must be a non-empty string.",
+            };
+        }
+
+        // 1. Verify auth mode. Password mode shares the normal account
+        //    store; hosted mode trusts a short-lived world ticket.
+        //    human logins go through, same minimum-length rules, same
+        //    registration-on-first-login semantics.
+        let hostedWorldCharacterId: string | undefined;
+        let authCreated = false;
+        if (hostedTokenMode) {
+            const hosted = this.deps.hostedSessionService?.verify(request.sessionToken, {
+                kind: "agent",
+                worldId: this.deps.worldId,
+                worldCharacterId: request.worldCharacterId,
+                agentId: request.agentId,
+            });
+            if (!hosted || !hosted.ok) {
+                return {
+                    ok: false,
+                    code: hosted?.code ?? "hosted_sessions_disabled",
+                    message: hosted?.message ?? "Hosted session login is unavailable.",
+                };
+            }
+            resolvedDisplayName = hosted.claims.displayName;
+            normalized = normalizePlayerAccountName(resolvedDisplayName);
+            if (!normalized) {
+                return {
+                    ok: false,
+                    code: "invalid_name",
+                    message: "Hosted session displayName is invalid.",
+                };
+            }
+            hostedWorldCharacterId = hosted.claims.worldCharacterId;
+        } else {
+            const authResult: AccountAuthResult = this.deps.accountStore.verifyOrRegister(
+                normalized!,
+                request.password!,
+            );
+            switch (authResult.kind) {
+                case "wrong_password":
+                    return {
+                        ok: false,
+                        code: "wrong_password",
+                        message: "Invalid username or password.",
+                    };
+                case "banned":
+                    return {
+                        ok: false,
+                        code: "banned",
+                        message: authResult.reason
+                            ? `Account banned: ${authResult.reason}`
+                            : "Account banned.",
+                    };
+                case "password_too_short":
+                    return {
+                        ok: false,
+                        code: "password_too_short",
+                        message: `Password must be at least ${authResult.minLength} characters.`,
+                    };
+                case "error":
+                    logger.warn("[agent] account store error", authResult.error);
+                    return {
+                        ok: false,
+                        code: "auth_error",
+                        message: "Account store error; try again.",
+                    };
+                case "ok":
+                    authCreated = authResult.created;
+                    break;
+            }
+        }
+
+        // 2. Name collision — covers humans AND bots (agents).
+        if (players.hasConnectedPlayer(normalized!)) {
             return {
                 ok: false,
                 code: "name_taken",
                 message: `"${normalized}" is already logged in.`,
             };
         }
-
-        // 2. Verify password via the shared AccountStore. Same scrypt flow
-        //    human logins go through, same minimum-length rules, same
-        //    registration-on-first-login semantics.
-        const authResult: AccountAuthResult = this.deps.accountStore.verifyOrRegister(
-            normalized,
-            request.password,
-        );
-        switch (authResult.kind) {
-            case "wrong_password":
-                return { ok: false, code: "wrong_password", message: "Invalid username or password." };
-            case "banned":
-                return {
-                    ok: false,
-                    code: "banned",
-                    message: authResult.reason
-                        ? `Account banned: ${authResult.reason}`
-                        : "Account banned.",
-                };
-            case "password_too_short":
-                return {
-                    ok: false,
-                    code: "password_too_short",
-                    message: `Password must be at least ${authResult.minLength} characters.`,
-                };
-            case "error":
-                logger.warn("[agent] account store error", authResult.error);
-                return {
-                    ok: false,
-                    code: "auth_error",
-                    message: "Account store error; try again.",
-                };
-            case "ok":
-                break;
-        }
+        const finalDisplayName = normalized!;
 
         // 3. Create the headless entity at the gamemode default spawn.
         //    If persisted state exists, applyToPlayer will overwrite the
@@ -160,13 +212,18 @@ export class AgentPlayerFactory {
             };
         }
 
-        player.name = normalized;
+        player.name = finalDisplayName;
 
         // 4. Load persisted state (skills, inventory, bank, equipment,
         //    position, appearance, …). Mirrors LoginHandshakeService's
         //    handshake path so agents and humans share exactly one save
         //    format.
-        const saveKey = buildPlayerSaveKey(normalized, player.id);
+        const saveKey = buildScopedPlayerSaveKey({
+            worldId: this.deps.worldId,
+            name: finalDisplayName,
+            id: player.id,
+            worldCharacterId: hostedWorldCharacterId,
+        });
         player.__saveKey = saveKey;
         try {
             this.deps.playerPersistence.applyToPlayer(player, saveKey);
@@ -194,7 +251,7 @@ export class AgentPlayerFactory {
         const component: AgentComponent = {
             identity: {
                 agentId: request.agentId,
-                displayName: normalized,
+                displayName: finalDisplayName,
                 controller: request.controller,
                 persona: request.persona,
                 createdAt: Date.now(),
@@ -207,10 +264,10 @@ export class AgentPlayerFactory {
         player.agent = component;
 
         logger.info(
-            `[agent] spawned agent id=${request.agentId} name="${normalized}" playerId=${player.id} at (${player.tileX}, ${player.tileY}) created=${authResult.created}`,
+            `[agent] spawned agent id=${request.agentId} name="${finalDisplayName}" playerId=${player.id} world=${this.deps.worldId} hosted=${hostedTokenMode}`,
         );
 
-        return { ok: true, player, created: authResult.created, saveKey };
+        return { ok: true, player, created: authCreated, saveKey };
     }
 
     /**

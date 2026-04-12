@@ -2,7 +2,9 @@
 
 The xRSPS server exposes a second WebSocket endpoint for autonomous
 agent clients, separate from the binary human-client protocol on
-`ws://0.0.0.0:43594`. This endpoint is what the `@elizaos/app-scape`
+`ws://0.0.0.0:43594`. In production this agent endpoint is mounted at
+`/botsdk` on the main world server; the legacy dedicated port is still
+available for standalone local-only mode. This endpoint is what the `@elizaos/app-scape`
 milady plugin connects to when an operator launches `'scape` from the
 milady apps grid.
 
@@ -28,7 +30,7 @@ Four environment variables, all override `server/config.json`:
 |---------------------------------|----------------------|-------------------------------------------------------------------------------------------------------|
 | `BOT_SDK_TOKEN`                 | *(unset = disabled)* | Shared secret. Agents send this in their first frame; mismatches get disconnected with `bad_token`. |
 | `BOT_SDK_HOST`                  | `127.0.0.1`          | Bind address. Default is localhost-only; override for remote agent hosts.                           |
-| `BOT_SDK_PORT`                  | `43595`              | TCP port.                                                                                             |
+| `BOT_SDK_PORT`                  | `43595`              | Legacy standalone TCP port. Production uses `/botsdk` on the main world server.                     |
 | `BOT_SDK_PERCEPTION_EVERY_N_TICKS` | `3`               | How often the perception emitter pushes a TOON snapshot to each connected agent.                    |
 
 Example `server/config.json` snippet for a private, LAN-only deployment
@@ -76,6 +78,8 @@ The endpoint speaks **TOON** (Token-Oriented Object Notation,
 - `operatorCommand` — pushed by the server when a human types
   `::steer <text>` in public chat; the plugin injects it into the
   next LLM prompt
+- `event` — optional high-signal wakeup frame for event-driven agents;
+  only sent when the client opts into `features: ["liveEvents"]`
 
 ## Why TOON and not JSON?
 

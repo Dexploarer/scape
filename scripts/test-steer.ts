@@ -4,7 +4,7 @@
  *
  * Flow:
  *   1. Start the xRSPS server (done externally before running this)
- *   2. [agent ws] Connect to the bot-SDK on 43595 as an agent
+ *   2. [agent ws] Connect to the bot-SDK at /botsdk on the main game socket
  *   3. [agent ws] Register an `onOperatorCommand` listener that
  *      records the received frame
  *   4. [human ws] Connect to the binary client protocol on 43594
@@ -26,7 +26,7 @@ import WebSocket from "ws";
 
 import { encodeClientMessage } from "../src/network/packet/ClientBinaryEncoder";
 
-const BOT_SDK_URL = process.env.BOT_SDK_URL ?? "ws://127.0.0.1:43595";
+const BOT_SDK_URL = process.env.BOT_SDK_URL ?? "ws://127.0.0.1:43594/botsdk";
 const HUMAN_WS_URL = process.env.HUMAN_WS_URL ?? "ws://127.0.0.1:43594";
 const TOKEN = process.env.BOT_SDK_TOKEN;
 

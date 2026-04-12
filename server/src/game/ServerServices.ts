@@ -91,6 +91,7 @@ import type { WorldEntityService } from "./services/WorldEntityService";
 // ── Game – state ────────────────────────────────────────────────────────────
 import type { AccountStore } from "./state/AccountStore";
 import type { PersistenceProvider } from "./state/PersistenceProvider";
+import type { HostedSessionService } from "../auth/HostedSessionService";
 
 // ── Game – systems ──────────────────────────────────────────────────────────
 import type {
@@ -164,6 +165,7 @@ export interface ServerServices {
     // ── Config & infrastructure ──────────────────────────────────────────
     readonly ticker: GameTicker;
     readonly tickMs: number;
+    readonly worldId: string;
     readonly gamemode: GamemodeDefinition;
     gamemodeUi: GamemodeUiController;
     readonly pathService?: PathService;
@@ -189,6 +191,7 @@ export interface ServerServices {
     npcManager?: NpcManager;
     readonly playerPersistence: PersistenceProvider;
     readonly accountStore: AccountStore;
+    readonly hostedSessionService?: HostedSessionService;
     /**
      * Bot-SDK WebSocket server. Optional because the endpoint is
      * disabled unless `BOT_SDK_TOKEN` is set — in which case the

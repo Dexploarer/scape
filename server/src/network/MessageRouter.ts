@@ -22,7 +22,16 @@ import type { ClientToServer, ServerToClient } from "./messages";
  * Extra routed messages still handled outside the binary client message union.
  */
 type ExtraRoutedMessage =
-    | { type: "login"; payload: { username?: string; password?: string; revision?: number } }
+    | {
+          type: "login";
+          payload: {
+              username?: string;
+              password?: string;
+              revision?: number;
+              sessionToken?: string;
+              worldCharacterId?: string;
+          };
+      }
     | { type: "smithing_make"; payload: { recipeId?: string; mode?: string } }
     | { type: "smithing_mode"; payload: { mode?: number; custom?: number } }
     | { type: "bank_deposit_item"; payload: unknown }

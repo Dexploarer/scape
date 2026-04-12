@@ -39,13 +39,19 @@ import {
 } from "./BotSdkCodec";
 import type {
     AnyActionFrame,
+    BotSdkFeature,
     ClientFrame,
     ServerFrame,
     SpawnFrame,
 } from "./BotSdkProtocol";
+import { BotSdkLiveEventRelay } from "./BotSdkLiveEventRelay";
 import { BotSdkPerceptionEmitter } from "./BotSdkPerceptionEmitter";
 import { BotSdkPerceptionBuilder } from "./BotSdkPerceptionBuilder";
 import { BotSdkRecentEventStore } from "./BotSdkRecentEventStore";
+import {
+    BotSdkTrajectoryRecorder,
+    JsonlBotSdkTrajectorySink,
+} from "./BotSdkTrajectoryRecorder";
 
 export interface BotSdkServerOptions {
     host: string;
@@ -66,6 +72,8 @@ export interface BotSdkServerOptions {
      * scenarios that don't want to boot the whole WSServer.
      */
     standalone?: boolean;
+    worldId?: string;
+    trajectoryLogPath?: string;
 }
 
 export interface BotSdkServerDeps {
@@ -86,6 +94,7 @@ interface AgentSession {
     player: PlayerState;
     authedAt: number;
     saveKey: string;
+    features: Set<BotSdkFeature>;
 }
 
 const PROTOCOL_VERSION = 1;
@@ -95,6 +104,8 @@ export class BotSdkServer {
     private readonly sessions = new Map<WebSocket, AgentSession>();
     private emitter: BotSdkPerceptionEmitter | null = null;
     private recentEvents: BotSdkRecentEventStore | null = null;
+    private liveEvents: BotSdkLiveEventRelay | null = null;
+    private trajectoryRecorder: BotSdkTrajectoryRecorder | null = null;
 
     constructor(
         private readonly options: BotSdkServerOptions,
@@ -158,6 +169,32 @@ export class BotSdkServer {
         this.recentEvents = new BotSdkRecentEventStore({
             services: this.deps.services,
         });
+        this.liveEvents = new BotSdkLiveEventRelay(
+            {
+                services: this.deps.services,
+            },
+            (player, event) => {
+                this.trajectoryRecorder?.recordWakeEvent(player, event);
+                const session = this.findSessionByPlayer(player);
+                if (!session || !session.features.has("liveEvents")) {
+                    return;
+                }
+                this.sendFrame(session.ws, {
+                    kind: "event",
+                    event: event.event,
+                    timestamp: event.timestamp,
+                    playerId: event.playerId,
+                    worldId: this.deps.services().worldId,
+                    payload: event.payload,
+                });
+            },
+        );
+        if (this.options.trajectoryLogPath?.trim()) {
+            this.trajectoryRecorder = new BotSdkTrajectoryRecorder({
+                worldId: this.options.worldId ?? this.deps.services().worldId,
+                sink: new JsonlBotSdkTrajectorySink(this.options.trajectoryLogPath.trim()),
+            });
+        }
         const builder = new BotSdkPerceptionBuilder({
             services: this.deps.services,
             recentEvents: this.recentEvents,
@@ -224,6 +261,10 @@ export class BotSdkServer {
         this.wss = null;
         this.recentEvents?.dispose();
         this.recentEvents = null;
+        this.liveEvents?.dispose();
+        this.liveEvents = null;
+        this.trajectoryRecorder?.dispose();
+        this.trajectoryRecorder = null;
         this.emitter = null;
     }
 
@@ -272,8 +313,9 @@ export class BotSdkServer {
     // ──────────────────────────────────────────────────────────────────
 
     private handleConnection(ws: WebSocket): void {
-        const sessionState: { authed: boolean; session?: AgentSession } = {
+        const sessionState: { authed: boolean; session?: AgentSession; features: Set<BotSdkFeature> } = {
             authed: false,
+            features: new Set<BotSdkFeature>(),
         };
 
         ws.on("message", (data) => {
@@ -337,7 +379,7 @@ export class BotSdkServer {
 
     private handleMessage(
         ws: WebSocket,
-        state: { authed: boolean; session?: AgentSession },
+        state: { authed: boolean; session?: AgentSession; features: Set<BotSdkFeature> },
         raw: string,
     ): void {
         const decoded = decodeClientFrame(raw);
@@ -359,11 +401,17 @@ export class BotSdkServer {
                 ws.close(1008, "bad_token");
                 return;
             }
+            state.features = new Set((frame.features ?? []).filter(this.isKnownFeature));
             state.authed = true;
+            const supportedFeatures: BotSdkFeature[] = ["liveEvents"];
+            if (this.deps.services().hostedSessionService?.isEnabled()) {
+                supportedFeatures.unshift("hostedSessions");
+            }
             this.sendFrame(ws, {
                 kind: "authOk",
                 server: this.options.serverName ?? "xrsps",
                 version: PROTOCOL_VERSION,
+                features: supportedFeatures,
             });
             return;
         }
@@ -390,7 +438,7 @@ export class BotSdkServer {
 
     private handleSpawn(
         ws: WebSocket,
-        state: { authed: boolean; session?: AgentSession },
+        state: { authed: boolean; session?: AgentSession; features: Set<BotSdkFeature> },
         frame: SpawnFrame,
     ): void {
         if (state.session) {
@@ -402,10 +450,21 @@ export class BotSdkServer {
             return;
         }
 
+        if (frame.worldId && frame.worldId !== this.deps.services().worldId) {
+            this.sendError(
+                ws,
+                "bad_world",
+                `spawn worldId="${frame.worldId}" does not match server world "${this.deps.services().worldId}"`,
+            );
+            return;
+        }
+
         const result = this.deps.factory.spawn({
             agentId: frame.agentId,
             displayName: frame.displayName,
             password: frame.password,
+            sessionToken: frame.sessionToken,
+            worldCharacterId: frame.worldCharacterId,
             controller: frame.controller ?? "hybrid",
             persona: frame.persona,
         });
@@ -419,6 +478,7 @@ export class BotSdkServer {
             player: result.player,
             authedAt: Date.now(),
             saveKey: result.saveKey,
+            features: new Set(state.features),
         };
         state.session = session;
         this.sessions.set(ws, session);
@@ -452,10 +512,12 @@ export class BotSdkServer {
             return;
         }
 
+        this.trajectoryRecorder?.recordActionDispatch(state.session.player, frame);
         const dispatch: ActionDispatchResult = this.deps.router.dispatch(
             state.session.player.id,
             frame,
         );
+        this.trajectoryRecorder?.recordActionAck(state.session.player, frame, dispatch);
 
         if (frame.correlationId) {
             this.sendFrame(ws, {
@@ -470,6 +532,10 @@ export class BotSdkServer {
     // ──────────────────────────────────────────────────────────────────
     // Helpers
     // ──────────────────────────────────────────────────────────────────
+
+    private isKnownFeature(value: string): value is BotSdkFeature {
+        return value === "hostedSessions" || value === "liveEvents";
+    }
 
     private sendFrame(ws: WebSocket, frame: ServerFrame): void {
         if (ws.readyState !== WebSocket.OPEN) return;

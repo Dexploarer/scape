@@ -9,6 +9,11 @@ import { DEFAULT_SERVER } from "../../util/serverDefaults";
 import { GameState, LoginIndex } from "./GameState";
 import { LoginAction, LoginActions } from "./LoginAction";
 import { LoginScreenAnimation } from "./LoginScreenAnimation";
+import {
+    getConfiguredWorldServers,
+    getConfiguredWorlds,
+    setConfiguredWorldServers,
+} from "./worldDirectory";
 import type { LoginState } from "./LoginState";
 
 /** Type alias for rendering context (supports both regular and offscreen canvas) */
@@ -110,29 +115,6 @@ enum WorldBackgroundType {
 }
 
 /**
- * Mock world list for testing.
- * In production, this would come from the server.
- */
-const MOCK_WORLDS: World[] = [
-    { id: 301, population: 487, location: 0, activity: "Trade - Free", properties: 0 },
-    { id: 302, population: 1243, location: 0, activity: "Trade - Members", properties: 1 },
-    { id: 303, population: 89, location: 1, activity: "Skill Total 500", properties: 1 },
-    { id: 304, population: 234, location: 1, activity: "PvP World", properties: 1 | 4 },
-    { id: 305, population: 567, location: 0, activity: "Free-to-play", properties: 0 },
-    { id: 306, population: 1890, location: 3, activity: "Members", properties: 1 },
-    { id: 307, population: 45, location: 7, activity: "Skill Total 750", properties: 1 },
-    { id: 308, population: 678, location: 0, activity: "Members", properties: 1 },
-    { id: 309, population: -1, location: 1, activity: "Offline", properties: 0 },
-    { id: 310, population: 432, location: 0, activity: "Members", properties: 1 },
-    { id: 311, population: 123, location: 3, activity: "Free-to-play", properties: 0 },
-    { id: 312, population: 876, location: 7, activity: "Members", properties: 1 },
-    { id: 313, population: 345, location: 0, activity: "Bounty Hunter", properties: 1 },
-    { id: 314, population: 654, location: 1, activity: "Members", properties: 1 },
-    { id: 315, population: 234, location: 0, activity: "Free-to-play", properties: 0 },
-    { id: 316, population: 1567, location: 0, activity: "Members", properties: 1 },
-];
-
-/**
  * Server list entry for the server browser.
  */
 export interface ServerListEntry {
@@ -153,7 +135,7 @@ const FALLBACK_SERVERS: ServerListEntry[] = [
     },
 ];
 
-const SERVER_LIST_URL = "https://xrsps.com/servers.json";
+const SERVER_LIST_URLS = ["/servers.json", "https://xrsps.com/servers.json"] as const;
 
 /**
  * Login screen renderer.
@@ -286,7 +268,7 @@ export class LoginRenderer {
     mouseY: number = 0;
 
     /** Server list entries */
-    serverList: ServerListEntry[] = FALLBACK_SERVERS;
+    serverList: ServerListEntry[] = [...getConfiguredWorldServers()];
 
     /** Whether the remote server list has been fetched */
     serverListFetched: boolean = false;
@@ -299,23 +281,30 @@ export class LoginRenderer {
 
     async fetchServerList(): Promise<void> {
         if (this.serverListFetched) return;
-        try {
-            const res = await fetch(SERVER_LIST_URL, { signal: AbortSignal.timeout(5000) });
-            if (res.ok) {
-                const data = await res.json();
-                if (Array.isArray(data) && data.length > 0) {
-                    this.serverList = data.map((s: any) => ({
-                        name: s.name ?? "Unknown",
-                        address: s.address ?? "",
-                        secure: s.secure ?? false,
-                        playerCount: null,
-                        maxPlayers: s.maxPlayers ?? 2047,
-                    }));
+        const loadedEntries: ServerListEntry[] = [];
+        for (const url of SERVER_LIST_URLS) {
+            try {
+                const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        loadedEntries.push(
+                            ...data.map((s: any) => ({
+                                name: s.name ?? "Unknown",
+                                address: s.address ?? "",
+                                secure: s.secure ?? false,
+                                playerCount: null,
+                                maxPlayers: s.maxPlayers ?? 2047,
+                            })),
+                        );
+                    }
                 }
+            } catch {
+                // try next source
             }
-        } catch {
-            // keep fallback
         }
+        this.serverList = [...setConfiguredWorldServers(loadedEntries)];
+        this.invalidateWorldDirectoryCaches();
         this.serverListFetched = true;
     }
 
@@ -350,6 +339,8 @@ export class LoginRenderer {
         Promise.all(promises).finally(() => {
             this.probing = false;
             this.probed = true;
+            setConfiguredWorldServers(this.serverList);
+            this.invalidateWorldDirectoryCaches();
         });
     }
 
@@ -627,7 +618,20 @@ export class LoginRenderer {
 
     constructor() {
         // Initialize with default layout
+        this.serverList = [...setConfiguredWorldServers(FALLBACK_SERVERS)];
         this.updateLayout(this.SCENE_WIDTH, this.SCENE_HEIGHT);
+    }
+
+    private invalidateWorldDirectoryCaches(): void {
+        this.cachedSortedWorlds = null;
+        this.cachedSortOption = -1;
+        this.cachedSortDirection = -1;
+        this.worldSelectCache = null;
+        this.worldSelectCacheCtx = null;
+        this.worldSelectCachePage = -1;
+        this.worldSelectCacheSortOption = -1;
+        this.worldSelectCacheSortDirection = -1;
+        this.titleCacheStateHash = "";
     }
 
     // ========== Public Accessors ==========
@@ -3686,7 +3690,13 @@ export class LoginRenderer {
             return this.cachedSortedWorlds;
         }
 
-        const worlds = [...MOCK_WORLDS];
+        const worlds = getConfiguredWorlds().map((world) => ({
+            id: world.id,
+            population: world.playerCount,
+            location: world.location,
+            activity: world.activity,
+            properties: world.properties,
+        }));
         const ascending = this.worldSortDirection === 0;
 
         worlds.sort((a, b) => {

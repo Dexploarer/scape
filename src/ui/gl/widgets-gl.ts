@@ -1828,6 +1828,14 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         const prepContentTypeStartMs = profileWidgetRender ? performance.now() : 0;
         try {
             const ct = ((w.contentType ?? 0) | 0) as number;
+            if (ct === 205 && w.type === 4) {
+                w.text = "Logout";
+            } else if (ct === 206 && w.type === 4) {
+                const label = (osrsClient as any)?.getLogoutTabWorldSwitcherLabel?.();
+                if (typeof label === "string" && label.length > 0) {
+                    w.text = label;
+                }
+            }
             if (ct === 324 || ct === 325) {
                 // gender toggle sprites depend on Client.playerAppearance.gender.
                 //

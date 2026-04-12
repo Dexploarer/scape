@@ -1,6 +1,7 @@
 import { LoginIndex } from "./GameState";
 import { isIosStandalonePwa } from "../../util/DeviceUtil";
 import { DEFAULT_SERVER } from "../../util/serverDefaults";
+import { findConfiguredWorldByServer } from "./worldDirectory";
 
 const STORAGE_KEY_TITLE_MUSIC_DISABLED = "osrs:titleMusicDisabled";
 const STORAGE_KEY_LAST_SERVER = "osrs:lastServer";
@@ -24,6 +25,7 @@ export class LoginState {
         // Load persisted settings from localStorage
         this.loadPersistedSettings();
         this.loadPersistedLoginState();
+        this.syncSelectedWorldWithServer();
     }
 
     /** Load settings that should persist between sessions */
@@ -51,6 +53,13 @@ export class LoginState {
             localStorage.setItem(STORAGE_KEY_TITLE_MUSIC_DISABLED, String(this.titleMusicDisabled));
         } catch {
             // localStorage not available
+        }
+    }
+
+    syncSelectedWorldWithServer(): void {
+        const matchedWorld = findConfiguredWorldByServer(this.serverAddress, this.serverSecure);
+        if (matchedWorld) {
+            this.worldId = matchedWorld.id;
         }
     }
 
@@ -230,6 +239,7 @@ export class LoginState {
                 secure: this.serverSecure,
             }));
         } catch {}
+        this.syncSelectedWorldWithServer();
     }
 
     // ========== World Select ==========

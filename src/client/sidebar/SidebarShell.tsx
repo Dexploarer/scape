@@ -1,11 +1,20 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
+import { isServerConnected, sendChat, subscribeChatMessages } from "../../network/ServerConnection";
 import type { OsrsClient } from "../OsrsClient";
 import type { GroundItemsPluginConfig } from "../plugins/grounditems/types";
 import type { InteractHighlightPluginConfig } from "../plugins/interacthighlight/types";
 import type { TileMarkersPluginConfig } from "../plugins/tilemarkers/types";
 import "./SidebarShell.css";
 import type { SidebarStore } from "./SidebarStore";
+import {
+    BOT_SDK_DRAFT_STORAGE_KEY,
+    BOT_SDK_PRESET_DIRECTIVES,
+    type BotSdkFeedback,
+    buildBotSdkSteerCommand,
+    extractBotSdkFeedbackFromChat,
+    normalizeBotSdkDirective,
+} from "./botSdkPanelUtils";
 import type { ClientSidebarEntryData, SidebarPanelId } from "./entries";
 import type { SidebarRailIconRenderer } from "./pluginTypes";
 
@@ -70,6 +79,159 @@ function SidebarNotesPanel({ osrsClient }: { osrsClient: OsrsClient }): JSX.Elem
                 onChange={(event) => onChange(event.target.value)}
                 placeholder="Write notes for plugin work here."
             />
+        </div>
+    );
+}
+
+function loadBotSdkDraft(): string {
+    if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+        return "";
+    }
+    try {
+        const raw = window.localStorage.getItem(BOT_SDK_DRAFT_STORAGE_KEY);
+        return normalizeBotSdkDirective(raw ?? "");
+    } catch {
+        return "";
+    }
+}
+
+function BotSdkPanel(): JSX.Element {
+    const [draft, setDraft] = useState<string>(() => loadBotSdkDraft());
+    const [lastFeedback, setLastFeedback] = useState<BotSdkFeedback | null>(null);
+    const [lastDirective, setLastDirective] = useState<string>("");
+
+    useEffect(() => {
+        if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+            return;
+        }
+        try {
+            const normalized = normalizeBotSdkDirective(draft);
+            if (normalized) {
+                window.localStorage.setItem(BOT_SDK_DRAFT_STORAGE_KEY, normalized);
+            } else {
+                window.localStorage.removeItem(BOT_SDK_DRAFT_STORAGE_KEY);
+            }
+        } catch {}
+    }, [draft]);
+
+    useEffect(() => {
+        return subscribeChatMessages((message) => {
+            const feedback = extractBotSdkFeedbackFromChat(message);
+            if (feedback) {
+                setLastFeedback(feedback);
+            }
+        });
+    }, []);
+
+    const onSend = useCallback(() => {
+        const command = buildBotSdkSteerCommand(draft);
+        if (!command) {
+            setLastFeedback({
+                kind: "error",
+                text: "Directive cannot be empty.",
+            });
+            return;
+        }
+        if (!isServerConnected()) {
+            setLastFeedback({
+                kind: "error",
+                text: "Game server is disconnected.",
+            });
+            return;
+        }
+
+        const directive = normalizeBotSdkDirective(draft);
+        sendChat(command);
+        setLastDirective(directive);
+        setLastFeedback({
+            kind: "info",
+            text: "Dispatching steer directive...",
+        });
+    }, [draft]);
+
+    const onKeyDown = useCallback(
+        (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+            if (!(event.metaKey || event.ctrlKey) || event.key !== "Enter") {
+                return;
+            }
+            event.preventDefault();
+            onSend();
+        },
+        [onSend],
+    );
+
+    return (
+        <div className="rl-sidebar-panel-content rl-sidebar-scrollable">
+            <div className="rl-sidebar-panel-title">Bot SDK</div>
+            <p className="rl-sidebar-panel-copy">
+                Steer all connected BotSDK agents from the main client UI. This panel routes through
+                the existing <code>::steer</code> server command path.
+            </p>
+
+            <label className="rl-sidebar-field">
+                <span>Directive</span>
+                <textarea
+                    className="rl-sidebar-textarea rl-sidebar-botsdk-textarea"
+                    rows={5}
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={onKeyDown}
+                    placeholder="Example: Follow my player and bank any ore you mine."
+                />
+            </label>
+
+            <div className="rl-sidebar-button-row">
+                <button type="button" className="rl-sidebar-action-button primary" onClick={onSend}>
+                    Send Directive
+                </button>
+                <button
+                    type="button"
+                    className="rl-sidebar-action-button"
+                    onClick={() => setDraft("")}
+                >
+                    Clear
+                </button>
+            </div>
+
+            <div className="rl-sidebar-field">
+                <span>Quick directives</span>
+                <div className="rl-sidebar-action-grid">
+                    {BOT_SDK_PRESET_DIRECTIVES.map((preset) => (
+                        <button
+                            key={preset.id}
+                            type="button"
+                            className="rl-sidebar-chip"
+                            onClick={() => setDraft(preset.directive)}
+                        >
+                            {preset.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {lastDirective ? (
+                <div className="rl-sidebar-panel-copy">
+                    Last directive:
+                    {" "}
+                    <span className="rl-sidebar-inline-code">{lastDirective}</span>
+                </div>
+            ) : null}
+
+            {lastFeedback ? (
+                <div className={`rl-sidebar-status ${lastFeedback.kind}`}>{lastFeedback.text}</div>
+            ) : (
+                <div className="rl-sidebar-status info">
+                    Server feedback will appear here after the command response arrives.
+                </div>
+            )}
+
+            <div className="rl-sidebar-panel-copy">
+                Tip:
+                {" "}
+                <span className="rl-sidebar-inline-code">Ctrl/Cmd + Enter</span>
+                {" "}
+                sends the current directive.
+            </div>
         </div>
     );
 }
@@ -730,6 +892,7 @@ export interface SidebarShellProps {
 
 const DEFAULT_PANEL_RENDERERS: Record<string, SidebarPanelRenderer> = {
     plugin_hub: (ctx) => <PluginHubPanel osrsClient={ctx.osrsClient} />,
+    bot_sdk: () => <BotSdkPanel />,
     ground_items: (ctx) => <GroundItemsPanel osrsClient={ctx.osrsClient} />,
     interact_highlight: (ctx) => <InteractHighlightPanel osrsClient={ctx.osrsClient} />,
     tile_markers: (ctx) => <TileMarkersPanel osrsClient={ctx.osrsClient} />,

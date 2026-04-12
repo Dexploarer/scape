@@ -194,6 +194,7 @@ import {
     shouldTransmitAction,
 } from "../ui/widgets/WidgetFlags";
 import { WidgetManager } from "../ui/widgets/WidgetManager";
+import type { WidgetNode } from "../ui/widgets/WidgetNode";
 import { WidgetSessionManager } from "../ui/widgets/WidgetSessionManager";
 import { layoutWidgets } from "../ui/widgets/layout/WidgetLayout";
 import {
@@ -265,6 +266,12 @@ import {
     shouldFadeOutLoginMusicForTransition,
     shouldStartScheduledLoginMusic,
 } from "./login";
+import {
+    findConfiguredWorldById,
+    getNextConfiguredWorld,
+    getWorldSwitcherButtonText,
+    type WorldDirectoryEntry,
+} from "./login/worldDirectory";
 import { NpcMovementSync } from "./movement/NpcMovementSync";
 import { PlayerMovementSync } from "./movement/PlayerMovementSync";
 import { createBrowserGroundItemsPluginPersistence } from "./plugins/grounditems/BrowserGroundItemsPluginPersistence";
@@ -541,6 +548,7 @@ export class OsrsClient {
     loginState: LoginState = new LoginState();
     /** Login screen renderer */
     loginRenderer: LoginRenderer = new LoginRenderer();
+    private pendingWorldSwitch: WorldDirectoryEntry | null = null;
 
     mapFileIndex!: MapFileIndex;
 
@@ -1225,6 +1233,10 @@ export class OsrsClient {
             window.addEventListener("pagehide", this.handleVarcsPageLifecycleFlush);
             window.addEventListener("beforeunload", this.handleVarcsPageLifecycleFlush);
         }
+        void this.loginRenderer.fetchServerList().then(() => {
+            this.loginRenderer.refreshServerList();
+            this.loginState.syncSelectedWorldWithServer();
+        });
 
         // If cache is provided, initialize immediately
         // Otherwise, OsrsClient stays in DOWNLOADING state until initCache() is called
@@ -6557,6 +6569,11 @@ export class OsrsClient {
                         // should reflect what was clicked pre-mutation.
                         const primaryAction = getPrimaryWidgetAction(w);
 
+                        if (this.handleLogoutTabWidgetPrimaryAction(w)) {
+                            this.clickedWidgetHandled = true;
+                            break;
+                        }
+
                         // World map orb - opens React modal instead of CS2 widget
                         // Check if primary option is "Floating World Map", "Fullscreen World Map", or "Open World Map" (mobile)
                         const optionLower = (primaryAction.option || "").toLowerCase();
@@ -9293,6 +9310,75 @@ export class OsrsClient {
         return this.processLoginAction(action);
     }
 
+    private applyServerSelection(server: {
+        address: string;
+        name: string;
+        secure: boolean;
+        id?: number;
+    }): void {
+        this.loginState.serverAddress = server.address;
+        this.loginState.serverName = server.name;
+        this.loginState.serverSecure = server.secure;
+        if (typeof server.id === "number") {
+            this.loginState.worldId = server.id | 0;
+        } else {
+            this.loginState.syncSelectedWorldWithServer();
+        }
+        setServerUrl(`${server.secure ? "wss" : "ws"}://${server.address}`);
+        this.loginState.saveLastServer();
+    }
+
+    private getPendingOrCurrentWorldSwitcherLabel(): string {
+        if (this.pendingWorldSwitch) {
+            return `Switching to ${this.pendingWorldSwitch.name}`;
+        }
+        return getWorldSwitcherButtonText(
+            this.loginState.serverAddress,
+            this.loginState.serverSecure,
+        );
+    }
+
+    getLogoutTabWorldSwitcherLabel(): string {
+        return this.getPendingOrCurrentWorldSwitcherLabel();
+    }
+
+    private queueMainUiWorldSwitch(): boolean {
+        const nextWorld = getNextConfiguredWorld(
+            this.loginState.serverAddress,
+            this.loginState.serverSecure,
+        );
+        if (!nextWorld) {
+            chatHistory.addMessage("game", "No alternate worlds are configured.");
+            return true;
+        }
+
+        this.pendingWorldSwitch = nextWorld;
+        chatHistory.addMessage("game", `Switching to ${nextWorld.name}...`);
+        this.performLogout();
+        return true;
+    }
+
+    private handleLogoutTabWidgetPrimaryAction(widget: WidgetNode): boolean {
+        const widgetId =
+            (typeof (widget as any).id === "number" ? (widget as any).id : widget.uid ?? 0) | 0;
+        if (widgetId === 0) return false;
+        const groupId = (widgetId >>> 16) & 0xffff;
+        const childId = widgetId & 0xffff;
+        if (groupId !== 182) return false;
+
+        if (childId === 8 || childId === 12) {
+            this.pendingWorldSwitch = null;
+            this.performLogout();
+            return true;
+        }
+
+        if (childId === 3 || childId === 7) {
+            return this.queueMainUiWorldSwitch();
+        }
+
+        return false;
+    }
+
     /**
      * Process a login action from the renderer.
      * Handles state changes and returns action string.
@@ -9415,7 +9501,10 @@ export class OsrsClient {
             case "open_server_list":
                 this.loginState.serverListOpen = true;
                 this.loginState.virtualKeyboardVisible = false;
-                this.loginRenderer.fetchServerList().then(() => this.loginRenderer.refreshServerList());
+                this.loginRenderer.fetchServerList().then(() => {
+                    this.loginRenderer.refreshServerList();
+                    this.loginState.syncSelectedWorldWithServer();
+                });
                 return undefined;
 
             case "close_server_list":
@@ -9430,13 +9519,9 @@ export class OsrsClient {
             case "select_server": {
                 const server = this.loginRenderer.serverList[action.index];
                 if (server) {
-                    this.loginState.serverAddress = server.address;
-                    this.loginState.serverName = server.name;
-                    this.loginState.serverSecure = server.secure;
+                    this.applyServerSelection(server);
                     this.loginState.serverListOpen = false;
                     this.loginState.hoveredServerIndex = -1;
-                    setServerUrl(`${server.secure ? "wss" : "ws"}://${server.address}`);
-                    this.loginState.saveLastServer();
                 }
                 return undefined;
             }
@@ -9451,11 +9536,15 @@ export class OsrsClient {
                 this.loginState.virtualKeyboardVisible = false;
                 return undefined;
 
-            case "select_world":
-                this.loginState.worldId = action.worldId;
+            case "select_world": {
+                const world = findConfiguredWorldById(action.worldId);
+                if (world) {
+                    this.applyServerSelection(world);
+                }
                 this.loginState.worldSelectOpen = false;
                 this.loginState.virtualKeyboardVisible = false;
                 return undefined;
+            }
 
             case "world_page_left":
                 if (this.loginState.worldSelectPage > 0) {
@@ -9554,6 +9643,7 @@ export class OsrsClient {
             this.loginState.serverAddress = "localhost:43594";
             this.loginState.serverName = "Local Development";
             this.loginState.serverSecure = false;
+            this.loginState.syncSelectedWorldWithServer();
 
             this.loginState.username = username!;
             this.loginState.password = password!;
@@ -9622,6 +9712,11 @@ export class OsrsClient {
                 // Reset login screen animation state for fresh start
                 this.loginRenderer.resetAnimationState();
 
+                if (this.pendingWorldSwitch) {
+                    this.applyServerSelection(this.pendingWorldSwitch);
+                    this.pendingWorldSwitch = null;
+                }
+
                 // Transition to login screen
                 this.updateGameState(GameState.LOGIN_SCREEN);
 
@@ -9630,6 +9725,7 @@ export class OsrsClient {
                 // Server denied logout (e.g., in combat)
                 const reason = response.reason || "You can't log out right now.";
                 console.log(`[OsrsClient] Logout denied: ${reason}`);
+                this.pendingWorldSwitch = null;
 
                 // Show denial message to player via game message (type 0)
                 chatHistory.addMessage("game", reason);

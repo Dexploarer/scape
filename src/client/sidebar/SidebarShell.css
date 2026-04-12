@@ -378,6 +378,82 @@
     resize: vertical;
 }
 
+.rl-sidebar-botsdk-textarea {
+    min-height: 112px;
+}
+
+.rl-sidebar-button-row {
+    display: flex;
+    gap: 6px;
+}
+
+.rl-sidebar-action-button,
+.rl-sidebar-chip {
+    border: 1px solid var(--sidebar-control-border);
+    background: linear-gradient(180deg, rgba(52, 44, 35, 0.96) 0%, rgba(34, 29, 23, 0.96) 100%);
+    color: var(--sidebar-text);
+    padding: 7px 9px;
+    font-family: "Trebuchet MS", "Verdana", sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition:
+        border-color 120ms ease,
+        background 120ms ease,
+        transform 120ms ease;
+}
+
+.rl-sidebar-action-button:hover,
+.rl-sidebar-chip:hover {
+    border-color: var(--sidebar-focus);
+    background: linear-gradient(180deg, rgba(68, 57, 44, 0.98) 0%, rgba(45, 37, 29, 0.98) 100%);
+    transform: translateY(-1px);
+}
+
+.rl-sidebar-action-button.primary {
+    border-color: var(--sidebar-accent);
+    background: linear-gradient(180deg, rgba(170, 126, 67, 0.95) 0%, rgba(145, 103, 50, 0.95) 100%);
+    color: #fff6e7;
+}
+
+.rl-sidebar-action-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.rl-sidebar-chip {
+    padding: 6px 8px;
+}
+
+.rl-sidebar-status {
+    border: 1px solid var(--sidebar-control-border);
+    padding: 8px;
+    font-family: "Trebuchet MS", "Verdana", sans-serif;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.rl-sidebar-status.info {
+    background: rgba(48, 57, 70, 0.38);
+    color: #d6e4f2;
+}
+
+.rl-sidebar-status.success {
+    background: rgba(45, 74, 50, 0.38);
+    color: #d6f2dd;
+}
+
+.rl-sidebar-status.error {
+    background: rgba(90, 44, 38, 0.42);
+    color: #ffd8cf;
+}
+
+.rl-sidebar-inline-code {
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    color: #f6e4bf;
+}
+
 .rl-sidebar-color-input {
     width: 34px;
     min-width: 34px;

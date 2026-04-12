@@ -51,6 +51,7 @@
     "server:start": "bunx tsx scripts/ensure-cache.ts --server && bunx tsx server/src/index.ts",
     "server:build": "tsc -p server/tsconfig.json",
     "server:build-collision": "bunx tsx server/scripts/build-collision-cache.ts --include-models --force",
+    "hosted-session:issue": "bun scripts/issue-hosted-session.ts",
     "dev": "mprocs",
     "build:all": "mprocs --config mprocs.build.yaml",
     "test:auth": "bun scripts/test-auth.ts",

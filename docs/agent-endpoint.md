@@ -108,6 +108,19 @@ The web client can then launch with:
 The Bot SDK can send the same `sessionToken` and `worldCharacterId`
 in its additive hosted spawn fields instead of using password auth.
 
+For local ops/dev, you can mint one from the repo directly:
+
+```bash
+HOSTED_SESSION_ISSUER_SECRET=issuer-secret \
+WEB_CLIENT_BASE_URL=http://127.0.0.1:3000 \
+bun run hosted-session:issue \
+  --kind agent \
+  --principal-id principal:agent-77 \
+  --display-name "Toon Agent" \
+  --world-character-id toon-77 \
+  --agent-id agent-77
+```
+
 ## Protocol summary
 
 The endpoint speaks **TOON** (Token-Oriented Object Notation,

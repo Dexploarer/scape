@@ -30,6 +30,7 @@ import { ActionDispatchService } from "../game/services/ActionDispatchService";
 import { InventoryMessageService } from "../game/services/InventoryMessageService";
 import { AuthenticationService } from "./AuthenticationService";
 import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
+import { HostedSessionService } from "../auth/HostedSessionService";
 
 import { ConfigType } from "../../../src/rs/cache/ConfigType";
 import { IndexType } from "../../../src/rs/cache/IndexType";
@@ -338,6 +339,7 @@ export class WSServer {
     private inventoryMessageService?: InventoryMessageService;
     private maintenanceMode = false;
     private enableBinaryNpcSync = true;
+    private hostedSessionService?: HostedSessionService;
 
     /** Shared service context — populated incrementally, safe because services only read at tick time */
     readonly svc = {} as ServerServices;
@@ -389,9 +391,11 @@ export class WSServer {
     private initBotSdk(opts: WSServerOptions): void {
         this.agentPlayerFactory = new AgentPlayerFactory({
             players: () => this.players,
+            worldId: config.worldId,
             gamemode: this.gamemode,
             accountStore: this.accountStore,
             playerPersistence: this.playerPersistence,
+            hostedSessionService: this.hostedSessionService,
         });
         this.botSdkActionRouter = new BotSdkActionRouter({
             players: () => this.players,
@@ -428,6 +432,7 @@ export class WSServer {
         // Config & infrastructure
         s.ticker = this.options.ticker;
         s.tickMs = this.options.tickMs;
+        s.worldId = config.worldId;
         s.gamemode = this.gamemode;
         s.pathService = this.options.pathService;
         s.mapService = this.options.mapService;
@@ -491,6 +496,7 @@ export class WSServer {
         // Required services (always present by this point)
         s.playerPersistence = this.playerPersistence;
         s.accountStore = this.accountStore;
+        s.hostedSessionService = this.hostedSessionService;
         s.botSdkServer = this.botSdkServer;
         s.dataLoaderService = this.dataLoaderService;
         s.networkLayer = this.networkLayer;
@@ -588,6 +594,11 @@ export class WSServer {
             filePath: config.accountsFilePath,
             minPasswordLength: config.minPasswordLength,
         });
+        if (config.hostedSessionSecret.length > 0) {
+            this.hostedSessionService = new HostedSessionService({
+                secret: config.hostedSessionSecret,
+            });
+        }
         this.accountSummary = new AccountSummaryTracker(this.svc);
         this.reportGameTime = new ReportGameTimeTracker(this.svc);
         this.actionScheduler = new ActionScheduler((player, action, tick) =>

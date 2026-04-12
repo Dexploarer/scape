@@ -316,6 +316,8 @@ export class BotSdkServer {
             agentId: frame.agentId,
             displayName: frame.displayName,
             password: frame.password,
+            sessionToken: frame.sessionToken,
+            worldCharacterId: frame.worldCharacterId,
             controller: frame.controller ?? "hybrid",
             persona: frame.persona,
         });

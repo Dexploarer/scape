@@ -138,6 +138,7 @@ import type {
 import type { MessageRouter } from "../network/MessageRouter";
 import type { PlayerNetworkLayer } from "../network/PlayerNetworkLayer";
 import type { ReportGameTimeTracker } from "../network/reportGameTime";
+import type { HostedSessionService } from "../auth/HostedSessionService";
 
 // ── Pathfinding ─────────────────────────────────────────────────────────────
 import type { PathService } from "../pathfinding/PathService";
@@ -163,6 +164,7 @@ export interface ServerServices {
     // ── Config & infrastructure ──────────────────────────────────────────
     readonly ticker: GameTicker;
     readonly tickMs: number;
+    readonly worldId: string;
     readonly gamemode: GamemodeDefinition;
     gamemodeUi: GamemodeUiController;
     readonly pathService?: PathService;
@@ -187,6 +189,7 @@ export interface ServerServices {
     npcManager?: NpcManager;
     readonly playerPersistence: PersistenceProvider;
     readonly accountStore: AccountStore;
+    readonly hostedSessionService?: HostedSessionService;
     /**
      * Bot-SDK WebSocket server. Optional because the endpoint is
      * disabled unless `BOT_SDK_TOKEN` is set — in which case the

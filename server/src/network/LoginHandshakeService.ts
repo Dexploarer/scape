@@ -1,6 +1,9 @@
 import { WebSocket } from "ws";
 
-import { normalizePlayerAccountName, buildPlayerSaveKey } from "../game/state/PlayerSessionKeys";
+import {
+    buildScopedPlayerSaveKey,
+    normalizePlayerAccountName,
+} from "../game/state/PlayerSessionKeys";
 import type { PlayerState } from "../game/player";
 import type { RoutedMessage } from "./MessageRouter";
 import { isBinaryData, isNewProtocolPacket, parsePacketsAsMessages, toUint8Array, type AppearanceSetPacket, type DecodedPacket } from "./packet";
@@ -37,6 +40,13 @@ interface HandshakeAppearance {
     colors?: number[];
 }
 
+interface PendingLoginState {
+    displayName: string;
+    worldId?: string;
+    worldCharacterId?: string;
+    principalId?: string;
+}
+
 /**
  * Manages the login validation, handshake negotiation, and WebSocket
  * connection lifecycle (message routing + disconnect cleanup).
@@ -45,18 +55,18 @@ interface HandshakeAppearance {
  * keeping the deeply-coupled handshake flow intact.
  */
 export class LoginHandshakeService {
-    private readonly pendingLoginNames = new WeakMap<WebSocket, string>();
+    private readonly pendingLogins = new WeakMap<WebSocket, PendingLoginState>();
 
     constructor(private readonly svc: ServerServices) {}
 
-    setPendingLoginName(ws: WebSocket, name: string): void {
-        this.pendingLoginNames.set(ws, name);
+    setPendingLoginState(ws: WebSocket, login: PendingLoginState): void {
+        this.pendingLogins.set(ws, login);
     }
 
-    consumePendingLoginName(ws: WebSocket): string | undefined {
-        const name = this.pendingLoginNames.get(ws);
-        this.pendingLoginNames.delete(ws);
-        return name;
+    consumePendingLoginState(ws: WebSocket): PendingLoginState | undefined {
+        const login = this.pendingLogins.get(ws);
+        this.pendingLogins.delete(ws);
+        return login;
     }
 
     getSocketRemoteAddress(ws: WebSocket): string | undefined {
@@ -84,7 +94,13 @@ export class LoginHandshakeService {
             } catch (err) { logger.warn("[logout] send logout response failed", err); }
 
             try {
-                const saveKey = player.__saveKey ?? buildPlayerSaveKey(player.name, player.id);
+                const saveKey =
+                    player.__saveKey ??
+                    buildScopedPlayerSaveKey({
+                        worldId: this.svc.worldId,
+                        name: player.name,
+                        id: player.id,
+                    });
                 this.svc.playerPersistence.saveSnapshot(saveKey, player);
                 logger.info(`[logout] Saved player state for key: ${saveKey}${sourceSuffix}`);
             } catch (err) {
@@ -97,9 +113,20 @@ export class LoginHandshakeService {
         } catch (err) { logger.warn("[logout] ws close failed", err); }
     }
 
-    handleLoginMessage(ws: WebSocket, payload: { username?: string; password?: string; revision?: number }): void {
-        const { username, password, revision } = payload;
+    handleLoginMessage(
+        ws: WebSocket,
+        payload: {
+            username?: string;
+            password?: string;
+            revision?: number;
+            sessionToken?: string;
+            worldCharacterId?: string;
+        },
+    ): void {
+        const { username, password, revision, sessionToken, worldCharacterId } = payload;
         const normalizedUsername = (username || "").trim().toLowerCase();
+        const hostedTokenMode =
+            typeof sessionToken === "string" && sessionToken.trim().length > 0;
 
         const sendLoginError = (errorCode: number, error: string) => {
             this.svc.networkLayer.withDirectSendBypass("login_response", () =>
@@ -143,14 +170,41 @@ export class LoginHandshakeService {
             return;
         }
 
-        // 4. Validate username is not empty
-        if (!normalizedUsername || normalizedUsername.length === 0) {
+        let loginState: PendingLoginState | undefined;
+        let loginName = normalizedUsername;
+
+        if (hostedTokenMode) {
+            if ((password ?? "").trim().length > 0 || normalizedUsername.length > 0) {
+                sendLoginError(
+                    3,
+                    "Hosted login must use sessionToken only. Do not send username/password with hosted sessions.",
+                );
+                return;
+            }
+            const hosted = this.svc.hostedSessionService?.verify(sessionToken, {
+                kind: "human",
+                worldId: this.svc.worldId,
+                worldCharacterId,
+            });
+            if (!hosted || !hosted.ok) {
+                sendLoginError(3, hosted?.message ?? "Hosted session login is unavailable.");
+                return;
+            }
+            loginName = normalizePlayerAccountName(hosted.claims.displayName) ?? "";
+            loginState = {
+                displayName: hosted.claims.displayName.slice(0, 12),
+                principalId: hosted.claims.principalId,
+                worldId: hosted.claims.worldId,
+                worldCharacterId: hosted.claims.worldCharacterId,
+            };
+        } else if (!normalizedUsername || normalizedUsername.length === 0) {
+            // 4. Validate username is not empty
             sendLoginError(3, "Invalid username or password.");
             return;
         }
 
         // 5. Check if already logged in
-        if (this.svc.authService.isPlayerAlreadyLoggedIn(normalizedUsername)) {
+        if (this.svc.authService.isPlayerAlreadyLoggedIn(loginName)) {
             sendLoginError(
                 5,
                 "Your account is already logged in. Try again in 60 seconds.",
@@ -161,42 +215,49 @@ export class LoginHandshakeService {
         // 6. Verify password (auto-registers new account on first login).
         // Uses generic "Invalid username or password" for wrong-password so we
         // don't leak which usernames exist.
-        const authResult = this.svc.accountStore.verifyOrRegister(
-            normalizedUsername,
-            password ?? "",
-        );
-        switch (authResult.kind) {
-            case "wrong_password":
-                sendLoginError(3, "Invalid username or password.");
-                return;
-            case "banned":
-                sendLoginError(
-                    4,
-                    authResult.reason
-                        ? `Your account has been disabled: ${authResult.reason}`
-                        : "Your account has been disabled.",
-                );
-                return;
-            case "password_too_short":
-                sendLoginError(
-                    3,
-                    `Password must be at least ${authResult.minLength} characters.`,
-                );
-                return;
-            case "error":
-                logger.warn("[login] account store error", authResult.error);
-                sendLoginError(8, "Login server error. Please try again.");
-                return;
-            case "ok":
-                if (authResult.created) {
-                    logger.info(`[login] registered new account "${normalizedUsername}"`);
-                }
-                break;
+        if (!hostedTokenMode) {
+            const authResult = this.svc.accountStore.verifyOrRegister(
+                normalizedUsername,
+                password ?? "",
+            );
+            switch (authResult.kind) {
+                case "wrong_password":
+                    sendLoginError(3, "Invalid username or password.");
+                    return;
+                case "banned":
+                    sendLoginError(
+                        4,
+                        authResult.reason
+                            ? `Your account has been disabled: ${authResult.reason}`
+                            : "Your account has been disabled.",
+                    );
+                    return;
+                case "password_too_short":
+                    sendLoginError(
+                        3,
+                        `Password must be at least ${authResult.minLength} characters.`,
+                    );
+                    return;
+                case "error":
+                    logger.warn("[login] account store error", authResult.error);
+                    sendLoginError(8, "Login server error. Please try again.");
+                    return;
+                case "ok":
+                    if (authResult.created) {
+                        logger.info(`[login] registered new account "${normalizedUsername}"`);
+                    }
+                    break;
+            }
         }
 
         // All checks passed - login successful
-        const displayName = (username ?? "").slice(0, 12);
-        this.setPendingLoginName(ws, displayName);
+        const displayName = loginState?.displayName ?? (username ?? "").slice(0, 12);
+        this.setPendingLoginState(ws, {
+            displayName,
+            principalId: loginState?.principalId,
+            worldId: loginState?.worldId,
+            worldCharacterId: loginState?.worldCharacterId,
+        });
         this.svc.networkLayer.withDirectSendBypass("login_response", () =>
             this.svc.networkLayer.sendWithGuard(
                 ws,
@@ -210,16 +271,26 @@ export class LoginHandshakeService {
                 "login_response",
             ),
         );
-        logger.info(`Login successful: ${username}`);
+        logger.info(
+            hostedTokenMode
+                ? `Hosted login successful: ${displayName} (${loginState?.worldCharacterId})`
+                : `Login successful: ${username}`,
+        );
     }
 
     handleHandshakeMessage(ws: WebSocket, payload: { name?: string; appearance?: AppearanceSetPacket; displayMode?: number }): void {
         const parsed = { type: "handshake" as const, payload };
         try {
-            const pendingLoginName = this.consumePendingLoginName(ws);
-            const name = pendingLoginName || parsed.payload.name?.slice(0, 12) || undefined;
+            const pendingLogin = this.consumePendingLoginState(ws);
+            const name = pendingLogin?.displayName || parsed.payload.name?.slice(0, 12) || undefined;
 
-            const preliminarySaveKey = normalizePlayerAccountName(name);
+            const preliminarySaveKey = name
+                ? buildScopedPlayerSaveKey({
+                      worldId: pendingLogin?.worldId ?? this.svc.worldId,
+                      name,
+                      worldCharacterId: pendingLogin?.worldCharacterId,
+                  })
+                : undefined;
             let p: PlayerState | undefined;
             let isReconnect = false;
 
@@ -281,7 +352,12 @@ export class LoginHandshakeService {
                     this.svc.appearanceService.refreshAppearanceKits(p);
                     this.svc.equipmentService.refreshCombatWeaponCategory(p);
                     p.combat.attackDelay = this.svc.playerCombatService!.pickAttackSpeed(p);
-                    const saveKey = buildPlayerSaveKey(name, p.id);
+                    const saveKey = buildScopedPlayerSaveKey({
+                        worldId: pendingLogin?.worldId ?? this.svc.worldId,
+                        name,
+                        id: p.id,
+                        worldCharacterId: pendingLogin?.worldCharacterId,
+                    });
                     p.__saveKey = saveKey;
                     try {
                         this.svc.playerPersistence.applyToPlayer(p, saveKey);
@@ -885,7 +961,12 @@ export class LoginHandshakeService {
                     this.svc.worldEntityInfoEncoder.removePlayer(player.id);
 
                     const saveKey =
-                        player.__saveKey ?? buildPlayerSaveKey(player.name, player.id);
+                        player.__saveKey ??
+                        buildScopedPlayerSaveKey({
+                            worldId: this.svc.worldId,
+                            name: player.name,
+                            id: player.id,
+                        });
 
                     const currentTick = this.svc.ticker.currentTick();
                     const wasOrphaned = this.svc.players?.orphanPlayer(ws, saveKey, currentTick);

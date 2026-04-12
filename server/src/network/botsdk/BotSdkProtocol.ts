@@ -45,15 +45,19 @@ export interface SpawnFrame {
     kind: "spawn";
     /** Stable agent id supplied by the plugin (distinct from the in-game username). */
     agentId: string;
-    /** Requested in-game display name — becomes the account username. */
-    displayName: string;
+    /** Requested in-game display name — becomes the account username in password mode. */
+    displayName?: string;
     /**
      * Plaintext password used for scrypt verification / first-time account
      * creation. Travels over the bot-SDK WebSocket only; never logged.
      * Subject to the same minimum-length policy as human accounts
      * (AUTH_MIN_PASSWORD_LENGTH, default 8).
      */
-    password: string;
+    password?: string;
+    /** Hosted Milady/ElizaOS session token. Mutually exclusive with password auth. */
+    sessionToken?: string;
+    /** Optional hosted world-character branch id expected by the session token. */
+    worldCharacterId?: string;
     /** Optional persona string fed into the LLM's system prompt. */
     persona?: string;
     /** Controller mode for this agent. Defaults to `"hybrid"`. */

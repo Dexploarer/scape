@@ -32,6 +32,7 @@ import { ActionDispatchService } from "../game/services/ActionDispatchService";
 import { InventoryMessageService } from "../game/services/InventoryMessageService";
 import { AuthenticationService } from "./AuthenticationService";
 import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
+import { getRequestPathname } from "./HttpRouteUtils";
 import { buildWorldDirectory } from "./WorldDirectory";
 
 import { ConfigType } from "../../../src/rs/cache/ConfigType";
@@ -737,6 +738,7 @@ export class WSServer {
             "request",
             (req: http.IncomingMessage, res: http.ServerResponse) => {
                 const url = req.url ?? "/";
+                const pathname = getRequestPathname(url);
                 // Preflight — permissively allow cross-origin cache
                 // fetches from the static-site client host.
                 if (req.method === "OPTIONS") {
@@ -749,7 +751,7 @@ export class WSServer {
                     res.end();
                     return;
                 }
-                if (url === "/status") {
+                if (pathname === "/status") {
                     const count = this.players?.getRealPlayerCount() ?? 0;
                     res.writeHead(200, {
                         "Content-Type": "application/json",
@@ -763,7 +765,7 @@ export class WSServer {
                     }));
                     return;
                 }
-                if (url === "/servers.json" || url === "/worlds") {
+                if (pathname === "/servers.json" || pathname === "/worlds") {
                     const count = this.players?.getRealPlayerCount() ?? 0;
                     res.writeHead(200, {
                         "Content-Type": "application/json",

@@ -13,6 +13,7 @@ import * as GetWorldCharacterProcedure from "../get_world_character_procedure";
 import * as GetWorldCharacterBySaveKeyProcedure from "../get_world_character_by_save_key_procedure";
 import * as ListLoginAccountsProcedure from "../list_login_accounts_procedure";
 import * as ListPlayerSnapshotsForWorldProcedure from "../list_player_snapshots_for_world_procedure";
+import * as ListWorldCharactersForWorldProcedure from "../list_world_characters_for_world_procedure";
 
 export type GetLoginAccountArgs = __Infer<typeof GetLoginAccountProcedure.params>;
 export type GetLoginAccountResult = __Infer<typeof GetLoginAccountProcedure.returnType>;
@@ -28,4 +29,6 @@ export type ListLoginAccountsArgs = __Infer<typeof ListLoginAccountsProcedure.pa
 export type ListLoginAccountsResult = __Infer<typeof ListLoginAccountsProcedure.returnType>;
 export type ListPlayerSnapshotsForWorldArgs = __Infer<typeof ListPlayerSnapshotsForWorldProcedure.params>;
 export type ListPlayerSnapshotsForWorldResult = __Infer<typeof ListPlayerSnapshotsForWorldProcedure.returnType>;
+export type ListWorldCharactersForWorldArgs = __Infer<typeof ListWorldCharactersForWorldProcedure.params>;
+export type ListWorldCharactersForWorldResult = __Infer<typeof ListWorldCharactersForWorldProcedure.returnType>;
 

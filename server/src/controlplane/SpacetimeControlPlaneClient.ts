@@ -7,7 +7,9 @@ import {
 import type {
     ControlPlaneClient,
     ControlPlaneLoginAccountRecord,
+    ControlPlanePlayerSnapshotRecord,
     ControlPlanePrincipalRecord,
+    ControlPlaneWorldCharacterRecord,
 } from "./ControlPlaneClient";
 
 export interface SpacetimeControlPlaneClientOptions {
@@ -102,6 +104,40 @@ export class SpacetimeControlPlaneClient implements ControlPlaneClient {
         }));
     }
 
+    async listWorldCharactersForWorld(
+        worldId: string,
+    ): Promise<ControlPlaneWorldCharacterRecord[]> {
+        const rows = await this.connection.procedures.listWorldCharactersForWorld({
+            worldId,
+        });
+        return rows.map((row) => ({
+            worldCharacterId: row.worldCharacterId,
+            worldId: row.worldId,
+            principalId: row.principalId,
+            displayName: row.displayName,
+            saveKey: row.saveKey ?? undefined,
+            branchKind: row.branchKind ?? undefined,
+            createdAt: fromU64(row.createdAt),
+            lastSeenAt: row.lastSeenAt != null ? fromU64(row.lastSeenAt) : undefined,
+        }));
+    }
+
+    async listPlayerSnapshotsForWorld(
+        worldId: string,
+    ): Promise<ControlPlanePlayerSnapshotRecord[]> {
+        const rows = await this.connection.procedures.listPlayerSnapshotsForWorld({
+            worldId,
+        });
+        return rows.map((row) => ({
+            worldCharacterId: row.worldCharacterId,
+            worldId: row.worldId,
+            principalId: row.principalId,
+            snapshotVersion: row.snapshotVersion,
+            persistentVarsJson: row.persistentVarsJson,
+            updatedAt: fromU64(row.updatedAt),
+        }));
+    }
+
     async upsertPrincipal(record: ControlPlanePrincipalRecord): Promise<void> {
         await this.connection.reducers.upsertPrincipal({
             principalId: record.principalId,
@@ -128,10 +164,44 @@ export class SpacetimeControlPlaneClient implements ControlPlaneClient {
         });
     }
 
+    async upsertWorldCharacter(record: ControlPlaneWorldCharacterRecord): Promise<void> {
+        await this.connection.reducers.upsertWorldCharacter({
+            worldCharacterId: record.worldCharacterId,
+            worldId: record.worldId,
+            principalId: record.principalId,
+            displayName: record.displayName,
+            saveKey: record.saveKey,
+            branchKind: record.branchKind,
+            createdAt: toU64(record.createdAt),
+            lastSeenAt: record.lastSeenAt != null ? toU64(record.lastSeenAt) : undefined,
+        });
+    }
+
+    async putPlayerSnapshot(record: ControlPlanePlayerSnapshotRecord): Promise<void> {
+        await this.connection.reducers.putPlayerSnapshot({
+            worldCharacterId: record.worldCharacterId,
+            worldId: record.worldId,
+            principalId: record.principalId,
+            snapshotVersion: record.snapshotVersion,
+            persistentVarsJson: record.persistentVarsJson,
+            updatedAt: toU64(record.updatedAt),
+        });
+    }
+
     async touchLoginAccount(username: string, lastLoginAt?: number): Promise<void> {
         await this.connection.reducers.touchLoginAccount({
             username,
             lastLoginAt: lastLoginAt != null ? toU64(lastLoginAt) : undefined,
+        });
+    }
+
+    async touchWorldCharacter(
+        worldCharacterId: string,
+        lastSeenAt?: number,
+    ): Promise<void> {
+        await this.connection.reducers.touchWorldCharacter({
+            worldCharacterId,
+            lastSeenAt: lastSeenAt != null ? toU64(lastSeenAt) : undefined,
         });
     }
 

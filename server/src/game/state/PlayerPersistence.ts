@@ -37,7 +37,7 @@ interface SanitizedCollectionLogUnlockEntry {
     sequence: number;
 }
 
-function readJsonFile<T>(filePath: string, fallback: T): T {
+export function readJsonFile<T>(filePath: string, fallback: T): T {
     try {
         if (!fs.existsSync(filePath)) {
             return fallback;
@@ -209,7 +209,7 @@ function sanitizeCollectionLogSnapshot(
     return result;
 }
 
-function mergeStates(
+export function mergePlayerPersistentStates(
     defaults?: PlayerPersistentVars,
     overrides?: PlayerPersistentVars,
 ): PlayerPersistentVars | undefined {
@@ -513,7 +513,7 @@ export class PlayerPersistence implements PersistenceProvider {
     }
 
     applyToPlayer(player: PlayerState, key: string): void {
-        const snapshot = mergeStates(this.defaults, this.store.get(key));
+        const snapshot = mergePlayerPersistentStates(this.defaults, this.store.get(key));
         player.applyPersistentVars(snapshot);
     }
 

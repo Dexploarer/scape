@@ -612,6 +612,23 @@ export const get_world_character_by_save_key = control_plane.procedure(
         ) ?? undefined),
 );
 
+export const list_world_characters_for_world = control_plane.procedure(
+    {
+        world_id: t.string(),
+    },
+    t.array(worldCharacterRow),
+    (ctx, payload) => ctx.withTx((tx) => {
+        const worldId = requiredText("world_id", payload.world_id);
+        const rows = [];
+        for (const row of tx.db.world_character.iter()) {
+            if (row.world_id === worldId) {
+                rows.push(row);
+            }
+        }
+        return rows;
+    }),
+);
+
 export const get_player_snapshot = control_plane.procedure(
     {
         world_character_id: t.string(),

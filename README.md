@@ -50,18 +50,20 @@ The real goal: use this as a substrate for experiments that don't fit in any van
                          │ world identity / telemetry / hosted ops
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Shared control plane (SpacetimeDB, staged)                  │
+│ Shared control plane (SpacetimeDB)                           │
 │   world / principal / world_character                        │
-│   trajectories / live events / world packages / prefabs      │
+│   accounts / player snapshots / trajectories / live events   │
+│   world packages / prefabs                                   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## Shared control plane
 
-The shared hosted-world control plane now has a typed SpacetimeDB scaffold under [`spacetimedb/`](./spacetimedb). It is not the live persistence path yet, but it is the canonical schema direction for:
+The shared hosted-world control plane now has a typed SpacetimeDB module under [`spacetimedb/`](./spacetimedb). When `SPACETIMEDB_URI` and `SPACETIMEDB_DATABASE` are configured, the server now cuts over both account storage and world-scoped player snapshot persistence through the shared control plane. The same schema is also the canonical direction for:
 
 -   global principals
 -   world-scoped character branches
+-   hosted account + player snapshot storage
 -   hot trajectory capture
 -   world-package / release / patch / prefab metadata
 

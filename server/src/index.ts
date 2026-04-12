@@ -3,6 +3,7 @@ import path from "path";
 import { getCacheLoaderFactory } from "../../src/rs/cache/loader/CacheLoaderFactory";
 import { config } from "./config";
 import { createAccountStore } from "./game/state/createAccountStore";
+import { loadPersistenceProvider } from "./game/state/createPersistenceProvider";
 import { initSpellWidgetMapping } from "./game/spells/SpellDataProvider";
 import { damageTracker } from "./game/combat/DamageTracker";
 import { createGamemode } from "./game/gamemodes/GamemodeRegistry";
@@ -81,6 +82,16 @@ async function main() {
     });
     logger.info(`Boot: account store ready (${accountStore.size()} account(s))`);
 
+    logger.info("Boot: initializing player persistence provider...");
+    const persistenceProvider = await loadPersistenceProvider({
+        gamemodeId: gamemode.id,
+        worldId: config.worldId,
+        spacetimeUri: config.spacetimeUri,
+        spacetimeDatabase: config.spacetimeDatabase,
+        spacetimeAuthToken: config.spacetimeAuthToken,
+    });
+    logger.info("Boot: player persistence provider ready");
+
     logger.info("Boot: constructing WebSocket server...");
     const server = new WSServer({
         host: config.host,
@@ -95,6 +106,7 @@ async function main() {
         maxPlayers: config.maxPlayers,
         gamemode,
         accountStore,
+        persistenceProvider,
     });
     logger.info("Boot: WebSocket server constructed");
 

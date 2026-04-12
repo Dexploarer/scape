@@ -86,11 +86,12 @@ Edit `server/src/config/ServerConfig.ts` (or provide a config override — the s
 -   **`allowedOrigins`** — list of Origin headers the WebSocket will accept. Put your client host here (e.g. `["https://xrsps.example.com"]`).
 -   **`ALLOW_JSON_ACCOUNT_FALLBACK`** — optional escape hatch; when `true`, a broken Postgres bootstrap falls back to the JSON account file.
 -   **`ALLOW_JSON_ACCOUNT_STORE_IN_PRODUCTION`** — optional escape hatch; when `true`, production may use the JSON account file. Leave unset unless you mounted durable storage yourself.
--   **`SPACETIMEDB_URI` / `SPACETIMEDB_DATABASE` / `SPACETIMEDB_AUTH_TOKEN`** — staged shared control-plane connection details. These are parsed today so the server/runtime adapters can cut over without another config format change.
+-   **`WORLD_ID`** — world-scoped persistence namespace. Use a stable value like `scape` or `toonscape` so alternate realities do not share character saves.
+-   **`SPACETIMEDB_URI` / `SPACETIMEDB_DATABASE` / `SPACETIMEDB_AUTH_TOKEN`** — shared control-plane connection details. When set, the server uses SpacetimeDB for hosted account storage and world-scoped player snapshot persistence.
 
 ## Shared control plane module
 
-Validate the staged module before publishing or wiring adapters:
+Validate the shared control-plane module before publishing or wiring adapters:
 
 ```sh
 bun run spacetimedb:build

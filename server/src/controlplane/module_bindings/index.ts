@@ -61,6 +61,7 @@ import * as GetWorldCharacterProcedure from "./get_world_character_procedure";
 import * as GetWorldCharacterBySaveKeyProcedure from "./get_world_character_by_save_key_procedure";
 import * as ListLoginAccountsProcedure from "./list_login_accounts_procedure";
 import * as ListPlayerSnapshotsForWorldProcedure from "./list_player_snapshots_for_world_procedure";
+import * as ListWorldCharactersForWorldProcedure from "./list_world_characters_for_world_procedure";
 
 // Import all table schema definitions
 import AgentMemoryRow from "./agent_memory_table";
@@ -378,6 +379,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_world_character_by_save_key", GetWorldCharacterBySaveKeyProcedure.params, GetWorldCharacterBySaveKeyProcedure.returnType),
   __procedureSchema("list_login_accounts", ListLoginAccountsProcedure.params, ListLoginAccountsProcedure.returnType),
   __procedureSchema("list_player_snapshots_for_world", ListPlayerSnapshotsForWorldProcedure.params, ListPlayerSnapshotsForWorldProcedure.returnType),
+  __procedureSchema("list_world_characters_for_world", ListWorldCharactersForWorldProcedure.params, ListWorldCharactersForWorldProcedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */

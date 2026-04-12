@@ -51,6 +51,7 @@ describe("spacetimedb control-plane scaffold", () => {
 
         expect(source).toContain("export const list_login_accounts = control_plane.procedure(");
         expect(source).toContain("export const get_login_account = control_plane.procedure(");
+        expect(source).toContain("export const list_world_characters_for_world = control_plane.procedure(");
         expect(source).toContain("export const get_world_character_by_save_key = control_plane.procedure(");
         expect(source).toContain("export const get_player_snapshot_by_save_key = control_plane.procedure(");
         expect(source).toContain("export const list_player_snapshots_for_world = control_plane.procedure(");
@@ -60,6 +61,7 @@ describe("spacetimedb control-plane scaffold", () => {
         const bindingsIndex = readRepoFile("server/src/controlplane/module_bindings/index.ts");
 
         expect(bindingsIndex).toContain("ListLoginAccountsProcedure");
+        expect(bindingsIndex).toContain("ListWorldCharactersForWorldProcedure");
         expect(bindingsIndex).toContain("GetPlayerSnapshotBySaveKeyProcedure");
         expect(bindingsIndex).toContain("UpsertLoginAccountReducer");
     });

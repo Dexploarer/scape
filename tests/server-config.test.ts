@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createServerConfig } from "../server/src/config";
+import { createServerConfig, resolveServerRuntimeMode } from "../server/src/config";
 
 describe("createServerConfig", () => {
     test("SERVER_NAME overrides the file-based server name", () => {
@@ -53,6 +53,24 @@ describe("createServerConfig", () => {
         expect(config.allowJsonAccountFallback).toBe(false);
     });
 
+    test("ALLOW_JSON_ACCOUNT_STORE_IN_PRODUCTION defaults off", () => {
+        const config = createServerConfig({
+            env: {},
+        });
+
+        expect(config.allowJsonAccountStoreInProduction).toBe(false);
+    });
+
+    test("ALLOW_JSON_ACCOUNT_STORE_IN_PRODUCTION opts into production JSON storage", () => {
+        const config = createServerConfig({
+            env: {
+                ALLOW_JSON_ACCOUNT_STORE_IN_PRODUCTION: "true",
+            },
+        });
+
+        expect(config.allowJsonAccountStoreInProduction).toBe(true);
+    });
+
     test("NODE_ENV=production sets production runtime mode", () => {
         const config = createServerConfig({
             env: {
@@ -69,5 +87,41 @@ describe("createServerConfig", () => {
         });
 
         expect(config.runtimeMode).toBe("development");
+    });
+
+    test("SERVER_RUNTIME_MODE overrides platform defaults", () => {
+        const config = createServerConfig({
+            env: {
+                SERVER_RUNTIME_MODE: "production",
+                NODE_ENV: "development",
+                PUBLIC_WS_URL: "ws://localhost:43594",
+            },
+        });
+
+        expect(config.runtimeMode).toBe("production");
+    });
+
+    test("hosted PUBLIC_WS_URL defaults runtime mode to production", () => {
+        expect(
+            resolveServerRuntimeMode({
+                PUBLIC_WS_URL: "wss://scape-96cxt.sevalla.app",
+            }),
+        ).toBe("production");
+    });
+
+    test("remote ALLOWED_ORIGINS defaults runtime mode to production", () => {
+        expect(
+            resolveServerRuntimeMode({
+                ALLOWED_ORIGINS: "https://scape-client-2sqyc.kinsta.page, http://localhost:3000",
+            }),
+        ).toBe("production");
+    });
+
+    test("localhost PUBLIC_WS_URL stays in development mode", () => {
+        expect(
+            resolveServerRuntimeMode({
+                PUBLIC_WS_URL: "ws://localhost:43594",
+            }),
+        ).toBe("development");
     });
 });

@@ -27,6 +27,13 @@ export interface ServerConfig {
      */
     allowJsonAccountFallback: boolean;
     /**
+     * Allow the JSON account store in production mode.
+     *
+     * Default false because hosted deployments typically replace the
+     * local filesystem on each app update.
+     */
+    allowJsonAccountStoreInProduction: boolean;
+    /**
      * Origin header allowlist for WebSocket upgrade. Empty = allow all
      * (convenient for LAN/dev). Populate this for public deployments.
      */
@@ -50,6 +57,8 @@ export interface ServerConfig {
     botSdkPerceptionEveryNTicks: number;
 }
 
+export type ServerRuntimeMode = "development" | "production";
+
 type ServerConfigFile = Partial<
     Pick<
         ServerConfig,
@@ -59,6 +68,7 @@ type ServerConfigFile = Partial<
         | "accountsFilePath"
         | "minPasswordLength"
         | "allowJsonAccountFallback"
+        | "allowJsonAccountStoreInProduction"
         | "allowedOrigins"
         | "botSdkHost"
         | "botSdkPort"
@@ -77,6 +87,62 @@ function readServerConfigFile(): ServerConfigFile {
     }
 }
 
+function normalizeRuntimeMode(value: string | undefined): ServerRuntimeMode | undefined {
+    const normalized = value?.trim().toLowerCase();
+    if (normalized === "production") return "production";
+    if (normalized === "development") return "development";
+    return undefined;
+}
+
+function extractHostname(value: string): string {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+
+    try {
+        const candidate = trimmed.includes("://") ? trimmed : `http://${trimmed}`;
+        return new URL(candidate).hostname.trim().toLowerCase();
+    } catch {
+        return "";
+    }
+}
+
+function isLocalDevelopmentHost(hostname: string): boolean {
+    return (
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "0.0.0.0" ||
+        hostname === "::1" ||
+        hostname.endsWith(".local")
+    );
+}
+
+function isHostedAddress(value: string | undefined): boolean {
+    if (!value?.trim()) return false;
+    const hostname = extractHostname(value);
+    return hostname.length > 0 && !isLocalDevelopmentHost(hostname);
+}
+
+export function resolveServerRuntimeMode(env: NodeJS.ProcessEnv = process.env): ServerRuntimeMode {
+    const explicitMode = normalizeRuntimeMode(env.SERVER_RUNTIME_MODE);
+    if (explicitMode) return explicitMode;
+
+    const nodeEnvMode = normalizeRuntimeMode(env.NODE_ENV);
+    if (nodeEnvMode) return nodeEnvMode;
+
+    if (isHostedAddress(env.PUBLIC_WS_URL)) {
+        return "production";
+    }
+
+    const allowedOrigins = env.ALLOWED_ORIGINS?.split(",")
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0);
+    if (allowedOrigins?.some((origin) => isHostedAddress(origin))) {
+        return "production";
+    }
+
+    return "development";
+}
+
 export function createServerConfig(options: {
     env?: NodeJS.ProcessEnv;
     fileConfig?: ServerConfigFile;
@@ -85,10 +151,7 @@ export function createServerConfig(options: {
     const parsed = options.fileConfig ?? readServerConfigFile();
     const portEnv = env.PORT?.trim();
     const tickMsEnv = env.TICK_MS?.trim();
-    const runtimeMode =
-        env.NODE_ENV?.trim().toLowerCase() === "production"
-            ? "production"
-            : "development";
+    const runtimeMode = resolveServerRuntimeMode(env);
 
     let serverName = "Local Development";
     let maxPlayers = 2047;
@@ -96,6 +159,7 @@ export function createServerConfig(options: {
     let accountsFilePath = resolve(__dirname, "../../data/accounts.json");
     let minPasswordLength = 8;
     let allowJsonAccountFallback = false;
+    let allowJsonAccountStoreInProduction = false;
     let allowedOrigins: string[] = [];
     let botSdkHost = "127.0.0.1";
     let botSdkPort = 43595;
@@ -111,6 +175,9 @@ export function createServerConfig(options: {
     if (typeof parsed.minPasswordLength === "number") minPasswordLength = parsed.minPasswordLength;
     if (typeof parsed.allowJsonAccountFallback === "boolean") {
         allowJsonAccountFallback = parsed.allowJsonAccountFallback;
+    }
+    if (typeof parsed.allowJsonAccountStoreInProduction === "boolean") {
+        allowJsonAccountStoreInProduction = parsed.allowJsonAccountStoreInProduction;
     }
     if (Array.isArray(parsed.allowedOrigins)) {
         allowedOrigins = parsed.allowedOrigins.filter((o: unknown): o is string => typeof o === "string");
@@ -139,6 +206,14 @@ export function createServerConfig(options: {
             normalizedAllowFallback === "1" ||
             normalizedAllowFallback === "true" ||
             normalizedAllowFallback === "yes";
+    }
+    if (env.ALLOW_JSON_ACCOUNT_STORE_IN_PRODUCTION?.trim()) {
+        const normalizedAllowJsonInProduction =
+            env.ALLOW_JSON_ACCOUNT_STORE_IN_PRODUCTION.trim().toLowerCase();
+        allowJsonAccountStoreInProduction =
+            normalizedAllowJsonInProduction === "1" ||
+            normalizedAllowJsonInProduction === "true" ||
+            normalizedAllowJsonInProduction === "yes";
     }
     if (env.ALLOWED_ORIGINS?.trim()) {
         allowedOrigins = env.ALLOWED_ORIGINS.split(",")
@@ -172,6 +247,7 @@ export function createServerConfig(options: {
         accountsFilePath,
         minPasswordLength,
         allowJsonAccountFallback,
+        allowJsonAccountStoreInProduction,
         allowedOrigins,
         botSdkEnabled: botSdkToken.length > 0,
         botSdkHost,

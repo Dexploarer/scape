@@ -12,6 +12,7 @@
  */
 
 import { logger } from "../../utils/logger";
+import type { ServerRuntimeMode } from "../../config";
 
 import type { AccountStore } from "./AccountStore";
 import { JsonAccountStore } from "./AccountStore";
@@ -32,6 +33,27 @@ export interface CreateAccountStoreOptions {
      * JSON store instead of aborting startup.
      */
     allowJsonFallbackOnDatabaseError?: boolean;
+    /** Server runtime mode used to enforce durable storage in production. */
+    runtimeMode?: ServerRuntimeMode;
+    /**
+     * When true, allow JSON-backed accounts even in production mode.
+     * Only use this with an explicitly durable mounted volume.
+     */
+    allowJsonStoreInProduction?: boolean;
+}
+
+function assertJsonStoreAllowed(opts: CreateAccountStoreOptions): void {
+    const runtimeMode = opts.runtimeMode ?? "development";
+    if (runtimeMode !== "production") return;
+    if (opts.allowJsonStoreInProduction) {
+        logger.warn(
+            "[accounts] production JSON account storage explicitly enabled — ensure the file path is on durable storage",
+        );
+        return;
+    }
+    throw new Error(
+        "Production account storage requires DATABASE_URL. JSON account storage is blocked in production because hosted app updates wipe local files. Set DATABASE_URL or ALLOW_JSON_ACCOUNT_STORE_IN_PRODUCTION=true only if you mounted durable storage yourself.",
+    );
 }
 
 export async function createAccountStore(
@@ -53,12 +75,14 @@ export async function createAccountStore(
                 );
                 throw err instanceof Error ? err : new Error(String(err));
             }
+            assertJsonStoreAllowed(opts);
             logger.error(
                 "[accounts] Postgres init failed, falling back to JsonAccountStore",
                 err,
             );
         }
     } else {
+        assertJsonStoreAllowed(opts);
         logger.info(
             "[accounts] DATABASE_URL not set → using JsonAccountStore (ephemeral in hosted deployments)",
         );

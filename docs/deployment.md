@@ -14,8 +14,8 @@ accounts, TLS-terminated WebSockets, and proper origin allowlisting.
   connections to your server.
 - **IP-based rate limiting.** 5 login attempts / 60 seconds / IP
   (configurable).
-- **Persistent accounts.** Stored as a JSON file at
-  `server/data/accounts.json`, separate from gameplay state.
+- **Persistent accounts.** Stored durably in Postgres for hosted worlds,
+  separate from gameplay state.
 
 ::: warning Scope
 This guide covers the **code-level** hardening. It does NOT cover OS-level
@@ -62,18 +62,22 @@ Create or edit `server/config.json`:
 |---------------------|----------------------------------------------------------------------------------------------------|
 | `allowedOrigins`    | Only these `Origin` headers can open a WebSocket. Empty = allow all (dev). Set this for public.    |
 | `minPasswordLength` | Minimum password length at account creation. Existing accounts are not re-validated.              |
-| `accountsFilePath`  | (Optional) Relative path to the accounts JSON file. Default: `data/accounts.json`.                 |
+| `DATABASE_URL`      | Managed Postgres connection string for durable account storage.                                     |
+| `accountsFilePath`  | (Optional) Relative path to the accounts JSON file. Default: `data/accounts.json`. Dev-only unless the path is on durable storage. |
+| `ALLOW_JSON_ACCOUNT_STORE_IN_PRODUCTION` | (Optional) Allows production to use the JSON account file. Leave unset unless the file path is on durable storage. |
 
 Equivalent env vars (env wins over `config.json`):
 
 ```bash
 export ALLOWED_ORIGINS="https://xrsps.example.com"
 export AUTH_MIN_PASSWORD_LENGTH=8
-export ACCOUNTS_FILE_PATH=/var/lib/xrsps/accounts.json
+export DATABASE_URL="postgres://user:pass@db.internal:5432/scape_accounts"
 ```
 
-Storing the accounts file outside the repo (`/var/lib/xrsps/...`) is a good
-idea for production so a `git reset --hard` can't nuke your player database.
+Production mode now fails fast when `DATABASE_URL` is missing so account data
+cannot be lost on app updates. Only use the JSON account file in production
+when you explicitly mounted durable storage and set
+`ALLOW_JSON_ACCOUNT_STORE_IN_PRODUCTION=true`.
 
 ---
 
@@ -157,7 +161,7 @@ GAMEMODE=vanilla NODE_ENV=production bun run server:prod
 Look for these log lines confirming hardening is active:
 
 ```
-[accounts] no existing account file at .../accounts.json — starting fresh
+[accounts] DATABASE_URL set → using PostgresAccountStore
 [ws] Origin allowlist active: https://xrsps.example.com
 WS listening on ws://0.0.0.0:43594
 ```
@@ -185,7 +189,7 @@ RestartSec=5
 Environment=GAMEMODE=vanilla
 Environment=NODE_ENV=production
 Environment=ALLOWED_ORIGINS=https://xrsps.example.com
-Environment=ACCOUNTS_FILE_PATH=/var/lib/xrsps/accounts.json
+Environment=DATABASE_URL=postgres://user:pass@db.internal:5432/scape_accounts
 
 [Install]
 WantedBy=multi-user.target
@@ -208,9 +212,8 @@ sudo systemctl enable --now xrsps
    or password."
 5. Reconnect with the **right** password → back in game with your saved
    state.
-6. Check `server/data/accounts.json` (or wherever you pointed
-   `ACCOUNTS_FILE_PATH`) — there should be an entry for your username.
-   **Only the scrypt hash is stored, never the plaintext.**
+6. Check the `accounts` table in Postgres — there should be a row for your
+   username. **Only the scrypt hash is stored, never the plaintext.**
 
 ---
 

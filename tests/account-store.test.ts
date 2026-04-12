@@ -92,4 +92,25 @@ describe("createAccountStore", () => {
             postgresAccountStore.create = originalCreate;
         }
     });
+
+    test("blocks JSON account storage in production without an explicit override", async () => {
+        await expect(
+            createAccountStore({
+                jsonFilePath: makeTempFilePath("prod-json-blocked"),
+                minPasswordLength: 8,
+                runtimeMode: "production",
+            }),
+        ).rejects.toThrow("Production account storage requires DATABASE_URL");
+    });
+
+    test("allows JSON account storage in production only when explicitly enabled", async () => {
+        const store = await createAccountStore({
+            jsonFilePath: makeTempFilePath("prod-json-allowed"),
+            minPasswordLength: 8,
+            runtimeMode: "production",
+            allowJsonStoreInProduction: true,
+        });
+
+        expect(store).toBeInstanceOf(JsonAccountStore);
+    });
 });

@@ -1,6 +1,7 @@
 import { WebSocket } from "ws";
 
 import { logger } from "../utils/logger";
+import { resolveServerRuntimeMode } from "../config";
 import type { PlayerState } from "../game/player";
 
 export interface PlayerSocketLookup {
@@ -125,9 +126,9 @@ export class PlayerNetworkLayer {
             ", ",
         )}`;
         const strictEnv = process.env.DIRECT_SEND_GUARD_STRICT;
+        const runtimeMode = resolveServerRuntimeMode(process.env);
         const shouldThrow =
-            strictEnv === "1" ||
-            (strictEnv !== "0" && (process.env.NODE_ENV ?? "development") !== "production");
+            strictEnv === "1" || (strictEnv !== "0" && runtimeMode !== "production");
         if (shouldThrow) {
             throw new Error(summary);
         }

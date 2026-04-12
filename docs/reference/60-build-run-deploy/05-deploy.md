@@ -16,7 +16,7 @@ browsers  ──HTTPS──►  static host (Vercel / Netlify / Cloudflare Pages
                             ▼
                      XRSPS game server
                             │
-                            └── writes server/data/accounts.json (or SQLite)
+                            └── writes durable account data to Postgres
 ```
 
 The game server and the client are intentionally separate hosts. The client has no "home" origin — it's a static bundle that connects out to whatever WebSocket URL was baked in at build time (`REACT_APP_WS_URL`).
@@ -31,6 +31,7 @@ Any Linux host with:
 - Port 43594 **not** open externally — it's fronted by Caddy.
 
 Minimum size for a small world is modest: 1 vCPU, 2 GB RAM is plenty for dozens of concurrent players. Memory grows with player count because the cache is held in memory.
+Production startup now fails fast when `DATABASE_URL` is missing, because hosted app updates replace the container filesystem and would otherwise wipe `server/data/accounts.json`.
 
 ## 2. Install the runtime
 
@@ -72,9 +73,12 @@ Edit `server/src/config/ServerConfig.ts` (or provide a config override — the s
 - **`serverName`** — shown to players.
 - **`maxPlayers`** — `2047` (max OSRS player index).
 - **`gamemode`** — `"vanilla"` or `"leagues-v"`.
-- **`accountsFilePath`** — path to the JSON account store. Default is `server/data/accounts.json`.
+- **`DATABASE_URL`** — managed Postgres connection string for durable account storage.
+- **`accountsFilePath`** — path to the JSON account store. Default is `server/data/accounts.json`. Dev-only unless you mounted durable storage.
 - **`minPasswordLength`** — enforced at registration.
 - **`allowedOrigins`** — list of Origin headers the WebSocket will accept. Put your client host here (e.g. `["https://xrsps.example.com"]`).
+- **`ALLOW_JSON_ACCOUNT_FALLBACK`** — optional escape hatch; when `true`, a broken Postgres bootstrap falls back to the JSON account file.
+- **`ALLOW_JSON_ACCOUNT_STORE_IN_PRODUCTION`** — optional escape hatch; when `true`, production may use the JSON account file. Leave unset unless you mounted durable storage yourself.
 
 ## 6. Run the server under a supervisor
 
@@ -175,11 +179,11 @@ Open the client URL in a browser. The login screen should appear. Try to connect
 
 ## Operating notes
 
-- **Backups** — `server/data/accounts.json` is the source of truth for player state. Back it up regularly (`cron` + `rclone` to object storage is plenty). If you lose it, all player progress is gone.
+- **Backups** — Postgres is the source of truth for player accounts in production. Back it up using your provider snapshots/backups. Only back up `server/data/accounts.json` if you explicitly opted into JSON storage on durable disk.
 - **Updates** — XRSPS does not support rolling upgrades. To push a new build: stop the server (systemd-stop → graceful save), `git pull`, rebuild if needed, start again. Clients auto-reconnect after a short window.
 - **Cache version** — make sure the client and server are built from the same git commit. See [40.2](../40-protocol/02-binary-encoding.md) — there is no protocol version byte; pairing is 1-to-1.
 - **Scaling beyond one box** — XRSPS is single-process. For more players, scale vertically (more CPU) or run multiple separate worlds.
-- **Persistence migration** — swap `JsonAccountStore` for a custom `PersistenceProvider` if you need SQLite or Postgres. See [20.10](../20-server/10-persistence.md).
+- **Persistence migration** — Postgres is the supported production path. See [20.10](../20-server/10-persistence.md) if you need a custom provider.
 
 ## Firewall checklist
 
@@ -196,5 +200,6 @@ Open the client URL in a browser. The login screen should appear. Try to connect
 - **Default bot-SDK port**: `43595`.
 - **Client build command**: `bun run build`.
 - **Required client env vars**: `REACT_APP_WS_URL`, optionally `REACT_APP_SERVER_NAME`.
-- **Account storage default**: `server/data/accounts.json` (JSON file).
+- **Production account storage**: Postgres via `DATABASE_URL`.
+- **JSON account storage**: `server/data/accounts.json` by default, intended for local/dev unless you mounted durable storage.
 - **Rule**: client and server must be built from the same git commit.

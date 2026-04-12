@@ -73,6 +73,8 @@ async function main() {
         jsonFilePath: config.accountsFilePath,
         minPasswordLength: config.minPasswordLength,
         allowJsonFallbackOnDatabaseError: config.allowJsonAccountFallback,
+        runtimeMode: config.runtimeMode,
+        allowJsonStoreInProduction: config.allowJsonAccountStoreInProduction,
     });
     logger.info(`Boot: account store ready (${accountStore.size()} account(s))`);
 

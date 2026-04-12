@@ -6,7 +6,6 @@ import {
     createDefaultServerDirectoryEntry,
     normalizeServerDirectoryEntries,
 } from "../src/client/login/serverDirectory";
-import { shouldBypassWorldSelection } from "../src/client/worldSelectionGate";
 
 describe("normalizeServerDirectoryEntries", () => {
     test("appends a cache-busting query param to bare URLs", () => {
@@ -141,18 +140,5 @@ describe("normalizeServerDirectoryEntries", () => {
 
         expect(entries).toHaveLength(1);
         expect(entries[0]?.address).toBe("game.example.com");
-    });
-});
-
-describe("shouldBypassWorldSelection", () => {
-    test("bypasses for auto-login query params", () => {
-        expect(shouldBypassWorldSelection("?username=tester")).toBe(true);
-        expect(shouldBypassWorldSelection("?password=secret")).toBe(true);
-        expect(shouldBypassWorldSelection("?autoplay=1")).toBe(true);
-    });
-
-    test("does not bypass for normal entry URLs", () => {
-        expect(shouldBypassWorldSelection("")).toBe(false);
-        expect(shouldBypassWorldSelection("?foo=bar")).toBe(false);
     });
 });

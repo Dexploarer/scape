@@ -528,6 +528,16 @@ export type ClientToServer =
     | { type: "hello"; payload: { client: string; version?: string } }
     | { type: "ping"; payload: { time: number } }
     | {
+          type: "login";
+          payload: {
+              username?: string;
+              password?: string;
+              revision?: number;
+              sessionToken?: string;
+              worldCharacterId?: string;
+          };
+      }
+    | {
           type: "pathfind";
           payload: {
               id: number; // request id for correlation

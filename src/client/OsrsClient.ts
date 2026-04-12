@@ -64,6 +64,7 @@ import type {
 import {
     sendEmote as netSendEmote,
     sendBankCustomQuantity,
+    sendHostedLogin,
     sendLogin,
     sendLogout,
     sendResumeNameDialog,
@@ -9493,28 +9494,19 @@ export class OsrsClient {
     }
 
     /**
-     * Attempt auto-login if credentials were provided via URL params (?username=X&password=Y).
+     * Attempt auto-login if credentials or a hosted session were provided via URL params.
      * Called after loading completes.
      */
     private tryAutoLogin(): void {
         try {
-            // Read credentials from URL query params. The dev mprocs
-            // tab `scripts/open-agent-browser.ts` generates an agent
-            // identity, then spawns the browser at
-            //   http://localhost:3000/?username=<agent>&password=<pw>
-            // which lands here. We clear the params immediately via
-            // history.replaceState so a manual refresh goes back to
-            // the normal login screen (and so credentials don't sit
-            // in the browser history bar longer than necessary).
-            //
-            // We deliberately do NOT read `process.env.REACT_APP_*`
-            // here anymore: build-time env var inlining is flaky under
-            // webpack caching, and URL query params are a reliable
-            // runtime signal we control end-to-end.
             const params = new URLSearchParams(window.location.search);
+            const sessionToken = params.get("sessionToken")?.trim();
+            const worldCharacterId = params.get("worldCharacterId")?.trim() || undefined;
             const username = params.get("username");
             const password = params.get("password");
-            if (!username || !password) return;
+            const hasHostedSession = !!sessionToken;
+            const hasPasswordLogin = !!username && !!password;
+            if (!hasHostedSession && !hasPasswordLogin) return;
 
             // `autoplay=1` flips on the in-browser agent loop. The user
             // and the agent share this tab: once LOGGED_IN fires we
@@ -9523,26 +9515,52 @@ export class OsrsClient {
             this.autoplayEnabled = autoplayParam === "1" || autoplayParam === "true";
 
             const url = new URL(window.location.href);
+            url.searchParams.delete("sessionToken");
+            url.searchParams.delete("worldCharacterId");
             url.searchParams.delete("username");
             url.searchParams.delete("password");
             url.searchParams.delete("autoplay");
             window.history.replaceState({}, "", url.toString());
 
-            // Force localhost — auto-login is strictly a dev-workflow
-            // affordance. Production builds don't have a script
-            // putting credentials in the URL, and we don't want this
-            // path accidentally firing against a deployed xRSPS.
+            if (hasHostedSession) {
+                // Hosted Milady/ElizaOS launches should reuse the current
+                // selected world instead of forcing localhost. The token is
+                // already scoped to a specific world/character branch.
+                this.loginState.loginIndex = LoginIndex.LOGIN_FORM;
+                this.loginState.savePersistedLoginState();
+                this.updateGameState(GameState.CONNECTING);
+                sendHostedLogin(sessionToken!, {
+                    worldCharacterId,
+                    revision: this.loadedCache?.info?.revision ?? 0,
+                });
+                console.log(
+                    `[auto-login] hosted session login started${worldCharacterId ? ` for "${worldCharacterId}"` : ""}`,
+                );
+                return;
+            }
+
+            // Read credentials from URL query params. The dev mprocs
+            // tab `scripts/open-agent-browser.ts` generates an agent
+            // identity, then spawns the browser at
+            //   http://localhost:3000/?username=<agent>&password=<pw>
+            // which lands here. This path remains localhost-only on
+            // purpose because it is a dev shortcut, not a hosted flow.
+            //
+            // We deliberately do NOT read `process.env.REACT_APP_*`
+            // here anymore: build-time env var inlining is flaky under
+            // webpack caching, and URL query params are a reliable
+            // runtime signal we control end-to-end.
             setServerUrl("ws://localhost:43594");
             this.loginState.serverAddress = "localhost:43594";
             this.loginState.serverName = "Local Development";
             this.loginState.serverSecure = false;
 
-            this.loginState.username = username;
-            this.loginState.password = password;
+            this.loginState.username = username!;
+            this.loginState.password = password!;
             this.loginState.loginIndex = LoginIndex.LOGIN_FORM;
             this.loginState.savePersistedLoginState();
             this.updateGameState(GameState.CONNECTING);
-            sendLogin(username.trim(), password, this.loadedCache?.info?.revision ?? 0);
+            sendLogin(username!.trim(), password!, this.loadedCache?.info?.revision ?? 0);
             console.log(`[auto-login] logged in as "${username}" via query params`);
         } catch (err) {
             console.warn("[auto-login] failed:", err);

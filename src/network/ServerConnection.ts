@@ -483,6 +483,16 @@ type ClientToServer =
     | { type: "hello"; payload: { client: string; version?: string } }
     | { type: "ping"; payload: { time: number } }
     | {
+          type: "login";
+          payload: {
+              username?: string;
+              password?: string;
+              revision?: number;
+              sessionToken?: string;
+              worldCharacterId?: string;
+          };
+      }
+    | {
           type: "pathfind";
           payload: {
               id: number;
@@ -584,6 +594,8 @@ let loginConnectAttemptId = 0;
 // Session credentials for automatic re-login on reconnect
 let sessionUsername: string | null = null;
 let sessionPassword: string | null = null;
+let sessionToken: string | null = null;
+let sessionWorldCharacterId: string | null = null;
 let sessionRevision: number = 0;
 let currentTick = 0;
 const tickListeners = new Set<(tick: number, time: number) => void>();
@@ -1478,6 +1490,31 @@ function clearLoginConnectRetryTimer(): void {
     loginConnectRetryTimer = null;
 }
 
+function buildCurrentLoginPayload(): ClientToServer | undefined {
+    const hostedSessionToken = sessionToken?.trim();
+    if (hostedSessionToken) {
+        return {
+            type: "login",
+            payload: {
+                sessionToken: hostedSessionToken,
+                worldCharacterId: sessionWorldCharacterId ?? undefined,
+                revision: sessionRevision,
+            },
+        };
+    }
+    if (sessionUsername && sessionPassword !== null) {
+        return {
+            type: "login",
+            payload: {
+                username: sessionUsername,
+                password: sessionPassword,
+                revision: sessionRevision,
+            },
+        };
+    }
+    return undefined;
+}
+
 export function initServerConnection(url: string = DEFAULT_URL) {
     lastUrl = url;
     // On HMR refresh, proactively close any previous live socket stored globally
@@ -1538,12 +1575,10 @@ export function initServerConnection(url: string = DEFAULT_URL) {
             });
 
             // If reconnecting with stored credentials, automatically re-login
-            if (wasReconnecting && sessionUsername && sessionPassword) {
+            const loginPayload = buildCurrentLoginPayload();
+            if (wasReconnecting && loginPayload) {
                 console.log("[ws] Reconnected - attempting session resumption...");
-                send({
-                    type: "login",
-                    payload: { username: sessionUsername, password: sessionPassword, revision: sessionRevision },
-                } as any);
+                send(loginPayload);
             }
             // Only auto-send handshake if flag is set (for backwards compatibility)
             // When using login screen, handshake should be sent after login success
@@ -3176,6 +3211,8 @@ export function sendLogin(username: string, password: string, revision: number =
     // Store credentials for session resumption on reconnect
     sessionUsername = username;
     sessionPassword = password;
+    sessionToken = null;
+    sessionWorldCharacterId = null;
     sessionRevision = revision;
     const attemptId = ++loginConnectAttemptId;
 
@@ -3189,7 +3226,7 @@ export function sendLogin(username: string, password: string, revision: number =
         send({
             type: "login",
             payload: { username, password, revision },
-        } as any);
+        });
     };
 
     const attachLoginOnOpen = (targetSocket: WebSocket) => {
@@ -3244,6 +3281,102 @@ export function sendLogin(username: string, password: string, revision: number =
 
             console.log(
                 `[ws] Login connect not established after ${LOGIN_CONNECT_RETRY_DELAY_MS}ms, retrying direct websocket connect...`,
+            );
+            connectForLogin(lastUrl, true);
+        }, LOGIN_CONNECT_RETRY_DELAY_MS);
+        return;
+    }
+
+    clearLoginConnectRetryTimer();
+    sendLoginPayload();
+}
+
+export function sendHostedLogin(
+    hostedSessionToken: string,
+    options?: {
+        worldCharacterId?: string;
+        revision?: number;
+    },
+): void {
+    const normalizedSessionToken = hostedSessionToken.trim();
+    if (!normalizedSessionToken) {
+        console.warn("[ws] Cannot send hosted login without a session token");
+        return;
+    }
+    sessionUsername = null;
+    sessionPassword = null;
+    sessionToken = normalizedSessionToken;
+    sessionWorldCharacterId = options?.worldCharacterId?.trim() || null;
+    sessionRevision = options?.revision ?? 0;
+    const attemptId = ++loginConnectAttemptId;
+
+    try {
+        const g: any = (typeof window !== "undefined" ? window : globalThis) as any;
+        g[WS_SUPPRESS_RECONNECT_KEY] = false;
+    } catch {}
+
+    const sendLoginPayload = () => {
+        send({
+            type: "login",
+            payload: {
+                sessionToken: normalizedSessionToken,
+                worldCharacterId: sessionWorldCharacterId ?? undefined,
+                revision: sessionRevision,
+            },
+        });
+    };
+
+    const attachLoginOnOpen = (targetSocket: WebSocket) => {
+        const sendLoginOnOpen = () => {
+            targetSocket.removeEventListener("open", sendLoginOnOpen);
+            if (attemptId !== loginConnectAttemptId) return;
+            if (socket !== targetSocket || targetSocket.readyState !== WebSocket.OPEN) return;
+            clearLoginConnectRetryTimer();
+            sendLoginPayload();
+        };
+
+        targetSocket.addEventListener("open", sendLoginOnOpen);
+    };
+
+    const connectForLogin = (url: string, forceFreshSocket: boolean) => {
+        const currentSocket = socket;
+        if (
+            forceFreshSocket &&
+            currentSocket &&
+            (currentSocket.readyState === WebSocket.OPEN ||
+                currentSocket.readyState === WebSocket.CONNECTING)
+        ) {
+            socket = null;
+            try {
+                currentSocket.close(1000, "login retry");
+            } catch {}
+        }
+
+        initServerConnection(url);
+        if (socket) {
+            if (socket.readyState === WebSocket.OPEN) {
+                if (attemptId === loginConnectAttemptId) {
+                    clearLoginConnectRetryTimer();
+                    sendLoginPayload();
+                }
+            } else {
+                attachLoginOnOpen(socket);
+            }
+        }
+    };
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+        console.log("[ws] Socket not open, reconnecting before hosted login...");
+        clearLoginConnectRetryTimer();
+        connectForLogin(lastUrl, false);
+
+        loginConnectRetryTimer = setTimeout(() => {
+            loginConnectRetryTimer = null;
+            if (attemptId !== loginConnectAttemptId) return;
+            if (socket && socket.readyState === WebSocket.OPEN) return;
+
+            console.log(
+                `[ws] Hosted login connect not established after ${LOGIN_CONNECT_RETRY_DELAY_MS}ms, retrying direct websocket connect...`,
             );
             connectForLogin(lastUrl, true);
         }, LOGIN_CONNECT_RETRY_DELAY_MS);

@@ -252,14 +252,30 @@ export function decodeClientPacket(data: Uint8Array | ArrayBuffer): DecodedClien
             };
 
         case ClientPacketId.LOGIN:
+            {
+                const username = reader.readString();
+                const password = reader.readString();
+                const revision = reader.readInt();
+                const hasHostedSession = reader.remaining > 0 ? reader.readBoolean() : false;
+                const sessionToken =
+                    hasHostedSession && reader.remaining > 0
+                        ? reader.readString() || undefined
+                        : undefined;
+                const worldCharacterId =
+                    hasHostedSession && reader.remaining > 0
+                        ? reader.readString() || undefined
+                        : undefined;
             return {
                 type: "login",
                 payload: {
-                    username: reader.readString(),
-                    password: reader.readString(),
-                    revision: reader.readInt(),
-                },
-            };
+                        username,
+                        password,
+                        revision,
+                        sessionToken,
+                        worldCharacterId,
+                    },
+                };
+            }
 
         case ClientPacketId.WALK: {
             const x = reader.readShort();

@@ -43,6 +43,8 @@ export interface ServerConfig {
     botSdkPerceptionEveryNTicks: number;
     /** Shared HMAC secret for hosted Milady/ElizaOS session tickets. */
     hostedSessionSecret: string;
+    /** Bearer token required to mint hosted session tickets over HTTP. */
+    hostedSessionIssuerSecret: string;
 }
 
 export interface ServerConfigFileOverrides {
@@ -58,6 +60,7 @@ export interface ServerConfigFileOverrides {
     botSdkToken?: string;
     botSdkPerceptionEveryNTicks?: number;
     hostedSessionSecret?: string;
+    hostedSessionIssuerSecret?: string;
 }
 
 function loadConfigFile(configPath = resolve(__dirname, "../../config.json")): ServerConfigFileOverrides {
@@ -84,6 +87,9 @@ function loadConfigFile(configPath = resolve(__dirname, "../../config.json")): S
         }
         if (typeof parsed.hostedSessionSecret === "string") {
             overrides.hostedSessionSecret = parsed.hostedSessionSecret;
+        }
+        if (typeof parsed.hostedSessionIssuerSecret === "string") {
+            overrides.hostedSessionIssuerSecret = parsed.hostedSessionIssuerSecret;
         }
         return overrides;
     } catch (err) {
@@ -114,6 +120,7 @@ export function createServerConfig(
     let botSdkToken = fileOverrides.botSdkToken ?? "";
     let botSdkPerceptionEveryNTicks = fileOverrides.botSdkPerceptionEveryNTicks ?? 3;
     let hostedSessionSecret = fileOverrides.hostedSessionSecret?.trim() ?? "";
+    let hostedSessionIssuerSecret = fileOverrides.hostedSessionIssuerSecret?.trim() ?? "";
 
     if (env.ACCOUNTS_FILE_PATH?.trim()) {
         accountsFilePath = resolve(env.ACCOUNTS_FILE_PATH.trim());
@@ -140,6 +147,9 @@ export function createServerConfig(
     if (env.HOSTED_SESSION_SECRET?.trim()) {
         hostedSessionSecret = env.HOSTED_SESSION_SECRET.trim();
     }
+    if (env.HOSTED_SESSION_ISSUER_SECRET?.trim()) {
+        hostedSessionIssuerSecret = env.HOSTED_SESSION_ISSUER_SECRET.trim();
+    }
 
     const worldId =
         normalizeWorldScopeId(env.WORLD_ID?.trim() || fileOverrides.worldId || gamemode) ??
@@ -162,6 +172,7 @@ export function createServerConfig(
         botSdkToken,
         botSdkPerceptionEveryNTicks,
         hostedSessionSecret,
+        hostedSessionIssuerSecret,
     };
 }
 

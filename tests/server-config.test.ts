@@ -13,11 +13,13 @@ describe("createServerConfig", () => {
             {
                 WORLD_ID: " Toon World!! ",
                 HOSTED_SESSION_SECRET: " hosted-secret ",
+                HOSTED_SESSION_ISSUER_SECRET: " issuer-secret ",
             },
             { gamemode: "vanilla" },
         );
 
         expect(config.worldId).toBe("toon-world");
         expect(config.hostedSessionSecret).toBe("hosted-secret");
+        expect(config.hostedSessionIssuerSecret).toBe("issuer-secret");
     });
 });

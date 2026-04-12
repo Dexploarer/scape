@@ -30,6 +30,8 @@ Four environment variables, all override `server/config.json`:
 | `BOT_SDK_HOST`                  | `127.0.0.1`          | Bind address. Default is localhost-only; override for remote agent hosts.                           |
 | `BOT_SDK_PORT`                  | `43595`              | TCP port.                                                                                             |
 | `BOT_SDK_PERCEPTION_EVERY_N_TICKS` | `3`               | How often the perception emitter pushes a TOON snapshot to each connected agent.                    |
+| `HOSTED_SESSION_SECRET`         | *(unset)*            | HMAC secret used to sign hosted human/agent session tickets.                                         |
+| `HOSTED_SESSION_ISSUER_SECRET`  | *(unset)*            | Bearer token required for `POST /hosted-session/issue` when minting hosted session tickets.         |
 
 Example `server/config.json` snippet for a private, LAN-only deployment
 where you run milady on the same box:
@@ -51,6 +53,60 @@ And the matching env var to actually enable it:
 export BOT_SDK_TOKEN=dev-secret
 bun run server:start
 ```
+
+## Hosted session issuing
+
+Hosted human and agent logins now support a ticket-based flow in
+addition to the existing password flow. When both
+`HOSTED_SESSION_SECRET` and `HOSTED_SESSION_ISSUER_SECRET` are set,
+the game server exposes:
+
+```text
+POST /hosted-session/issue
+Authorization: Bearer <HOSTED_SESSION_ISSUER_SECRET>
+Content-Type: application/json
+```
+
+Example request:
+
+```json
+{
+  "kind": "agent",
+  "principalId": "principal:agent-77",
+  "displayName": "Toon Agent",
+  "worldCharacterId": "toon-77",
+  "agentId": "agent-77",
+  "ttlMs": 300000
+}
+```
+
+Example response:
+
+```json
+{
+  "sessionToken": "hs1....",
+  "claims": {
+    "version": 1,
+    "kind": "agent",
+    "principalId": "principal:agent-77",
+    "worldId": "vanilla",
+    "worldCharacterId": "toon-77",
+    "displayName": "Toon Agent",
+    "issuedAt": 1700000000000,
+    "expiresAt": 1700000300000,
+    "agentId": "agent-77"
+  }
+}
+```
+
+The web client can then launch with:
+
+```text
+/?sessionToken=<token>&worldCharacterId=<worldCharacterId>
+```
+
+The Bot SDK can send the same `sessionToken` and `worldCharacterId`
+in its additive hosted spawn fields instead of using password auth.
 
 ## Protocol summary
 

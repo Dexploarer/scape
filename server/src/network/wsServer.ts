@@ -31,6 +31,7 @@ import { InventoryMessageService } from "../game/services/InventoryMessageServic
 import { AuthenticationService } from "./AuthenticationService";
 import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
 import { HostedSessionService } from "../auth/HostedSessionService";
+import { HostedSessionIssuerService } from "../auth/HostedSessionIssuerService";
 
 import { ConfigType } from "../../../src/rs/cache/ConfigType";
 import { IndexType } from "../../../src/rs/cache/IndexType";
@@ -340,6 +341,7 @@ export class WSServer {
     private maintenanceMode = false;
     private enableBinaryNpcSync = true;
     private hostedSessionService?: HostedSessionService;
+    private hostedSessionIssuerService?: HostedSessionIssuerService;
 
     /** Shared service context — populated incrementally, safe because services only read at tick time */
     readonly svc = {} as ServerServices;
@@ -599,6 +601,13 @@ export class WSServer {
                 secret: config.hostedSessionSecret,
             });
         }
+        if (this.hostedSessionService && config.hostedSessionIssuerSecret.length > 0) {
+            this.hostedSessionIssuerService = new HostedSessionIssuerService({
+                hostedSessionService: this.hostedSessionService,
+                issuerSecret: config.hostedSessionIssuerSecret,
+                worldId: config.worldId,
+            });
+        }
         this.accountSummary = new AccountSummaryTracker(this.svc);
         this.reportGameTime = new ReportGameTimeTracker(this.svc);
         this.actionScheduler = new ActionScheduler((player, action, tick) =>
@@ -667,25 +676,201 @@ export class WSServer {
             const httpServer = (this.wss as unknown as { _server?: import("http").Server })._server;
             if (httpServer) {
                 httpServer.removeAllListeners("request");
-                httpServer.on("request", (req: import("http").IncomingMessage, res: import("http").ServerResponse) => {
-                    if (req.url === "/status") {
-                        const count = this.players?.getRealPlayerCount() ?? 0;
-                        res.writeHead(200, {
-                            "Content-Type": "application/json",
-                            "Access-Control-Allow-Origin": "*",
-                        });
-                        res.end(JSON.stringify({
-                            serverName: opts.serverName ?? config.serverName,
-                            playerCount: count,
-                            maxPlayers: opts.maxPlayers ?? config.maxPlayers,
-                        }));
-                    } else {
-                        res.writeHead(426);
-                        res.end();
-                    }
-                });
+                httpServer.on(
+                    "request",
+                    async (req: import("http").IncomingMessage, res: import("http").ServerResponse) => {
+                        await this.handleHttpRequest(req, res, opts);
+                    },
+                );
             }
         });
+    }
+
+    private getRequestPathname(req: import("http").IncomingMessage): string {
+        try {
+            return new URL(
+                req.url ?? "/",
+                `http://${req.headers.host ?? `${this.options.host}:${this.options.port}`}`,
+            ).pathname;
+        } catch {
+            return req.url ?? "/";
+        }
+    }
+
+    private writeJsonResponse(
+        res: import("http").ServerResponse,
+        status: number,
+        payload: unknown,
+        extraHeaders: Record<string, string> = {},
+    ): void {
+        res.writeHead(status, {
+            "Content-Type": "application/json",
+            ...extraHeaders,
+        });
+        res.end(JSON.stringify(payload));
+    }
+
+    private async readJsonRequestBody(
+        req: import("http").IncomingMessage,
+        maxBytes: number = 16 * 1024,
+    ): Promise<
+        | { ok: true; body: unknown }
+        | { ok: false; status: 400 | 413; payload: { code: string; error: string } }
+    > {
+        return await new Promise((resolve) => {
+            const chunks: string[] = [];
+            let size = 0;
+            let tooLarge = false;
+
+            req.on("data", (chunk: Buffer | string) => {
+                if (tooLarge) return;
+                const text = Buffer.isBuffer(chunk) ? chunk.toString("utf-8") : chunk;
+                size += Buffer.byteLength(text);
+                if (size > maxBytes) {
+                    tooLarge = true;
+                    return;
+                }
+                chunks.push(text);
+            });
+
+            req.on("end", () => {
+                if (tooLarge) {
+                    resolve({
+                        ok: false,
+                        status: 413,
+                        payload: {
+                            code: "body_too_large",
+                            error: `Request body must be <= ${maxBytes} bytes.`,
+                        },
+                    });
+                    return;
+                }
+
+                const raw = chunks.join("").trim();
+                if (raw.length === 0) {
+                    resolve({
+                        ok: false,
+                        status: 400,
+                        payload: {
+                            code: "missing_body",
+                            error: "Request body must be valid JSON.",
+                        },
+                    });
+                    return;
+                }
+
+                try {
+                    resolve({
+                        ok: true,
+                        body: JSON.parse(raw),
+                    });
+                } catch {
+                    resolve({
+                        ok: false,
+                        status: 400,
+                        payload: {
+                            code: "bad_json",
+                            error: "Request body must be valid JSON.",
+                        },
+                    });
+                }
+            });
+
+            req.on("error", () => {
+                resolve({
+                    ok: false,
+                    status: 400,
+                    payload: {
+                        code: "body_read_failed",
+                        error: "Failed to read request body.",
+                    },
+                });
+            });
+        });
+    }
+
+    private async handleHttpRequest(
+        req: import("http").IncomingMessage,
+        res: import("http").ServerResponse,
+        opts: WSServerOptions,
+    ): Promise<void> {
+        const pathname = this.getRequestPathname(req);
+
+        if (pathname === "/status") {
+            const count = this.players?.getRealPlayerCount() ?? 0;
+            this.writeJsonResponse(
+                res,
+                200,
+                {
+                    serverName: opts.serverName ?? config.serverName,
+                    playerCount: count,
+                    maxPlayers: opts.maxPlayers ?? config.maxPlayers,
+                },
+                {
+                    "Access-Control-Allow-Origin": "*",
+                },
+            );
+            return;
+        }
+
+        if (pathname === "/hosted-session/issue") {
+            const corsHeaders = {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Authorization, Content-Type",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+            };
+
+            if ((req.method ?? "GET").toUpperCase() === "OPTIONS") {
+                res.writeHead(204, corsHeaders);
+                res.end();
+                return;
+            }
+
+            if ((req.method ?? "GET").toUpperCase() !== "POST") {
+                this.writeJsonResponse(
+                    res,
+                    405,
+                    {
+                        code: "method_not_allowed",
+                        error: "Use POST for hosted session issuing.",
+                    },
+                    corsHeaders,
+                );
+                return;
+            }
+
+            if (!this.hostedSessionIssuerService) {
+                this.writeJsonResponse(
+                    res,
+                    503,
+                    {
+                        code: "issuer_disabled",
+                        error: "Hosted session issuing is not enabled on this world.",
+                    },
+                    corsHeaders,
+                );
+                return;
+            }
+
+            const bodyResult = await this.readJsonRequestBody(req);
+            if (!bodyResult.ok) {
+                this.writeJsonResponse(res, bodyResult.status, bodyResult.payload, corsHeaders);
+                return;
+            }
+
+            const authorizationHeader = Array.isArray(req.headers.authorization)
+                ? req.headers.authorization[0]
+                : req.headers.authorization;
+            const issueResult = this.hostedSessionIssuerService.issue(
+                authorizationHeader,
+                bodyResult.body,
+            );
+            this.writeJsonResponse(res, issueResult.status, issueResult.payload, corsHeaders);
+            return;
+        }
+
+        res.writeHead(426);
+        res.end();
     }
 
     private initAutosave(): void {

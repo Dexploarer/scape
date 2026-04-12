@@ -9,7 +9,7 @@
   "description": "RuneScape typescript client rebuilt for the web.",
   "icons": [
     {
-      "src": "favicon.png",
+      "src": "images/logo.png",
       "sizes": "32x32",
       "type": "image/png"
     }

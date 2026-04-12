@@ -1,13 +1,25 @@
-import { BossScript, registerBossScript } from "../../../src/game/combat/BossScriptFramework";
+import {
+    BossScript,
+    createBossScript,
+    getBossScript,
+    registerBossScript,
+} from "../../../src/game/combat/BossScriptFramework";
+import type {
+    BossMechanic,
+    BossPhase,
+    BossSpecialAttack,
+} from "../../../src/game/combat/BossScriptFramework";
 
 export {
     BossScript,
-    BossPhase,
-    BossSpecialAttack,
-    BossMechanic,
     registerBossScript,
     getBossScript,
     createBossScript,
+} from "../../../src/game/combat/BossScriptFramework";
+export type {
+    BossMechanic,
+    BossPhase,
+    BossSpecialAttack,
 } from "../../../src/game/combat/BossScriptFramework";
 
 // ============================================

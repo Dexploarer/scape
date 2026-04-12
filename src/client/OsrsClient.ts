@@ -228,6 +228,11 @@ import { ClickMode, InputManager } from "./InputManager";
 import { MapManager } from "./MapManager";
 import { PlayerAnimController } from "./PlayerAnimController";
 import {
+    applyPostLogoutLoginState,
+    resolveLogoutTabIntent,
+    type PostLogoutView,
+} from "./logoutTabActions";
+import {
     type TransmitCycles,
     getTransmitCycles,
     isTransmitProcessingNeeded,
@@ -772,6 +777,7 @@ export class OsrsClient {
     private clientTickLastNowMs: number = 0;
     private clientTickAccumulatedMs: number = 0;
     private loginMusicStartTimer?: ReturnType<typeof setTimeout>;
+    private logoutRequestInFlight: boolean = false;
 
     /**
      * Autoplay mode — when the login URL carries `?autoplay=1`,
@@ -3960,6 +3966,10 @@ export class OsrsClient {
             });
         }
 
+        if (this.handleLogoutTabWidgetAction(event)) {
+            return;
+        }
+
         // For draggable widgets (like inventory items), defer action until mouse released
         // This prevents "Use" from triggering on mousedown when the user might be trying to drag
         if (event.source === "primary" && event.widget && this.isWidgetDraggable(event.widget)) {
@@ -6559,6 +6569,15 @@ export class OsrsClient {
                         // Handlers can mutate widget ops (e.g., Mute -> Unmute), but the transmitted action
                         // should reflect what was clicked pre-mutation.
                         const primaryAction = getPrimaryWidgetAction(w);
+                        if (
+                            this.handleLogoutTabWidgetAction({
+                                widget: w,
+                                option: primaryAction.option,
+                            })
+                        ) {
+                            this.clickedWidgetHandled = true;
+                            break;
+                        }
 
                         // World map orb - opens React modal instead of CS2 widget
                         // Check if primary option is "Floating World Map", "Fullscreen World Map", or "Open World Map" (mobile)
@@ -9623,33 +9642,24 @@ export class OsrsClient {
      * Perform logout - called by CS2 LOGOUT opcode.
      * Sends logout request to server and waits for consent before completing.
      */
-    performLogout(): void {
+    performLogout(options: { postLogoutView?: PostLogoutView } = {}): void {
         console.log("[OsrsClient] Requesting logout from server...");
+        if (this.logoutRequestInFlight) {
+            console.log("[OsrsClient] Logout already pending, ignoring duplicate request");
+            return;
+        }
+
+        const postLogoutView = options.postLogoutView ?? "welcome";
+        this.logoutRequestInFlight = true;
 
         // Subscribe to logout response (one-shot)
         const unsubscribe = subscribeLogoutResponse((response) => {
             unsubscribe();
+            this.logoutRequestInFlight = false;
 
             if (response.success) {
                 console.log("[OsrsClient] Server approved logout, completing...");
-
-                // Suppress reconnection after intentional logout
-                suppressReconnection();
-
-                // Clear widgets
-                this.widgetManager?.clear();
-
-                // Reset login state
-                this.loginState.reset();
-                this.loginState.loginIndex = LoginIndex.WELCOME;
-
-                // Reset login screen animation state for fresh start
-                this.loginRenderer.resetAnimationState();
-
-                // Transition to login screen
-                this.updateGameState(GameState.LOGIN_SCREEN);
-
-                console.log("[OsrsClient] Logout complete - returned to login screen");
+                this.completeLogout(postLogoutView);
             } else {
                 // Server denied logout (e.g., in combat)
                 const reason = response.reason || "You can't log out right now.";
@@ -9661,7 +9671,65 @@ export class OsrsClient {
         });
 
         // Send logout request to server
-        sendLogout();
+        try {
+            sendLogout();
+        } catch (err) {
+            this.logoutRequestInFlight = false;
+            unsubscribe();
+            throw err;
+        }
+    }
+
+    private handleLogoutTabWidgetAction(event: { widget?: any; option?: string }): boolean {
+        const widget = event.widget;
+        if (!widget) {
+            return false;
+        }
+
+        const ids = this.resolveWidgetIdentifiers(widget);
+        const intent = resolveLogoutTabIntent({
+            groupId: ids?.groupId ?? widget.groupId,
+            childId: ids?.childId,
+            contentType:
+                typeof widget.contentType === "number" ? (widget.contentType as number) | 0 : undefined,
+            option: event.option,
+        });
+        if (!intent) {
+            return false;
+        }
+
+        this.performLogout({
+            postLogoutView: intent === "server_list" ? "server_list" : "welcome",
+        });
+        return true;
+    }
+
+    private completeLogout(postLogoutView: PostLogoutView): void {
+        // Suppress reconnection after intentional logout
+        suppressReconnection();
+
+        // Clear widgets
+        this.widgetManager?.clear();
+
+        // Reset login state, then apply the requested login-screen destination.
+        this.loginState.reset();
+        applyPostLogoutLoginState(this.loginState, postLogoutView);
+
+        // Reset login screen animation state for fresh start
+        this.loginRenderer.resetAnimationState();
+
+        // Transition to login screen
+        this.updateGameState(GameState.LOGIN_SCREEN);
+
+        if (postLogoutView === "server_list") {
+            void this.loginRenderer.fetchServerList().then(() => {
+                this.loginRenderer.refreshServerList();
+            });
+        }
+
+        console.log(
+            `[OsrsClient] Logout complete - returned to login screen (${postLogoutView})`,
+        );
     }
 
     /**

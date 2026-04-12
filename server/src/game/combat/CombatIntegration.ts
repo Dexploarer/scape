@@ -16,10 +16,10 @@ import { PlayerState } from "../player";
 import {
     AmmoSystem,
     type AvasDeviceType,
-    EnchantedBoltEffect,
     doesBoltEffectActivate,
     getEnchantedBoltEffect,
 } from "./AmmoSystem";
+import type { EnchantedBoltEffect } from "./AmmoSystem";
 import type { AttackType } from "./AttackType";
 import {
     BossScript,
@@ -30,26 +30,23 @@ import {
 import {
     DamageTracker,
     DamageType,
-    DropEligibility,
-    PlayerDamageSummary,
     damageTracker,
 } from "./DamageTracker";
+import type { DropEligibility, PlayerDamageSummary } from "./DamageTracker";
 import {
-    EquipmentBonusResult,
-    SlayerTaskInfo,
-    TargetInfo,
     calculateEquipmentBonuses,
 } from "./EquipmentBonusProvider";
+import type { EquipmentBonusResult, SlayerTaskInfo, TargetInfo } from "./EquipmentBonusProvider";
 import { MultiCombatSystem, multiCombatSystem } from "./MultiCombatZones";
 import { PoisonVenomSystem, poisonVenomSystem } from "./PoisonVenomSystem";
 // Import all combat subsystems
 import {
-    SpecialAttackDef,
     canUseSpecialAttack,
     consumeSpecialEnergy,
     getSpecialAttack,
     restoreSpecialEnergy,
 } from "./SpecialAttackProvider";
+import type { SpecialAttackDef } from "./SpecialAttackProvider";
 
 // Type aliases for compatibility
 type Npc = NpcState;
@@ -62,19 +59,14 @@ export {
     canUseSpecialAttack,
     consumeSpecialEnergy,
     restoreSpecialEnergy,
-    SpecialAttackDef,
 
     // Equipment bonuses
     calculateEquipmentBonuses,
-    TargetInfo,
-    SlayerTaskInfo,
-    EquipmentBonusResult,
 
     // Ammo
     AmmoSystem,
     getEnchantedBoltEffect,
     doesBoltEffectActivate,
-    EnchantedBoltEffect,
 
     // Poison/Venom
     PoisonVenomSystem,
@@ -88,14 +80,21 @@ export {
     DamageTracker,
     damageTracker,
     DamageType,
-    PlayerDamageSummary,
-    DropEligibility,
 
     // Boss scripts
     BossScript,
     createBossScript,
     registerBossScript,
     getBossScript,
+};
+export type {
+    DropEligibility,
+    EnchantedBoltEffect,
+    EquipmentBonusResult,
+    PlayerDamageSummary,
+    SlayerTaskInfo,
+    SpecialAttackDef,
+    TargetInfo,
 };
 
 /**

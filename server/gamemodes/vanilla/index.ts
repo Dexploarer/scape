@@ -3,6 +3,7 @@ import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/typ
 import type { NpcLootConfig } from "../../src/game/combat/DamageTracker";
 import type { PlayerState } from "../../src/game/player";
 import type { BankingProviderServices } from "./banking/BankingProvider";
+import type { EventSubscription } from "../../src/game/events/GameEventBus";
 
 import { BaseGamemode } from "../../src/game/gamemodes/BaseGamemode";
 import { getProviderRegistry, resetProviderRegistry } from "../../src/game/providers/ProviderRegistry";
@@ -62,6 +63,7 @@ import { registerCollectionLogWidgetHandlers } from "./widgets/collectionLogWidg
 import { registerWidgetCloseHandlers } from "./modals/widgetCloseHandlers";
 import { registerWidgetOpenHandlers } from "./modals/widgetOpenHandlers";
 import { registerSmithingBarModalHandler } from "./modals/smithingBarModalHandler";
+import { readDevLoginLocConfigFromEnv } from "./devLoginLoc";
 import "./combat/BossCombatScript";
 
 export class VanillaGamemode extends BaseGamemode {
@@ -72,6 +74,8 @@ export class VanillaGamemode extends BaseGamemode {
     private shopService: ShopService | undefined;
     private serverServices: GamemodeServerServices | undefined;
     private scriptServices: ScriptServices | undefined;
+    private loginSubscription: EventSubscription | undefined;
+    private readonly devLoginLoc = readDevLoginLocConfigFromEnv();
 
     getLootDistributionConfig(npcTypeId: number): NpcLootConfig | undefined {
         return NPC_LOOT_CONFIGS.get(npcTypeId);
@@ -262,6 +266,33 @@ export class VanillaGamemode extends BaseGamemode {
             registerEquipmentStatsInterfaceHooks(interfaceService);
             registerShopInterfaceHooks(interfaceService);
         }
+
+        if (this.devLoginLoc) {
+            const config = this.devLoginLoc;
+            ss.logger.info(
+                `[vanilla] dev login loc enabled loc=${config.locId} tile=${config.x},${config.y},${config.level} shape=${config.shape} rot=${config.rotation}`,
+            );
+            this.loginSubscription = ss.eventBus.on("player:login", ({ player }) => {
+                const services = this.scriptServices;
+                if (!services) {
+                    ss.logger.warn("[vanilla] script services unavailable during dev login loc spawn");
+                    return;
+                }
+
+                services.location.spawnLocForPlayer(
+                    player,
+                    config.locId,
+                    { x: config.x, y: config.y },
+                    config.level,
+                    config.shape,
+                    config.rotation,
+                );
+                services.messaging.sendGameMessage(
+                    player,
+                    `Dev world proof: spawned loc ${config.locId} at ${config.x},${config.y},${config.level}.`,
+                );
+            });
+        }
     }
 
     onResumePauseButton(player: PlayerState, widgetId: number, childIndex: number): boolean {
@@ -278,6 +309,8 @@ export class VanillaGamemode extends BaseGamemode {
     override dispose(): void {
         resetProviderRegistry();
 
+        this.loginSubscription?.unsubscribe();
+        this.loginSubscription = undefined;
         this.bankingManager = undefined;
         this.shopService = undefined;
         this.serverServices = undefined;

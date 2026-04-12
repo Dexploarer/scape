@@ -5,7 +5,8 @@ import {
     RectWithinRangeRouteStrategy,
 } from "../../pathfinding/legacy/pathfinder/RouteStrategy";
 import { Actor } from "../actor";
-import { QueueTask, SuspendCondition, WaitCondition } from "../model/queue/QueueTask";
+import { QueueTask, WaitCondition } from "../model/queue/QueueTask";
+import type { SuspendCondition } from "../model/queue/QueueTask";
 import { NpcState } from "../npc";
 import { PlayerState } from "../player";
 import { AttackType } from "./AttackType";

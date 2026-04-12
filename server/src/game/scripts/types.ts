@@ -328,6 +328,16 @@ export {
     PORT_SARIM_RETURN_X,
     PORT_SARIM_RETURN_Y,
 } from "./serviceInterfaces";
+export {
+    COLLECTION_LOG_GROUP_ID,
+    SCRIPT_COLLECTION_TAB_CHANGE,
+    VARBIT_COLLECTION_LAST_CATEGORY,
+    VARBIT_COLLECTION_LAST_TAB,
+    VARP_COLLECTION_CATEGORY_COUNT,
+    VARP_COLLECTION_CATEGORY_COUNT2,
+    VARP_COLLECTION_CATEGORY_COUNT3,
+    buildTabChangeArgs,
+} from "./serviceInterfaces";
 export { getAccountSummaryTimeMinutes } from "./serviceInterfaces";
 export { getTeleportByWidgetId, getSpellWidgetId } from "./serviceInterfaces";
 export type { TeleportSpellData } from "./serviceInterfaces";

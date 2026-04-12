@@ -41,6 +41,7 @@ FEATURE_PROMPT.txt
 .tmp
 server/node_modules/.vite/vitest
 logs
+mprocs.log
 .claude
 *.jar
 references/deobfuscator/.gradle-user-home

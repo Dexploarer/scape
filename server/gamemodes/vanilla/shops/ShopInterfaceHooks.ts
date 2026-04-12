@@ -18,10 +18,12 @@
  * ```
  */
 import type { PlayerState } from "../../../src/game/player";
-import type { InterfaceHookContext, InterfaceService } from "../../../src/widgets/InterfaceService";
 import {
     GameframeTab,
     PLAYER_INV_ID,
+} from "../../../src/widgets/InterfaceService";
+import type { InterfaceHookContext, InterfaceService } from "../../../src/widgets/InterfaceService";
+import {
     SCRIPT_INTERFACE_INV_INIT,
     SCRIPT_SHOP_MAIN_INIT,
     SHOP_INTERFACE_ID,

@@ -9,7 +9,7 @@ import { DEFAULT_SERVER } from "../../util/serverDefaults";
 import { GameState, LoginIndex } from "./GameState";
 import { LoginAction, LoginActions } from "./LoginAction";
 import { LoginScreenAnimation } from "./LoginScreenAnimation";
-import { getServerListUrls } from "./serverListSources";
+import { getServerListUrls, loadServerListEntries } from "./serverListSources";
 import {
     getConfiguredWorldServers,
     getConfiguredWorlds,
@@ -282,28 +282,13 @@ export class LoginRenderer {
 
     async fetchServerList(): Promise<void> {
         if (this.serverListFetched) return;
-        const loadedEntries: ServerListEntry[] = [];
-        for (const url of SERVER_LIST_URLS) {
-            try {
-                const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (Array.isArray(data) && data.length > 0) {
-                        loadedEntries.push(
-                            ...data.map((s: any) => ({
-                                name: s.name ?? "Unknown",
-                                address: s.address ?? "",
-                                secure: s.secure ?? false,
-                                playerCount: null,
-                                maxPlayers: s.maxPlayers ?? 2047,
-                            })),
-                        );
-                    }
-                }
-            } catch {
-                // try next source
-            }
-        }
+        const loadedEntries = (await loadServerListEntries(SERVER_LIST_URLS)).map((s) => ({
+            name: s.name ?? "Unknown",
+            address: s.address ?? "",
+            secure: s.secure ?? false,
+            playerCount: null,
+            maxPlayers: s.maxPlayers ?? 2047,
+        }));
         this.serverList = [...setConfiguredWorldServers(loadedEntries)];
         this.invalidateWorldDirectoryCaches();
         this.serverListFetched = true;

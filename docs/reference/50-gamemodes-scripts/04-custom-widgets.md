@@ -104,7 +104,7 @@ services.dialog.queueWidgetEvent(playerId, {
 });
 ```
 
-The client-side CS2 VM (see [10.3](../10-client/03-widgets-cs2.md)) executes the script with the args.
+The client-side CS2 VM (see [10.2](../10-client/02-rs-engine.md)) executes the script with the args.
 
 ## Custom items for custom widgets
 

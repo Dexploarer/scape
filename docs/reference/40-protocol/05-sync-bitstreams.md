@@ -166,7 +166,7 @@ OSRS's real sync packets Huffman-compress chat text. XRSPS ships a Huffman table
 
 ## Debugging tips
 
-- The client dev overlay has a "sync packet hex" view — see [10.2](../10-client/02-main-loop.md).
+- The client packet-log overlay is documented in [10.10](../10-client/10-networking.md).
 - Set `SYNC_DUMP=1` on the server to log the raw bytes of every sync packet for a single tick.
 - If the decoder throws "read past end of bit stream", check whether a new update flag was added without a corresponding decoder branch.
 

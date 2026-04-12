@@ -1137,14 +1137,18 @@ export class OsrsClient {
             osrsRenderer?: GameRenderer;
             osrsClient?: OsrsClient;
         };
-        // Always enable projectile debug flags unless explicitly disabled by user.
+        const productionBuild =
+            typeof process !== "undefined" && process.env?.NODE_ENV === "production";
+        // Default projectile debug flags to off in production builds, on in local development.
         try {
-            if (globalState.DEBUG_PROJECTILES === undefined) globalState.DEBUG_PROJECTILES = true;
+            if (globalState.DEBUG_PROJECTILES === undefined) {
+                globalState.DEBUG_PROJECTILES = !productionBuild;
+            }
             if (globalState.DEBUG_PROJECTILES_VERBOSE === undefined) {
-                globalState.DEBUG_PROJECTILES_VERBOSE = true;
+                globalState.DEBUG_PROJECTILES_VERBOSE = !productionBuild;
             }
             if (globalState.DEBUG_PROJECTILES_TRAJ === undefined) {
-                globalState.DEBUG_PROJECTILES_TRAJ = true;
+                globalState.DEBUG_PROJECTILES_TRAJ = !productionBuild;
             }
         } catch {}
         this.renderer = createRenderer(rendererType, this);

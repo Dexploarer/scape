@@ -14,7 +14,11 @@ Builds the OSRS cache (if needed) via `scripts/ensure-cache.ts`, then starts the
 
 ### `bun run server:start`
 
-Ensures the server's cache is available (`scripts/ensure-cache.ts --server`), then launches `server/src/index.ts` via `tsx`. Just the server, no client.
+Ensures the server's cache is available (`scripts/ensure-cache.ts --server`), then launches `server/src/index.ts` via Bun. Just the server, no client.
+
+### `bun run server:prod`
+
+Ensures the server's cache is available, then launches `server/src/index.ts` with `NODE_ENV=production`. Use this for hosted deployments so runtime guards, status reporting, and production-only defaults all behave correctly.
 
 ## Build
 

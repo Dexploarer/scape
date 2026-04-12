@@ -99,6 +99,7 @@
 |---|---|
 | Start the dev stack | [60.1](../60-build-run-deploy/01-local-dev.md); `bun run dev` |
 | Run only the server | `bun run server:start` |
+| Run the server in production mode | `bun run server:prod` |
 | Run only the client | `bun run start` |
 | Run tests | `bun test` |
 | Type-check the client | `bun run build` (or `tsc --noEmit`) |

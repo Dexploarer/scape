@@ -34,6 +34,7 @@ import { AuthenticationService } from "./AuthenticationService";
 import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
 import { getRequestPathname } from "./HttpRouteUtils";
 import { buildWorldDirectory } from "./WorldDirectory";
+import { buildServerStatus } from "./ServerStatus";
 
 import { ConfigType } from "../../../src/rs/cache/ConfigType";
 import { IndexType } from "../../../src/rs/cache/IndexType";
@@ -758,11 +759,16 @@ export class WSServer {
                         "Access-Control-Allow-Origin": "*",
                         "Cache-Control": "no-store, no-cache, must-revalidate",
                     });
-                    res.end(JSON.stringify({
-                        serverName: opts.serverName ?? config.serverName,
-                        playerCount: count,
-                        maxPlayers: opts.maxPlayers ?? config.maxPlayers,
-                    }));
+                    res.end(
+                        JSON.stringify(
+                            buildServerStatus({
+                                serverName: opts.serverName ?? config.serverName,
+                                playerCount: count,
+                                maxPlayers: opts.maxPlayers ?? config.maxPlayers,
+                                runtimeMode: config.runtimeMode,
+                            }),
+                        ),
+                    );
                     return;
                 }
                 if (pathname === "/servers.json" || pathname === "/worlds") {

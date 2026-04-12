@@ -75,7 +75,7 @@ Pass `--server` to preload the server-only files (including a collision cache ch
 
 The client reads the cache through `src/cache/CacheSystem.ts`. It is backed by IndexedDB in the browser (the `.dat2` file is downloaded from HTTP on first visit and cached in IDB for subsequent loads). Each `RenderDataWorker` (scene builder worker) opens its own read-only view.
 
-See [10.1 — Cache subsystem](../10-client/01-cache.md) for the full client-side picture.
+See [10.2 — The RS engine layer](../10-client/02-rs-engine.md) for the full client-side picture.
 
 ## Server-side cache IO
 

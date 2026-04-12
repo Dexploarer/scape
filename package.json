@@ -1,6 +1,7 @@
 {
   "name": "xrsps",
   "version": "0.1.0",
+  "packageManager": "bun@1.3.11",
   "repository": {
     "url": "https://github.com/xrsps/xrsps-typescript"
   },
@@ -49,11 +50,13 @@
     "export-height-map": "bunx tsx scripts/cache/export-height-map.ts",
     "export-items": "bunx tsx scripts/cache/export-items.ts osrs-232_2025-08-27",
     "export-map-images": "bunx tsx scripts/cache/export-map-images.ts --force",
-    "server:start": "bunx tsx scripts/ensure-cache.ts --server && bunx tsx server/src/index.ts",
+    "server:start": "bun scripts/ensure-cache.ts --server && bun server/src/index.ts",
+    "server:prod": "NODE_ENV=production bun scripts/ensure-cache.ts --server && NODE_ENV=production bun server/src/index.ts",
     "server:build": "tsc -p server/tsconfig.json",
     "server:build-collision": "bunx tsx server/scripts/build-collision-cache.ts --include-models --force",
     "dev": "mprocs",
     "build:all": "mprocs --config mprocs.build.yaml",
+    "ci:verify": "bun test && bun run server:build && bun run build && bun run docs:build",
     "test:auth": "bun scripts/test-auth.ts",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",

@@ -7,6 +7,7 @@ export interface ServerConfig {
     host: string;
     port: number;
     tickMs: number;
+    runtimeMode: "development" | "production";
     serverName: string;
     maxPlayers: number;
     gamemode: string;
@@ -17,6 +18,14 @@ export interface ServerConfig {
     accountsFilePath: string;
     /** Minimum password length enforced at account creation. */
     minPasswordLength: number;
+    /**
+     * Allow a DATABASE_URL-backed deployment to fall back to the JSON
+     * account store if Postgres initialization fails.
+     *
+     * Default false because hosted multi-user worlds should fail fast
+     * instead of silently booting against ephemeral storage.
+     */
+    allowJsonAccountFallback: boolean;
     /**
      * Origin header allowlist for WebSocket upgrade. Empty = allow all
      * (convenient for LAN/dev). Populate this for public deployments.
@@ -49,6 +58,7 @@ type ServerConfigFile = Partial<
         | "gamemode"
         | "accountsFilePath"
         | "minPasswordLength"
+        | "allowJsonAccountFallback"
         | "allowedOrigins"
         | "botSdkHost"
         | "botSdkPort"
@@ -75,12 +85,17 @@ export function createServerConfig(options: {
     const parsed = options.fileConfig ?? readServerConfigFile();
     const portEnv = env.PORT?.trim();
     const tickMsEnv = env.TICK_MS?.trim();
+    const runtimeMode =
+        env.NODE_ENV?.trim().toLowerCase() === "production"
+            ? "production"
+            : "development";
 
     let serverName = "Local Development";
     let maxPlayers = 2047;
     let gamemode = "vanilla";
     let accountsFilePath = resolve(__dirname, "../../data/accounts.json");
     let minPasswordLength = 8;
+    let allowJsonAccountFallback = false;
     let allowedOrigins: string[] = [];
     let botSdkHost = "127.0.0.1";
     let botSdkPort = 43595;
@@ -94,6 +109,9 @@ export function createServerConfig(options: {
         accountsFilePath = resolve(__dirname, "../../", parsed.accountsFilePath);
     }
     if (typeof parsed.minPasswordLength === "number") minPasswordLength = parsed.minPasswordLength;
+    if (typeof parsed.allowJsonAccountFallback === "boolean") {
+        allowJsonAccountFallback = parsed.allowJsonAccountFallback;
+    }
     if (Array.isArray(parsed.allowedOrigins)) {
         allowedOrigins = parsed.allowedOrigins.filter((o: unknown): o is string => typeof o === "string");
     }
@@ -114,6 +132,13 @@ export function createServerConfig(options: {
         if (Number.isFinite(parsedPasswordLength) && parsedPasswordLength > 0) {
             minPasswordLength = parsedPasswordLength;
         }
+    }
+    if (env.ALLOW_JSON_ACCOUNT_FALLBACK?.trim()) {
+        const normalizedAllowFallback = env.ALLOW_JSON_ACCOUNT_FALLBACK.trim().toLowerCase();
+        allowJsonAccountFallback =
+            normalizedAllowFallback === "1" ||
+            normalizedAllowFallback === "true" ||
+            normalizedAllowFallback === "yes";
     }
     if (env.ALLOWED_ORIGINS?.trim()) {
         allowedOrigins = env.ALLOWED_ORIGINS.split(",")
@@ -140,11 +165,13 @@ export function createServerConfig(options: {
         host: env.HOST || "0.0.0.0",
         port: portEnv ? parseInt(portEnv, 10) || 43594 : 43594, // classic RuneScape default port
         tickMs: tickMsEnv ? parseInt(tickMsEnv, 10) || 600 : 600, // 0.6s tick
+        runtimeMode,
         serverName,
         maxPlayers,
         gamemode: env.GAMEMODE || gamemode,
         accountsFilePath,
         minPasswordLength,
+        allowJsonAccountFallback,
         allowedOrigins,
         botSdkEnabled: botSdkToken.length > 0,
         botSdkHost,

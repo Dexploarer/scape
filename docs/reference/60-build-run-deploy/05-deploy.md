@@ -90,9 +90,10 @@ Wants=network-online.target
 Type=simple
 User=xrsps
 WorkingDirectory=/opt/xrsps
+Environment=NODE_ENV=production
 Environment=LOG_LEVEL=info
 Environment=BOT_SDK_TOKEN=__replace_with_real_secret__
-ExecStart=/home/xrsps/.bun/bin/bun server/src/index.ts
+ExecStart=/home/xrsps/.bun/bin/bun run server:prod
 Restart=on-failure
 RestartSec=3
 

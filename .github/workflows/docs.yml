@@ -2,8 +2,14 @@ name: Deploy Docs
 
 on:
     push:
-        branches: [main]
-        paths: ['docs/**']
+        branches: [develop]
+        paths:
+            - 'docs/**'
+            - '.github/workflows/docs.yml'
+            - '.github/actions/setup-bun/**'
+            - 'package.json'
+            - 'bun.lock'
+    workflow_dispatch:
 
 permissions:
     contents: read
@@ -18,15 +24,9 @@ jobs:
     build:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: 20
-            - uses: oven-sh/setup-bun@v2
-              with:
-                  bun-version: latest
-            - run: bun add -D vitepress
-            - run: bunx vitepress build docs
+            - uses: actions/checkout@v6
+            - uses: ./.github/actions/setup-bun
+            - run: bun run docs:build
             - uses: actions/upload-pages-artifact@v3
               with:
                   path: docs/.vitepress/dist

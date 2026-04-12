@@ -34,4 +34,40 @@ describe("createServerConfig", () => {
 
         expect(config.serverName).toBe("Production");
     });
+
+    test("ALLOW_JSON_ACCOUNT_FALLBACK opts into JSON fallback for hosted database errors", () => {
+        const config = createServerConfig({
+            env: {
+                ALLOW_JSON_ACCOUNT_FALLBACK: "true",
+            },
+        });
+
+        expect(config.allowJsonAccountFallback).toBe(true);
+    });
+
+    test("ALLOW_JSON_ACCOUNT_FALLBACK defaults off", () => {
+        const config = createServerConfig({
+            env: {},
+        });
+
+        expect(config.allowJsonAccountFallback).toBe(false);
+    });
+
+    test("NODE_ENV=production sets production runtime mode", () => {
+        const config = createServerConfig({
+            env: {
+                NODE_ENV: "production",
+            },
+        });
+
+        expect(config.runtimeMode).toBe("production");
+    });
+
+    test("runtime mode defaults to development when NODE_ENV is unset", () => {
+        const config = createServerConfig({
+            env: {},
+        });
+
+        expect(config.runtimeMode).toBe("development");
+    });
 });

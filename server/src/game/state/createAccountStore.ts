@@ -27,6 +27,11 @@ export interface CreateAccountStoreOptions {
     jsonFilePath: string;
     /** Minimum password length for both backends. */
     minPasswordLength: number;
+    /**
+     * When true, a DATABASE_URL bootstrap failure falls back to the
+     * JSON store instead of aborting startup.
+     */
+    allowJsonFallbackOnDatabaseError?: boolean;
 }
 
 export async function createAccountStore(
@@ -41,6 +46,13 @@ export async function createAccountStore(
                 minPasswordLength: opts.minPasswordLength,
             });
         } catch (err) {
+            if (!opts.allowJsonFallbackOnDatabaseError) {
+                logger.error(
+                    "[accounts] Postgres init failed and JSON fallback is disabled",
+                    err,
+                );
+                throw err instanceof Error ? err : new Error(String(err));
+            }
             logger.error(
                 "[accounts] Postgres init failed, falling back to JsonAccountStore",
                 err,

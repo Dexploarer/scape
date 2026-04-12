@@ -151,7 +151,7 @@ Look for `certificate obtained successfully` — that means TLS is live.
 ## 5. Run the game server
 
 ```bash
-GAMEMODE=vanilla bun run server:start
+GAMEMODE=vanilla NODE_ENV=production bun run server:prod
 ```
 
 Look for these log lines confirming hardening is active:
@@ -179,10 +179,11 @@ After=network.target
 Type=simple
 User=xrsps
 WorkingDirectory=/home/xrsps/xrsps-typescript
-ExecStart=/home/xrsps/.bun/bin/bun run server:start
+ExecStart=/home/xrsps/.bun/bin/bun run server:prod
 Restart=on-failure
 RestartSec=5
 Environment=GAMEMODE=vanilla
+Environment=NODE_ENV=production
 Environment=ALLOWED_ORIGINS=https://xrsps.example.com
 Environment=ACCOUNTS_FILE_PATH=/var/lib/xrsps/accounts.json
 

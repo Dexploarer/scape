@@ -84,7 +84,7 @@ Shipping a new client plugin has roughly these steps:
 4. Register the component with the sidebar plugin registry so it shows up in the UI.
 5. If you need an overlay, create one under `src/ui/devoverlay/`, subclass `Overlay`, and register it with `OverlayManager`.
 
-See [70 — Examples: adding a client plugin](../70-examples/08-custom-widget.md) for a full walkthrough with code.
+See [70 — Examples: adding a client plugin](../70-examples/08-render-overlay.md) for a full walkthrough with code.
 
 ## Plugins vs gamemodes vs extrascripts — one-page cheat sheet
 

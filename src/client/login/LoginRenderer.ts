@@ -1101,7 +1101,7 @@ export class LoginRenderer {
         const buttonY = 291;
         const newUserX = this.loginBoxCenter - 80;
         if (this.isButtonHit(x, y, newUserX, buttonY)) {
-            return LoginActions.NEW_USER;
+            return LoginActions.EXISTING_USER;
         }
         const existingUserX = this.loginBoxCenter + 80;
         if (this.isButtonHit(x, y, existingUserX, buttonY)) {
@@ -1949,7 +1949,7 @@ export class LoginRenderer {
         this.drawCenteredText(
             ctx,
             this.fontBold12,
-            "Welcome to xRSPS",
+            "Welcome to -scape",
             this.loginBoxX + 180,
             251,
             0xffff00,
@@ -2429,7 +2429,7 @@ export class LoginRenderer {
         this.drawCenteredText(
             ctx,
             this.fontBold12,
-            "Welcome to xRSPS",
+            "Welcome to -scape",
             this.loginBoxX + 180,
             209,
             0xffff00,

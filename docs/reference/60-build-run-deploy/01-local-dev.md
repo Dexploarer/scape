@@ -63,7 +63,7 @@ On first connect you should see:
 ## 5. Edit things
 
 - **Client TSX/CSS** — edited files hot-reload via craco (React fast refresh).
-- **Server TS** — `bun run server:start` runs the server via `tsx`, which watches for changes and restarts. You can also manually restart via mprocs (`Ctrl-A r`).
+- **Server TS** — `bun run server:start` runs the server directly via Bun. Restart it via mprocs (`Ctrl-A r`) after server-side edits.
 - **Extrascripts** — changes to `server/extrascripts/<id>/index.ts` trigger a reload of just that extrascript without restarting the server (if the dev loader is running — see [50.3](../50-gamemodes-scripts/03-extrascripts.md)).
 - **Gamemodes** — no hot reload; restart the server to pick up changes.
 - **JSON data files** — no hot reload; restart the server.

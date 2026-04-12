@@ -18,7 +18,7 @@ import { MapCollisionService } from "./world/MapCollisionService";
 
 async function main() {
     logger.info(
-        `Boot: starting server with tickMs=${config.tickMs}, host=${config.host}, port=${config.port}`,
+        `Boot: starting server mode=${config.runtimeMode} tickMs=${config.tickMs}, host=${config.host}, port=${config.port}`,
     );
     const ticker = new GameTicker(config.tickMs);
 
@@ -72,6 +72,7 @@ async function main() {
         databaseUrl: process.env.DATABASE_URL,
         jsonFilePath: config.accountsFilePath,
         minPasswordLength: config.minPasswordLength,
+        allowJsonFallbackOnDatabaseError: config.allowJsonAccountFallback,
     });
     logger.info(`Boot: account store ready (${accountStore.size()} account(s))`);
 

@@ -2,7 +2,7 @@
  * Bot-SDK smoke test for PR 1 of the 'scape / agent-first-class-citizen work.
  *
  * Drives the TOON-encoded protocol directly:
- *   1. Connect to ws://127.0.0.1:43595
+ *   1. Connect to ws://127.0.0.1:43594/botsdk
  *   2. Send auth frame with BOT_SDK_TOKEN
  *   3. Send spawn frame, expect spawnOk
  *   4. Send walkTo action, expect ack {success: true}
@@ -16,7 +16,7 @@
 import { decode, encode } from "@toon-format/toon";
 import WebSocket from "ws";
 
-const URL = process.env.BOT_SDK_URL || "ws://127.0.0.1:43595";
+const URL = process.env.BOT_SDK_URL || "ws://127.0.0.1:43594/botsdk";
 const TOKEN = process.env.BOT_SDK_TOKEN;
 const AGENT_ID = `test-agent-${Date.now()}`;
 const DISPLAY_NAME = `testagent${Date.now() % 10000}`;

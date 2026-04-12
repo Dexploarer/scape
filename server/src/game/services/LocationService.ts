@@ -63,6 +63,7 @@ export class LocationService {
                 oldId: payload.oldId, newId: payload.newId, level: payload.level,
                 oldTile: payload.oldTile, newTile: payload.newTile,
                 oldRotation: payload.oldRotation, newRotation: payload.newRotation,
+                newShape: payload.newShape,
             });
         } catch (err) {
             logger.warn("[loc] Failed to update dynamic loc state store", err);

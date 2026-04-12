@@ -334,6 +334,7 @@ export class WSServer {
     private groundItems!: GroundItemManager;
     private readonly playerDynamicLocSceneKeys = new Map<number, string>();
     private readonly dynamicLocState = new DynamicLocStateStore();
+    private locTileLookup?: LocTileLookupService;
     private inventoryActionHandler!: InventoryActionHandler;
     private effectDispatcher!: EffectDispatcher;
     private widgetDialogHandler!: WidgetDialogHandler;
@@ -430,6 +431,7 @@ export class WSServer {
             {
                 factory: this.agentPlayerFactory,
                 router: this.botSdkActionRouter,
+                services: () => this.svc,
                 playerPersistence: this.playerPersistence,
                 hookTicker: (cb) => {
                     opts.ticker.on("tick", (data) => cb(data.tick));
@@ -469,6 +471,7 @@ export class WSServer {
             ["npcManager", () => self.npcManager],
             ["npcTypeLoader", () => self.npcTypeLoader],
             ["locTypeLoader", () => self.locTypeLoader],
+            ["locTileLookup", () => self.locTileLookup],
             ["objTypeLoader", () => self.objTypeLoader],
             ["huffman", () => self.huffman],
             ["dbRepository", () => self.dbRepository],
@@ -963,9 +966,10 @@ export class WSServer {
             collisionOverlays = new CollisionOverlayStore();
             const doorDefLoader = new DoorDefinitionLoader();
             const runtimeTileMappings = new DoorRuntimeTileMappingStore();
-            const locTileLookup = this.cacheEnv
+            this.locTileLookup = this.cacheEnv
                 ? new LocTileLookupService(this.cacheEnv)
                 : undefined;
+            const locTileLookup = this.locTileLookup;
             const resolveDoorLocLookup = locTileLookup
                 ? (x: number, y: number, level: number, idHint?: number) => {
                       const tileX = Math.trunc(x);

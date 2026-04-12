@@ -34,12 +34,12 @@ export type PerceptionSinkFn = (
 ) => void;
 
 export class BotSdkPerceptionEmitter {
-    private readonly builder = new BotSdkPerceptionBuilder();
     private readonly everyNTicks: number;
 
     constructor(
         private readonly agents: () => Iterable<PlayerState>,
         private readonly sink: PerceptionSinkFn,
+        private readonly builder: BotSdkPerceptionBuilder,
         options: PerceptionEmitterOptions = {},
     ) {
         this.everyNTicks = Math.max(1, options.everyNTicks ?? 3);

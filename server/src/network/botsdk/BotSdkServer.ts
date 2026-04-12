@@ -1,10 +1,12 @@
 /**
  * BotSdkServer — the WebSocket endpoint agents connect to.
  *
- * Runs on its own port (default 43595) so it's physically separate from the
- * binary human-client protocol on 43594. Clients connect, authenticate with
+ * By default this attaches to the main game HTTP server at `/botsdk`, which
+ * keeps agent traffic behind the same single-port ingress as the human client.
+ * Standalone mode still exists for local-only scenarios, but the shared route
+ * is the production topology. Clients connect, authenticate with
  * `BOT_SDK_TOKEN`, send a `spawn` frame to create an agent-player, then
- * stream action frames for the rest of the session. The server pushes
+ * stream action frames for the rest of the session. The server pushes bounded
  * perception snapshots back on a timer driven by {@link BotSdkPerceptionEmitter}.
  *
  * **Scope boundary**: the server is pure networking + frame routing. It does
@@ -23,6 +25,7 @@ import { WebSocket, WebSocketServer } from "ws";
 
 import type { PlayerState } from "../../game/player";
 import type { PersistenceProvider } from "../../game/state/PersistenceProvider";
+import type { ServerServices } from "../../game/ServerServices";
 import { logger } from "../../utils/logger";
 
 import { AgentPlayerFactory } from "./AgentPlayerFactory";
@@ -41,6 +44,8 @@ import type {
     SpawnFrame,
 } from "./BotSdkProtocol";
 import { BotSdkPerceptionEmitter } from "./BotSdkPerceptionEmitter";
+import { BotSdkPerceptionBuilder } from "./BotSdkPerceptionBuilder";
+import { BotSdkRecentEventStore } from "./BotSdkRecentEventStore";
 
 export interface BotSdkServerOptions {
     host: string;
@@ -66,6 +71,7 @@ export interface BotSdkServerOptions {
 export interface BotSdkServerDeps {
     factory: AgentPlayerFactory;
     router: BotSdkActionRouter;
+    services: () => ServerServices;
     /** Called on every game tick so the emitter can run. */
     hookTicker: (cb: (tick: number) => void) => void;
     /**
@@ -88,6 +94,7 @@ export class BotSdkServer {
     private wss: WebSocketServer | null = null;
     private readonly sessions = new Map<WebSocket, AgentSession>();
     private emitter: BotSdkPerceptionEmitter | null = null;
+    private recentEvents: BotSdkRecentEventStore | null = null;
 
     constructor(
         private readonly options: BotSdkServerOptions,
@@ -148,6 +155,13 @@ export class BotSdkServer {
             );
         }
 
+        this.recentEvents = new BotSdkRecentEventStore({
+            services: this.deps.services,
+        });
+        const builder = new BotSdkPerceptionBuilder({
+            services: this.deps.services,
+            recentEvents: this.recentEvents,
+        });
         this.emitter = new BotSdkPerceptionEmitter(
             () => this.iterAgentPlayers(),
             (player, snapshot) => {
@@ -158,6 +172,7 @@ export class BotSdkServer {
                     snapshot,
                 });
             },
+            builder,
             { everyNTicks: this.options.perceptionEveryNTicks },
         );
         this.deps.hookTicker((tick) => this.emitter?.onTick(tick));
@@ -207,6 +222,9 @@ export class BotSdkServer {
         this.sessions.clear();
         this.wss?.close();
         this.wss = null;
+        this.recentEvents?.dispose();
+        this.recentEvents = null;
+        this.emitter = null;
     }
 
     /**

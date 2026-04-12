@@ -6,6 +6,7 @@ export type DynamicLocChangeState = {
     newTile: { x: number; y: number };
     oldRotation?: number;
     newRotation?: number;
+    newShape?: number;
 };
 
 type StoredDynamicLocChangeState = DynamicLocChangeState;
@@ -36,6 +37,7 @@ export class DynamicLocStateStore {
                 newId: normalized.newId,
                 newTile: normalized.newTile,
                 newRotation: normalized.newRotation,
+                newShape: normalized.newShape,
             });
             return;
         }
@@ -71,6 +73,7 @@ export class DynamicLocStateStore {
                 newTile: { x: state.newTile.x, y: state.newTile.y },
                 oldRotation: state.oldRotation,
                 newRotation: state.newRotation,
+                newShape: state.newShape,
             });
         }
 
@@ -112,12 +115,17 @@ export class DynamicLocStateStore {
             change.newRotation !== undefined && Number.isFinite(change.newRotation)
                 ? change.newRotation & 0x3
                 : undefined;
+        const newShape =
+            change.newShape !== undefined && Number.isFinite(change.newShape)
+                ? Math.max(0, Math.floor(change.newShape))
+                : undefined;
 
         if (
             oldId === newId &&
             oldTileX === newTileX &&
             oldTileY === newTileY &&
-            this.rotationMatches(oldRotation, newRotation)
+            this.rotationMatches(oldRotation, newRotation) &&
+            newShape === undefined
         ) {
             return undefined;
         }
@@ -130,6 +138,7 @@ export class DynamicLocStateStore {
             newTile: { x: newTileX, y: newTileY },
             oldRotation,
             newRotation,
+            newShape,
         };
     }
 
@@ -160,7 +169,8 @@ export class DynamicLocStateStore {
         return (
             (existing.oldId | 0) === (next.newId | 0) &&
             this.tilesEqual(existing.oldTile, next.newTile) &&
-            this.rotationMatches(existing.oldRotation, next.newRotation)
+            this.rotationMatches(existing.oldRotation, next.newRotation) &&
+            this.shapeMatches(undefined, next.newShape)
         );
     }
 
@@ -198,8 +208,16 @@ export class DynamicLocStateStore {
         return (a & 0x3) === (b & 0x3);
     }
 
+    private shapeMatches(a?: number, b?: number): boolean {
+        if (a === undefined || b === undefined) {
+            return true;
+        }
+        return Math.floor(a) === Math.floor(b);
+    }
+
     private makeOriginKey(change: StoredDynamicLocChangeState): string {
         const rotation = change.oldRotation !== undefined ? change.oldRotation & 0x3 : -1;
-        return `${change.level}:${change.oldTile.x}:${change.oldTile.y}:${change.oldId}:${rotation}`;
+        const shape = change.newShape !== undefined ? Math.floor(change.newShape) : -1;
+        return `${change.level}:${change.oldTile.x}:${change.oldTile.y}:${change.oldId}:${rotation}:${shape}`;
     }
 }

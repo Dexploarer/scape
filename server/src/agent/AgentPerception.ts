@@ -34,8 +34,29 @@ export interface AgentPerceptionSelf {
     level: number;
     /** Run energy 0..100. */
     runEnergy: number;
+    /** Spec energy 0..100. */
+    specialEnergy: number;
+    /** Whether the special attack toggle is armed. */
+    specialAttackActive: boolean;
+    /** Active overhead/utility prayers by internal name. */
+    activePrayers: string[];
+    /** Whether quick-prayer mode is currently enabled. */
+    quickPrayersEnabled: boolean;
+    /** Onboarding / tutorial stage mirrored from account persistence. */
+    accountStage: number;
+    /** World view / instance this player belongs to (-1 = overworld). */
+    worldViewId: number;
     /** True when actively engaged in combat (on either side). */
     inCombat: boolean;
+    /** Current combat / interaction target, if any. */
+    target?: {
+        kind: "npc" | "player";
+        id: number;
+        name?: string;
+        x: number;
+        z: number;
+        level: number;
+    };
 }
 
 export interface AgentPerceptionInventoryItem {
@@ -73,10 +94,18 @@ export interface AgentPerceptionNpc {
     x: number;
     /** Tile y. */
     z: number;
+    /** Floor level. */
+    level: number;
+    /** Chebyshev distance from the agent. */
+    distance: number;
     /** Current hitpoints (if visible). */
     hp?: number;
     /** Combat level (if applicable). */
     combatLevel?: number;
+    /** True while the NPC has an active combat target. */
+    inCombat: boolean;
+    /** Cache-defined interaction options. */
+    actions?: string[];
 }
 
 export interface AgentPerceptionPlayer {
@@ -88,8 +117,16 @@ export interface AgentPerceptionPlayer {
     x: number;
     /** Tile y. */
     z: number;
+    /** Floor level. */
+    level: number;
+    /** Chebyshev distance from the agent. */
+    distance: number;
     /** Combat level. */
     combatLevel: number;
+    /** True when this nearby player is actively in combat. */
+    inCombat: boolean;
+    /** True when the nearby player is another agent. */
+    isAgent: boolean;
 }
 
 export interface AgentPerceptionGroundItem {
@@ -101,6 +138,10 @@ export interface AgentPerceptionGroundItem {
     x: number;
     /** Tile y. */
     z: number;
+    /** Floor level. */
+    level: number;
+    /** Chebyshev distance from the agent. */
+    distance: number;
     /** Stack count. */
     count: number;
 }
@@ -114,6 +155,14 @@ export interface AgentPerceptionObject {
     x: number;
     /** Tile y. */
     z: number;
+    /** Loc shape / model type. */
+    type: number;
+    /** Rotation 0..3. */
+    rotation: number;
+    /** Chebyshev distance from the agent. */
+    distance: number;
+    /** Cache-defined interaction options. */
+    actions?: string[];
 }
 
 export interface AgentPerceptionEvent {
@@ -123,6 +172,13 @@ export interface AgentPerceptionEvent {
     kind: string;
     /** Human-readable one-line description. */
     message: string;
+    skillId?: number;
+    itemId?: number;
+    npcId?: number;
+    amount?: number;
+    x?: number;
+    z?: number;
+    level?: number;
 }
 
 /**

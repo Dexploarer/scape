@@ -150,6 +150,7 @@ import type { WidgetAction } from "../widgets/WidgetManager";
 import type { CacheEnv } from "../world/CacheEnv";
 import type { DoorStateManager } from "../world/DoorStateManager";
 import type { DynamicLocStateStore } from "../world/DynamicLocStateStore";
+import type { LocTileLookupService } from "../world/LocTileLookupService";
 import type { MapCollisionService } from "../world/MapCollisionService";
 
 // ── Network types ───────────────────────────────────────────────────────────
@@ -175,6 +176,7 @@ export interface ServerServices {
     cacheEnv: CacheEnv;
     npcTypeLoader?: NpcTypeLoader;
     locTypeLoader?: LocTypeLoader;
+    locTileLookup?: LocTileLookupService;
     objTypeLoader?: ObjTypeLoader;
     huffman?: Huffman;
     dbRepository?: DbRepository;

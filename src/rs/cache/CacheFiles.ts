@@ -747,6 +747,21 @@ type CacheWriteOptions = {
     keepPartCacheAfterSuccess: boolean;
 };
 
+async function writeCacheEntry(
+    cache: CacheLike,
+    request: RequestInfo,
+    response: Response,
+    label: string,
+): Promise<void> {
+    try {
+        await cache.put(request, response);
+    } catch (err) {
+        if (typeof console !== "undefined" && console.warn) {
+            console.warn(`[storage] cache write skipped for ${label}`, err);
+        }
+    }
+}
+
 async function fetchCachedFile(
     baseUrl: string,
     name: string,
@@ -899,7 +914,7 @@ async function fetchCachedFile(
             },
         });
         Object.defineProperty(partResp, "url", { value: partUrl });
-        const update = cache.put(partUrl, partResp);
+        const update = writeCacheEntry(cache, partUrl, partResp, `${name} part ${partCount}`);
         cacheUpdates.push(update);
         partCount++;
     };
@@ -943,7 +958,8 @@ async function fetchCachedFile(
     const reusedBytes = Math.max(buffer.byteLength - downloadedBytes, 0);
 
     if (!skipFinalCacheWrite) {
-        await cache.put(
+        await writeCacheEntry(
+            cache,
             path,
             new Response(ReadableBufferStream(buffer), {
                 status: 200,
@@ -952,6 +968,7 @@ async function fetchCachedFile(
                     "Content-Length": buffer.byteLength.toString(),
                 },
             }),
+            name,
         );
     }
 
@@ -963,7 +980,8 @@ async function fetchCachedFile(
             }
             cache.delete(manifestUrl);
         } else {
-            await cache.put(
+            await writeCacheEntry(
+                cache,
                 manifestUrl,
                 new Response(JSON.stringify({ total: buffer.byteLength }), {
                     status: 200,
@@ -971,6 +989,7 @@ async function fetchCachedFile(
                         "Content-Type": "application/json",
                     },
                 }),
+                `${name} manifest`,
             );
             console.log(
                 `[storage] ${name} resume stats: reused=${reusedBytes} downloaded=${downloadedBytes} total=${buffer.byteLength}`,

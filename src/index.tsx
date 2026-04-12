@@ -1,14 +1,16 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import OsrsClientApp from "./client/OsrsClientApp";
+import CreatorStudioApp from "./editor/CreatorStudioApp";
 import "./index.css";
 import { disposeServerConnection, initServerConnection } from "./network/ServerConnection";
 import reportWebVitals from "./reportWebVitals";
 import { Bzip2 } from "./rs/compression/Bzip2";
 import { Gzip } from "./rs/compression/Gzip";
 import { registerServiceWorker } from "./serviceWorkerRegistration";
+import { installExtensionRuntimeErrorFilter } from "./util/ExtensionRuntimeErrors";
 import { installUiDiagnostic } from "./ui/UiScaleDiagnostic";
 
 declare const module: any; // HMR typing
@@ -29,6 +31,7 @@ try {
 // UI scale diagnostic kit — available via __uiDiag in browser console
 // Auto-dumps diagnostics on login. Also callable manually anytime.
 installUiDiagnostic();
+installExtensionRuntimeErrorFilter();
 
 // NOTE: Server connection is initialized in OsrsClientApp after widget manager is ready
 
@@ -36,7 +39,10 @@ const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement)
 root.render(
     // <React.StrictMode>
     <BrowserRouter>
-        <OsrsClientApp />
+        <Routes>
+            <Route path="/editor" element={<CreatorStudioApp />} />
+            <Route path="*" element={<OsrsClientApp />} />
+        </Routes>
     </BrowserRouter>,
     // </React.StrictMode>,
 );

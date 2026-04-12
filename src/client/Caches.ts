@@ -2,8 +2,7 @@ import { CacheFiles, ProgressListener } from "../rs/cache/CacheFiles";
 import { CacheInfo, getLatestCache } from "../rs/cache/CacheInfo";
 import { CacheType, detectCacheType } from "../rs/cache/CacheType";
 import { IndexType } from "../rs/cache/IndexType";
-
-const CACHE_PATH = "/caches/";
+import { getCacheBasePath } from "./assetSources";
 
 function shouldSkipDat2MainCacheWrite(): boolean {
     if (typeof navigator === "undefined") return false;
@@ -42,7 +41,7 @@ export function getIndexName(indexId: number): string {
 }
 
 export async function fetchCacheInfos(): Promise<CacheInfo[]> {
-    const resp = await fetch(CACHE_PATH + "caches.json");
+    const resp = await fetch(`${getCacheBasePath()}/caches.json`);
     return resp.json();
 }
 
@@ -81,7 +80,7 @@ export async function loadCacheFiles(
     extraIndexIds?: number[],
     deferIndices: boolean = false,
 ): Promise<LoadedCache> {
-    const cachePath = CACHE_PATH + info.name + "/";
+    const cachePath = `${getCacheBasePath(info.name)}/`;
 
     const xteasPromise = fetchXteas(cachePath + "keys.json", signal);
 
@@ -153,7 +152,7 @@ export async function loadIndexFile(
     signal?: AbortSignal,
     progressListener?: ProgressListener,
 ): Promise<ArrayBuffer | null> {
-    const cachePath = CACHE_PATH + cache.info.name + "/";
+    const cachePath = `${getCacheBasePath(cache.info.name)}/`;
     const useSharedArrayBuffer =
         typeof SharedArrayBuffer !== "undefined" && globalThis.crossOriginIsolated === true;
 

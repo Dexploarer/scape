@@ -1,0 +1,8 @@
+[
+    {
+        "name": "Local Development",
+        "address": "localhost:43594",
+        "secure": false,
+        "maxPlayers": 2047
+    }
+]

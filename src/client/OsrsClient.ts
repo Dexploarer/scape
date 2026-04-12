@@ -1,5 +1,7 @@
 import { vec3 } from "gl-matrix";
 
+import { createCacheableImageResponse, createMapImageCacheRequest } from "./MapImageCacheUtil";
+import { getMapImageBasePath } from "./assetSources";
 import { WorldViewManager } from "./worldview/WorldViewManager";
 import {
     type BankServerUpdate,
@@ -356,7 +358,6 @@ function clampRenderDistance(value: number): number {
 const DEFAULT_MAP_RADIUS = deriveMapRadiusFromRenderDistance(DEFAULT_RENDER_DISTANCE);
 const DEFAULT_LOD_DISTANCE = deriveLodDistanceFromRenderDistance(DEFAULT_RENDER_DISTANCE);
 
-const MAP_IMAGE_BASE_PATH = "/map-images";
 const VARBIT_ACCOUNT_TYPE = 1777;
 const VARBIT_POPOUT_OPEN = 13090;
 const VARBIT_POPOUT_PANEL_DESKTOP_DISABLED = 13982;
@@ -11330,7 +11331,7 @@ export class OsrsClient {
 
     private getMapImageBasePath(): string {
         const cacheName = this.loadedCache?.info?.name;
-        return cacheName ? `${MAP_IMAGE_BASE_PATH}/${cacheName}` : MAP_IMAGE_BASE_PATH;
+        return getMapImageBasePath(cacheName);
     }
 
     private getCachedMapImageUrl(mapX: number, mapY: number): string {
@@ -11414,22 +11415,21 @@ export class OsrsClient {
         }
         if (cache) {
             fetch(url)
-                .then((resp) => {
-                    const contentType = resp.headers.get("Content-Type")?.toLowerCase();
-                    if (!resp.ok || !contentType || !contentType.startsWith("image/")) {
+                .then(async (resp) => {
+                    const cacheableResponse = await createCacheableImageResponse(resp);
+                    if (!cacheableResponse) {
                         return;
                     }
                     const cacheName = this.loadedCache?.info?.name;
                     if (!cacheName) return;
-                    const request = new Request(this.getCachedMapImageUrl(mapX, mapY), {
-                        headers: {
-                            "RS-Cache-Name": cacheName,
-                        },
-                    });
-                    return this.mapImageCache.put(request, resp);
+                    const request = createMapImageCacheRequest(
+                        this.getCachedMapImageUrl(mapX, mapY),
+                        cacheName,
+                    );
+                    return this.mapImageCache.put(request, cacheableResponse);
                 })
                 .catch((err) => {
-                    console.log("[OsrsClient] map image cache fetch failed", err);
+                    console.info("[OsrsClient] map image cache write skipped", err);
                 });
         }
         urls.set(mapId, url);

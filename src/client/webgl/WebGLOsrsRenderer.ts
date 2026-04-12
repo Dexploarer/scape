@@ -156,6 +156,7 @@ import { SceneBuffer } from "./buffer/SceneBuffer";
 import { getModelFaces, isModelFaceTransparent } from "./buffer/SceneBuffer";
 import { GfxManager } from "./gfx/GfxManager";
 import { GfxRenderer } from "./gfx/GfxRenderer";
+import { resolveWidgetsOverlayInitRefs } from "./widgetsOverlayInitState";
 import { buildGroundItemGeometry } from "./ground/GroundItemMeshBuilder";
 import { SdMapData } from "./loader/SdMapData";
 import { SdMapDataLoader } from "./loader/SdMapDataLoader";
@@ -3142,6 +3143,17 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 const { ItemIconRenderer } = await import("../../ui/item/ItemIconRenderer");
                 const { WidgetLoader } = await import("../../ui/widgets/WidgetLoader");
 
+                // The async imports above can yield long enough for cleanup to run.
+                // Re-resolve these live refs after the await boundary before mutating them.
+                const initRefs = resolveWidgetsOverlayInitRefs({
+                    overlayManager: this.overlayManager,
+                    sceneUniformBuffer: this.sceneUniformBuffer,
+                });
+                if (!initRefs) {
+                    return programs;
+                }
+                const { overlayManager, sceneUniformBuffer } = initRefs;
+
                 // Get required loaders from OsrsClient
                 const objLoader = this.osrsClient.objTypeLoader;
                 const modelLoader = this.osrsClient.modelLoader;
@@ -3559,10 +3571,10 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         },
                 });
                 this.widgetsOverlay = widgets;
-                this.overlayManager.add(widgets);
+                overlayManager.add(widgets);
                 // Init may fail if cache not ready - will be reinitialized in initOverlays()
                 try {
-                    widgets.init({ app: this.app, sceneUniforms: this.sceneUniformBuffer });
+                    widgets.init({ app: this.app, sceneUniforms: sceneUniformBuffer });
                 } catch {}
                 console.log(
                     "WebGLOsrsClientRenderer: WidgetsOverlay initialized and added to overlay manager",

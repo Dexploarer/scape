@@ -9,6 +9,7 @@ import { DEFAULT_SERVER } from "../../util/serverDefaults";
 import { GameState, LoginIndex } from "./GameState";
 import { LoginAction, LoginActions } from "./LoginAction";
 import { LoginScreenAnimation } from "./LoginScreenAnimation";
+import { getServerListUrls } from "./serverListSources";
 import {
     getConfiguredWorldServers,
     getConfiguredWorlds,
@@ -135,7 +136,7 @@ const FALLBACK_SERVERS: ServerListEntry[] = [
     },
 ];
 
-const SERVER_LIST_URLS = ["/servers.json", "https://xrsps.com/servers.json"] as const;
+const SERVER_LIST_URLS = getServerListUrls(DEFAULT_SERVER);
 
 /**
  * Login screen renderer.

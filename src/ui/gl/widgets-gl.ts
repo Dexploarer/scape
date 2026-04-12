@@ -1,5 +1,6 @@
 import { ClientState } from "../../client/ClientState";
 import type { InputManager } from "../../client/InputManager";
+import { getMapImageBasePath } from "../../client/assetSources";
 import { profiler } from "../../client/webgl/PerformanceProfiler";
 import { CacheIndex } from "../../rs/cache/CacheIndex";
 import { CacheSystem } from "../../rs/cache/CacheSystem";
@@ -2565,7 +2566,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
 
                     // Get the base path for map images
                     const cacheName = osrsClient.loadedCache?.info?.name;
-                    const mapImageBasePath = cacheName ? `/map-images/${cacheName}` : "/map-images";
+                    const mapImageBasePath = getMapImageBasePath(cacheName);
 
                     // Draw 3x3 grid of map tiles
                     // Each tile is 64 tiles = 256 minimap pixels at 4px/tile

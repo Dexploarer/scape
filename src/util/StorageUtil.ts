@@ -4,6 +4,14 @@ export type StorageBudget = {
     available: number;
 };
 
+export type PersistentStorageResult = boolean | "unsupported";
+
+export type PersistentStorageMessaging = {
+    level: "info" | "warn";
+    consoleMessage: string;
+    userMessage?: string;
+};
+
 function getNavigatorStorage(): StorageManager | undefined {
     if (typeof navigator === "undefined") return undefined;
     return navigator.storage;
@@ -28,7 +36,7 @@ export async function getStorageBudget(): Promise<StorageBudget | undefined> {
     }
 }
 
-export async function ensurePersistentStorage(): Promise<boolean | "unsupported"> {
+export async function ensurePersistentStorage(): Promise<PersistentStorageResult> {
     const storage = getNavigatorStorage();
     if (!storage || typeof storage.persist !== "function") {
         return "unsupported";
@@ -46,6 +54,31 @@ export async function ensurePersistentStorage(): Promise<boolean | "unsupported"
     } catch {
         return false;
     }
+}
+
+export function describePersistentStorageResult(
+    result: PersistentStorageResult,
+    options: { isIos: boolean; isStandalone: boolean },
+): PersistentStorageMessaging | undefined {
+    if (result === true || (options.isIos && options.isStandalone)) {
+        return undefined;
+    }
+
+    if (result === false) {
+        return {
+            level: "info",
+            consoleMessage:
+                "[storage] Persistent storage not granted; cache is still usable but may be evicted by browser policy",
+        };
+    }
+
+    return {
+        level: "warn",
+        consoleMessage:
+            "[storage] Persistent storage API not available; browser may evict cached data",
+        userMessage:
+            "Persistent storage not supported in this browser. Cached assets may be cleared. Install as PWA or use a modern browser.",
+    };
 }
 
 export async function hasEnoughStorage(bytesNeeded: number): Promise<boolean> {

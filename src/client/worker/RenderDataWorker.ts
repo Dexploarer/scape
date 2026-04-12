@@ -41,6 +41,15 @@ import { SdMapDataLoader } from "../webgl/loader/SdMapDataLoader";
 import type { NpcInstance } from "../webgl/npc/NpcRenderTemplate";
 import { MinimapData, loadMinimapBlob } from "./MinimapData";
 import { RenderDataLoader, renderDataLoaderSerializer } from "./RenderDataLoader";
+import {
+    buildSpriteExportManifest,
+    buildSpriteManifestEntry,
+    buildSpriteReferenceIndex,
+    createSpriteReferenceIndex,
+    type SpriteExportEntry,
+    type SpriteExportImageMetadata,
+    type SpriteReferenceIndex,
+} from "./SpriteExportManifest";
 
 registerSerializer(renderDataLoaderSerializer);
 
@@ -400,14 +409,38 @@ const worker = {
         }
 
         const zip = new JSZip();
+        const manifestEntries: SpriteExportEntry[] = [];
 
         const cacheType = workerState.cache.type;
 
         if (cacheType === "dat2") {
-            await exportSpritesToZip(workerState.cacheSystem, zip);
+            const referenceIndex = buildSpriteReferenceIndex(
+                workerState.cache.info,
+                workerState.cacheSystem,
+            );
+            await exportDat2SpritesToZip(
+                workerState.cacheSystem,
+                zip,
+                manifestEntries,
+                referenceIndex,
+            );
         } else if (cacheType === "dat") {
-            await exportDatSpritesToZip(workerState.cacheSystem, zip);
+            await exportDatSpritesToZip(
+                workerState.cacheSystem,
+                zip,
+                manifestEntries,
+                createSpriteReferenceIndex(),
+            );
         }
+
+        zip.file(
+            "sprites-manifest.json",
+            JSON.stringify(
+                buildSpriteExportManifest(workerState.cache.info, cacheType, manifestEntries),
+                null,
+                2,
+            ),
+        );
 
         return zip.generateAsync({ type: "blob" });
     },
@@ -503,12 +536,19 @@ async function offscreenCanvasToPng(canvas: OffscreenCanvas): Promise<string> {
     return await dataUrlPromise;
 }
 
-async function addSpritesToZip(zip: JSZip, id: number, sprites: IndexedSprite[]) {
+async function addSpritesToZip(
+    zip: JSZip,
+    id: number,
+    sprites: IndexedSprite[],
+    manifestEntries: SpriteExportEntry[],
+    referenceIndex: SpriteReferenceIndex,
+) {
     if (sprites.length > 1) {
         zip = zip.folder(id.toString())!;
     }
     for (let i = 0; i < sprites.length; i++) {
         const sprite = sprites[i];
+        const image = getSpriteExportImageMetadata(sprite);
         sprite.normalize();
 
         const canvas = sprite.getCanvas();
@@ -521,10 +561,27 @@ async function addSpritesToZip(zip: JSZip, id: number, sprites: IndexedSprite[])
 
         const pngData = atob(dataUrl.split(",")[1]);
         zip.file(fileName, pngData, { binary: true });
+        manifestEntries.push(buildSpriteManifestEntry(id, i, sprites.length, image, referenceIndex));
     }
 }
 
-async function exportSpritesToZip(cacheSystem: CacheSystem, zip: JSZip): Promise<void> {
+function getSpriteExportImageMetadata(sprite: IndexedSprite): SpriteExportImageMetadata {
+    return {
+        exportedWidth: sprite.width,
+        exportedHeight: sprite.height,
+        sourceSubWidth: sprite.subWidth,
+        sourceSubHeight: sprite.subHeight,
+        xOffset: sprite.xOffset,
+        yOffset: sprite.yOffset,
+    };
+}
+
+async function exportDat2SpritesToZip(
+    cacheSystem: CacheSystem,
+    zip: JSZip,
+    manifestEntries: SpriteExportEntry[],
+    referenceIndex: SpriteReferenceIndex,
+): Promise<void> {
     const spriteIndex = cacheSystem.getIndex(IndexType.DAT2.sprites);
 
     const promises: Promise<any>[] = [];
@@ -534,13 +591,18 @@ async function exportSpritesToZip(cacheSystem: CacheSystem, zip: JSZip): Promise
         if (!sprites) {
             continue;
         }
-        promises.push(addSpritesToZip(zip, id, sprites));
+        promises.push(addSpritesToZip(zip, id, sprites, manifestEntries, referenceIndex));
     }
 
     await Promise.all(promises);
 }
 
-async function exportDatSpritesToZip(cacheSystem: CacheSystem, zip: JSZip): Promise<void> {
+async function exportDatSpritesToZip(
+    cacheSystem: CacheSystem,
+    zip: JSZip,
+    manifestEntries: SpriteExportEntry[],
+    referenceIndex: SpriteReferenceIndex,
+): Promise<void> {
     const configIndex = cacheSystem.getIndex(IndexType.DAT.configs);
     const mediaArchive = configIndex.getArchive(ConfigType.DAT.media);
 
@@ -563,7 +625,7 @@ async function exportDatSpritesToZip(cacheSystem: CacheSystem, zip: JSZip): Prom
                 break;
             }
         }
-        promises.push(addSpritesToZip(zip, fileId, sprites));
+        promises.push(addSpritesToZip(zip, fileId, sprites, manifestEntries, referenceIndex));
     }
 
     await Promise.all(promises);

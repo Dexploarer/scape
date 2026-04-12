@@ -436,7 +436,7 @@ function OsrsClientApp() {
                     lineHeight: 1.4,
                 }}
             >
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>Install OSRS Client</div>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Install -scape</div>
                 <div style={{ marginBottom: 14 }}>
                     Add the app for faster launches and offline-ready assets.
                 </div>
@@ -506,7 +506,7 @@ function OsrsClientApp() {
                 }}
             >
                 <span>
-                    Add OSRS Client to your home screen: tap the share icon, then choose
+                    Add -scape to your home screen: tap the share icon, then choose
                     <strong> Add to Home Screen</strong>.
                 </span>
                 <button

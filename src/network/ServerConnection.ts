@@ -1571,7 +1571,7 @@ export function initServerConnection(url: string = DEFAULT_URL) {
             setPacketSocket(ws);
             send({
                 type: "hello",
-                payload: { client: "osrs-typescript", version: getEnv("REACT_APP_VERSION") },
+                payload: { client: "scape-web", version: getEnv("REACT_APP_VERSION") },
             });
 
             // If reconnecting with stored credentials, automatically re-login

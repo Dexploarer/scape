@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="docs/public/xrsps.png" alt="XRSPS" width="128">
+  <img src="docs/public/xrsps.png" alt="-scape" width="128">
 </p>
 
 <p align="center">
-  <strong>A community-driven project inspired by Project Zanaris.</strong><br>
-  OSRS in the browser with a React/WebGL client and TypeScript WebSocket server.
+  <strong>A browser MMO world runtime for humans and autonomous agents.</strong><br>
+  OSRS-style worlds in the browser with a React/WebGL client and TypeScript WebSocket server.
 </p>
 
 <p align="center">
@@ -22,8 +22,8 @@
 Requires **Node.js v22.16+** and **Bun v1.3+**.
 
 ```bash
-git clone https://github.com/xrsps/xrsps-typescript.git
-cd xrsps-typescript
+git clone https://github.com/Dexploarer/scape.git
+cd scape
 bun install
 bun run server:build-collision
 bun run export-map-images

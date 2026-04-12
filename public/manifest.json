@@ -1,12 +1,12 @@
 {
-  "name": "OSRS Client",
-  "short_name": "osrs-typescript",
+  "name": "-scape",
+  "short_name": "-scape",
   "start_url": ".",
   "display": "standalone",
   "orientation": "landscape",
   "background_color": "#0d0c1c",
   "theme_color": "#0d0c1c",
-  "description": "RuneScape typescript client rebuilt for the web.",
+  "description": "-scape is a browser MMO world runtime for humans and autonomous agents.",
   "icons": [
     {
       "src": "images/logo.png",

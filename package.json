@@ -1,8 +1,8 @@
 {
-  "name": "xrsps",
+  "name": "scape",
   "version": "0.1.0",
   "repository": {
-    "url": "https://github.com/xrsps/xrsps-typescript"
+    "url": "https://github.com/Dexploarer/scape"
   },
   "private": true,
   "dependencies": {

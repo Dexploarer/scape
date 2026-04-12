@@ -2004,7 +2004,7 @@ export class LoginRenderer {
         this.drawCenteredText(
             ctx,
             this.fontBold12,
-            "Welcome to xRSPS",
+            "Welcome to -scape",
             this.loginBoxX + 180,
             251,
             0xffff00,
@@ -2484,7 +2484,7 @@ export class LoginRenderer {
         this.drawCenteredText(
             ctx,
             this.fontBold12,
-            "Welcome to xRSPS",
+            "Welcome to -scape",
             this.loginBoxX + 180,
             209,
             0xffff00,

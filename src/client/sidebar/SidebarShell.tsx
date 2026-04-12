@@ -258,7 +258,7 @@ function GroundItemsPanel({ osrsClient }: { osrsClient: OsrsClient }): JSX.Eleme
             </p>
             {!config.enabled && (
                 <p className="rl-sidebar-panel-copy">
-                    Plugin is currently disabled in xRSPS.
+                    Plugin is currently disabled in -scape.
                 </p>
             )}
 
@@ -607,7 +607,7 @@ function InteractHighlightPanel({ osrsClient }: { osrsClient: OsrsClient }): JSX
             </p>
             {!config.enabled && (
                 <p className="rl-sidebar-panel-copy">
-                    Plugin is currently disabled in xRSPS.
+                    Plugin is currently disabled in -scape.
                 </p>
             )}
             <label className="rl-sidebar-check">
@@ -683,7 +683,7 @@ function TileMarkersPanel({ osrsClient }: { osrsClient: OsrsClient }): JSX.Eleme
             </p>
             {!config.enabled && (
                 <p className="rl-sidebar-panel-copy">
-                    Plugin is currently disabled in xRSPS.
+                    Plugin is currently disabled in -scape.
                 </p>
             )}
             <label className="rl-sidebar-check">
@@ -855,7 +855,7 @@ function PluginHubPanel({ osrsClient }: { osrsClient: OsrsClient }): JSX.Element
 
     return (
         <div className="rl-sidebar-panel-content rl-sidebar-scrollable">
-            <div className="rl-sidebar-panel-title">xRSPS</div>
+            <div className="rl-sidebar-panel-title">-scape</div>
             <p className="rl-sidebar-panel-copy">
                 Enable or disable plugins. Toggle states persist in local storage.
             </p>
@@ -1000,7 +1000,7 @@ export function SidebarShell({
             <aside className="rl-sidebar-drawer" aria-hidden={!shouldShowPanel}>
                 <div className="rl-sidebar-drawer-header">
                     <div className="rl-sidebar-heading">
-                        <div className="rl-sidebar-heading-kicker">xRSPS</div>
+                        <div className="rl-sidebar-heading-kicker">-scape</div>
                         <div className="rl-sidebar-heading-title">{drawerTitle}</div>
                     </div>
                     <button

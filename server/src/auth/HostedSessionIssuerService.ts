@@ -1,6 +1,11 @@
 import { timingSafeEqual } from "node:crypto";
 
-import { normalizeWorldScopeId } from "../game/state/PlayerSessionKeys";
+import type { ControlPlaneClient } from "../controlplane/ControlPlaneClient";
+import {
+    buildScopedPlayerSaveKey,
+    normalizePlayerAccountName,
+    normalizeWorldScopeId,
+} from "../game/state/PlayerSessionKeys";
 import {
     type HostedSessionClaims,
     type HostedSessionKind,
@@ -21,6 +26,9 @@ export interface HostedSessionIssuerServiceOptions {
     hostedSessionService: HostedSessionService;
     issuerSecret: string;
     worldId: string;
+    worldName?: string;
+    gamemodeId?: string;
+    controlPlane?: ControlPlaneClient;
     now?: () => number;
     defaultTtlMs?: number;
     maxTtlMs?: number;
@@ -76,6 +84,9 @@ export class HostedSessionIssuerService {
     private readonly hostedSessionService: HostedSessionService;
     private readonly issuerSecret: string;
     private readonly worldId: string;
+    private readonly worldName: string;
+    private readonly gamemodeId: string;
+    private readonly controlPlane?: ControlPlaneClient;
     private readonly now: () => number;
     private readonly defaultTtlMs: number;
     private readonly maxTtlMs: number;
@@ -84,6 +95,9 @@ export class HostedSessionIssuerService {
         this.hostedSessionService = options.hostedSessionService;
         this.issuerSecret = options.issuerSecret.trim();
         this.worldId = normalizeWorldScopeId(options.worldId) ?? "default";
+        this.worldName = options.worldName?.trim() || this.worldId;
+        this.gamemodeId = options.gamemodeId?.trim() || this.worldId;
+        this.controlPlane = options.controlPlane;
         this.now = options.now ?? (() => Date.now());
         this.maxTtlMs = Math.max(1_000, Math.trunc(options.maxTtlMs ?? DEFAULT_MAX_TTL_MS));
         this.defaultTtlMs = Math.min(
@@ -96,10 +110,10 @@ export class HostedSessionIssuerService {
         return this.issuerSecret.length > 0 && this.hostedSessionService.isEnabled();
     }
 
-    issue(
+    async issue(
         authorizationHeader: string | undefined,
         requestBody: unknown,
-    ): HostedSessionIssueResult {
+    ): Promise<HostedSessionIssueResult> {
         if (!this.isEnabled()) {
             return {
                 ok: false,
@@ -236,6 +250,21 @@ export class HostedSessionIssuerService {
             expiresAt,
             agentId: agentId ?? undefined,
         };
+        try {
+            await this.provisionHostedIdentity(claims);
+        } catch (error) {
+            return {
+                ok: false,
+                status: 503,
+                payload: {
+                    code: "control_plane_unavailable",
+                    error:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to provision hosted identity.",
+                },
+            };
+        }
         const sessionToken = this.hostedSessionService.issue(claims);
 
         return {
@@ -249,5 +278,50 @@ export class HostedSessionIssuerService {
                 },
             },
         };
+    }
+
+    private async provisionHostedIdentity(
+        claims: Omit<HostedSessionClaims, "version">,
+    ): Promise<void> {
+        if (!this.controlPlane) {
+            return;
+        }
+
+        const timestampMicros = BigInt(claims.issuedAt) * 1000n;
+        const canonicalName =
+            normalizePlayerAccountName(claims.displayName) ?? claims.displayName.trim().toLowerCase();
+        const saveKey = buildScopedPlayerSaveKey({
+            worldId: claims.worldId,
+            worldCharacterId: claims.worldCharacterId,
+        });
+
+        await this.controlPlane.upsertWorld({
+            world_id: claims.worldId,
+            name: this.worldName,
+            gamemode_id: this.gamemodeId,
+            status: "active",
+            release_id: undefined,
+            owner_principal_id: undefined,
+            metadata_json: undefined,
+            created_at: timestampMicros,
+            updated_at: timestampMicros,
+        });
+        await this.controlPlane.upsertPrincipal({
+            principal_id: claims.principalId,
+            principal_kind: claims.kind,
+            canonical_name: canonicalName,
+            created_at: timestampMicros,
+            updated_at: timestampMicros,
+        });
+        await this.controlPlane.upsertWorldCharacter({
+            world_character_id: claims.worldCharacterId,
+            world_id: claims.worldId,
+            principal_id: claims.principalId,
+            display_name: claims.displayName,
+            save_key: saveKey,
+            branch_kind: "hosted",
+            created_at: timestampMicros,
+            last_seen_at: timestampMicros,
+        });
     }
 }

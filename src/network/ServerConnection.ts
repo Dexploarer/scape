@@ -5,6 +5,28 @@ import { DEFAULT_WS_URL } from "../util/serverDefaults";
 import type { PlayerSyncFrame } from "../client/sync/PlayerSyncTypes";
 import { PlayerUpdateDecoder } from "../client/sync/PlayerUpdateDecoder";
 import { SkillId } from "../rs/skill/skills";
+import {
+    type AgentScriptSpec,
+    validateAgentScriptSpec,
+} from "../shared/agent/AgentScript";
+import type {
+    BotSdkJournalActivity,
+    BotSdkJournalProposal,
+    BotSdkJournalSnapshot,
+    GroundItemActionPayload,
+    GroundItemStackMessage,
+    GroundItemsServerPayload,
+    ShopServerPayload,
+    ShopStockEntryMessage,
+    SmithingOptionMessage,
+    SmithingServerPayload,
+    SpellCastModifiers,
+    SpellResultPayload,
+    SpellRuneDelta,
+    TradeOfferEntryMessage,
+    TradePartyMessage,
+    TradeServerPayload,
+} from "../shared/network/GameMessageDtos";
 import type { ProjectileLaunch } from "../shared/projectiles/ProjectileLaunch";
 import {
     VARP_AREA_SOUNDS_VOLUME,
@@ -37,6 +59,25 @@ export type InventoryServerUpdate =
     | { kind: "snapshot"; slots: InventorySlotMessage[] }
     | { kind: "slot"; slot: InventorySlotMessage };
 
+export type {
+    BotSdkJournalActivity,
+    BotSdkJournalProposal,
+    BotSdkJournalSnapshot,
+    GroundItemActionPayload,
+    GroundItemStackMessage,
+    GroundItemsServerPayload,
+    ShopServerPayload,
+    ShopStockEntryMessage,
+    SmithingOptionMessage,
+    SmithingServerPayload,
+    SpellCastModifiers,
+    SpellResultPayload,
+    SpellRuneDelta,
+    TradeOfferEntryMessage,
+    TradePartyMessage,
+    TradeServerPayload,
+};
+
 /** Collection log inventory update (ID 620 - collection_transmit) */
 export type CollectionLogSlotMessage = { slot: number; itemId: number; quantity: number };
 export type CollectionLogServerPayload = {
@@ -52,113 +93,7 @@ export type BankServerUpdate =
 
 export type NpcInfoPayload = { loopCycle: number; large: boolean; packet: Uint8Array };
 
-export type ShopStockEntryMessage = {
-    slot: number;
-    itemId: number;
-    quantity: number;
-    defaultQuantity?: number;
-    priceEach?: number;
-    sellPrice?: number;
-};
-
-export type GroundItemStackMessage = {
-    id: number;
-    itemId: number;
-    quantity: number;
-    tile: { x: number; y: number; level: number };
-    createdTick?: number;
-    privateUntilTick?: number;
-    expiresTick?: number;
-    ownerId?: number;
-    isPrivate?: boolean;
-    /** Mirrors RuneLite TileItem ownership constants: 0=none,1=self,2=other,3=group */
-    ownership?: 0 | 1 | 2 | 3;
-};
-
-export type GroundItemsServerPayload =
-    | {
-          kind: "snapshot";
-          serial: number;
-          stacks: GroundItemStackMessage[];
-      }
-    | {
-          kind: "delta";
-          serial: number;
-          upserts: GroundItemStackMessage[];
-          removes: number[];
-      };
-
 type GroundItemsSnapshotPayload = Extract<GroundItemsServerPayload, { kind: "snapshot" }>;
-
-export type GroundItemActionPayload = {
-    stackId: number;
-    tile: { x: number; y: number; level?: number };
-    itemId: number;
-    quantity?: number;
-    option?: string;
-};
-
-export type ShopServerPayload =
-    | {
-          kind: "open";
-          shopId: string;
-          name: string;
-          currencyItemId: number;
-          generalStore?: boolean;
-          buyMode?: number;
-          sellMode?: number;
-          stock: ShopStockEntryMessage[];
-      }
-    | {
-          kind: "slot";
-          shopId: string;
-          slot: ShopStockEntryMessage;
-      }
-    | {
-          kind: "close";
-      }
-    | {
-          kind: "mode";
-          shopId: string;
-          buyMode?: number;
-          sellMode?: number;
-      };
-
-export type SmithingOptionMessage = {
-    recipeId: string;
-    name: string;
-    level: number;
-    itemId: number;
-    outputQuantity: number;
-    available: number;
-    canMake: boolean;
-    xp?: number;
-    ingredientsLabel?: string;
-    mode?: "smelt" | "forge";
-    barItemId?: number;
-    barCount?: number;
-    requiresHammer?: boolean;
-    hasHammer?: boolean;
-};
-
-export type SmithingServerPayload =
-    | {
-          kind: "open" | "update";
-          mode: "smelt" | "forge";
-          title?: string;
-          options: SmithingOptionMessage[];
-          quantityMode: number;
-          customQuantity?: number;
-      }
-    | {
-          kind: "mode";
-          quantityMode: number;
-          customQuantity?: number;
-      }
-    | {
-          kind: "close";
-      };
-
 export type SmithingWindowState = {
     open: boolean;
     mode: "smelt" | "forge";
@@ -179,12 +114,6 @@ export type ShopWindowState = {
     stock: ShopStockEntryMessage[];
 };
 
-export type TradeOfferEntryMessage = {
-    slot: number;
-    itemId: number;
-    quantity: number;
-};
-
 export type TradePartyViewState = {
     playerId?: number;
     name?: string;
@@ -202,26 +131,6 @@ export type TradeWindowState = {
     infoMessage?: string;
     requestFrom?: { playerId: number; name?: string } | undefined;
 };
-
-export type TradePartyMessage = {
-    playerId?: number;
-    name?: string;
-    offers: TradeOfferEntryMessage[];
-    accepted?: boolean;
-    confirmAccepted?: boolean;
-};
-
-export type TradeServerPayload =
-    | { kind: "request"; fromId: number; fromName?: string }
-    | {
-          kind: "open" | "update";
-          sessionId: string;
-          stage: "offer" | "confirm";
-          self: TradePartyMessage;
-          other: TradePartyMessage;
-          info?: string;
-      }
-    | { kind: "close"; reason?: string };
 
 export type TradeActionClientPayload =
     | { action: "offer"; slot: number; quantity: number; itemId?: number }
@@ -440,45 +349,6 @@ export type RunEnergyState = {
     };
 };
 
-export type SpellCastModifiers = {
-    isAutocast?: boolean;
-    defensive?: boolean;
-    queued?: boolean;
-    castMode?: "manual" | "autocast" | "defensive_autocast";
-};
-
-export type SpellResultPayload = {
-    casterId: number;
-    spellId: number;
-    outcome: "success" | "failure";
-    reason?:
-        | "invalid_spell"
-        | "invalid_target"
-        | "out_of_range"
-        | "out_of_runes"
-        | "level_requirement"
-        | "cooldown"
-        | "restricted_zone"
-        | "immune_target"
-        | "already_active"
-        | "line_of_sight"
-        | "server_error"
-        | string;
-    targetType: "npc" | "player" | "loc" | "obj" | "tile";
-    targetId?: number;
-    tile?: { x: number; y: number; plane?: number };
-    modifiers?: SpellCastModifiers;
-    runesConsumed?: { itemId: number; quantity: number }[];
-    runesRefunded?: { itemId: number; quantity: number }[];
-    hitDelay?: number;
-    impactSpotAnim?: number;
-    castSpotAnim?: number;
-    splashSpotAnim?: number;
-    damage?: number;
-    maxHit?: number;
-    accuracy?: number;
-};
-
 type ClientToServer =
     | { type: "hello"; payload: { client: string; version?: string } }
     | { type: "ping"; payload: { time: number } }
@@ -570,7 +440,39 @@ type ClientToServer =
               | { kind: "projectiles_request"; requestId?: number }
               | { kind: "projectiles_snapshot"; requestId: number; snapshot: any }
               | { kind: "anim_request"; requestId?: number }
-              | { kind: "anim_snapshot"; requestId: number; snapshot: any };
+              | { kind: "anim_snapshot"; requestId: number; snapshot: any }
+              | {
+                    kind: "bot_sdk_script";
+                    operation: "install";
+                    script: Record<string, unknown>;
+                    targetAgentId?: string;
+                    targetPlayerId?: number;
+                }
+              | {
+                    kind: "bot_sdk_script";
+                    operation: "clear";
+                    reason?: string;
+                    targetAgentId?: string;
+                    targetPlayerId?: number;
+                }
+              | {
+                    kind: "bot_sdk_script";
+                    operation: "interrupt";
+                    interrupt: string;
+                    reason?: string;
+                    targetAgentId?: string;
+                    targetPlayerId?: number;
+                }
+              | {
+                    kind: "bot_sdk_script_proposals_request";
+                    targetPlayerId?: number;
+                }
+              | {
+                    kind: "bot_sdk_script_proposal_decision";
+                    proposalId: string;
+                    decision: "approve_install" | "reject";
+                    reason?: string;
+                };
       }
     | { type: "logout"; payload?: Record<string, never> };
 const CLIENT_RUNTIME_ENV = {
@@ -656,6 +558,8 @@ const animListeners = new Set<
 // Dev-only: server path debug listeners
 const pathDebugListeners = new Set<(waypoints: { x: number; y: number }[] | undefined) => void>();
 let lastServerPath: { x: number; y: number }[] | undefined;
+const botSdkJournalSnapshotListeners = new Set<(snapshot: BotSdkJournalSnapshot) => void>();
+let lastBotSdkJournalSnapshot: BotSdkJournalSnapshot | undefined;
 
 export function subscribeServerPath(
     fn: (waypoints: { x: number; y: number }[] | undefined) => void,
@@ -879,6 +783,91 @@ function sanitizeBankSlotMessage(raw: any, capacityHint?: number): InventorySlot
         slot: Math.max(0, Math.min(max - 1, slot)),
         itemId,
         quantity,
+    };
+}
+
+function sanitizeBotSdkJournalSnapshot(raw: any): BotSdkJournalSnapshot {
+    const proposals = Array.isArray(raw?.proposals)
+        ? raw.proposals
+              .map((entry: any): BotSdkJournalProposal | undefined => {
+                  if (!entry || typeof entry !== "object") {
+                      return undefined;
+                  }
+                  const proposalId =
+                      typeof entry.proposalId === "string" ? entry.proposalId : "";
+                  const agentId = typeof entry.agentId === "string" ? entry.agentId : "";
+                  if (!proposalId || !agentId) {
+                      return undefined;
+                  }
+                  const script = entry.script;
+                  if (!script || typeof script !== "object" || Array.isArray(script)) {
+                      return undefined;
+                  }
+                  const validation = validateAgentScriptSpec(script as AgentScriptSpec);
+                  if (!validation.ok) {
+                      return undefined;
+                  }
+                  return {
+                      proposalId,
+                      playerId: Number(entry.playerId) | 0,
+                      agentId,
+                      displayName:
+                          typeof entry.displayName === "string"
+                              ? entry.displayName
+                              : "Unknown agent",
+                      principalId:
+                          typeof entry.principalId === "string"
+                              ? entry.principalId
+                              : undefined,
+                      worldCharacterId:
+                          typeof entry.worldCharacterId === "string"
+                              ? entry.worldCharacterId
+                              : undefined,
+                      summary:
+                          typeof entry.summary === "string" ? entry.summary : undefined,
+                      script: script as AgentScriptSpec,
+                      proposedAt: Number(entry.proposedAt) || 0,
+                  };
+              })
+              .filter((entry: BotSdkJournalProposal | undefined): entry is BotSdkJournalProposal => !!entry)
+        : [];
+    const activities = Array.isArray(raw?.activities)
+        ? raw.activities
+              .map((entry: any): BotSdkJournalActivity | undefined => {
+                  if (!entry || typeof entry !== "object" || typeof entry.id !== "string") {
+                      return undefined;
+                  }
+                  const kind =
+                      entry.kind === "proposal" ||
+                      entry.kind === "decision" ||
+                      entry.kind === "control"
+                          ? entry.kind
+                          : undefined;
+                  if (!kind || typeof entry.text !== "string") {
+                      return undefined;
+                  }
+                  return {
+                      id: entry.id,
+                      kind,
+                      text: entry.text,
+                      timestamp: Number(entry.timestamp) || 0,
+                      playerId:
+                          typeof entry.playerId === "number"
+                              ? entry.playerId | 0
+                              : undefined,
+                      proposalId:
+                          typeof entry.proposalId === "string"
+                              ? entry.proposalId
+                              : undefined,
+                  };
+              })
+              .filter((entry: BotSdkJournalActivity | undefined): entry is BotSdkJournalActivity => !!entry)
+        : [];
+    return {
+        targetPlayerId:
+            typeof raw?.targetPlayerId === "number" ? raw.targetPlayerId | 0 : undefined,
+        proposals,
+        activities,
     };
 }
 
@@ -1343,9 +1332,18 @@ function sanitizeSpellResult(raw: any): SpellResultPayload {
     const casterId = Number(raw?.casterId) | 0;
     const spellId = Number(raw?.spellId) | 0;
     const outcome = raw?.outcome === "success" ? "success" : "failure";
-    const validTargetTypes = new Set(["npc", "player", "loc", "obj", "tile"]);
+    const validTargetTypes = new Set<SpellResultPayload["targetType"]>([
+        "npc",
+        "player",
+        "loc",
+        "obj",
+        "tile",
+        "item",
+    ]);
     const targetTypeRaw = typeof raw?.targetType === "string" ? raw.targetType : "npc";
-    const targetType = validTargetTypes.has(targetTypeRaw) ? (targetTypeRaw as any) : "npc";
+    const targetType = validTargetTypes.has(targetTypeRaw as SpellResultPayload["targetType"])
+        ? (targetTypeRaw as SpellResultPayload["targetType"])
+        : "npc";
     const targetIdRaw = Number(raw?.targetId);
     const targetId = Number.isFinite(targetIdRaw) ? targetIdRaw | 0 : undefined;
 
@@ -1362,7 +1360,7 @@ function sanitizeSpellResult(raw: any): SpellResultPayload {
               }
             : undefined;
 
-    const sanitizeRuneDelta = (entry: any): { itemId: number; quantity: number } | undefined => {
+    const sanitizeRuneDelta = (entry: any): SpellRuneDelta | undefined => {
         const itemId = Number(entry?.itemId) | 0;
         const quantity = Number(entry?.quantity) || 0;
         if (!Number.isFinite(itemId) || itemId <= 0) return undefined;
@@ -1373,12 +1371,12 @@ function sanitizeSpellResult(raw: any): SpellResultPayload {
     const runesConsumed = Array.isArray(raw?.runesConsumed)
         ? (raw.runesConsumed as any[])
               .map((entry) => sanitizeRuneDelta(entry))
-              .filter((entry): entry is { itemId: number; quantity: number } => !!entry)
+              .filter((entry): entry is SpellRuneDelta => !!entry)
         : undefined;
     const runesRefunded = Array.isArray(raw?.runesRefunded)
         ? (raw.runesRefunded as any[])
               .map((entry) => sanitizeRuneDelta(entry))
-              .filter((entry): entry is { itemId: number; quantity: number } => !!entry)
+              .filter((entry): entry is SpellRuneDelta => !!entry)
         : undefined;
 
     const hitDelayRaw = Number(raw?.hitDelay);
@@ -1895,6 +1893,16 @@ function processServerMessage(msg: any): void {
                 }
             } catch (err) {
                 console.warn("[debug] anim snapshot failed", err);
+            }
+        } else if (payload?.kind === "bot_sdk_script_proposals_snapshot") {
+            const snapshot = sanitizeBotSdkJournalSnapshot(payload);
+            lastBotSdkJournalSnapshot = snapshot;
+            for (const cb of botSdkJournalSnapshotListeners) {
+                try {
+                    cb(snapshot);
+                } catch (err) {
+                    console.warn("[debug] bot sdk proposal snapshot listener error", err);
+                }
             }
         }
     } else if (msg.type === "npc_info") {
@@ -3519,6 +3527,12 @@ export function sendGroundItemAction(payload: GroundItemActionPayload): void {
     if (payload.option) {
         clean.option = String(payload.option);
     }
+    if (Number.isFinite(payload.opNum) && (payload.opNum as number) > 0) {
+        clean.opNum = Math.max(1, Math.min(5, (payload.opNum as number) | 0));
+    }
+    if (Number.isFinite(payload.modifierFlags) && (payload.modifierFlags as number) >= 0) {
+        clean.modifierFlags = Math.max(0, Math.min(255, (payload.modifierFlags as number) | 0));
+    }
     send({ type: "ground_item_action", payload: clean } as any);
 }
 
@@ -3557,6 +3571,85 @@ export function sendChat(
             pattern: formatting.pattern ? Array.from(formatting.pattern) : undefined,
         },
     } as any);
+}
+
+export function sendBotSdkScriptControl(
+    payload:
+        | {
+              operation: "install";
+              script: AgentScriptSpec;
+              targetAgentId?: string;
+              targetPlayerId?: number;
+          }
+        | {
+              operation: "clear";
+              reason?: string;
+              targetAgentId?: string;
+              targetPlayerId?: number;
+          }
+        | {
+              operation: "interrupt";
+              interrupt: string;
+              reason?: string;
+              targetAgentId?: string;
+              targetPlayerId?: number;
+          },
+): void {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    send({
+        type: "debug",
+        payload: {
+            kind: "bot_sdk_script",
+            ...payload,
+        },
+    } as any);
+}
+
+export function requestBotSdkScriptProposalSnapshot(targetPlayerId?: number): void {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    send({
+        type: "debug",
+        payload: {
+            kind: "bot_sdk_script_proposals_request",
+            targetPlayerId,
+        },
+    } as any);
+}
+
+export function sendBotSdkScriptProposalDecision(payload: {
+    proposalId: string;
+    decision: "approve_install" | "reject";
+    reason?: string;
+}): void {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    send({
+        type: "debug",
+        payload: {
+            kind: "bot_sdk_script_proposal_decision",
+            ...payload,
+        },
+    } as any);
+}
+
+export function subscribeBotSdkScriptProposalSnapshot(
+    cb: (snapshot: BotSdkJournalSnapshot) => void,
+): () => void {
+    botSdkJournalSnapshotListeners.add(cb);
+    if (lastBotSdkJournalSnapshot) {
+        try {
+            cb({
+                targetPlayerId: lastBotSdkJournalSnapshot.targetPlayerId,
+                proposals: lastBotSdkJournalSnapshot.proposals.map((proposal) => ({
+                    ...proposal,
+                    script: { ...proposal.script },
+                })),
+                activities: lastBotSdkJournalSnapshot.activities.map((entry) => ({ ...entry })),
+            });
+        } catch (error) {
+            console.warn("[debug] bot sdk proposal snapshot replay listener error", error);
+        }
+    }
+    return () => botSdkJournalSnapshotListeners.delete(cb);
 }
 
 export function subscribeHandshake(

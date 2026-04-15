@@ -38,7 +38,7 @@ export class BotSdkPerceptionBuilder {
             nearbyPlayers: [], // PR 4
             nearbyGroundItems: [], // PR 4
             nearbyObjects: [], // PR 4
-            recentEvents: [], // PR 5
+            recentEvents: player.agent?.recentEvents?.slice() ?? [],
         };
     }
 

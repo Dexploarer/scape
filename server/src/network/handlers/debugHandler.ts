@@ -6,6 +6,32 @@ export function registerDebugHandler(router: MessageRouter, services: MessageHan
     router.register("debug", (ctx) => {
         const payload = ctx.payload;
         const kind = payload.kind;
+        const sendBotSdkJournalSnapshot = (requester = ctx.ws, targetPlayerId?: number) => {
+            try {
+                const snapshot = services.getBotSdkJournalSnapshot?.(targetPlayerId) ?? {
+                    proposals: [],
+                    activities: [],
+                };
+                const forward = services.encodeMessage({
+                    type: "debug",
+                    payload: {
+                        kind: "bot_sdk_script_proposals_snapshot",
+                        targetPlayerId,
+                        proposals: snapshot.proposals,
+                        activities: snapshot.activities,
+                    },
+                });
+                services.withDirectSendBypass("debug_bot_sdk_script_proposals_snapshot", () =>
+                    services.sendWithGuard(
+                        requester,
+                        forward,
+                        "debug_bot_sdk_script_proposals_snapshot",
+                    ),
+                );
+            } catch (err) {
+                logger.warn("[debug] bot sdk proposal snapshot failed", err);
+            }
+        };
 
         if (kind === "projectiles_request") {
             const requestId = payload.requestId ?? Math.floor(Math.random() * 1e9);
@@ -96,6 +122,75 @@ export function registerDebugHandler(router: MessageRouter, services: MessageHan
                     });
                 }
             }
+        } else if (kind === "bot_sdk_script") {
+            const target = ctx.player;
+            if (!target) return;
+            const reply = (text: string) =>
+                services.queueChatMessage({
+                    messageType: "game",
+                    text,
+                    targetPlayerIds: [target.id],
+                });
+            const result = services.controlBotSdkScripts?.(payload) ?? {
+                matched: 0,
+                delivered: 0,
+                failed: 0,
+                failureMessages: [],
+            };
+
+            if (payload.operation === "install") {
+                if (result.delivered > 0) {
+                    reply(
+                        `Installed script on ${result.delivered} agent${result.delivered === 1 ? "" : "s"}.`,
+                    );
+                } else if (result.failureMessages[0]) {
+                    reply(`Bot SDK script error: ${result.failureMessages[0]}`);
+                } else {
+                    reply("No connected 'scape agents accepted the script.");
+                }
+            } else if (payload.operation === "clear") {
+                if (result.delivered > 0) {
+                    reply(
+                        `Cleared scripts on ${result.delivered} agent${result.delivered === 1 ? "" : "s"}.`,
+                    );
+                } else if (result.failureMessages[0]) {
+                    reply(`Bot SDK script error: ${result.failureMessages[0]}`);
+                } else {
+                    reply("No connected 'scape agents had an active script.");
+                }
+            } else if (payload.operation === "interrupt") {
+                if (result.delivered > 0) {
+                    reply(
+                        `Interrupted ${result.delivered} agent${result.delivered === 1 ? "" : "s"} with ${payload.interrupt}.`,
+                    );
+                } else if (result.failureMessages[0]) {
+                    reply(`Bot SDK script error: ${result.failureMessages[0]}`);
+                } else {
+                    reply(`No connected 'scape agents handled interrupt ${payload.interrupt}.`);
+                }
+            }
+            sendBotSdkJournalSnapshot(ctx.ws, payload.targetPlayerId);
+        } else if (kind === "bot_sdk_script_proposals_request") {
+            sendBotSdkJournalSnapshot(ctx.ws, payload.targetPlayerId);
+        } else if (kind === "bot_sdk_script_proposal_decision") {
+            const target = ctx.player;
+            if (!target) return;
+            const reply = (text: string) =>
+                services.queueChatMessage({
+                    messageType: "game",
+                    text,
+                    targetPlayerIds: [target.id],
+                });
+            const result = services.decideBotSdkScriptProposal?.({
+                proposalId: payload.proposalId,
+                decision: payload.decision,
+                reason: payload.reason,
+            }) ?? {
+                ok: false,
+                message: "Bot SDK proposal decisions are unavailable.",
+            };
+            reply(result.message);
+            sendBotSdkJournalSnapshot(ctx.ws);
         }
     });
 }

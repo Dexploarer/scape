@@ -15,7 +15,15 @@ import { PvpCombatHandler } from "./PvpCombatHandler";
 import { NpcRetaliationHandler } from "./NpcRetaliationHandler";
 import { CompanionHitHandler } from "./CompanionHitHandler";
 import { handleRangedAmmoConsumption, handleAutocastRuneConsumption } from "./CombatHandlerUtils";
+import type {
+    ActionScheduleRequest as SharedActionScheduleRequest,
+    ActionScheduleResult,
+    ProjectileTiming,
+    SoundRequest,
+    SpotAnimRequest,
+} from "./HandlerSupportContracts";
 import type { ProjectileLaunch } from "../../../../../src/shared/projectiles/ProjectileLaunch";
+import type { SpellCastRequest } from "../../../../../src/shared/spells/SpellActionContracts";
 import type { SpellDataEntry } from "../../spells/SpellDataProvider";
 import type { PathService } from "../../../pathfinding/PathService";
 import { AttackType, normalizeAttackType } from "../../combat/AttackType";
@@ -41,7 +49,7 @@ import type {
     CombatNpcRetaliateActionData,
     CombatPlayerHitActionData,
 } from "../actionPayloads";
-import type { ActionEffect, ActionExecutionResult, ActionRequest, ScheduledAction } from "../types";
+import type { ActionEffect, ActionExecutionResult, ScheduledAction } from "../types";
 import type { SpellResultPayload } from "./SpellActionHandler";
 import type { ServerServices } from "../../ServerServices";
 import { getSpecialAttack } from "../../combat/SpecialAttackProvider";
@@ -57,6 +65,14 @@ import { getRangedImpactSound } from "../../combat/WeaponDataProvider";
 import { encodeMessage } from "../../../network/messages";
 import { WebSocket } from "ws";
 
+export type { SpellCastRequest };
+export type {
+    ActionScheduleResult,
+    ProjectileTiming,
+    SoundRequest,
+    SpotAnimRequest,
+};
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -71,33 +87,11 @@ export interface ProjectileParams {
     startDelay?: number;
 }
 
-/** Projectile timing estimation result. */
-export interface ProjectileTiming {
-    startDelay: number;
-    travelTime: number;
-    hitDelay: number;
-    lineOfSight?: boolean;
-}
-
 /** NPC combat sequence set. */
 export interface NpcCombatSequences {
     attack?: number;
     block?: number;
     death?: number;
-}
-
-/** Spell cast request for autocast handling. */
-export interface SpellCastRequest {
-    spellId: number;
-    modifiers?: {
-        isAutocast?: boolean;
-        castMode?: "autocast" | "defensive_autocast";
-    };
-    target?: {
-        type: "npc" | "player";
-        npcId?: number;
-        playerId?: number;
-    };
 }
 
 /** Hit payload from combat action data. */
@@ -116,27 +110,6 @@ export interface SpecialAttackPayload {
         drainMagicByDamage?: boolean;
         drainCombatStatByDamage?: boolean;
     };
-}
-
-/** Spot animation request. */
-export interface SpotAnimRequest {
-    tick: number;
-    playerId?: number;
-    npcId?: number;
-    slot?: number;
-    spotId: number;
-    delay?: number;
-    height?: number;
-    tile?: { x: number; y: number; level?: number };
-}
-
-/** Sound broadcast request. */
-export interface SoundRequest {
-    soundId: number;
-    x: number;
-    y: number;
-    level: number;
-    delay?: number;
 }
 
 /** Chat message request. */
@@ -160,13 +133,7 @@ export type CombatScheduledActionKind =
     | "combat.companionHit";
 
 export type ActionScheduleRequest<K extends CombatScheduledActionKind = CombatScheduledActionKind> =
-    ActionRequest<K>;
-
-/** Action scheduler result. */
-export interface ActionScheduleResult {
-    ok: boolean;
-    reason?: string;
-}
+    SharedActionScheduleRequest<K>;
 
 /** Interaction state for player. */
 export interface InteractionState {
@@ -655,7 +622,7 @@ export class CombatActionHandler {
             processSpellCastRequest: (player, request) =>
                 svc.spellActionHandler!.processSpellCastRequest(
                     player,
-                    request as unknown as import("./SpellActionHandler").SpellCastRequest,
+                    request,
                     svc.ticker.currentTick(),
                 ),
             queueSpellResult: (playerId, result) => svc.broadcastService.queueSpellResult(playerId, result),

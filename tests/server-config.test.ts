@@ -22,4 +22,22 @@ describe("createServerConfig", () => {
         expect(config.hostedSessionSecret).toBe("hosted-secret");
         expect(config.hostedSessionIssuerSecret).toBe("issuer-secret");
     });
+
+    test("enables spacetime config when uri and database are set", () => {
+        const config = createServerConfig(
+            {
+                SPACETIMEDB_URI: " wss://spacetime.example/ws ",
+                SPACETIMEDB_DATABASE: " scape-control ",
+                SPACETIMEDB_TOKEN: " token-123 ",
+                SPACETIMEDB_CONNECT_TIMEOUT_MS: "2500",
+            },
+            { gamemode: "vanilla" },
+        );
+
+        expect(config.spacetimeEnabled).toBe(true);
+        expect(config.spacetimeUri).toBe("wss://spacetime.example/ws");
+        expect(config.spacetimeDatabase).toBe("scape-control");
+        expect(config.spacetimeToken).toBe("token-123");
+        expect(config.spacetimeConnectTimeoutMs).toBe(2500);
+    });
 });

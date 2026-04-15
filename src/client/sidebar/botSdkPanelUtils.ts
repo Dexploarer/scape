@@ -48,6 +48,18 @@ export function buildBotSdkSteerCommand(input: string): string | undefined {
     return `::steer ${directive}`;
 }
 
+export function appendBotSdkDirectiveContext(input: string, context: string): string {
+    const normalizedInput = normalizeBotSdkDirective(input);
+    const normalizedContext = String(context ?? "").trim();
+    if (!normalizedContext) {
+        return normalizedInput;
+    }
+    if (!normalizedInput) {
+        return normalizedContext;
+    }
+    return `${normalizedInput}\n\n${normalizedContext}`;
+}
+
 export function extractBotSdkFeedbackFromChat(message: {
     messageType?: string;
     text?: string;
@@ -60,10 +72,31 @@ export function extractBotSdkFeedbackFromChat(message: {
     if (/^Steered \d+ agent(?:s)?\.$/.test(text)) {
         return { kind: "success", text };
     }
+    if (/^Installed script on \d+ agent(?:s)?\.$/.test(text)) {
+        return { kind: "success", text };
+    }
+    if (/^Cleared scripts on \d+ agent(?:s)?\.$/.test(text)) {
+        return { kind: "success", text };
+    }
+    if (/^Interrupted \d+ agent(?:s)? with [A-Z0-9_:-]+\.$/.test(text)) {
+        return { kind: "success", text };
+    }
     if (text === "No connected 'scape agents to steer.") {
         return { kind: "error", text };
     }
+    if (text === "No connected 'scape agents accepted the script.") {
+        return { kind: "error", text };
+    }
+    if (text === "No connected 'scape agents had an active script.") {
+        return { kind: "error", text };
+    }
+    if (/^No connected 'scape agents handled interrupt [A-Z0-9_:-]+\.$/.test(text)) {
+        return { kind: "error", text };
+    }
     if (text === "Usage: ::steer <directive text>") {
+        return { kind: "error", text };
+    }
+    if (text.startsWith("Bot SDK script error: ")) {
         return { kind: "error", text };
     }
 

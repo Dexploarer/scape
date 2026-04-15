@@ -10,6 +10,7 @@ import {
     MODIFIER_FLAG_CTRL,
     MODIFIER_FLAG_CTRL_SHIFT,
 } from "../../../src/shared/input/modifierFlags";
+import type { AgentScriptSpec } from "../../../src/shared/agent/AgentScript";
 import type { NpcState, NpcSpawnConfig } from "../game/npc";
 import type { PlayerState } from "../game/player";
 import type { ScriptDialogRequest, WidgetOpenHandler } from "../game/scripts/types";
@@ -22,6 +23,11 @@ import type { IndexedMenuRequest } from "./managers/Cs2ModalManager";
 import type { NotificationPayload, ServerToClient } from "./messages";
 import type { InterfaceService } from "../widgets/InterfaceService";
 import type { GamemodeDefinition, GamemodeUiController } from "../game/gamemodes/GamemodeDefinition";
+import type {
+    BotSdkJournalSnapshot,
+    BotSdkProposalDecisionResult,
+    BotSdkScriptBroadcastResult,
+} from "./botsdk/BotSdkServer";
 
 // ============================================================================
 // Payload Interfaces
@@ -260,6 +266,34 @@ export interface MessageHandlerServices {
         fromPlayerId?: number,
         fromPlayerName?: string,
     ) => number;
+    controlBotSdkScripts?: (
+        payload:
+            | {
+                  operation: "install";
+                  script: AgentScriptSpec;
+                  targetAgentId?: string;
+                  targetPlayerId?: number;
+              }
+            | {
+                  operation: "clear";
+                  reason?: string;
+                  targetAgentId?: string;
+                  targetPlayerId?: number;
+              }
+            | {
+                  operation: "interrupt";
+                  interrupt: string;
+                  reason?: string;
+                  targetAgentId?: string;
+                  targetPlayerId?: number;
+              },
+    ) => BotSdkScriptBroadcastResult;
+    getBotSdkJournalSnapshot?: (targetPlayerId?: number) => BotSdkJournalSnapshot;
+    decideBotSdkScriptProposal?: (payload: {
+        proposalId: string;
+        decision: "approve_install" | "reject";
+        reason?: string;
+    }) => BotSdkProposalDecisionResult;
     eventBus?: import("../game/events/GameEventBus").GameEventBus;
     findScriptCommand: (name: string) => ((event: { player: PlayerState; command: string; args: string[]; tick: number; services: Record<string, unknown> }) => string | void | Promise<string | void>) | undefined;
     getCurrentTick: () => number;

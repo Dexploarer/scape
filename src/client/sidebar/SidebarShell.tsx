@@ -1,9 +1,21 @@
 import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
-import { isServerConnected, sendChat, subscribeChatMessages } from "../../network/ServerConnection";
+import {
+    type BotSdkJournalSnapshot,
+    isServerConnected,
+    requestBotSdkScriptProposalSnapshot,
+    sendBotSdkScriptControl,
+    sendBotSdkScriptProposalDecision,
+    sendChat,
+    subscribeBotSdkScriptProposalSnapshot,
+    subscribeChatMessages,
+    subscribeNpcInfo,
+    subscribePlayerSync,
+} from "../../network/ServerConnection";
 import type { OsrsClient } from "../OsrsClient";
 import type { GroundItemsPluginConfig } from "../plugins/grounditems/types";
 import type { InteractHighlightPluginConfig } from "../plugins/interacthighlight/types";
+import type { NotesPluginJournalTabId, NotesPluginScriptProposal } from "../plugins/notes/types";
 import type { TileMarkersPluginConfig } from "../plugins/tilemarkers/types";
 import "./SidebarShell.css";
 import type { SidebarStore } from "./SidebarStore";
@@ -11,12 +23,28 @@ import {
     BOT_SDK_DRAFT_STORAGE_KEY,
     BOT_SDK_PRESET_DIRECTIVES,
     type BotSdkFeedback,
+    appendBotSdkDirectiveContext,
     buildBotSdkSteerCommand,
     extractBotSdkFeedbackFromChat,
     normalizeBotSdkDirective,
 } from "./botSdkPanelUtils";
 import type { ClientSidebarEntryData, SidebarPanelId } from "./entries";
+import {
+    JOURNAL_SCRIPT_TEMPLATES,
+    JOURNAL_RUNTIME_SCRIPT_TEMPLATES,
+    JOURNAL_SECTIONS,
+    appendJournalTemplate,
+    buildJournalFinancialSummary,
+    buildJournalPeopleSummary,
+    buildJournalScriptProposalFromMessage,
+    buildJournalScriptTargets,
+    buildJournalDirectiveContext,
+    findJournalSection,
+    parseJournalScriptSpec,
+    type JournalSummaryGroup,
+} from "./journalPanelUtils";
 import type { SidebarRailIconRenderer } from "./pluginTypes";
+import type { AgentScriptSpec } from "../../shared/agent/AgentScript";
 
 function toColorInput(color: number): string {
     const hex = (Math.max(0, color | 0) & 0xffffff).toString(16).padStart(6, "0");
@@ -57,30 +85,643 @@ function SidebarToggleGlyph({ open }: { open: boolean }): JSX.Element {
     );
 }
 
-function SidebarNotesPanel({ osrsClient }: { osrsClient: OsrsClient }): JSX.Element {
+function useJournalLiveVersion(osrsClient: OsrsClient): number {
+    const [version, setVersion] = useState(0);
+
+    useEffect(() => {
+        const bump = () => {
+            setVersion((current) => current + 1);
+        };
+
+        const unsubscribeInventory = osrsClient.inventory.subscribe(() => {
+            bump();
+        });
+        const unsubscribeBank = osrsClient.bankInventory.subscribe(() => {
+            bump();
+        });
+        const unsubscribePlayers = subscribePlayerSync(() => {
+            bump();
+        });
+        const unsubscribeNpcs = subscribeNpcInfo(() => {
+            bump();
+        });
+
+        return () => {
+            unsubscribeInventory();
+            unsubscribeBank();
+            unsubscribePlayers();
+            unsubscribeNpcs();
+        };
+    }, [osrsClient]);
+
+    return version;
+}
+
+function SidebarJournalPanel({ osrsClient }: { osrsClient: OsrsClient }): JSX.Element {
     const plugin = osrsClient.notesPlugin;
+    const [scriptFeedback, setScriptFeedback] = useState<BotSdkFeedback | null>(null);
+    const [selectedScriptTarget, setSelectedScriptTarget] = useState<string>("all");
+    const [remoteScriptJournal, setRemoteScriptJournal] = useState<BotSdkJournalSnapshot>({
+        targetPlayerId: undefined as number | undefined,
+        proposals: [] as Array<{
+            proposalId: string;
+            playerId: number;
+            agentId: string;
+            displayName: string;
+            summary?: string;
+            script: AgentScriptSpec;
+            proposedAt: number;
+        }>,
+        activities: [] as Array<{
+            id: string;
+            kind: "proposal" | "decision" | "control";
+            text: string;
+            timestamp: number;
+            playerId?: number;
+            proposalId?: string;
+        }>,
+    });
     const subscribe = useCallback((listener: () => void) => plugin.subscribe(listener), [plugin]);
     const getSnapshot = useCallback(() => plugin.getState(), [plugin]);
     const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+    useJournalLiveVersion(osrsClient);
+    const activeSection = useMemo(
+        () => findJournalSection(state.config.activeTab),
+        [state.config.activeTab],
+    );
+    const totalCharacters = useMemo(
+        () =>
+            JOURNAL_SECTIONS.reduce(
+                (count, section) => count + state.config.journal[section.entryKey].trim().length,
+                0,
+            ),
+        [state.config.journal],
+    );
+    const populatedSections = useMemo(
+        () =>
+            JOURNAL_SECTIONS.filter(
+                (section) => state.config.journal[section.entryKey].trim().length > 0,
+            ).length,
+        [state.config.journal],
+    );
+    const peopleSummary = buildJournalPeopleSummary(osrsClient);
+    const financialSummary = buildJournalFinancialSummary(osrsClient);
+    const scriptTargets = buildJournalScriptTargets(osrsClient);
+    const selectedScriptTargetId =
+        selectedScriptTarget === "all" ? undefined : Number(selectedScriptTarget);
+    const selectedScriptTargetEntry = useMemo(
+        () =>
+            selectedScriptTargetId === undefined
+                ? undefined
+                : scriptTargets.find((target) => target.playerId === selectedScriptTargetId),
+        [scriptTargets, selectedScriptTargetId],
+    );
 
+    const onSelectTab = useCallback(
+        (tabId: NotesPluginJournalTabId) => {
+            plugin.setActiveTab(tabId);
+        },
+        [plugin],
+    );
     const onChange = useCallback(
         (value: string) => {
-            plugin.setConfig({ notes: value });
+            plugin.setJournalEntry(activeSection.id, value);
+        },
+        [activeSection.id, plugin],
+    );
+    const onInsertTemplate = useCallback(
+        (template: string) => {
+            const currentEntry = state.config.journal[activeSection.entryKey];
+            plugin.setJournalEntry(activeSection.id, appendJournalTemplate(currentEntry, template));
+        },
+        [activeSection.entryKey, activeSection.id, plugin, state.config.journal],
+    );
+    const currentScriptEntry = state.config.journal.scripts;
+    const scriptProposals = state.config.scriptProposals;
+    const scriptActivity = state.config.scriptActivity;
+    const remoteScriptProposals = remoteScriptJournal.proposals;
+    const combinedScriptActivity = useMemo(
+        () =>
+            [...remoteScriptJournal.activities, ...scriptActivity]
+                .sort((left, right) => right.timestamp - left.timestamp)
+                .slice(0, 8),
+        [remoteScriptJournal.activities, scriptActivity],
+    );
+
+    useEffect(() => {
+        if (selectedScriptTarget === "all") {
+            return;
+        }
+        if (!scriptTargets.some((target) => String(target.playerId) === selectedScriptTarget)) {
+            setSelectedScriptTarget("all");
+        }
+    }, [scriptTargets, selectedScriptTarget]);
+
+    useEffect(() => {
+        return subscribeChatMessages((message) => {
+            const now = Date.now();
+            const feedback = extractBotSdkFeedbackFromChat(message);
+            if (feedback) {
+                setScriptFeedback(feedback);
+                plugin.appendScriptActivity({
+                    id: `${now}:${feedback.kind}:${feedback.text}`,
+                    kind: feedback.kind,
+                    text: feedback.text,
+                    timestamp: now,
+                });
+            }
+
+            const proposal = buildJournalScriptProposalFromMessage({
+                text: message.text,
+                from: message.from,
+                playerId: message.playerId,
+                timestamp: now,
+            });
+            if (proposal) {
+                const result = plugin.upsertScriptProposal(proposal);
+                if (result !== "unchanged") {
+                    plugin.appendScriptActivity({
+                        id: `${proposal.id}:${proposal.capturedAt}`,
+                        kind: "proposal",
+                        text: `Captured script proposal ${proposal.scriptId}${proposal.sourceName ? ` from ${proposal.sourceName}` : ""}.`,
+                        timestamp: proposal.capturedAt,
+                    });
+                }
+            }
+        });
+    }, [plugin]);
+
+    useEffect(
+        () =>
+            subscribeBotSdkScriptProposalSnapshot((snapshot) => {
+                setRemoteScriptJournal(snapshot);
+            }),
+        [],
+    );
+
+    useEffect(() => {
+        if (activeSection.id !== "scripts" || !isServerConnected()) {
+            return;
+        }
+        requestBotSdkScriptProposalSnapshot(selectedScriptTargetId);
+    }, [activeSection.id, selectedScriptTargetId]);
+
+    const installScriptSpec = useCallback(
+        (script: AgentScriptSpec, scriptId: string) => {
+            sendBotSdkScriptControl({
+                operation: "install",
+                script,
+                targetPlayerId: selectedScriptTargetId,
+            });
+            setScriptFeedback({
+                kind: "info",
+                text:
+                    selectedScriptTargetEntry
+                        ? `Installing script ${scriptId} on ${selectedScriptTargetEntry.name}...`
+                        : `Installing script ${scriptId} on all connected agents...`,
+            });
+        },
+        [selectedScriptTargetEntry, selectedScriptTargetId],
+    );
+
+    const onInstallScript = useCallback(() => {
+        if (!isServerConnected()) {
+            setScriptFeedback({
+                kind: "error",
+                text: "Game server is disconnected.",
+            });
+            return;
+        }
+        const parsed = parseJournalScriptSpec(currentScriptEntry);
+        if (!parsed.ok) {
+            setScriptFeedback({
+                kind: "error",
+                text: parsed.error,
+            });
+            return;
+        }
+        installScriptSpec(parsed.script, parsed.script.scriptId);
+    }, [currentScriptEntry, installScriptSpec]);
+
+    const onClearScript = useCallback(() => {
+        if (!isServerConnected()) {
+            setScriptFeedback({
+                kind: "error",
+                text: "Game server is disconnected.",
+            });
+            return;
+        }
+        sendBotSdkScriptControl({
+            operation: "clear",
+            reason: "operator_journal_clear",
+            targetPlayerId: selectedScriptTargetId,
+        });
+        setScriptFeedback({
+            kind: "info",
+            text:
+                selectedScriptTargetEntry
+                    ? `Clearing active scripts on ${selectedScriptTargetEntry.name}...`
+                    : "Clearing active scripts on all connected agents...",
+        });
+    }, [selectedScriptTargetEntry, selectedScriptTargetId]);
+
+    const onLoadProposal = useCallback(
+        (proposal: NotesPluginScriptProposal) => {
+            plugin.setJournalEntry("scripts", proposal.scriptText);
+            setScriptFeedback({
+                kind: "info",
+                text: `Loaded proposal ${proposal.scriptId} into the Scripts editor.`,
+            });
         },
         [plugin],
     );
 
+    const onInstallProposal = useCallback(
+        (proposal: NotesPluginScriptProposal) => {
+            if (!isServerConnected()) {
+                setScriptFeedback({
+                    kind: "error",
+                    text: "Game server is disconnected.",
+                });
+                return;
+            }
+            const parsed = parseJournalScriptSpec(proposal.scriptText);
+            if (!parsed.ok) {
+                setScriptFeedback({
+                    kind: "error",
+                    text: parsed.error,
+                });
+                return;
+            }
+            installScriptSpec(parsed.script, parsed.script.scriptId);
+        },
+        [installScriptSpec],
+    );
+
+    const onDismissProposal = useCallback(
+        (proposalId: string) => {
+            plugin.dismissScriptProposal(proposalId);
+        },
+        [plugin],
+    );
+
+    const onLoadRemoteProposal = useCallback(
+        (proposal: (typeof remoteScriptProposals)[number]) => {
+            plugin.setJournalEntry("scripts", JSON.stringify(proposal.script, null, 2));
+            setScriptFeedback({
+                kind: "info",
+                text: `Loaded live proposal ${proposal.proposalId} from ${proposal.displayName}.`,
+            });
+        },
+        [plugin],
+    );
+
+    const onApproveRemoteProposal = useCallback(
+        (proposal: (typeof remoteScriptProposals)[number]) => {
+            if (!isServerConnected()) {
+                setScriptFeedback({
+                    kind: "error",
+                    text: "Game server is disconnected.",
+                });
+                return;
+            }
+            sendBotSdkScriptProposalDecision({
+                proposalId: proposal.proposalId,
+                decision: "approve_install",
+            });
+            requestBotSdkScriptProposalSnapshot(selectedScriptTargetId);
+            setScriptFeedback({
+                kind: "info",
+                text: `Approving ${proposal.displayName}'s proposal ${proposal.proposalId}...`,
+            });
+        },
+        [selectedScriptTargetId],
+    );
+
+    const onRejectRemoteProposal = useCallback(
+        (proposal: (typeof remoteScriptProposals)[number]) => {
+            if (!isServerConnected()) {
+                setScriptFeedback({
+                    kind: "error",
+                    text: "Game server is disconnected.",
+                });
+                return;
+            }
+            sendBotSdkScriptProposalDecision({
+                proposalId: proposal.proposalId,
+                decision: "reject",
+                reason: "operator_journal_reject",
+            });
+            requestBotSdkScriptProposalSnapshot(selectedScriptTargetId);
+            setScriptFeedback({
+                kind: "info",
+                text: `Rejecting ${proposal.displayName}'s proposal ${proposal.proposalId}...`,
+            });
+        },
+        [selectedScriptTargetId],
+    );
+
+    const onInterruptScript = useCallback(() => {
+        if (!isServerConnected()) {
+            setScriptFeedback({
+                kind: "error",
+                text: "Game server is disconnected.",
+            });
+            return;
+        }
+        sendBotSdkScriptControl({
+            operation: "interrupt",
+            interrupt: "INTERRUPT_STOP",
+            reason: "operator_journal_interrupt",
+            targetPlayerId: selectedScriptTargetId,
+        });
+        setScriptFeedback({
+            kind: "info",
+            text:
+                selectedScriptTargetEntry
+                    ? `Interrupting active scripts on ${selectedScriptTargetEntry.name}...`
+                    : "Interrupting active scripts on all connected agents...",
+        });
+    }, [selectedScriptTargetEntry, selectedScriptTargetId]);
+
     return (
-        <div className="rl-sidebar-panel-content">
-            <div className="rl-sidebar-panel-title">Notes</div>
-            <textarea
-                className="rl-sidebar-notes-input"
-                value={state.config.notes}
-                onChange={(event) => onChange(event.target.value)}
-                placeholder="Write notes for plugin work here."
-            />
+        <div className="rl-sidebar-panel-content rl-sidebar-scrollable">
+            <div className="rl-sidebar-panel-title">Agent Journal</div>
+            <p className="rl-sidebar-panel-copy">
+                Keep one durable operating log for the current agent. Scripts, people, memories,
+                and money all live here instead of in a single scratchpad.
+            </p>
+            <div className="rl-sidebar-journal-meta">
+                <span>{populatedSections} / {JOURNAL_SECTIONS.length} sections active</span>
+                <span>{totalCharacters} chars logged</span>
+            </div>
+            <div className="rl-sidebar-journal-tabs" role="tablist" aria-label="Agent journal sections">
+                {JOURNAL_SECTIONS.map((section) => (
+                    <button
+                        key={section.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={activeSection.id === section.id}
+                        className={`rl-sidebar-journal-tab ${
+                            activeSection.id === section.id ? "active" : ""
+                        }`}
+                        onClick={() => onSelectTab(section.id)}
+                    >
+                        {section.label}
+                    </button>
+                ))}
+            </div>
+            <div className="rl-sidebar-journal-section">
+                <div className="rl-sidebar-journal-section-title">{activeSection.label}</div>
+                <p className="rl-sidebar-panel-copy">{activeSection.description}</p>
+                {activeSection.id === "scripts" ? (
+                    <>
+                        <div className="rl-sidebar-field">
+                            <span>Planning templates</span>
+                            <div className="rl-sidebar-action-grid">
+                                {JOURNAL_SCRIPT_TEMPLATES.map((template) => (
+                                    <button
+                                        key={template.id}
+                                        type="button"
+                                        className="rl-sidebar-chip"
+                                        onClick={() => onInsertTemplate(template.content)}
+                                    >
+                                        {template.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="rl-sidebar-field">
+                            <span>Installable JSON templates</span>
+                            <div className="rl-sidebar-action-grid">
+                                {JOURNAL_RUNTIME_SCRIPT_TEMPLATES.map((template) => (
+                                    <button
+                                        key={template.id}
+                                        type="button"
+                                        className="rl-sidebar-chip"
+                                        onClick={() => plugin.setJournalEntry("scripts", template.content)}
+                                    >
+                                        {template.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="rl-sidebar-panel-copy">
+                                Installable specs accept raw JSON or a fenced
+                                {" "}
+                                <span className="rl-sidebar-inline-code">```json</span>
+                                {" "}
+                                block.
+                            </div>
+                        </div>
+                        <label className="rl-sidebar-field">
+                            <span>Target</span>
+                            <select
+                                value={selectedScriptTarget}
+                                onChange={(event) => setSelectedScriptTarget(event.target.value)}
+                            >
+                                <option value="all">All connected agents</option>
+                                {scriptTargets.map((target) => (
+                                    <option key={target.playerId} value={String(target.playerId)}>
+                                        {`${target.name} (lvl ${target.combatLevel}, ${target.distance} tiles)`}
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="rl-sidebar-panel-copy">
+                                Target a visible in-world player branch or leave this on broadcast to steer every connected agent.
+                            </div>
+                        </label>
+                        {scriptProposals.length > 0 ? (
+                            <div className="rl-sidebar-field">
+                                <span>Proposal Inbox</span>
+                                <div className="rl-sidebar-journal-summaries">
+                                    {scriptProposals.map((proposal) => (
+                                        <div key={proposal.id} className="rl-sidebar-journal-summary-card">
+                                            <div className="rl-sidebar-journal-summary-title">
+                                                {proposal.name ?? proposal.scriptId}
+                                            </div>
+                                            <ul className="rl-sidebar-journal-summary-list">
+                                                <li>
+                                                    {proposal.goal ?? "No explicit goal attached."}
+                                                </li>
+                                                <li>
+                                                    {proposal.sourceName
+                                                        ? `From ${proposal.sourceName}`
+                                                        : "Source unknown"}
+                                                </li>
+                                                <li>
+                                                    {`Captured ${formatJournalTimestamp(proposal.capturedAt)}`}
+                                                </li>
+                                            </ul>
+                                            <div className="rl-sidebar-button-row">
+                                                <button
+                                                    type="button"
+                                                    className="rl-sidebar-action-button"
+                                                    onClick={() => onLoadProposal(proposal)}
+                                                >
+                                                    Load
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="rl-sidebar-action-button primary"
+                                                    onClick={() => onInstallProposal(proposal)}
+                                                >
+                                                    Install
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="rl-sidebar-action-button"
+                                                    onClick={() => onDismissProposal(proposal.id)}
+                                                >
+                                                    Dismiss
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
+                        {remoteScriptProposals.length > 0 ? (
+                            <div className="rl-sidebar-field">
+                                <span>Live Agent Proposals</span>
+                                <div className="rl-sidebar-journal-summaries">
+                                    {remoteScriptProposals.map((proposal) => (
+                                        <div
+                                            key={proposal.proposalId}
+                                            className="rl-sidebar-journal-summary-card"
+                                        >
+                                            <div className="rl-sidebar-journal-summary-title">
+                                                {proposal.summary ?? proposal.proposalId}
+                                            </div>
+                                            <ul className="rl-sidebar-journal-summary-list">
+                                                <li>{`From ${proposal.displayName}`}</li>
+                                                <li>{proposal.agentId}</li>
+                                                <li>{`Captured ${formatJournalTimestamp(proposal.proposedAt)}`}</li>
+                                            </ul>
+                                            <div className="rl-sidebar-button-row">
+                                                <button
+                                                    type="button"
+                                                    className="rl-sidebar-action-button"
+                                                    onClick={() => onLoadRemoteProposal(proposal)}
+                                                >
+                                                    Load
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="rl-sidebar-action-button primary"
+                                                    onClick={() => onApproveRemoteProposal(proposal)}
+                                                >
+                                                    Approve + Install
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="rl-sidebar-action-button"
+                                                    onClick={() => onRejectRemoteProposal(proposal)}
+                                                >
+                                                    Reject
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
+                    </>
+                ) : null}
+                {activeSection.id === "people" ? (
+                    <SidebarJournalSummary groups={peopleSummary} />
+                ) : null}
+                {activeSection.id === "financial_status" ? (
+                    <SidebarJournalSummary groups={financialSummary} />
+                ) : null}
+                <textarea
+                    className="rl-sidebar-notes-input rl-sidebar-journal-textarea"
+                    value={state.config.journal[activeSection.entryKey]}
+                    onChange={(event) => onChange(event.target.value)}
+                    placeholder={activeSection.placeholder}
+                />
+                {activeSection.id === "scripts" ? (
+                    <>
+                        <div className="rl-sidebar-button-row">
+                            <button
+                                type="button"
+                                className="rl-sidebar-action-button primary"
+                                onClick={onInstallScript}
+                            >
+                                Install Script
+                            </button>
+                            <button
+                                type="button"
+                                className="rl-sidebar-action-button"
+                                onClick={onInterruptScript}
+                            >
+                                Interrupt Stop
+                            </button>
+                            <button
+                                type="button"
+                                className="rl-sidebar-action-button"
+                                onClick={onClearScript}
+                            >
+                                Clear Script
+                            </button>
+                        </div>
+                        {scriptFeedback ? (
+                            <div className={`rl-sidebar-status ${scriptFeedback.kind}`}>{scriptFeedback.text}</div>
+                        ) : (
+                            <div className="rl-sidebar-status info">
+                                Script control feedback appears here after the server responds.
+                            </div>
+                        )}
+                        {combinedScriptActivity.length > 0 ? (
+                            <div className="rl-sidebar-field">
+                                <span>Recent Activity</span>
+                                <div className="rl-sidebar-journal-summaries">
+                                    <div className="rl-sidebar-journal-summary-card">
+                                        <ul className="rl-sidebar-journal-summary-list">
+                                            {combinedScriptActivity.map((entry) => (
+                                                <li key={entry.id}>
+                                                    {`${formatJournalTimestamp(entry.timestamp)} · ${entry.text}`}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : null}
+                    </>
+                ) : null}
+            </div>
+            <div className="rl-sidebar-panel-copy">
+                Local journal text stays in this browser profile. Live script proposals and decisions sync through the connected world runtime when available.
+            </div>
         </div>
     );
+}
+
+function SidebarJournalSummary({ groups }: { groups: ReadonlyArray<JournalSummaryGroup> }): JSX.Element {
+    return (
+        <div className="rl-sidebar-journal-summaries">
+            {groups.map((group) => (
+                <div key={group.title} className="rl-sidebar-journal-summary-card">
+                    <div className="rl-sidebar-journal-summary-title">{group.title}</div>
+                    <ul className="rl-sidebar-journal-summary-list">
+                        {group.lines.map((line) => (
+                            <li key={line}>{line}</li>
+                        ))}
+                    </ul>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function formatJournalTimestamp(timestamp: number): string {
+    if (!Number.isFinite(timestamp)) {
+        return "just now";
+    }
+    return new Date(timestamp).toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+    });
 }
 
 function loadBotSdkDraft(): string {
@@ -95,10 +736,36 @@ function loadBotSdkDraft(): string {
     }
 }
 
-function BotSdkPanel(): JSX.Element {
+function BotSdkPanel({ osrsClient }: { osrsClient: OsrsClient }): JSX.Element {
     const [draft, setDraft] = useState<string>(() => loadBotSdkDraft());
     const [lastFeedback, setLastFeedback] = useState<BotSdkFeedback | null>(null);
     const [lastDirective, setLastDirective] = useState<string>("");
+    const plugin = osrsClient.notesPlugin;
+    const subscribe = useCallback((listener: () => void) => plugin.subscribe(listener), [plugin]);
+    const getSnapshot = useCallback(() => plugin.getState(), [plugin]);
+    const journalState = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+    useJournalLiveVersion(osrsClient);
+    const peopleSummary = buildJournalPeopleSummary(osrsClient);
+    const financialSummary = buildJournalFinancialSummary(osrsClient);
+    const activeJournalContext = useMemo(
+        () =>
+            buildJournalDirectiveContext({
+                config: journalState.config,
+                activeTabOnly: true,
+                peopleSummary,
+                financialSummary,
+            }),
+        [financialSummary, journalState.config, peopleSummary],
+    );
+    const fullJournalContext = useMemo(
+        () =>
+            buildJournalDirectiveContext({
+                config: journalState.config,
+                peopleSummary,
+                financialSummary,
+            }),
+        [financialSummary, journalState.config, peopleSummary],
+    );
 
     useEffect(() => {
         if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
@@ -148,6 +815,12 @@ function BotSdkPanel(): JSX.Element {
             text: "Dispatching steer directive...",
         });
     }, [draft]);
+    const onAppendJournalContext = useCallback(
+        (context: string) => {
+            setDraft((current) => appendBotSdkDirectiveContext(current, context));
+        },
+        [],
+    );
 
     const onKeyDown = useCallback(
         (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
@@ -206,6 +879,33 @@ function BotSdkPanel(): JSX.Element {
                             {preset.label}
                         </button>
                     ))}
+                </div>
+            </div>
+
+            <div className="rl-sidebar-field">
+                <span>Journal assist</span>
+                <div className="rl-sidebar-action-grid">
+                    <button
+                        type="button"
+                        className="rl-sidebar-chip"
+                        onClick={() => onAppendJournalContext(activeJournalContext)}
+                    >
+                        Insert Active Tab
+                    </button>
+                    <button
+                        type="button"
+                        className="rl-sidebar-chip"
+                        onClick={() => onAppendJournalContext(fullJournalContext)}
+                    >
+                        Insert Full Journal
+                    </button>
+                </div>
+                <div className="rl-sidebar-panel-copy">
+                    Active tab:
+                    {" "}
+                    <span className="rl-sidebar-inline-code">
+                        {findJournalSection(journalState.config.activeTab).label}
+                    </span>
                 </div>
             </div>
 
@@ -833,8 +1533,8 @@ function PluginHubPanel({ osrsClient }: { osrsClient: OsrsClient }): JSX.Element
             },
             {
                 id: "notes",
-                name: "Notes",
-                description: "Persistent local notes for client/plugin tasks.",
+                name: "Agent Journal",
+                description: "Persistent journal tabs for scripts, people, memories, and financial status.",
                 enabled: notesState.config.enabled,
                 setEnabled: (enabled: boolean) => {
                     notesPlugin.setConfig({ enabled });
@@ -892,11 +1592,11 @@ export interface SidebarShellProps {
 
 const DEFAULT_PANEL_RENDERERS: Record<string, SidebarPanelRenderer> = {
     plugin_hub: (ctx) => <PluginHubPanel osrsClient={ctx.osrsClient} />,
-    bot_sdk: () => <BotSdkPanel />,
+    bot_sdk: (ctx) => <BotSdkPanel osrsClient={ctx.osrsClient} />,
     ground_items: (ctx) => <GroundItemsPanel osrsClient={ctx.osrsClient} />,
     interact_highlight: (ctx) => <InteractHighlightPanel osrsClient={ctx.osrsClient} />,
     tile_markers: (ctx) => <TileMarkersPanel osrsClient={ctx.osrsClient} />,
-    notes: (ctx) => <SidebarNotesPanel osrsClient={ctx.osrsClient} />,
+    notes: (ctx) => <SidebarJournalPanel osrsClient={ctx.osrsClient} />,
 };
 
 export function SidebarShell({

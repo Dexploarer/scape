@@ -1,4 +1,5 @@
-import { QueueTask, TaskGenerator, createTask } from "./QueueTask";
+import { QueueTask, createTask } from "./QueueTask";
+import type { TaskGenerator } from "./QueueTask";
 import { TaskPriority } from "./TaskPriority";
 
 type MenuAwareContext = {

@@ -209,7 +209,7 @@ function sanitizeCollectionLogSnapshot(
     return result;
 }
 
-function mergeStates(
+export function mergePersistentVars(
     defaults?: PlayerPersistentVars,
     overrides?: PlayerPersistentVars,
 ): PlayerPersistentVars | undefined {
@@ -513,7 +513,7 @@ export class PlayerPersistence implements PersistenceProvider {
     }
 
     applyToPlayer(player: PlayerState, key: string): void {
-        const snapshot = mergeStates(this.defaults, this.store.get(key));
+        const snapshot = mergePersistentVars(this.defaults, this.store.get(key));
         player.applyPersistentVars(snapshot);
     }
 

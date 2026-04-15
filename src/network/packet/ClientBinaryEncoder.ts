@@ -310,6 +310,7 @@ export class ClientBinaryEncoder {
         this.buffer.writeInt(payload.quantity ?? 1);
         this.buffer.writeString(payload.option ?? "");
         this.buffer.writeByte(payload.opNum ?? 0);
+        this.buffer.writeByte(payload.modifierFlags ?? 0);
         return this.buffer.toPacket(ClientPacketId.GROUND_ITEM_ACTION);
     }
 

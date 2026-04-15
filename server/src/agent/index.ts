@@ -7,10 +7,23 @@
 
 export type { AgentIdentity } from "./AgentIdentity";
 export type { AgentComponent } from "./AgentComponent";
+export type {
+    AgentScriptSpec,
+    AgentScriptStep,
+    AgentScriptRuntimeState,
+    AgentScriptInterruptHandler,
+    AgentScriptCommand,
+} from "./AgentScript";
 export {
     AgentActionQueue,
     type AgentActionCommand,
 } from "./AgentActionQueue";
+export {
+    extractAgentScriptInterrupts,
+    getAgentScriptStep,
+    getNextSequentialStepId,
+    validateAgentScriptSpec,
+} from "./AgentScript";
 export type {
     AgentPerceptionSnapshot,
     AgentPerceptionSelf,

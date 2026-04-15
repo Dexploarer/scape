@@ -2,10 +2,15 @@ import path from "path";
 
 import { getCacheLoaderFactory } from "../../src/rs/cache/loader/CacheLoaderFactory";
 import { config } from "./config";
+import { SpacetimeControlPlaneClient } from "./controlplane/SpacetimeControlPlaneClient";
 import { initSpellWidgetMapping } from "./game/spells/SpellDataProvider";
 import { damageTracker } from "./game/combat/DamageTracker";
-import { createGamemode } from "./game/gamemodes/GamemodeRegistry";
+import { createGamemode, getGamemodeDataDir } from "./game/gamemodes/GamemodeRegistry";
 import { NpcManager } from "./game/npcManager";
+import type { ManagedAccountStore } from "./game/state/AccountStore";
+import type { ManagedPersistenceProvider } from "./game/state/PersistenceProvider";
+import { SpacetimeAccountStore } from "./game/state/SpacetimeAccountStore";
+import { SpacetimePersistenceProvider } from "./game/state/SpacetimePersistenceProvider";
 import { GameTicker } from "./game/ticker";
 import { WSServer } from "./network/wsServer";
 import { PathService } from "./pathfinding/PathService";
@@ -61,6 +66,42 @@ async function main() {
     }
     logger.info(`Boot: gamemode "${gamemode.name}" created`);
 
+    let accountStore: ManagedAccountStore | undefined;
+    let playerPersistence: ManagedPersistenceProvider | undefined;
+    let controlPlaneClient: SpacetimeControlPlaneClient | undefined;
+
+    if (config.spacetimeEnabled) {
+        logger.info(
+            `Boot: connecting shared SpacetimeDB control plane (${config.spacetimeDatabase})...`,
+        );
+        controlPlaneClient = new SpacetimeControlPlaneClient({
+            uri: config.spacetimeUri,
+            databaseName: config.spacetimeDatabase,
+            token: config.spacetimeToken || undefined,
+            connectTimeoutMs: config.spacetimeConnectTimeoutMs,
+        });
+        await controlPlaneClient.initialize();
+
+        accountStore = new SpacetimeAccountStore({
+            controlPlane: controlPlaneClient,
+            minPasswordLength: config.minPasswordLength,
+        });
+        playerPersistence = new SpacetimePersistenceProvider({
+            controlPlane: controlPlaneClient,
+            worldId: config.worldId,
+            worldName: config.serverName,
+            gamemodeId: gamemode.id,
+            dataDir: getGamemodeDataDir(gamemode.id),
+        });
+        await Promise.all([
+            accountStore.initialize?.(),
+            playerPersistence.initialize?.(),
+        ]);
+        logger.info("Boot: SpacetimeDB account + persistence adapters ready");
+    } else {
+        logger.info("Boot: SpacetimeDB disabled — using local JSON account/persistence stores");
+    }
+
     logger.info("Boot: constructing WebSocket server...");
     const server = new WSServer({
         host: config.host,
@@ -74,6 +115,9 @@ async function main() {
         serverName: config.serverName,
         maxPlayers: config.maxPlayers,
         gamemode,
+        accountStore,
+        playerPersistence,
+        controlPlaneClient,
     });
     logger.info("Boot: WebSocket server constructed");
 
@@ -90,8 +134,17 @@ async function main() {
     const shutdown = (signal: string) => () => {
         logger.info(`Received ${signal}, shutting down...`);
         ticker.stop();
-        gamemode.dispose?.();
-        process.exit(0);
+        Promise.resolve()
+            .then(async () => {
+                server.stop?.();
+                await playerPersistence?.dispose?.();
+                await accountStore?.dispose?.();
+                await controlPlaneClient?.disconnect();
+                gamemode.dispose?.();
+            })
+            .finally(() => {
+                process.exit(0);
+            });
     };
     process.on("SIGINT", shutdown("SIGINT"));
     process.on("SIGTERM", shutdown("SIGTERM"));

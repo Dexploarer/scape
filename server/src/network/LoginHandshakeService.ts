@@ -278,7 +278,7 @@ export class LoginHandshakeService {
         );
     }
 
-    handleHandshakeMessage(ws: WebSocket, payload: { name?: string; appearance?: AppearanceSetPacket; displayMode?: number }): void {
+    async handleHandshakeMessage(ws: WebSocket, payload: { name?: string; appearance?: AppearanceSetPacket; displayMode?: number }): Promise<void> {
         const parsed = { type: "handshake" as const, payload };
         try {
             const pendingLogin = this.consumePendingLoginState(ws);
@@ -359,7 +359,15 @@ export class LoginHandshakeService {
                         worldCharacterId: pendingLogin?.worldCharacterId,
                     });
                     p.__saveKey = saveKey;
+                    p.__principalId = pendingLogin?.principalId;
+                    p.__worldCharacterId = pendingLogin?.worldCharacterId;
                     try {
+                        await this.svc.playerPersistence.warmKey?.(saveKey, {
+                            worldId: pendingLogin?.worldId ?? this.svc.worldId,
+                            displayName: name,
+                            principalId: pendingLogin?.principalId,
+                            worldCharacterId: pendingLogin?.worldCharacterId,
+                        });
                         this.svc.playerPersistence.applyToPlayer(p, saveKey);
                     } catch (err) {
                         logger.warn("[player] failed to apply persistent vars", err);
@@ -389,6 +397,8 @@ export class LoginHandshakeService {
                         );
                     }
                 } else {
+                    p.__principalId = pendingLogin?.principalId ?? p.__principalId;
+                    p.__worldCharacterId = pendingLogin?.worldCharacterId ?? p.__worldCharacterId;
                     logger.info(
                         `[handshake] Resuming player ${name} at (${p.tileX}, ${p.tileY})`,
                     );
@@ -909,7 +919,14 @@ export class LoginHandshakeService {
                 this.handleLoginMessage(ws, parsed.payload);
                 return;
             } else if (parsed.type === "handshake") {
-                this.handleHandshakeMessage(ws, parsed.payload as any);
+                void this.handleHandshakeMessage(ws, parsed.payload as any).catch((err) => {
+                    logger.error("[handshake] failed", err);
+                    try {
+                        ws.close(1011, "handshake_failed");
+                    } catch (closeError) {
+                        logger.warn("[handshake] failed to close socket", closeError);
+                    }
+                });
                 return;
             } else {
                 this.svc.messageRouter!.dispatch(ws, parsed) || logger.info(`[binary] Unhandled: ${parsed.type}`);

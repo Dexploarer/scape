@@ -169,4 +169,5 @@ export const VENGEANCE_ACTIVE_TIMER: TimerKey = timerKey();
 
 // Re-export for convenience
 export { TimerKey, timerKey } from "./TimerKey";
-export { TimerMap, PersistentTimer } from "./TimerMap";
+export { TimerMap } from "./TimerMap";
+export type { PersistentTimer } from "./TimerMap";

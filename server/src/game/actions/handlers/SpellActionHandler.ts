@@ -11,6 +11,27 @@
 import type { WebSocket } from "ws";
 
 import { logger } from "../../../utils/logger";
+import type {
+    ActionScheduleRequest as SharedActionScheduleRequest,
+    ActionScheduleResult,
+    ProjectileTiming,
+    SoundBroadcastRequest,
+    SpotAnimRequest,
+} from "./HandlerSupportContracts";
+import type {
+    SpellCastLocPayload,
+    SpellCastModifiers,
+    SpellCastNpcPayload,
+    SpellCastObjPayload,
+    SpellCastPayloadBase,
+    SpellCastPlayerPayload,
+    SpellResultPayload,
+} from "../../../../../src/shared/network/GameMessageDtos";
+import type {
+    SpellCastRequest,
+    SpellCastTarget,
+    SpellTargetKind,
+} from "../../../../../src/shared/spells/SpellActionContracts";
 import { resolveSelectedSpellPayload } from "../../../../../src/shared/spells/selectedSpellPayload";
 import type { ProjectileParams as CachedProjectileParams } from "../../data/ProjectileParamsProvider";
 import { getProjectileParams } from "../../data/ProjectileParamsProvider";
@@ -28,56 +49,26 @@ import type {
     SpellCastOutcome,
     SpellCastContext as SpellCasterContext,
 } from "../../spells/SpellCaster";
-import type { ActionRequest } from "../types";
 import type { ServerServices } from "../../ServerServices";
+
+export type {
+    ActionScheduleResult,
+    ProjectileTiming,
+    SoundBroadcastRequest,
+    SpotAnimRequest,
+    SpellCastLocPayload,
+    SpellCastModifiers,
+    SpellCastNpcPayload,
+    SpellCastObjPayload,
+    SpellCastPayloadBase,
+    SpellCastPlayerPayload,
+    SpellResultPayload,
+};
+export type { SpellCastRequest, SpellCastTarget, SpellTargetKind };
 
 // ============================================================================
 // Types
 // ============================================================================
-
-/** Spell cast modifiers. */
-export interface SpellCastModifiers {
-    isAutocast?: boolean;
-    defensive?: boolean;
-    queued?: boolean;
-    castMode?: "manual" | "autocast" | "defensive_autocast";
-}
-
-/** Spell target kinds. */
-export type SpellTargetKind = "npc" | "player" | "loc" | "obj";
-
-/** Spell cast request target. */
-export type SpellCastTarget =
-    | { type: "npc"; npcId: number }
-    | { type: "player"; playerId: number }
-    | { type: "loc"; locId: number; tile: { x: number; y: number; plane?: number } }
-    | { type: "obj"; objId: number; tile: { x: number; y: number; plane?: number } };
-
-/** Spell cast request. */
-export interface SpellCastRequest {
-    spellId: number;
-    modifiers?: SpellCastModifiers;
-    target: SpellCastTarget;
-}
-
-/** Spell result payload. */
-export interface SpellResultPayload {
-    casterId: number;
-    spellId: number;
-    outcome: "success" | "failure";
-    reason?: string;
-    targetType: SpellTargetKind;
-    targetId?: number;
-    tile?: { x: number; y: number; plane?: number };
-    modifiers?: SpellCastModifiers;
-    castSpotAnim?: number;
-    impactSpotAnim?: number;
-    splashSpotAnim?: number;
-    hitDelay?: number;
-    maxHit?: number;
-    damage?: number;
-    runesConsumed?: Array<{ itemId: number; quantity: number }>;
-}
 
 /** Spell data entry from cache. */
 export type SpellDataEntry = CachedSpellDataEntry;
@@ -99,82 +90,14 @@ export type SpellValidationResult = SpellCastOutcome;
 /** Spell execution result. */
 export type SpellExecutionResult = SpellCastOutcome;
 
-/** Projectile timing. */
-export interface ProjectileTiming {
-    startDelay: number;
-    travelTime: number;
-    hitDelay: number;
-    lineOfSight?: boolean;
-}
-
-/** Spot animation request. */
-export interface SpotAnimRequest {
-    tick: number;
-    playerId?: number;
-    npcId?: number;
-    spotId: number;
-    delay?: number;
-    height?: number;
-}
-
-/** Sound broadcast request. */
-export interface SoundBroadcastRequest {
-    soundId: number;
-    x: number;
-    y: number;
-    level: number;
-    delay?: number;
-}
-
 /** Action schedule request. */
 export type SpellScheduledActionKind = "combat.playerHit";
 
 export type ActionScheduleRequest<K extends SpellScheduledActionKind = SpellScheduledActionKind> =
-    ActionRequest<K>;
-
-/** Action schedule result. */
-export interface ActionScheduleResult {
-    ok: boolean;
-    reason?: string;
-}
+    SharedActionScheduleRequest<K>;
 
 /** WebSocket reference. */
 export type WebSocketRef = WebSocket;
-
-/** Base spell cast payload with common fields. */
-export interface SpellCastPayloadBase {
-    spellId?: number;
-    spellbookGroupId?: number;
-    widgetChildId?: number;
-    selectedSpellWidgetId?: number;
-    selectedSpellChildIndex?: number;
-    selectedSpellItemId?: number;
-    modifiers?: SpellCastModifiers;
-}
-
-/** Spell cast NPC payload. */
-export interface SpellCastNpcPayload extends SpellCastPayloadBase {
-    npcId: number;
-}
-
-/** Spell cast player payload. */
-export interface SpellCastPlayerPayload extends SpellCastPayloadBase {
-    playerId: number;
-}
-
-/** Spell cast loc payload. */
-export interface SpellCastLocPayload extends SpellCastPayloadBase {
-    locId: number;
-    tile?: { x: number; y: number };
-    plane?: number;
-}
-
-/** Spell cast obj payload. */
-export interface SpellCastObjPayload extends SpellCastPayloadBase {
-    objId: number;
-    tile?: { x: number; y: number };
-    plane?: number;
-}
 
 // ============================================================================
 // Constants

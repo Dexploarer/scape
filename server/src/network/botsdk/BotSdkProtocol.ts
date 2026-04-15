@@ -14,6 +14,7 @@
  */
 
 import type { AgentPerceptionSnapshot } from "../../agent";
+import type { AgentScriptSpec } from "../../agent";
 
 // ────────────────────────────────────────────────────────────────────────
 //  Authentication / session frames
@@ -135,8 +136,49 @@ export interface DisconnectFrame {
     reason?: string;
 }
 
+export interface InstallScriptFrame {
+    kind: "script";
+    operation: "install";
+    script: AgentScriptSpec;
+    correlationId?: string;
+}
+
+export interface ClearScriptFrame {
+    kind: "script";
+    operation: "clear";
+    reason?: string;
+    correlationId?: string;
+}
+
+export interface InterruptScriptFrame {
+    kind: "script";
+    operation: "interrupt";
+    interrupt: string;
+    reason?: string;
+    correlationId?: string;
+}
+
+export interface ScriptProposalFrame {
+    kind: "proposal";
+    proposalId?: string;
+    summary?: string;
+    script: AgentScriptSpec;
+    correlationId?: string;
+}
+
+export type ScriptFrame =
+    | InstallScriptFrame
+    | ClearScriptFrame
+    | InterruptScriptFrame;
+
 /** All client-originated frames. */
-export type ClientFrame = AuthFrame | SpawnFrame | AnyActionFrame | DisconnectFrame;
+export type ClientFrame =
+    | AuthFrame
+    | SpawnFrame
+    | AnyActionFrame
+    | DisconnectFrame
+    | ScriptFrame
+    | ScriptProposalFrame;
 
 // ────────────────────────────────────────────────────────────────────────
 //  Server frames (server → client)
@@ -188,6 +230,21 @@ export interface PerceptionFrame {
 }
 
 /**
+ * High-signal server event pushed to the agent outside the periodic
+ * perception cadence. Agents can wake immediately on this frame instead
+ * of waiting for the next perception emission.
+ */
+export interface RuntimeEventFrame {
+    kind: "event";
+    /** Typed game/runtime event name (for example `skill:levelUp`). */
+    name: string;
+    /** Unix millis when the server emitted the event. */
+    timestamp: number;
+    /** Optional lightweight event payload. */
+    payload?: Record<string, unknown>;
+}
+
+/**
  * An operator-steering directive pushed from the server to the agent.
  * Sent when a human player types `::steer <text>` in public chat while
  * the agent is connected, or when an HTTP POST /api/apps/scape/prompt
@@ -218,6 +275,14 @@ export interface OperatorCommandFrame {
     fromPlayerName?: string;
 }
 
+export interface ProposalDecisionFrame {
+    kind: "proposalDecision";
+    proposalId: string;
+    decision: "approved" | "rejected";
+    installed?: boolean;
+    message?: string;
+}
+
 /** All server-originated frames. */
 export type ServerFrame =
     | AuthOkFrame
@@ -225,4 +290,6 @@ export type ServerFrame =
     | SpawnOkFrame
     | ActionAckFrame
     | PerceptionFrame
-    | OperatorCommandFrame;
+    | RuntimeEventFrame
+    | OperatorCommandFrame
+    | ProposalDecisionFrame;

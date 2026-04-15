@@ -5,6 +5,7 @@ import {
     buildScopedPlayerSaveKey,
     normalizePlayerAccountName,
     normalizeWorldScopeId,
+    parseScopedPlayerSaveKey,
 } from "../server/src/game/state/PlayerSessionKeys";
 
 describe("PlayerSessionKeys", () => {
@@ -41,5 +42,23 @@ describe("PlayerSessionKeys", () => {
     test("preserves the legacy unscoped helper", () => {
         expect(buildPlayerSaveKey("Alice", 12)).toBe("alice");
         expect(buildPlayerSaveKey(undefined, 12)).toBe("id:12");
+    });
+
+    test("parses scoped save keys", () => {
+        expect(parseScopedPlayerSaveKey("world:toonscape:character:toon-77")).toEqual({
+            worldId: "toonscape",
+            kind: "character",
+            worldCharacterId: "toon-77",
+        });
+        expect(parseScopedPlayerSaveKey("world:scape:name:alice")).toEqual({
+            worldId: "scape",
+            kind: "name",
+            name: "alice",
+        });
+        expect(parseScopedPlayerSaveKey("world:scape:id:12")).toEqual({
+            worldId: "scape",
+            kind: "id",
+            id: 12,
+        });
     });
 });

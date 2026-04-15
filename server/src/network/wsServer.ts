@@ -32,6 +32,9 @@ import { AuthenticationService } from "./AuthenticationService";
 import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
 import { HostedSessionService } from "../auth/HostedSessionService";
 import { HostedSessionIssuerService } from "../auth/HostedSessionIssuerService";
+import type { ControlPlaneClient } from "../controlplane/ControlPlaneClient";
+import { SpacetimeLiveEventRelay } from "../controlplane/SpacetimeLiveEventRelay";
+import { buildServerDirectoryEntries } from "./ServerDirectory";
 
 import { ConfigType } from "../../../src/rs/cache/ConfigType";
 import { IndexType } from "../../../src/rs/cache/IndexType";
@@ -90,8 +93,10 @@ import {
     BotSdkActionRouter,
     BotSdkServer,
 } from "./botsdk";
+import { BotSdkTrajectoryRecorder } from "./botsdk/BotSdkTrajectoryRecorder";
 import { JsonAccountStore, type AccountStore } from "../game/state/AccountStore";
 import { PlayerPersistence } from "../game/state/PlayerPersistence";
+import type { PersistenceProvider } from "../game/state/PersistenceProvider";
 import {
     BroadcastScheduler,
     EquipmentHandler,
@@ -191,6 +196,9 @@ export interface WSServerOptions {
     serverName?: string;
     maxPlayers?: number;
     gamemode: GamemodeDefinition;
+    accountStore?: AccountStore;
+    playerPersistence?: PersistenceProvider;
+    controlPlaneClient?: ControlPlaneClient;
 }
 
 export class WSServer {
@@ -220,7 +228,7 @@ export class WSServer {
     private readonly scriptScheduler = new ScriptScheduler();
     private readonly scriptRegistry = new ScriptRegistry();
     private scriptRuntime!: ScriptRuntime;
-    private playerPersistence!: PlayerPersistence;
+    private playerPersistence!: PersistenceProvider;
     private accountStore!: AccountStore;
     private botSdkServer!: BotSdkServer;
     private agentPlayerFactory!: AgentPlayerFactory;
@@ -342,6 +350,8 @@ export class WSServer {
     private enableBinaryNpcSync = true;
     private hostedSessionService?: HostedSessionService;
     private hostedSessionIssuerService?: HostedSessionIssuerService;
+    private botSdkTrajectoryRecorder?: BotSdkTrajectoryRecorder;
+    private liveEventRelay?: SpacetimeLiveEventRelay;
 
     /** Shared service context — populated incrementally, safe because services only read at tick time */
     readonly svc = {} as ServerServices;
@@ -384,6 +394,20 @@ export class WSServer {
         this.botSdkServer.start();
     }
 
+    stop(): void {
+        try {
+            this.botSdkServer?.stop();
+        } catch (error) {
+            logger.warn("[ws] failed to stop bot sdk server", error);
+        }
+        void this.liveEventRelay?.dispose();
+        try {
+            this.wss?.close();
+        } catch (error) {
+            logger.warn("[ws] failed to close websocket server", error);
+        }
+    }
+
     /**
      * Build the bot-SDK endpoint infrastructure — factory, action router,
      * and server. All three are no-ops until `botSdkServer.start()` is
@@ -391,6 +415,12 @@ export class WSServer {
      * a socket or touching the tick loop.
      */
     private initBotSdk(opts: WSServerOptions): void {
+        if (this.options.controlPlaneClient) {
+            this.botSdkTrajectoryRecorder = new BotSdkTrajectoryRecorder({
+                controlPlane: this.options.controlPlaneClient,
+                worldId: config.worldId,
+            });
+        }
         this.agentPlayerFactory = new AgentPlayerFactory({
             players: () => this.players,
             worldId: config.worldId,
@@ -415,12 +445,24 @@ export class WSServer {
             {
                 factory: this.agentPlayerFactory,
                 router: this.botSdkActionRouter,
+                recorder: this.botSdkTrajectoryRecorder,
+                controlPlane: this.options.controlPlaneClient,
+                worldId: config.worldId,
+                eventBus: this.eventBus,
+                players: () => this.players,
                 playerPersistence: this.playerPersistence,
                 hookTicker: (cb) => {
                     opts.ticker.on("tick", (data) => cb(data.tick));
                 },
             },
         );
+        if (this.options.controlPlaneClient) {
+            this.liveEventRelay = new SpacetimeLiveEventRelay({
+                controlPlane: this.options.controlPlaneClient,
+                worldId: config.worldId,
+                eventBus: this.eventBus,
+            });
+        }
     }
 
     /**
@@ -589,13 +631,17 @@ export class WSServer {
     }
 
     private initBroadcasters(): void {
-        this.playerPersistence = new PlayerPersistence({
-            dataDir: getGamemodeDataDir(this.gamemode.id),
-        });
-        this.accountStore = new JsonAccountStore({
-            filePath: config.accountsFilePath,
-            minPasswordLength: config.minPasswordLength,
-        });
+        this.playerPersistence =
+            this.options.playerPersistence ??
+            new PlayerPersistence({
+                dataDir: getGamemodeDataDir(this.gamemode.id),
+            });
+        this.accountStore =
+            this.options.accountStore ??
+            new JsonAccountStore({
+                filePath: config.accountsFilePath,
+                minPasswordLength: config.minPasswordLength,
+            });
         if (config.hostedSessionSecret.length > 0) {
             this.hostedSessionService = new HostedSessionService({
                 secret: config.hostedSessionSecret,
@@ -606,6 +652,9 @@ export class WSServer {
                 hostedSessionService: this.hostedSessionService,
                 issuerSecret: config.hostedSessionIssuerSecret,
                 worldId: config.worldId,
+                worldName: config.serverName,
+                gamemodeId: this.gamemode.id,
+                controlPlane: this.options.controlPlaneClient,
             });
         }
         this.accountSummary = new AccountSummaryTracker(this.svc);
@@ -813,6 +862,38 @@ export class WSServer {
             return;
         }
 
+        if (pathname === "/servers.json") {
+            const count = this.players?.getRealPlayerCount() ?? 0;
+            const hostHeader = Array.isArray(req.headers.host)
+                ? req.headers.host[0]
+                : req.headers.host;
+            const forwardedHost = Array.isArray(req.headers["x-forwarded-host"])
+                ? req.headers["x-forwarded-host"][0]
+                : req.headers["x-forwarded-host"];
+            const forwardedProto = Array.isArray(req.headers["x-forwarded-proto"])
+                ? req.headers["x-forwarded-proto"][0]
+                : req.headers["x-forwarded-proto"];
+            this.writeJsonResponse(
+                res,
+                200,
+                buildServerDirectoryEntries({
+                    serverName: opts.serverName ?? config.serverName,
+                    maxPlayers: opts.maxPlayers ?? config.maxPlayers,
+                    playerCount: count,
+                    worldId: config.worldId,
+                    host: hostHeader ?? `${opts.host}:${opts.port}`,
+                    forwardedHost,
+                    forwardedProto,
+                    encrypted:
+                        Reflect.get(req.socket as object, "encrypted") === true,
+                }),
+                {
+                    "Access-Control-Allow-Origin": "*",
+                },
+            );
+            return;
+        }
+
         if (pathname === "/hosted-session/issue") {
             const corsHeaders = {
                 "Access-Control-Allow-Origin": "*",
@@ -861,7 +942,7 @@ export class WSServer {
             const authorizationHeader = Array.isArray(req.headers.authorization)
                 ? req.headers.authorization[0]
                 : req.headers.authorization;
-            const issueResult = this.hostedSessionIssuerService.issue(
+            const issueResult = await this.hostedSessionIssuerService.issue(
                 authorizationHeader,
                 bodyResult.body,
             );

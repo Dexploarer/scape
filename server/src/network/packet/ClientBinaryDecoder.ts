@@ -9,6 +9,10 @@ import {
     CLIENT_PACKET_LENGTHS,
     ClientPacketId,
 } from "../../../../src/shared/packets/ClientPacketId";
+import {
+    type AgentScriptSpec,
+    validateAgentScriptSpec,
+} from "../../../../src/shared/agent/AgentScript";
 import type { RoutedMessage } from "../MessageRouter";
 import type { Appearance, TradeActionClientPayload } from "../messages";
 
@@ -173,6 +177,15 @@ type DebugPayloadJson = {
     value?: number;
     varbit?: number;
     varp?: number;
+    operation?: string;
+    script?: unknown;
+    targetAgentId?: string;
+    targetPlayerId?: number;
+    interrupt?: string;
+    reason?: string;
+    proposalId?: string;
+    decision?: string;
+    summary?: string;
 };
 
 /**
@@ -366,6 +379,7 @@ export function decodeClientPacket(data: Uint8Array | ArrayBuffer): DecodedClien
             const quantity = reader.readInt() || undefined;
             const option = reader.readString() || undefined;
             const opNum = reader.readByte() || undefined;
+            const modifierFlags = reader.remaining > 0 ? reader.readByte() || undefined : undefined;
             return {
                 type: "ground_item_action",
                 payload: {
@@ -375,6 +389,7 @@ export function decodeClientPacket(data: Uint8Array | ArrayBuffer): DecodedClien
                     quantity,
                     option,
                     opNum,
+                    modifierFlags,
                 },
             };
         }
@@ -677,6 +692,63 @@ function parseDebugPayload(jsonStr: string): Extract<RoutedMessage, { type: "deb
                 value: parsed.value,
                 varbit: parsed.varbit,
                 varp: parsed.varp,
+            };
+        }
+        if (kind === "bot_sdk_script") {
+            if (parsed.operation === "install") {
+                if (!parsed.script || typeof parsed.script !== "object" || Array.isArray(parsed.script)) {
+                    return { kind: "raw", raw: jsonStr };
+                }
+                const script = parsed.script as AgentScriptSpec;
+                const validation = validateAgentScriptSpec(script);
+                if (!validation.ok) {
+                    return { kind: "raw", raw: jsonStr };
+                }
+                return {
+                    kind,
+                    operation: "install",
+                    script,
+                    targetAgentId: parsed.targetAgentId,
+                    targetPlayerId: parsed.targetPlayerId,
+                };
+            }
+            if (parsed.operation === "clear") {
+                return {
+                    kind,
+                    operation: "clear",
+                    reason: parsed.reason,
+                    targetAgentId: parsed.targetAgentId,
+                    targetPlayerId: parsed.targetPlayerId,
+                };
+            }
+            if (parsed.operation === "interrupt" && typeof parsed.interrupt === "string") {
+                return {
+                    kind,
+                    operation: "interrupt",
+                    interrupt: parsed.interrupt,
+                    reason: parsed.reason,
+                    targetAgentId: parsed.targetAgentId,
+                    targetPlayerId: parsed.targetPlayerId,
+                };
+            }
+            return { kind: "raw", raw: jsonStr };
+        }
+        if (kind === "bot_sdk_script_proposals_request") {
+            return {
+                kind,
+                targetPlayerId: parsed.targetPlayerId,
+            };
+        }
+        if (
+            kind === "bot_sdk_script_proposal_decision" &&
+            typeof parsed.proposalId === "string" &&
+            (parsed.decision === "approve_install" || parsed.decision === "reject")
+        ) {
+            return {
+                kind,
+                proposalId: parsed.proposalId,
+                decision: parsed.decision,
+                reason: parsed.reason,
             };
         }
     } catch (err) { logger.warn("[decoder] failed to decode client binary packet", err); }

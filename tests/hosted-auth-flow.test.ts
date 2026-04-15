@@ -64,7 +64,7 @@ describe("hosted auth flows", () => {
         });
     });
 
-    test("agent spawn accepts hosted sessions without touching the password account store", () => {
+    test("agent spawn accepts hosted sessions without touching the password account store", async () => {
         const now = 1_700_000_000_000;
         const hostedSessionService = new HostedSessionService({
             secret: "agent-secret",
@@ -117,7 +117,7 @@ describe("hosted auth flows", () => {
             hostedSessionService,
         });
 
-        const result = factory.spawn({
+        const result = await factory.spawn({
             agentId: "agent-77",
             sessionToken: token,
             worldCharacterId: "toon-77",

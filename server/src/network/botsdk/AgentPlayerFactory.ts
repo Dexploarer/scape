@@ -21,10 +21,10 @@
  *   5. Attach the `AgentComponent` so the agent layer (perception emitter,
  *      action router) recognizes the entity as agent-controlled.
  *
- * The factory is **synchronous** and returns a structured `{ok, ...}`
- * result rather than throwing — it's called directly from the bot-SDK
- * message loop, which needs to convert failures into TOON error frames
- * without losing the cause.
+ * The factory returns a structured `{ok, ...}` result rather than throwing.
+ * It performs an async warmup step for persistence backends that lazy-load
+ * world branches (for example SpacetimeDB), then resumes fully synchronous
+ * game-state application once local caches are ready.
  */
 
 import {
@@ -81,7 +81,7 @@ export class AgentPlayerFactory {
      * persisted game state, create the in-world entity, and attach the
      * agent component.
      */
-    spawn(request: AgentSpawnRequest): AgentSpawnResult {
+    async spawn(request: AgentSpawnRequest): Promise<AgentSpawnResult> {
         const players = this.deps.players();
         if (!players) {
             return {
@@ -124,6 +124,7 @@ export class AgentPlayerFactory {
             };
         }
         let hostedWorldCharacterId: string | undefined;
+        let hostedPrincipalId: string | undefined;
         let created = false;
 
         // 1. Verify auth mode. Password mode shares the normal account
@@ -154,6 +155,7 @@ export class AgentPlayerFactory {
                 };
             }
             hostedWorldCharacterId = hosted.claims.worldCharacterId;
+            hostedPrincipalId = hosted.claims.principalId;
         } else {
             const authResult: AccountAuthResult = this.deps.accountStore.verifyOrRegister(
                 normalized!,
@@ -233,7 +235,15 @@ export class AgentPlayerFactory {
             worldCharacterId: hostedWorldCharacterId,
         });
         player.__saveKey = saveKey;
+        player.__principalId = hostedPrincipalId;
+        player.__worldCharacterId = hostedWorldCharacterId;
         try {
+            await this.deps.playerPersistence.warmKey?.(saveKey, {
+                worldId: this.deps.worldId,
+                displayName: finalDisplayName,
+                principalId: hostedPrincipalId,
+                worldCharacterId: hostedWorldCharacterId,
+            });
             this.deps.playerPersistence.applyToPlayer(player, saveKey);
         } catch (err) {
             logger.warn("[agent] failed to apply persistent vars", err);
@@ -268,6 +278,7 @@ export class AgentPlayerFactory {
             connected: true,
             lastHeardFrom: Date.now(),
             lastEmittedAt: 0,
+            recentEvents: [],
         };
         player.agent = component;
 

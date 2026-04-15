@@ -1,0 +1,10 @@
+{
+  "project": "-scape",
+  "description": "xrsps — TypeScript game client with Bun toolchain, React frontend, WebGL/PicoGL rendering, WebSocket networking",
+  "grammars": {
+    "glsl": {
+      "package": "tree-sitter-glsl",
+      "extensions": [".glsl", ".vert", ".frag"]
+    }
+  }
+}

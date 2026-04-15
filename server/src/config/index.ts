@@ -45,6 +45,16 @@ export interface ServerConfig {
     hostedSessionSecret: string;
     /** Bearer token required to mint hosted session tickets over HTTP. */
     hostedSessionIssuerSecret: string;
+    /** Base URI for the shared SpacetimeDB control plane. Empty = disabled. */
+    spacetimeUri: string;
+    /** Database/module name for the shared SpacetimeDB control plane. */
+    spacetimeDatabase: string;
+    /** Optional auth token for the shared SpacetimeDB control plane. */
+    spacetimeToken: string;
+    /** Connect timeout in milliseconds for the shared SpacetimeDB control plane. */
+    spacetimeConnectTimeoutMs: number;
+    /** True when both SpacetimeDB URI and database are configured. */
+    spacetimeEnabled: boolean;
 }
 
 export interface ServerConfigFileOverrides {
@@ -61,6 +71,10 @@ export interface ServerConfigFileOverrides {
     botSdkPerceptionEveryNTicks?: number;
     hostedSessionSecret?: string;
     hostedSessionIssuerSecret?: string;
+    spacetimeUri?: string;
+    spacetimeDatabase?: string;
+    spacetimeToken?: string;
+    spacetimeConnectTimeoutMs?: number;
 }
 
 function loadConfigFile(configPath = resolve(__dirname, "../../config.json")): ServerConfigFileOverrides {
@@ -90,6 +104,18 @@ function loadConfigFile(configPath = resolve(__dirname, "../../config.json")): S
         }
         if (typeof parsed.hostedSessionIssuerSecret === "string") {
             overrides.hostedSessionIssuerSecret = parsed.hostedSessionIssuerSecret;
+        }
+        if (typeof parsed.spacetimeUri === "string") {
+            overrides.spacetimeUri = parsed.spacetimeUri;
+        }
+        if (typeof parsed.spacetimeDatabase === "string") {
+            overrides.spacetimeDatabase = parsed.spacetimeDatabase;
+        }
+        if (typeof parsed.spacetimeToken === "string") {
+            overrides.spacetimeToken = parsed.spacetimeToken;
+        }
+        if (typeof parsed.spacetimeConnectTimeoutMs === "number") {
+            overrides.spacetimeConnectTimeoutMs = parsed.spacetimeConnectTimeoutMs;
         }
         return overrides;
     } catch (err) {
@@ -121,6 +147,10 @@ export function createServerConfig(
     let botSdkPerceptionEveryNTicks = fileOverrides.botSdkPerceptionEveryNTicks ?? 3;
     let hostedSessionSecret = fileOverrides.hostedSessionSecret?.trim() ?? "";
     let hostedSessionIssuerSecret = fileOverrides.hostedSessionIssuerSecret?.trim() ?? "";
+    let spacetimeUri = fileOverrides.spacetimeUri?.trim() ?? "";
+    let spacetimeDatabase = fileOverrides.spacetimeDatabase?.trim() ?? "";
+    let spacetimeToken = fileOverrides.spacetimeToken?.trim() ?? "";
+    let spacetimeConnectTimeoutMs = fileOverrides.spacetimeConnectTimeoutMs ?? 10000;
 
     if (env.ACCOUNTS_FILE_PATH?.trim()) {
         accountsFilePath = resolve(env.ACCOUNTS_FILE_PATH.trim());
@@ -150,6 +180,13 @@ export function createServerConfig(
     if (env.HOSTED_SESSION_ISSUER_SECRET?.trim()) {
         hostedSessionIssuerSecret = env.HOSTED_SESSION_ISSUER_SECRET.trim();
     }
+    if (env.SPACETIMEDB_URI?.trim()) spacetimeUri = env.SPACETIMEDB_URI.trim();
+    if (env.SPACETIMEDB_DATABASE?.trim()) spacetimeDatabase = env.SPACETIMEDB_DATABASE.trim();
+    if (env.SPACETIMEDB_TOKEN?.trim()) spacetimeToken = env.SPACETIMEDB_TOKEN.trim();
+    if (env.SPACETIMEDB_CONNECT_TIMEOUT_MS?.trim()) {
+        const parsed = parseInt(env.SPACETIMEDB_CONNECT_TIMEOUT_MS.trim(), 10);
+        if (Number.isFinite(parsed) && parsed > 0) spacetimeConnectTimeoutMs = parsed;
+    }
 
     const worldId =
         normalizeWorldScopeId(env.WORLD_ID?.trim() || fileOverrides.worldId || gamemode) ??
@@ -173,6 +210,11 @@ export function createServerConfig(
         botSdkPerceptionEveryNTicks,
         hostedSessionSecret,
         hostedSessionIssuerSecret,
+        spacetimeUri,
+        spacetimeDatabase,
+        spacetimeToken,
+        spacetimeConnectTimeoutMs,
+        spacetimeEnabled: spacetimeUri.length > 0 && spacetimeDatabase.length > 0,
     };
 }
 

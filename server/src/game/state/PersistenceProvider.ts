@@ -14,9 +14,22 @@
 
 import type { PlayerState, PlayerPersistentVars } from "../player";
 
+export interface PersistenceIdentityHints {
+    worldId?: string;
+    displayName?: string;
+    principalId?: string;
+    worldCharacterId?: string;
+}
+
 export interface PersistenceProvider {
     /** Apply persisted state onto a player (merge defaults + player-specific data). */
     applyToPlayer(player: PlayerState, key: string): void;
+
+    /**
+     * Optional async warmup step for backends that lazily fetch by save key.
+     * Implementations should populate any local caches needed by `applyToPlayer`.
+     */
+    warmKey?(key: string, hints?: PersistenceIdentityHints): Promise<void> | void;
 
     /** Check if a player has been persisted before (i.e. not a new account). */
     hasKey(key: string): boolean;

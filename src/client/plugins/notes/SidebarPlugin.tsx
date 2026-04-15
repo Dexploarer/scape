@@ -2,8 +2,8 @@ import type { ClientSidebarPluginDefinition } from "../../sidebar/pluginTypes";
 
 export const NOTES_SIDEBAR_PLUGIN: ClientSidebarPluginDefinition = Object.freeze({
     id: "notes",
-    title: "Notes",
-    tooltip: "Notes",
+    title: "Journal",
+    tooltip: "Agent Journal",
     priority: 200,
     panelId: "notes",
     icon: ({ label }: { label: string }) => (

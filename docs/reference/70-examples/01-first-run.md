@@ -37,15 +37,17 @@ This invokes `mprocs` and brings up three tabs:
 
 2. **client** — running the React dev server via craco. You'll see the usual `Compiled successfully!` message and `webpack compiled with 0 errors`.
 
-3. **agent-dev** — a bot that connects to the bot-SDK and starts random-walking. You'll see it log in and emit walk commands.
+3. **agent-dev** — a launcher that waits for the client dev server, opens the browser with an auto-login URL, and lets the in-browser autoplay loop drive the character.
 
 ## Open the client
 
-Visit `http://localhost:3000`. You'll see the XRSPS login screen.
+If `agent-dev` did not already open a browser, visit `http://localhost:3000`. You'll see the XRSPS login screen.
 
 ## Create an account
 
-Type any username and password. The default `JsonAccountStore` creates the account on first login (no separate registration flow). The password must be at least `minPasswordLength` characters (default 6).
+Type any username and password. The default `JsonAccountStore` creates the account on first login (no separate registration flow). The password must be at least `minPasswordLength` characters (default 8).
+
+If you used the `agent-dev` launcher, the username and password arrive via query params and may auto-submit immediately.
 
 Click **Login**. The screen transitions through:
 
@@ -74,7 +76,7 @@ All in 600 ms (one tick).
 
 Focus the mprocs terminal, press `Ctrl-A q`. All three procs shut down cleanly. The server runs a final autosave through `PlayerPersistence.save` for your account before exiting.
 
-Your account is now in `server/data/accounts.json`. Next time you log in, your state (position, inventory, skills) persists.
+Your auth record is now in `server/data/accounts.json`. Your gameplay state persists separately in `server/data/gamemodes/<gamemode>/player-state.json`.
 
 ## What next
 

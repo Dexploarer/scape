@@ -53,11 +53,11 @@
 
 | Task | Start here |
 |---|---|
-| Add an overlay that draws on tiles | [70.8](../70-examples/08-render-overlay.md); `src/ui/plugins/shared/OverlayRegistry.ts` |
+| Add an overlay that draws on tiles | [70.8](../70-examples/08-render-overlay.md); `src/ui/devoverlay/OverlayManager.ts` |
 | Change the roof-removal behavior | `src/client/roof/` |
 | Tweak camera controls | `src/client/Camera.ts` + `InputManager.ts` |
 | Add a new shader pass | `src/client/webgl/` + `src/shaders.d.ts` |
-| Register a new client plugin | `src/ui/plugins/pluginhub/PluginRegistry.ts` |
+| Register a new client plugin | `src/client/sidebar/entries.ts` + `src/client/plugins/<name>/SidebarPlugin.tsx` |
 | Change HUD layout | `src/ui/game/` |
 | Add a dev control | `src/ui/devoverlay/` (leva-driven) |
 | Add a widget renderer type | `src/ui/widgets/` |
@@ -77,9 +77,10 @@
 
 | Task | Start here |
 |---|---|
-| Persist a new field on a player | `Player` + `JsonAccountStore` serialize/deserialize |
+| Persist a new field on a player | `server/src/game/player.ts` + `server/src/game/state/PlayerPersistence.ts` |
 | Add a custom persistence backend | Implement `PersistenceProvider`; wire in `ServerServices.ts` |
-| Reset all accounts | Delete `server/state/accounts/*.json` (check path in `JsonAccountStore.ts`) |
+| Reset auth accounts | Delete `server/data/accounts.json` |
+| Reset saved gameplay state | Delete `server/data/gamemodes/<id>/player-state.json` |
 
 ## Dialogue / UI from scripts
 
@@ -99,7 +100,6 @@
 |---|---|
 | Start the dev stack | [60.1](../60-build-run-deploy/01-local-dev.md); `bun run dev` |
 | Run only the server | `bun run server:start` |
-| Run the server in production mode | `bun run server:prod` |
 | Run only the client | `bun run start` |
 | Run tests | `bun test` |
 | Type-check the client | `bun run build` (or `tsc --noEmit`) |
@@ -120,7 +120,7 @@
 | "Widget click does nothing" | `registerWidgetAction` componentId mismatch; log `event.componentId` |
 | "Player stops mid-walk" | `MovementService` + collision overlay; is the path still valid? |
 | "Sync packet crashes the client" | `SYNC_DUMP=1`, then compare `BitWriter` emitter vs `BitStream` reader |
-| "Login fails silently" | `LoginHandshakeService` + `AuthenticationService`; the client's `useServerConnection` error state |
+| "Login fails silently" | `LoginHandshakeService` + `AuthenticationService`; the client login flow in `src/client/login/` and `src/network/ServerConnection.ts` |
 | "Cache missing file" | `target.txt` vs `caches/<version>/`; rerun `ensure-cache` |
 | "Collision wrong after edit" | Re-run `server:build-collision`; also check `CollisionOverlayStore` for runtime overrides |
 | "Extrascript not reloading" | The entry must export `register`; log line printed by `ExtrascriptLoader` |

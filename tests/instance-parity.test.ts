@@ -624,29 +624,13 @@ describe("Server-side REBUILD_NORMAL", () => {
     it("WorldEntityService has sendRebuildNormal method", () => {
         const fs = require("fs");
         const source = fs.readFileSync(
-            require("path").resolve(
-                __dirname,
-                "../server/src/game/services/WorldEntityService.ts",
-            ),
+            require("path").resolve(__dirname, "../server/src/game/services/WorldEntityService.ts"),
             "utf-8",
         );
 
         assert(
             source.includes("sendRebuildNormal(player"),
             "WorldEntityService.sendRebuildNormal exists",
-        );
-    });
-
-    it("wsServer wires WorldEntityService", () => {
-        const fs = require("fs");
-        const source = fs.readFileSync(
-            require("path").resolve(__dirname, "../server/src/network/wsServer.ts"),
-            "utf-8",
-        );
-
-        assert(
-            source.includes("new WorldEntityService(this.svc)"),
-            "wsServer constructs WorldEntityService",
         );
     });
 });

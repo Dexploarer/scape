@@ -76,8 +76,8 @@ There are a lot of services (~60). They're grouped into logical categories in th
 
 ### Persistence
 
-- **`accountStore: AccountStore`** — loads and saves player accounts.
-- **`persistenceProvider`** — the backend (JSON file today).
+- **`accountStore: AccountStore`** — authentication records (password hashes, bans, last-login timestamps).
+- **`persistenceProvider`** — gameplay-state backend (`PlayerPersistence` by default).
 
 ### Gamemode and extensibility
 

@@ -61,6 +61,8 @@ export interface ServerConfig {
      * Empty = hosted session mode disabled.
      */
     hostedSessionSecret: string;
+    /** Bearer token required to mint hosted session tickets over HTTP. */
+    hostedSessionIssuerSecret: string;
     /** Shared backend / control-plane connection details (future SpacetimeDB path). */
     spacetimeUri?: string;
     spacetimeDatabase?: string;
@@ -91,6 +93,7 @@ type ServerConfigFile = Partial<
         | "botSdkToken"
         | "botSdkPerceptionEveryNTicks"
         | "hostedSessionSecret"
+        | "hostedSessionIssuerSecret"
         | "spacetimeUri"
         | "spacetimeDatabase"
         | "trajectoryLogPath"
@@ -194,6 +197,7 @@ export function createServerConfig(options: {
     let botSdkToken = "";
     let botSdkPerceptionEveryNTicks = 3;
     let hostedSessionSecret = "";
+    let hostedSessionIssuerSecret = "";
     let spacetimeUri: string | undefined;
     let spacetimeDatabase: string | undefined;
     let trajectoryLogPath: string | undefined;
@@ -223,6 +227,9 @@ export function createServerConfig(options: {
     }
     if (typeof parsed.hostedSessionSecret === "string") {
         hostedSessionSecret = parsed.hostedSessionSecret;
+    }
+    if (typeof parsed.hostedSessionIssuerSecret === "string") {
+        hostedSessionIssuerSecret = parsed.hostedSessionIssuerSecret;
     }
     if (typeof parsed.spacetimeUri === "string") spacetimeUri = parsed.spacetimeUri;
     if (typeof parsed.spacetimeDatabase === "string") {
@@ -281,6 +288,9 @@ export function createServerConfig(options: {
     if (env.HOSTED_SESSION_SECRET?.trim()) {
         hostedSessionSecret = env.HOSTED_SESSION_SECRET.trim();
     }
+    if (env.HOSTED_SESSION_ISSUER_SECRET?.trim()) {
+        hostedSessionIssuerSecret = env.HOSTED_SESSION_ISSUER_SECRET.trim();
+    }
     if (env.SPACETIMEDB_URI?.trim()) {
         spacetimeUri = env.SPACETIMEDB_URI.trim();
     }
@@ -315,6 +325,7 @@ export function createServerConfig(options: {
         botSdkToken,
         botSdkPerceptionEveryNTicks,
         hostedSessionSecret,
+        hostedSessionIssuerSecret,
         spacetimeUri,
         spacetimeDatabase,
         spacetimeAuthToken,

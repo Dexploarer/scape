@@ -5,7 +5,7 @@ import type { PlayerState } from "../server/src/game/player";
 import { AgentPlayerFactory } from "../server/src/network/botsdk/AgentPlayerFactory";
 
 describe("AgentPlayerFactory hosted sessions", () => {
-    test("uses hosted world-character identity without touching the password account store", () => {
+    test("uses hosted world-character identity without touching the password account store", async () => {
         const hostedSessionService = new HostedSessionService({
             secret: "agent-hosted-secret",
             now: () => 1_000,
@@ -56,7 +56,7 @@ describe("AgentPlayerFactory hosted sessions", () => {
             hostedSessionService,
         });
 
-        const result = factory.spawn({
+        const result = await factory.spawn({
             agentId: "agent-77",
             displayName: "wrong-name",
             sessionToken,

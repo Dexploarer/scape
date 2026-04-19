@@ -1,144 +1,50 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-    appendCacheBustParam,
-    createDefaultServerDirectoryUrl,
-    createDefaultServerDirectoryEntry,
-    normalizeServerDirectoryEntries,
-} from "../src/client/login/serverDirectory";
+import { buildServerDirectoryEntries } from "../server/src/network/ServerDirectory";
 
-describe("normalizeServerDirectoryEntries", () => {
-    test("appends a cache-busting query param to bare URLs", () => {
-        expect(appendCacheBustParam("https://scape-96cxt.sevalla.app/status", "abc123")).toBe(
-            "https://scape-96cxt.sevalla.app/status?cb=abc123",
-        );
-    });
-
-    test("appends a cache-busting query param to URLs with existing query params", () => {
-        expect(appendCacheBustParam("https://scape-96cxt.sevalla.app/status?foo=1", "abc123")).toBe(
-            "https://scape-96cxt.sevalla.app/status?foo=1&cb=abc123",
-        );
-    });
-
-    test("derives the default directory URL from the websocket host when no override is set", () => {
-        expect(createDefaultServerDirectoryUrl({
-            address: "scape-96cxt.sevalla.app",
-            secure: true,
-        }, undefined)).toBe("https://scape-96cxt.sevalla.app/servers.json");
-    });
-
-    test("prefers an explicit directory URL override when provided", () => {
-        expect(createDefaultServerDirectoryUrl({
-            address: "scape-96cxt.sevalla.app",
-            secure: true,
-        }, "https://directory.example.com/worlds.json")).toBe("https://directory.example.com/worlds.json");
-    });
-
-    test("prepends the build default when the feed is empty", () => {
-        const defaultEntry = {
-            ...createDefaultServerDirectoryEntry(),
-            id: 77,
-            name: "Hosted Default",
-            address: "game.example.com",
-            secure: true,
-            activity: "Hosted Default",
-        };
-
-        expect(normalizeServerDirectoryEntries([], defaultEntry)).toEqual([defaultEntry]);
-    });
-
-    test("normalizes directory entries and strips invalid rows", () => {
-        const entries = normalizeServerDirectoryEntries([
+describe("ServerDirectory", () => {
+    test("prefers forwarded host and https proto for proxied deployments", () => {
+        expect(
+            buildServerDirectoryEntries({
+                serverName: "scape",
+                maxPlayers: 2047,
+                playerCount: 12,
+                worldId: "scape",
+                host: "0.0.0.0:43594",
+                forwardedHost: "scape-96cxt.sevalla.app",
+                forwardedProto: "https",
+            }),
+        ).toEqual([
             {
-                id: 12,
-                name: "Alpha",
-                address: "wss://alpha.example.com/socket",
-                maxPlayers: 300,
-                location: 1,
-                activity: "Trade",
-                properties: 1,
-                description: "Primary world",
-            },
-            {
-                name: "Broken",
-                address: "",
-            },
-            {
-                id: 12,
-                name: "Beta",
-                address: "beta.example.com/play",
-                secure: true,
-                maxPlayers: 150,
-            },
-        ], {
-            ...createDefaultServerDirectoryEntry(),
-            id: 1,
-            name: "Hosted Default",
-            address: "game.example.com",
-            secure: true,
-            activity: "Hosted Default",
-        });
-
-        expect(entries).toEqual([
-            {
-                id: 2,
-                activity: "Hosted Default",
-                name: "Hosted Default",
-                address: "game.example.com",
+                name: "scape",
+                address: "scape-96cxt.sevalla.app",
                 secure: true,
                 maxPlayers: 2047,
-                playerCount: null,
-                location: 0,
-                properties: 0,
-                description: "Default world for this build.",
-            },
-            {
-                id: 12,
-                name: "Alpha",
-                address: "alpha.example.com",
-                secure: true,
-                maxPlayers: 300,
-                playerCount: null,
-                location: 1,
-                activity: "Trade",
-                properties: 1,
-                description: "Primary world",
-            },
-            {
-                id: 1,
-                name: "Beta",
-                address: "beta.example.com",
-                secure: true,
-                maxPlayers: 150,
-                playerCount: null,
-                location: 0,
-                activity: "-",
-                properties: 0,
-                description: undefined,
+                playerCount: 12,
+                worldId: "scape",
             },
         ]);
     });
 
-    test("does not duplicate the build default when it already exists", () => {
-        const defaultEntry = {
-            ...createDefaultServerDirectoryEntry(),
-            id: 5,
-            name: "Hosted Default",
-            address: "game.example.com",
-            secure: true,
-            activity: "Hosted Default",
-        };
-
-        const entries = normalizeServerDirectoryEntries([
+    test("falls back to request host and non-secure transport locally", () => {
+        expect(
+            buildServerDirectoryEntries({
+                serverName: "Local Development",
+                maxPlayers: 2047,
+                playerCount: 0,
+                worldId: "vanilla",
+                host: "localhost:43594",
+                encrypted: false,
+            }),
+        ).toEqual([
             {
-                id: 5,
-                name: "Hosted Default",
-                address: "wss://game.example.com",
-                secure: true,
+                name: "Local Development",
+                address: "localhost:43594",
+                secure: false,
+                maxPlayers: 2047,
+                playerCount: 0,
+                worldId: "vanilla",
             },
-        ], defaultEntry);
-
-        expect(entries).toHaveLength(1);
-        expect(entries[0]?.address).toBe("game.example.com");
+        ]);
     });
 });

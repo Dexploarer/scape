@@ -1,3 +1,4 @@
+import { BOT_SDK_SIDEBAR_PLUGIN } from "../plugins/botsdk/SidebarPlugin";
 import { GROUND_ITEMS_SIDEBAR_PLUGIN } from "../plugins/grounditems/SidebarPlugin";
 import { INTERACT_HIGHLIGHT_SIDEBAR_PLUGIN } from "../plugins/interacthighlight/SidebarPlugin";
 import { NOTES_SIDEBAR_PLUGIN } from "../plugins/notes/SidebarPlugin";
@@ -27,6 +28,7 @@ export interface SidebarPluginVisibilityOptions {
 
 const DEFAULT_CLIENT_SIDEBAR_PLUGINS: ReadonlyArray<ClientSidebarPluginDefinition> = Object.freeze([
     PLUGIN_HUB_SIDEBAR_PLUGIN,
+    BOT_SDK_SIDEBAR_PLUGIN,
     GROUND_ITEMS_SIDEBAR_PLUGIN,
     TILE_MARKERS_SIDEBAR_PLUGIN,
     INTERACT_HIGHLIGHT_SIDEBAR_PLUGIN,

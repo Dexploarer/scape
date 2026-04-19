@@ -64,8 +64,7 @@ Paths are relative to the repo root.
 |---|---|
 | `ServerConnection` | `src/network/ServerConnection.ts` |
 | `ServerConnectionShim` | `src/network/ServerConnectionShim.ts` |
-| `useServerConnection` (hook) | `src/network/useServerConnection.ts` |
-| `useGroundItems`, `useInventory`, `useEquipment` hooks | `src/network/useServerConnection.ts` (same file) |
+| `subscribeInventory`, `subscribeGroundItems`, `subscribeSkills`, `subscribeCombat` | `src/network/ServerConnection.ts` |
 | `encodeClientPacket*` | `src/network/packet/*` |
 | `PlayerSyncManager`, `NpcSyncManager` (client) | `src/client/sync/*` |
 | `BitStream` (client reader) | `src/client/sync/BitStream.ts` |
@@ -77,8 +76,8 @@ Paths are relative to the repo root.
 | `Canvas` | `src/ui/Canvas.tsx` |
 | `UiScale`, `UiScaleDiagnostic` | `src/ui/UiScale.ts` |
 | `DevOverlay` | `src/ui/devoverlay/*` |
-| `CLIENT_PLUGINS` (registry) | `src/ui/plugins/pluginhub/PluginRegistry.ts` |
-| `TileOverlayRenderer`, `useOverlayRegistry` | `src/ui/plugins/shared/OverlayRegistry.ts` |
+| `registerDefaultClientSidebarEntries` | `src/client/sidebar/entries.ts` |
+| `OverlayManager` | `src/ui/devoverlay/OverlayManager.ts` |
 | `useCache*` hooks | `src/ui/cache/*` |
 | `WidgetRenderer` | `src/ui/widgets/*` |
 
@@ -192,7 +191,7 @@ Service names are canonical in `GameContext` / `ServerServices`. Grep `ServerSer
 | Symbol | Owner |
 |---|---|
 | `AccountStore` (interface) | `server/src/game/state/AccountStore.ts` |
-| `JsonAccountStore` | `server/src/game/state/JsonAccountStore.ts` |
+| `JsonAccountStore` | `server/src/game/state/AccountStore.ts` |
 | `PersistenceProvider` | `server/src/game/state/PersistenceProvider.ts` |
 
 ## Pathfinding
@@ -220,8 +219,7 @@ Service names are canonical in `GameContext` / `ServerServices`. Grep `ServerSer
 | `BitWriter` (server) | `server/src/network/BitWriter.ts` |
 | `BitStream` (client) | `src/client/sync/BitStream.ts` |
 | `Smart` encoders | `src/shared/network/*` |
-| `Logger` | `server/src/utils/Logger.ts` |
-| `assertNever` | `src/shared/util/*` / `server/src/utils/*` |
+| `logger` | `server/src/utils/logger.ts` |
 
 ## Grep tips
 

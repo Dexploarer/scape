@@ -164,7 +164,7 @@ Paths are relative to the repo root.
 | `server/src/network/AuthenticationService.ts` | Login auth |
 | `server/src/network/LoginHandshakeService.ts` | Handshake state machine |
 | `server/src/network/ServiceWiring.ts` | Network service wiring |
-| `server/src/network/botsdk/` | Bot SDK endpoint (`/botsdk` on the main world server; standalone `43595` in local-only mode) |
+| `server/src/network/botsdk/` | Bot SDK port (43595) |
 | `server/src/network/anim/` | Animation packet helpers |
 | `server/src/network/messages.ts` | Canonical chat message strings |
 | `server/src/network/accountSummary.ts` | Welcome/login response payload |
@@ -251,7 +251,8 @@ Paths are relative to the repo root.
 | `server/data/stair-floors.json` | Stair plane transitions |
 | `server/data/intermap-links.json` | Map region links |
 | `server/data/diaryVarbits.ts` | Diary varbit wiring |
-| `server/data/accounts.json` | Test accounts |
+| `server/data/accounts.json` | Local auth records |
+| `server/data/gamemodes/<id>/player-state.json` | Saved gameplay state per gamemode |
 | `server/data/gamemodes/<id>/` | Gamemode-specific content |
 | `server/src/data/items.ts` | Item metadata helpers (code) |
 | `server/src/data/npcCombatStats.ts` | Combat stat resolution |

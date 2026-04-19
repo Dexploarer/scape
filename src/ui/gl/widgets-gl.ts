@@ -1,5 +1,6 @@
 import { ClientState } from "../../client/ClientState";
 import type { InputManager } from "../../client/InputManager";
+import { getMapImageBasePath } from "../../client/assetSources";
 import { profiler } from "../../client/webgl/PerformanceProfiler";
 import { CacheIndex } from "../../rs/cache/CacheIndex";
 import { CacheSystem } from "../../rs/cache/CacheSystem";
@@ -1828,6 +1829,14 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         const prepContentTypeStartMs = profileWidgetRender ? performance.now() : 0;
         try {
             const ct = ((w.contentType ?? 0) | 0) as number;
+            if (ct === 205 && w.type === 4) {
+                w.text = "Logout";
+            } else if (ct === 206 && w.type === 4) {
+                const label = (osrsClient as any)?.getLogoutTabWorldSwitcherLabel?.();
+                if (typeof label === "string" && label.length > 0) {
+                    w.text = label;
+                }
+            }
             if (ct === 324 || ct === 325) {
                 // gender toggle sprites depend on Client.playerAppearance.gender.
                 //
@@ -2555,24 +2564,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     // Begin WebGL minimap rendering
                     minimapRenderer.begin(centerX, centerY, radius, cameraYaw, adjustedZoom);
 
-                    // Get the base path for map images. Prefer the
-                    // build-time REACT_APP_CACHE_URL if set (hosted
-                    // deployments serve the ~40 MB tile set from the
-                    // same object-storage bucket that holds the OSRS
-                    // cache), otherwise fall back to the relative
-                    // /map-images/ path that the craco dev server
-                    // exposes via express.static("public/map-images").
+                    // Get the base path for map images
                     const cacheName = osrsClient.loadedCache?.info?.name;
-                    const mapImagesRoot = (() => {
-                        const raw = process.env.REACT_APP_CACHE_URL?.trim();
-                        if (raw && raw.length > 0) {
-                            return `${raw.replace(/\/+$/, "")}/map-images`;
-                        }
-                        return "/map-images";
-                    })();
-                    const mapImageBasePath = cacheName
-                        ? `${mapImagesRoot}/${cacheName}`
-                        : mapImagesRoot;
+                    const mapImageBasePath = getMapImageBasePath(cacheName);
 
                     // Draw 3x3 grid of map tiles
                     // Each tile is 64 tiles = 256 minimap pixels at 4px/tile

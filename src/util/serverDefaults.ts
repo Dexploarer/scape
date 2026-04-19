@@ -15,30 +15,19 @@
  * and craco will inline them at build time.
  */
 
-function readEnv(key: string): string | undefined {
-    // CRA's webpack rewrites `process.env.REACT_APP_FOO` to a literal
-    // at build time, even when `key` is a variable (the whole
-    // `process.env` object is injected as a hardcoded literal object
-    // that we then index into). That means `process.env[key]` never
-    // actually hits the Node `process` global in the browser.
-    //
-    // Do NOT guard with `typeof process === "undefined"` here —
-    // modern CRA builds do not ship a process polyfill, so in the
-    // browser `typeof process === "undefined"` is `true`, the guard
-    // returns early, and the inlined object lookup below is never
-    // reached. The net effect is that DEFAULT_SERVER silently falls
-    // back to the hardcoded localhost LOCAL_FALLBACK on every hosted
-    // deployment, regardless of what REACT_APP_WS_URL is set to.
-    // That bug took hours to track down — do not reintroduce the
-    // `typeof process` guard.
+function normalizeEnvValue(value: string | undefined): string | undefined {
     try {
-        const value = (process as { env?: Record<string, string | undefined> })
-            .env?.[key];
         return typeof value === "string" && value.length > 0 ? value : undefined;
     } catch {
         return undefined;
     }
 }
+
+// CRA rewrites explicit `process.env.REACT_APP_*` reads to string literals at
+// build time. Keep these as direct property reads so browser bundles never rely
+// on dynamic environment-key indexing.
+const REACT_APP_WS_URL = normalizeEnvValue(process.env.REACT_APP_WS_URL);
+const REACT_APP_SERVER_NAME = normalizeEnvValue(process.env.REACT_APP_SERVER_NAME);
 
 export interface DefaultServer {
     /** `host:port` — no scheme. Matches the format used by LoginState.serverAddress. */
@@ -78,8 +67,8 @@ const LOCAL_FALLBACK: DefaultServer = {
 };
 
 export const DEFAULT_SERVER: DefaultServer = (() => {
-    const rawUrl = readEnv("REACT_APP_WS_URL");
-    const name = readEnv("REACT_APP_SERVER_NAME") ?? LOCAL_FALLBACK.name;
+    const rawUrl = REACT_APP_WS_URL;
+    const name = REACT_APP_SERVER_NAME ?? LOCAL_FALLBACK.name;
     if (!rawUrl) return { ...LOCAL_FALLBACK, name };
     const parsed = parseWsUrl(rawUrl);
     if (!parsed) return { ...LOCAL_FALLBACK, name };

@@ -73,7 +73,7 @@ Or by id: `::give 4151 5`.
 
 ## Handling player permissions
 
-The `player.isAdmin` check is a per-gamemode concept. In vanilla, admin flags are set via the account store (`server/data/accounts.json`) or by a gamemode-specific rule. For a quick hack, set `"isAdmin": true` on your account in the JSON file before starting the server.
+The `player.isAdmin` check is a per-gamemode concept. In vanilla, admin detection is driven by `AuthenticationService` from the `ADMIN_USERNAMES` / `ADMIN_PLAYERS` / `ADMIN_NAMES` env vars. For a quick local hack, start the server with your username included there before testing the command.
 
 For production, use a proper permissions system — don't ship `::give` to end users.
 

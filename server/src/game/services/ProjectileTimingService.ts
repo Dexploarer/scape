@@ -3,6 +3,7 @@ import type { SpellDataEntry } from "../spells/SpellDataProvider";
 import type { ProjectileLaunch } from "../../../../src/shared/projectiles/ProjectileLaunch";
 import { PLAYER_CHEST_OFFSET_UNITS } from "../../../../src/shared/projectiles/projectileHeights";
 import type { PathService } from "../../pathfinding/PathService";
+import type { ProjectileTiming } from "../actions/handlers/HandlerSupportContracts";
 import type { NpcManager } from "../npcManager";
 import type { PlayerState } from "../player";
 import type { NpcState } from "../npc";
@@ -49,9 +50,7 @@ export class ProjectileTimingService {
         projectileDefaults?: ProjectileParams;
         spellData?: SpellDataEntry;
         pathService?: PathService;
-    }):
-        | { startDelay: number; travelTime: number; hitDelay: number; lineOfSight?: boolean }
-        | undefined {
+    }): ProjectileTiming | undefined {
         const tickMs = Math.max(1, this.deps.getTickMs());
         const framesPerTick = Math.max(1, Math.round(tickMs / 20));
         const projectileId = opts.spellData?.projectileId ?? -1;

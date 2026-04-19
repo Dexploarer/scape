@@ -21,8 +21,8 @@ import { dirname } from "node:path";
 import { logger } from "../../utils/logger";
 
 /** Hashing algorithm tag stored alongside each record, so we can migrate later. */
-const ALGORITHM_V1 = "scrypt-n16384-r8-p1-64" as const;
-type AlgorithmTag = typeof ALGORITHM_V1;
+export const ACCOUNT_ALGORITHM_V1 = "scrypt-n16384-r8-p1-64" as const;
+type AlgorithmTag = typeof ACCOUNT_ALGORITHM_V1;
 
 const SCRYPT_N = 16384;
 const SCRYPT_R = 8;
@@ -103,9 +103,64 @@ export interface AccountStore {
     size(): number;
 }
 
+export interface ManagedAccountStore extends AccountStore {
+    /** Called once during server boot. Use for connection setup or cache warmup. */
+    initialize?(): Promise<void> | void;
+
+    /** Called during graceful shutdown. Use for connection cleanup/final flush. */
+    dispose?(): Promise<void> | void;
+}
+
 export interface JsonAccountStoreOptions {
     filePath: string;
     minPasswordLength?: number;
+}
+
+function normalizeAccountUsername(username: string): string {
+    return username.trim().toLowerCase();
+}
+
+export function createPasswordAccountRecord(username: string, password: string): AccountRecord {
+    const normalizedUsername = normalizeAccountUsername(username);
+    const salt = new Uint8Array(SCRYPT_SALT_LEN);
+    randomFillSync(salt);
+    const hash = new Uint8Array(
+        scryptSync(password, salt, SCRYPT_KEY_LEN, {
+            N: SCRYPT_N,
+            r: SCRYPT_R,
+            p: SCRYPT_P,
+        }),
+    );
+    return {
+        username: normalizedUsername,
+        passwordHash: bytesToHex(hash),
+        passwordSalt: bytesToHex(salt),
+        algorithm: ACCOUNT_ALGORITHM_V1,
+        createdAt: Date.now(),
+    };
+}
+
+export function verifyPasswordAgainstRecord(password: string, record: AccountRecord): boolean {
+    if (record.algorithm !== ACCOUNT_ALGORITHM_V1) {
+        logger.warn(`[accounts] unknown algorithm "${record.algorithm}" for ${record.username}`);
+        return false;
+    }
+    try {
+        const salt = hexToBytes(record.passwordSalt);
+        const expected = hexToBytes(record.passwordHash);
+        const actual = new Uint8Array(
+            scryptSync(password, salt, expected.length, {
+                N: SCRYPT_N,
+                r: SCRYPT_R,
+                p: SCRYPT_P,
+            }),
+        );
+        if (actual.length !== expected.length) return false;
+        return timingSafeEqual(actual, expected);
+    } catch (err) {
+        logger.warn("[accounts] password verify error", err);
+        return false;
+    }
 }
 
 /**
@@ -158,7 +213,7 @@ export class JsonAccountStore implements AccountStore {
     }
 
     exists(username: string): boolean {
-        return this.accounts.has(username.trim().toLowerCase());
+        return this.accounts.has(normalizeAccountUsername(username));
     }
 
     size(): number {
@@ -166,7 +221,7 @@ export class JsonAccountStore implements AccountStore {
     }
 
     verifyOrRegister(username: string, password: string): AccountAuthResult {
-        const key = username.trim().toLowerCase();
+        const key = normalizeAccountUsername(username);
         if (!key) return { kind: "wrong_password" };
         try {
             const existing = this.accounts.get(key);
@@ -174,7 +229,7 @@ export class JsonAccountStore implements AccountStore {
                 if (existing.banned) {
                     return { kind: "banned", reason: existing.banReason };
                 }
-                if (!this.verifyPassword(password, existing)) {
+                if (!verifyPasswordAgainstRecord(password, existing)) {
                     return { kind: "wrong_password" };
                 }
                 existing.lastLoginAt = Date.now();
@@ -186,55 +241,13 @@ export class JsonAccountStore implements AccountStore {
             if (password.length < this.minPasswordLength) {
                 return { kind: "password_too_short", minLength: this.minPasswordLength };
             }
-            const record = this.hashNewPassword(key, password);
+            const record = createPasswordAccountRecord(key, password);
             this.accounts.set(key, record);
             this.save();
             logger.info(`[accounts] created new account "${key}" (total=${this.accounts.size})`);
             return { kind: "ok", account: record, created: true };
         } catch (err) {
             return { kind: "error", error: err instanceof Error ? err : new Error(String(err)) };
-        }
-    }
-
-    private hashNewPassword(username: string, password: string): AccountRecord {
-        const salt = new Uint8Array(SCRYPT_SALT_LEN);
-        randomFillSync(salt);
-        const hash = new Uint8Array(
-            scryptSync(password, salt, SCRYPT_KEY_LEN, {
-                N: SCRYPT_N,
-                r: SCRYPT_R,
-                p: SCRYPT_P,
-            }),
-        );
-        return {
-            username,
-            passwordHash: bytesToHex(hash),
-            passwordSalt: bytesToHex(salt),
-            algorithm: ALGORITHM_V1,
-            createdAt: Date.now(),
-        };
-    }
-
-    private verifyPassword(password: string, record: AccountRecord): boolean {
-        if (record.algorithm !== ALGORITHM_V1) {
-            logger.warn(`[accounts] unknown algorithm "${record.algorithm}" for ${record.username}`);
-            return false;
-        }
-        try {
-            const salt = hexToBytes(record.passwordSalt);
-            const expected = hexToBytes(record.passwordHash);
-            const actual = new Uint8Array(
-                scryptSync(password, salt, expected.length, {
-                    N: SCRYPT_N,
-                    r: SCRYPT_R,
-                    p: SCRYPT_P,
-                }),
-            );
-            if (actual.length !== expected.length) return false;
-            return timingSafeEqual(actual, expected);
-        } catch (err) {
-            logger.warn("[accounts] password verify error", err);
-            return false;
         }
     }
 }

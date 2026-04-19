@@ -32,6 +32,8 @@ Four environment variables, all override `server/config.json`:
 | `BOT_SDK_HOST`                  | `127.0.0.1`          | Bind address. Default is localhost-only; override for remote agent hosts.                           |
 | `BOT_SDK_PORT`                  | `43595`              | Legacy standalone TCP port. Production uses `/botsdk` on the main world server.                     |
 | `BOT_SDK_PERCEPTION_EVERY_N_TICKS` | `3`               | How often the perception emitter pushes a TOON snapshot to each connected agent.                    |
+| `HOSTED_SESSION_SECRET`         | *(unset)*            | HMAC secret used to sign hosted human/agent session tickets.                                         |
+| `HOSTED_SESSION_ISSUER_SECRET`  | *(unset)*            | Bearer token required for `POST /hosted-session/issue` when minting hosted session tickets.         |
 
 Example `server/config.json` snippet for a private, LAN-only deployment
 where you run milady on the same box:
@@ -54,6 +56,73 @@ export BOT_SDK_TOKEN=dev-secret
 bun run server:start
 ```
 
+## Hosted session issuing
+
+Hosted human and agent logins now support a ticket-based flow in
+addition to the existing password flow. When both
+`HOSTED_SESSION_SECRET` and `HOSTED_SESSION_ISSUER_SECRET` are set,
+the game server exposes:
+
+```text
+POST /hosted-session/issue
+Authorization: Bearer <HOSTED_SESSION_ISSUER_SECRET>
+Content-Type: application/json
+```
+
+Example request:
+
+```json
+{
+  "kind": "agent",
+  "principalId": "principal:agent-77",
+  "displayName": "Toon Agent",
+  "worldCharacterId": "toon-77",
+  "agentId": "agent-77",
+  "ttlMs": 300000
+}
+```
+
+Example response:
+
+```json
+{
+  "sessionToken": "hs1....",
+  "claims": {
+    "version": 1,
+    "kind": "agent",
+    "principalId": "principal:agent-77",
+    "worldId": "vanilla",
+    "worldCharacterId": "toon-77",
+    "displayName": "Toon Agent",
+    "issuedAt": 1700000000000,
+    "expiresAt": 1700000300000,
+    "agentId": "agent-77"
+  }
+}
+```
+
+The web client can then launch with:
+
+```text
+/?sessionToken=<token>&worldCharacterId=<worldCharacterId>
+```
+
+The Bot SDK can send the same `sessionToken` and `worldCharacterId`
+in its additive hosted spawn fields instead of using password auth.
+
+For local ops/dev, you can mint one from the repo directly:
+
+```bash
+HOSTED_SESSION_ISSUER_SECRET=issuer-secret \
+WEB_CLIENT_BASE_URL=http://127.0.0.1:3000 \
+bun run hosted-session:issue \
+  --kind agent \
+  --principal-id principal:agent-77 \
+  --display-name "Toon Agent" \
+  --world-character-id toon-77 \
+  --agent-id agent-77
+```
+
 ## Protocol summary
 
 The endpoint speaks **TOON** (Token-Oriented Object Notation,
@@ -73,6 +142,9 @@ The endpoint speaks **TOON** (Token-Oriented Object Notation,
 - `authOk` / `error` — response to `auth`
 - `spawnOk` — agent is in the world, here's the player id + position
 - `ack` — response to an `action` that carried a `correlationId`
+- `event` — high-signal TOON wakeup frame pushed immediately from the
+  typed game event bus (`skill:levelUp`, `equipment:equip`,
+  `npc:death` when the agent got the kill, etc.)
 - `perception` — the agent's current view of the world (self, skills,
   inventory, equipment, nearby NPCs/players/objects, recent events)
 - `operatorCommand` — pushed by the server when a human types
@@ -110,12 +182,38 @@ Existing services (`MovementService`, `CombatService`, `InventoryService`,
 present:
 
 - `BotSdkPerceptionBuilder` builds the perception snapshot that the
-  agent sees.
+  agent sees, including a bounded `recentEvents` FIFO sourced from the
+  game event bus.
 - `BotSdkPerceptionEmitter` pushes that snapshot down the wire every
   N ticks.
+- `BotSdkEventBridge` subscribes to the typed game event bus and
+  immediately pushes TOON `event` frames to the relevant connected
+  agent, so autonomous loops can wake on world changes instead of
+  relying on blind polling.
 - `BotSdkActionRouter` turns incoming action frames into calls into
   the normal service layer — no duplicated logic, no gameplay code
   lives in the bot-SDK.
+
+## Event-driven loop
+
+The runtime is now explicitly **event-driven over TOON**:
+
+- all Bot SDK wire frames are TOON-encoded (`auth`, `spawn`, `action`,
+  `ack`, `event`, `perception`, `operatorCommand`)
+- the server pushes `event` frames immediately on relevant world
+  changes through the typed `GameEventBus`
+- each agent also receives a periodic `perception` snapshot as a
+  heartbeat / state resync channel
+
+That means autonomous agents can run a simple loop:
+
+1. Wake on `event`, `ack`, or `operatorCommand`
+2. Re-read the latest TOON `perception`
+3. Choose one action
+4. Wait for the next pushed signal
+
+The periodic perception tick is now a fallback, not the primary wakeup
+mechanism.
 
 This is the first step toward making xRSPS an ECS-for-agents. The
 refactor can grow the component set over time without touching the

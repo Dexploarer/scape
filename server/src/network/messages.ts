@@ -1,8 +1,58 @@
 import type { ProjectileLaunch } from "../../../src/shared/projectiles/ProjectileLaunch";
+import type { AgentScriptSpec } from "../../../src/shared/agent/AgentScript";
+import type {
+    BotSdkJournalActivity,
+    BotSdkJournalProposal,
+    BotSdkJournalSnapshot,
+    GroundItemActionPayload,
+    GroundItemStackMessage,
+    GroundItemsServerPayload,
+    ShopServerPayload,
+    ShopStockEntryMessage,
+    SmithingOptionMessage,
+    SmithingServerPayload,
+    SpellCastItemPayload,
+    SpellCastModifiers,
+    SpellCastNpcPayload,
+    SpellCastObjPayload,
+    SpellCastPayloadBase,
+    SpellCastPlayerPayload,
+    SpellCastLocPayload,
+    SpellResultPayload,
+    SpellRuneDelta,
+    TradeOfferEntryMessage,
+    TradePartyMessage,
+    TradeServerPayload,
+} from "../../../src/shared/network/GameMessageDtos";
 import { logger } from "../utils/logger";
 import type { WidgetAction } from "../widgets/WidgetManager";
 import type { RoutedMessage } from "./MessageRouter";
 import { sendMessage, serverEncoder } from "./packet/BinaryProtocol";
+
+export type {
+    BotSdkJournalActivity,
+    BotSdkJournalProposal,
+    BotSdkJournalSnapshot,
+    GroundItemActionPayload,
+    GroundItemStackMessage,
+    GroundItemsServerPayload,
+    ShopServerPayload,
+    ShopStockEntryMessage,
+    SmithingOptionMessage,
+    SmithingServerPayload,
+    SpellCastItemPayload,
+    SpellCastModifiers,
+    SpellCastNpcPayload,
+    SpellCastObjPayload,
+    SpellCastPayloadBase,
+    SpellCastPlayerPayload,
+    SpellCastLocPayload,
+    SpellResultPayload,
+    SpellRuneDelta,
+    TradeOfferEntryMessage,
+    TradePartyMessage,
+    TradeServerPayload,
+};
 
 export type Appearance = {
     gender: number;
@@ -46,135 +96,7 @@ export type BankServerUpdate =
     | { kind: "snapshot"; capacity: number; slots: BankSlotMessage[] }
     | { kind: "slot"; slot: BankSlotMessage };
 
-export type ShopStockEntryMessage = {
-    slot: number;
-    itemId: number;
-    quantity: number;
-    defaultQuantity?: number;
-    priceEach?: number;
-    sellPrice?: number;
-};
-
-export type GroundItemStackMessage = {
-    id: number;
-    itemId: number;
-    quantity: number;
-    tile: { x: number; y: number; level: number };
-    createdTick?: number;
-    privateUntilTick?: number;
-    expiresTick?: number;
-    ownerId?: number;
-    isPrivate?: boolean;
-    /** Mirrors RuneLite TileItem ownership constants: 0=none,1=self,2=other,3=group */
-    ownership?: 0 | 1 | 2 | 3;
-};
-
-export type GroundItemsServerPayload =
-    | {
-          kind: "snapshot";
-          serial: number;
-          stacks: GroundItemStackMessage[];
-      }
-    | {
-          kind: "delta";
-          serial: number;
-          upserts: GroundItemStackMessage[];
-          removes: number[];
-      };
-
-export type ShopServerPayload =
-    | {
-          kind: "open";
-          shopId: string;
-          name: string;
-          currencyItemId: number;
-          generalStore?: boolean;
-          buyMode?: number;
-          sellMode?: number;
-          stock: ShopStockEntryMessage[];
-      }
-    | {
-          kind: "slot";
-          shopId: string;
-          slot: ShopStockEntryMessage;
-      }
-    | {
-          kind: "close";
-      }
-    | {
-          kind: "mode";
-          shopId: string;
-          buyMode?: number;
-          sellMode?: number;
-      };
-
-export type SmithingOptionMessage = {
-    recipeId: string;
-    name: string;
-    level: number;
-    itemId: number;
-    outputQuantity: number;
-    available: number;
-    canMake: boolean;
-    xp?: number;
-    ingredientsLabel?: string;
-    mode?: "smelt" | "forge";
-    barItemId?: number;
-    barCount?: number;
-    requiresHammer?: boolean;
-    hasHammer?: boolean;
-};
-
-export type SmithingServerPayload =
-    | {
-          kind: "open" | "update";
-          mode: "smelt" | "forge";
-          title?: string;
-          options: SmithingOptionMessage[];
-          quantityMode: number;
-          customQuantity?: number;
-      }
-    | {
-          kind: "mode";
-          quantityMode: number;
-          customQuantity?: number;
-      }
-    | {
-          kind: "close";
-      };
-
-export type TradeOfferMessage = {
-    slot: number;
-    itemId: number;
-    quantity: number;
-};
-
-export type TradePartyMessage = {
-    playerId?: number;
-    name?: string;
-    offers: TradeOfferMessage[];
-    accepted?: boolean;
-    confirmAccepted?: boolean;
-};
-
-export type TradeServerPayload =
-    | {
-          kind: "request";
-          fromId: number;
-          fromName?: string;
-      }
-    | {
-          kind: "open" | "update";
-          sessionId: string;
-          stage: TradeStage;
-          self: TradePartyMessage;
-          other: TradePartyMessage;
-          info?: string;
-      }
-    | {
-          kind: "close";
-          reason?: string;
-      };
+export type TradeOfferMessage = TradeOfferEntryMessage;
 
 export type WidgetActionRequest = {
     widgetId: number;
@@ -215,16 +137,6 @@ export type TradeActionClientPayload =
     | { action: typeof TradeAction.ConfirmAccept }
     | { action: typeof TradeAction.ConfirmDecline };
 
-export type GroundItemActionPayload = {
-    stackId: number;
-    tile: { x: number; y: number; level?: number };
-    itemId: number;
-    quantity?: number;
-    option?: string; // deprecated, use opNum
-    opNum?: number; // 1-5 maps to ObjType.groundActions[opNum-1]
-    modifierFlags?: number;
-};
-
 export type WidgetServerPayload = WidgetAction;
 
 export type SkillEntryMessage = {
@@ -263,82 +175,6 @@ export type RunEnergyPayload = {
     staminaTicks?: number;
     staminaMultiplier?: number;
     staminaTickMs?: number;
-};
-
-export type SpellCastModifiers = {
-    isAutocast?: boolean;
-    defensive?: boolean;
-    queued?: boolean;
-    castMode?: "manual" | "autocast" | "defensive_autocast";
-};
-
-export type SpellCastPayloadBase = {
-    // Use widget references instead of hardcoded spell ID
-    spellbookGroupId?: number;
-    widgetChildId?: number;
-    selectedSpellWidgetId?: number;
-    selectedSpellChildIndex?: number;
-    selectedSpellItemId?: number;
-    spellId?: number; // Legacy fallback for compatibility
-    tile?: { x: number; y: number };
-    plane?: number;
-    modifierFlags?: number;
-    modifiers?: SpellCastModifiers;
-};
-
-export type SpellCastNpcPayload = SpellCastPayloadBase & { npcId: number };
-export type SpellCastPlayerPayload = SpellCastPayloadBase & { playerId: number };
-export type SpellCastLocPayload = SpellCastPayloadBase & { locId: number };
-export type SpellCastObjPayload = SpellCastPayloadBase & { objId: number };
-export type SpellCastItemPayload = {
-    // Use widget references instead of hardcoded spell ID
-    spellbookGroupId?: number;
-    widgetChildId?: number;
-    selectedSpellWidgetId?: number;
-    selectedSpellChildIndex?: number;
-    selectedSpellItemId?: number;
-    spellId?: number; // Legacy fallback for compatibility
-    slot: number;
-    itemId: number;
-    widgetId?: number;
-    tile?: { x: number; y: number };
-    plane?: number;
-    modifierFlags?: number;
-    modifiers?: SpellCastModifiers;
-};
-
-export type SpellRuneDelta = { itemId: number; quantity: number };
-
-export type SpellResultPayload = {
-    casterId: number;
-    spellId: number;
-    outcome: "success" | "failure";
-    reason?:
-        | "invalid_spell"
-        | "invalid_target"
-        | "out_of_range"
-        | "out_of_runes"
-        | "level_requirement"
-        | "cooldown"
-        | "restricted_zone"
-        | "immune_target"
-        | "already_active"
-        | "line_of_sight"
-        | "server_error"
-        | string;
-    targetType: "npc" | "player" | "loc" | "obj" | "tile" | "item";
-    targetId?: number;
-    tile?: { x: number; y: number; plane?: number };
-    modifiers?: SpellCastModifiers;
-    runesConsumed?: SpellRuneDelta[];
-    runesRefunded?: SpellRuneDelta[];
-    hitDelay?: number;
-    impactSpotAnim?: number;
-    castSpotAnim?: number;
-    splashSpotAnim?: number;
-    damage?: number;
-    maxHit?: number;
-    accuracy?: number;
 };
 
 export type SoundEffectPayload = {
@@ -512,6 +348,29 @@ export type ServerToClient =
                     requestId: number;
                     fromId?: number;
                     snapshot: Record<string, unknown>;
+                }
+              | {
+                    kind: "bot_sdk_script_proposals_snapshot";
+                    targetPlayerId?: number;
+                    proposals: Array<{
+                        proposalId: string;
+                        playerId: number;
+                        agentId: string;
+                        displayName: string;
+                        principalId?: string;
+                        worldCharacterId?: string;
+                        summary?: string;
+                        script: AgentScriptSpec;
+                        proposedAt: number;
+                    }>;
+                    activities: Array<{
+                        id: string;
+                        kind: "proposal" | "decision" | "control";
+                        text: string;
+                        timestamp: number;
+                        playerId?: number;
+                        proposalId?: string;
+                    }>;
                 };
       }
     | { type: "varp"; payload: { varpId: number; value: number } }
@@ -527,6 +386,16 @@ export type ServerToClient =
 export type ClientToServer =
     | { type: "hello"; payload: { client: string; version?: string } }
     | { type: "ping"; payload: { time: number } }
+    | {
+          type: "login";
+          payload: {
+              username?: string;
+              password?: string;
+              revision?: number;
+              sessionToken?: string;
+              worldCharacterId?: string;
+          };
+      }
     | {
           type: "pathfind";
           payload: {
@@ -666,6 +535,38 @@ export type ClientToServer =
               | { kind: "projectiles_snapshot"; requestId: number; snapshot: Record<string, unknown> }
               | { kind: "anim_request"; requestId?: number }
               | { kind: "anim_snapshot"; requestId: number; snapshot: Record<string, unknown> }
+              | {
+                    kind: "bot_sdk_script";
+                    operation: "install";
+                    script: AgentScriptSpec;
+                    targetAgentId?: string;
+                    targetPlayerId?: number;
+                }
+              | {
+                    kind: "bot_sdk_script";
+                    operation: "clear";
+                    reason?: string;
+                    targetAgentId?: string;
+                    targetPlayerId?: number;
+                }
+              | {
+                    kind: "bot_sdk_script";
+                    operation: "interrupt";
+                    interrupt: string;
+                    reason?: string;
+                    targetAgentId?: string;
+                    targetPlayerId?: number;
+                }
+              | {
+                    kind: "bot_sdk_script_proposals_request";
+                    targetPlayerId?: number;
+                }
+              | {
+                    kind: "bot_sdk_script_proposal_decision";
+                    proposalId: string;
+                    decision: "approve_install" | "reject";
+                    reason?: string;
+                }
               | { kind: "set_var"; value?: number; varbit?: number; varp?: number }
               | { kind: "raw"; raw: string };
       }

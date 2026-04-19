@@ -14,6 +14,7 @@
  */
 
 import type { AgentPerceptionSnapshot } from "../../agent";
+import type { AgentScriptSpec } from "../../agent";
 
 export type BotSdkFeature = "hostedSessions" | "liveEvents";
 
@@ -28,7 +29,7 @@ export interface AuthFrame {
     token: string;
     /** Optional protocol version bump (currently always 1). */
     version?: number;
-    /** Optional client feature negotiation. */
+    /** Optional client feature negotiation. Older clients may omit this. */
     features?: BotSdkFeature[];
 }
 
@@ -49,8 +50,8 @@ export interface SpawnFrame {
     kind: "spawn";
     /** Stable agent id supplied by the plugin (distinct from the in-game username). */
     agentId: string;
-    /** Requested in-game display name — becomes the account username. */
-    displayName: string;
+    /** Requested in-game display name — becomes the account username in password mode. */
+    displayName?: string;
     /**
      * Plaintext password used for scrypt verification / first-time account
      * creation. Travels over the bot-SDK WebSocket only; never logged.
@@ -58,12 +59,12 @@ export interface SpawnFrame {
      * (AUTH_MIN_PASSWORD_LENGTH, default 8).
      */
     password?: string;
-    /** Hosted Milady/ElizaOS session token. Distinct from password mode. */
+    /** Hosted Milady/ElizaOS session token. Mutually exclusive with password auth. */
     sessionToken?: string;
-    /** Optional hosted world identifier. Must match the server's configured world. */
-    worldId?: string;
-    /** Hosted world-character branch. */
+    /** Optional hosted world-character branch id expected by the session token. */
     worldCharacterId?: string;
+    /** Optional world hint for older clients. Ignored unless it mismatches. */
+    worldId?: string;
     /** Optional persona string fed into the LLM's system prompt. */
     persona?: string;
     /** Controller mode for this agent. Defaults to `"hybrid"`. */
@@ -128,12 +129,36 @@ export interface EatFoodAction extends ActionEnvelope {
     slot?: number;
 }
 
+export interface InteractObjectAction extends ActionEnvelope {
+    action: "interactObject";
+    locId: number;
+    x: number;
+    z: number;
+    level?: number;
+    option?: string;
+}
+
+export interface BankDepositInventoryAction extends ActionEnvelope {
+    action: "bankDepositInventory";
+    tab?: number;
+}
+
 export type AnyActionFrame =
     | WalkToAction
     | ChatPublicAction
     | AttackNpcAction
     | DropItemAction
-    | EatFoodAction;
+    | EatFoodAction
+    | InteractObjectAction
+    | BankDepositInventoryAction;
+
+export interface ActionResultFrame {
+    kind: "actionResult";
+    correlationId?: string;
+    status: "progress" | "success" | "failed" | "blocked" | "cancelled";
+    code: string;
+    message: string;
+}
 
 /** Client tells the server it's done with this agent session. */
 export interface DisconnectFrame {
@@ -141,8 +166,49 @@ export interface DisconnectFrame {
     reason?: string;
 }
 
+export interface InstallScriptFrame {
+    kind: "script";
+    operation: "install";
+    script: AgentScriptSpec;
+    correlationId?: string;
+}
+
+export interface ClearScriptFrame {
+    kind: "script";
+    operation: "clear";
+    reason?: string;
+    correlationId?: string;
+}
+
+export interface InterruptScriptFrame {
+    kind: "script";
+    operation: "interrupt";
+    interrupt: string;
+    reason?: string;
+    correlationId?: string;
+}
+
+export interface ScriptProposalFrame {
+    kind: "proposal";
+    proposalId?: string;
+    summary?: string;
+    script: AgentScriptSpec;
+    correlationId?: string;
+}
+
+export type ScriptFrame =
+    | InstallScriptFrame
+    | ClearScriptFrame
+    | InterruptScriptFrame;
+
 /** All client-originated frames. */
-export type ClientFrame = AuthFrame | SpawnFrame | AnyActionFrame | DisconnectFrame;
+export type ClientFrame =
+    | AuthFrame
+    | SpawnFrame
+    | AnyActionFrame
+    | DisconnectFrame
+    | ScriptFrame
+    | ScriptProposalFrame;
 
 // ────────────────────────────────────────────────────────────────────────
 //  Server frames (server → client)
@@ -155,7 +221,7 @@ export interface AuthOkFrame {
     server: string;
     /** Protocol version the server speaks. */
     version: number;
-    /** Server-supported optional features. */
+    /** Optional feature announcement for older clients. */
     features?: BotSdkFeature[];
 }
 
@@ -196,6 +262,25 @@ export interface PerceptionFrame {
 }
 
 /**
+ * High-signal server event pushed to the agent outside the periodic
+ * perception cadence. Agents can wake immediately on this frame instead
+ * of waiting for the next perception emission.
+ */
+export interface RuntimeEventFrame {
+    kind: "event";
+    /** Typed game/runtime event name (for example `skill:levelUp`). */
+    name?: string;
+    /** Legacy alias still emitted by older BotSdkServer paths. */
+    event?: string;
+    /** Unix millis when the server emitted the event. */
+    timestamp: number;
+    /** Optional lightweight event payload. */
+    payload?: Record<string, unknown>;
+}
+
+export type EventFrame = RuntimeEventFrame;
+
+/**
  * An operator-steering directive pushed from the server to the agent.
  * Sent when a human player types `::steer <text>` in public chat while
  * the agent is connected, or when an HTTP POST /api/apps/scape/prompt
@@ -226,19 +311,12 @@ export interface OperatorCommandFrame {
     fromPlayerName?: string;
 }
 
-/**
- * High-signal server event for event-driven agent wakeups.
- *
- * Older clients may not understand this frame kind, so the server only sends
- * it when the client opts into `features: ["liveEvents"]` during auth.
- */
-export interface RuntimeEventFrame {
-    kind: "event";
-    event: string;
-    timestamp: number;
-    playerId?: number;
-    worldId?: string;
-    payload?: Record<string, unknown>;
+export interface ProposalDecisionFrame {
+    kind: "proposalDecision";
+    proposalId: string;
+    decision: "approved" | "rejected";
+    installed?: boolean;
+    message?: string;
 }
 
 /** All server-originated frames. */
@@ -248,5 +326,6 @@ export type ServerFrame =
     | SpawnOkFrame
     | ActionAckFrame
     | PerceptionFrame
+    | RuntimeEventFrame
     | OperatorCommandFrame
-    | RuntimeEventFrame;
+    | ProposalDecisionFrame;

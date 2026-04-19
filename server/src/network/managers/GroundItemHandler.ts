@@ -5,12 +5,19 @@
  * Uses a service interface pattern to avoid circular dependencies.
  */
 import type { WebSocket } from "ws";
+import type {
+    GroundItemActionPayload,
+    GroundItemStackMessage,
+    GroundItemsServerPayload,
+} from "../../../../src/shared/network/GameMessageDtos";
 import { logger } from "../../utils/logger";
 import type { ServerServices } from "../../game/ServerServices";
 import type { PlayerState } from "../../game/player";
 import { encodeMessage } from "../messages";
 import { isInWilderness } from "../../game/combat/MultiCombatZones";
 import { getItemDefinition } from "../../data/items";
+
+export type { GroundItemActionPayload, GroundItemsServerPayload };
 
 /** Pickup radius in tiles */
 const GROUND_ITEM_PICKUP_RADIUS_TILES = 2;
@@ -21,42 +28,7 @@ const TILE_ITEM_OWNERSHIP_NONE = 0;
 const TILE_ITEM_OWNERSHIP_SELF = 1;
 const TILE_ITEM_OWNERSHIP_OTHER = 2;
 
-/** Ground item action payload from client */
-export interface GroundItemActionPayload {
-    option?: string;
-    opNum?: number;
-    itemId?: number;
-    stackId?: number;
-    modifierFlags?: number;
-    tile?: { x?: number; y?: number; level?: number };
-}
-
-/** Ground items server payload */
-type GroundItemStackPayload = {
-    id: number;
-    itemId: number;
-    quantity: number;
-    tile: { x: number; y: number; level: number };
-    createdTick?: number;
-    privateUntilTick?: number;
-    expiresTick?: number;
-    ownerId?: number;
-    isPrivate?: boolean;
-    ownership?: 0 | 1 | 2 | 3;
-};
-
-export type GroundItemsServerPayload =
-    | {
-          kind: "snapshot";
-          serial: number;
-          stacks: GroundItemStackPayload[];
-      }
-    | {
-          kind: "delta";
-          serial: number;
-          upserts: GroundItemStackPayload[];
-          removes: number[];
-      };
+type GroundItemStackPayload = GroundItemStackMessage;
 
 
 /** Debug configuration */

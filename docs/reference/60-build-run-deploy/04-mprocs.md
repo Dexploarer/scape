@@ -13,8 +13,6 @@ procs:
   server:
     shell: "bun run server:start"
     autostart: true
-    env:
-      BOT_SDK_TOKEN: "dev-secret"
 
   client:
     shell: "BROWSER=none bun run start"
@@ -23,8 +21,6 @@ procs:
   agent-dev:
     shell: "bun scripts/agent-dev.ts"
     autostart: true
-    env:
-      BOT_SDK_TOKEN: "dev-secret"
 ```
 
 Run with:
@@ -39,7 +35,7 @@ mprocs
 
 - **server** — the game server. Logs tick diagnostics, inbound packets, errors.
 - **client** — the React dev server. Logs compile errors, HMR events.
-- **agent-dev** — a headless bot connected to the bot-SDK. Random-walks around the spawn to generate traffic so you can see the server working without opening the browser client.
+- **agent-dev** — a local browser launcher. It waits for the client dev server, opens `http://localhost:3000/?username=...&password=...&autoplay=1`, and leaves the in-browser autoplay loop running in that tab.
 
 ### Key bindings (all prefixed by Ctrl-A)
 
@@ -68,13 +64,20 @@ Or the client:
 mprocs -n client
 ```
 
-### The dev bot agent
+### The dev browser launcher
 
-`scripts/agent-dev.ts` is a Bun script that connects to the bot-SDK path (`ws://127.0.0.1:43594/botsdk` by default), authenticates with `BOT_SDK_TOKEN`, and issues random walk commands. It retries on `ECONNREFUSED` so it survives a server restart. Handy for:
+`scripts/agent-dev.ts` is a Bun script that:
 
-- Verifying the server is running without opening a browser.
-- Generating incidental packet traffic.
-- Sanity-checking that bot-SDK integrations (milady's app-scape plugin, for instance) work against your local server.
+1. Loads or generates a stable dev-agent identity.
+2. Waits for the client dev server on `:3000`.
+3. Opens the system browser at `?username=...&password=...&autoplay=1`.
+4. Stays alive with a heartbeat so the `agent-dev` mprocs tab remains useful.
+
+The actual movement loop lives inside `OsrsClient.startAutoplay` in the browser tab. Handy for:
+
+- Zero-friction local login.
+- Reusing the same dev character across sessions.
+- Verifying the full browser + login + autoplay path, not just the server process.
 
 Remove the `agent-dev` block from `mprocs.yaml` if you don't want it.
 
@@ -112,8 +115,8 @@ Use this when you want a clean production-ish build of both the client and serve
 
 - **Dev config**: `mprocs.yaml`.
 - **Build config**: `mprocs.build.yaml`.
-- **Installed via**: `bun install` (transitive dep).
+- **Installation**: install `mprocs` separately (for example `brew install mprocs` on macOS).
 - **Default key prefix**: `Ctrl-A`.
-- **Agent dev script**: `scripts/agent-dev.ts`.
-- **Bot-SDK path**: `/botsdk` on the main world server. Standalone `43595` is local-only.
+- **Agent dev script**: `scripts/agent-dev.ts` (browser launcher, not a bot-SDK client).
+- **Bot-SDK port**: `43595`.
 - **Rule**: `bun run dev` is the default entrypoint; individual procs run with `mprocs -n <name>`.

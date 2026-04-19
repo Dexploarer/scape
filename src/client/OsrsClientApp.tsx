@@ -18,6 +18,7 @@ import {
 } from "../util/CacheManifest";
 import { isIos, isStandaloneDisplayMode, isTouchDevice } from "../util/DeviceUtil";
 import {
+    describePersistentStorageResult,
     describeStorageShortfall,
     ensurePersistentStorage,
     getStorageBudget,
@@ -201,18 +202,15 @@ function OsrsClientApp() {
             const effectivelyPersistent = persisted === true || (isStandalone && isIos);
 
             if (!effectivelyPersistent) {
-                if (persisted === false) {
-                    console.warn(
-                        "[storage] Browser denied persistent storage; cached RuneScape data may be evicted",
-                    );
-                    // Notification removed - user is likely on iOS PWA where storage is persistent anyway
-                } else if (persisted === "unsupported") {
-                    console.warn(
-                        "[storage] Persistent storage API not available; browser may evict cached data",
-                    );
-                    addStorageWarning(
-                        "Persistent storage not supported in this browser. Cached assets may be cleared. Install as PWA or use a modern browser.",
-                    );
+                const storageMessage = describePersistentStorageResult(persisted, {
+                    isIos,
+                    isStandalone,
+                });
+                if (storageMessage) {
+                    console[storageMessage.level](storageMessage.consoleMessage);
+                    if (storageMessage.userMessage) {
+                        addStorageWarning(storageMessage.userMessage);
+                    }
                 }
 
                 if (isIos && !isStandalone) {
@@ -438,7 +436,7 @@ function OsrsClientApp() {
                     lineHeight: 1.4,
                 }}
             >
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>Install OSRS Client</div>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Install -scape</div>
                 <div style={{ marginBottom: 14 }}>
                     Add the app for faster launches and offline-ready assets.
                 </div>
@@ -508,7 +506,7 @@ function OsrsClientApp() {
                 }}
             >
                 <span>
-                    Add OSRS Client to your home screen: tap the share icon, then choose
+                    Add -scape to your home screen: tap the share icon, then choose
                     <strong> Add to Home Screen</strong>.
                 </span>
                 <button

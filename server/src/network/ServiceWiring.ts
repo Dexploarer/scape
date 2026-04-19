@@ -184,6 +184,61 @@ export function registerMessageHandlers(svc: ServerServices, router: MessageRout
                 fromPlayerId,
                 fromPlayerName,
             ) ?? 0,
+        controlBotSdkScripts: (payload) => {
+            if (!svc.botSdkServer) {
+                return {
+                    matched: 0,
+                    delivered: 0,
+                    failed: 0,
+                    failureMessages: [],
+                };
+            }
+            if (payload.operation === "install") {
+                return svc.botSdkServer.broadcastInstallScript(
+                    payload.script,
+                    payload.targetAgentId,
+                    payload.targetPlayerId,
+                );
+            }
+            if (payload.operation === "clear") {
+                return svc.botSdkServer.broadcastClearScript(
+                    payload.reason,
+                    payload.targetAgentId,
+                    payload.targetPlayerId,
+                );
+            }
+            return svc.botSdkServer.broadcastInterruptScript(
+                payload.interrupt,
+                payload.reason,
+                payload.targetAgentId,
+                payload.targetPlayerId,
+            );
+        },
+        getBotSdkJournalSnapshot: (targetPlayerId) => {
+            const snapshot = svc.botSdkServer?.getJournalSnapshot(targetPlayerId);
+            if (!snapshot) {
+                return {
+                    proposals: [],
+                    activities: [],
+                };
+            }
+            return {
+                proposals: snapshot.proposals.map((proposal) => ({
+                    ...proposal,
+                    script: { ...proposal.script },
+                })),
+                activities: snapshot.activities.map((entry) => ({ ...entry })),
+            };
+        },
+        decideBotSdkScriptProposal: (payload) =>
+            svc.botSdkServer?.decideScriptProposal(
+                payload.proposalId,
+                payload.decision,
+                payload.reason,
+            ) ?? {
+                ok: false,
+                message: "Bot SDK server unavailable.",
+            },
         getPublicChatPlayerType: (player) => svc.authService.getPublicChatPlayerType(player),
         eventBus: svc.eventBus,
         findScriptCommand: (name) => svc.scriptRegistry.findCommand(name) as ((event: { player: PlayerState; command: string; args: string[]; tick: number; services: Record<string, unknown> }) => string | void | Promise<string | void>) | undefined,
@@ -280,5 +335,3 @@ export function registerMessageHandlers(svc: ServerServices, router: MessageRout
 
     // More handlers will be added incrementally...
 }
-
-

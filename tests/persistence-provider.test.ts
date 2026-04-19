@@ -8,6 +8,9 @@ import type {
     ControlPlanePlayerSnapshotRecord,
     ControlPlanePrincipalRecord,
     ControlPlaneWorldCharacterRecord,
+    PutPlayerSnapshotPayload,
+    UpsertPrincipalPayload,
+    UpsertWorldCharacterPayload,
 } from "../server/src/controlplane/ControlPlaneClient";
 import { SpacetimeControlPlaneClient } from "../server/src/controlplane/SpacetimeControlPlaneClient";
 import { PlayerPersistence } from "../server/src/game/state/PlayerPersistence";
@@ -135,18 +138,56 @@ class FakePersistenceControlPlaneClient implements ControlPlaneClient {
         return this.seededSnapshots.filter((row) => row.worldId === worldId);
     }
 
-    async upsertPrincipal(record: ControlPlanePrincipalRecord) {
-        this.principals.push(record);
+    async upsertPrincipal(record: ControlPlanePrincipalRecord | UpsertPrincipalPayload) {
+        if ("principalId" in record) {
+            this.principals.push(record);
+            return;
+        }
+        this.principals.push({
+            principalId: record.principal_id,
+            principalKind: record.principal_kind,
+            canonicalName: record.canonical_name,
+            createdAt: Number(record.created_at),
+            updatedAt: Number(record.updated_at),
+        });
     }
 
     async upsertLoginAccount() {}
 
-    async upsertWorldCharacter(record: ControlPlaneWorldCharacterRecord) {
-        this.worldCharacters.push(record);
+    async upsertWorldCharacter(
+        record: ControlPlaneWorldCharacterRecord | UpsertWorldCharacterPayload,
+    ) {
+        if ("worldCharacterId" in record) {
+            this.worldCharacters.push(record);
+            return;
+        }
+        this.worldCharacters.push({
+            worldCharacterId: record.world_character_id,
+            worldId: record.world_id,
+            principalId: record.principal_id,
+            displayName: record.display_name,
+            saveKey: record.save_key,
+            branchKind: record.branch_kind,
+            createdAt: Number(record.created_at),
+            lastSeenAt: record.last_seen_at !== undefined ? Number(record.last_seen_at) : undefined,
+        });
     }
 
-    async putPlayerSnapshot(record: ControlPlanePlayerSnapshotRecord) {
-        this.snapshots.push(record);
+    async putPlayerSnapshot(
+        record: ControlPlanePlayerSnapshotRecord | PutPlayerSnapshotPayload,
+    ) {
+        if ("worldCharacterId" in record) {
+            this.snapshots.push(record);
+            return;
+        }
+        this.snapshots.push({
+            worldCharacterId: record.world_character_id,
+            worldId: record.world_id,
+            principalId: record.principal_id,
+            snapshotVersion: record.snapshot_version,
+            persistentVarsJson: record.persistent_vars_json,
+            updatedAt: Number(record.updated_at),
+        });
     }
 
     async touchLoginAccount() {}
@@ -249,8 +290,9 @@ describe("SpacetimePersistenceProvider", () => {
 
         expect(client.principals).toHaveLength(1);
         expect(client.principals[0]).toMatchObject({
-            principalId: "character:wc_hosted",
+            principalId: "principal:character:wc_hosted",
             principalKind: "agent",
+            canonicalName: "toon agent",
         });
         expect(client.worldCharacters).toHaveLength(1);
         expect(client.worldCharacters[0]).toMatchObject({

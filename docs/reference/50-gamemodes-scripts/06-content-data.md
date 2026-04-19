@@ -62,7 +62,7 @@ TypeScript constants for the Achievement Diary varbit layout. Not JSON — it's 
 
 ### `accounts.json`
 
-The default `JsonAccountStore` file. Holds the persisted player state for every account the server has seen. See [20.10 — Persistence](../20-server/10-persistence.md).
+The default `JsonAccountStore` file. Holds auth records: usernames, password hashes, ban flags, and login timestamps. Gameplay state lives separately under `gamemodes/<id>/player-state.json`. See [20.10 — Persistence](../20-server/10-persistence.md).
 
 ### `gamemodes/<id>/`
 

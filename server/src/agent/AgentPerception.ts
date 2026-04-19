@@ -181,6 +181,20 @@ export interface AgentPerceptionEvent {
     level?: number;
 }
 
+export interface AgentPerceptionUiState {
+    openInterface: string;
+}
+
+export interface AgentPerceptionConstraints {
+    freeInventorySlots: number;
+    inventoryFull: boolean;
+    lowHp: boolean;
+    moving: boolean;
+    movementLocked: boolean;
+    bankOpen: boolean;
+    dialogueOpen: boolean;
+}
+
 /**
  * Aggregate snapshot stored on {@link AgentComponent.perception}.
  * Rebuilt from scratch every emit cycle — it is never mutated in place
@@ -207,4 +221,8 @@ export interface AgentPerceptionSnapshot {
     nearbyObjects: AgentPerceptionObject[];
     /** Bounded FIFO of recent events (new entries pushed, old ones dropped). */
     recentEvents: AgentPerceptionEvent[];
+    /** Optional UI summary for prompt projections and ingest reducers. */
+    ui?: AgentPerceptionUiState;
+    /** Optional derived constraints for prompt projections and ingest reducers. */
+    constraints?: AgentPerceptionConstraints;
 }

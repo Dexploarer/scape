@@ -1,26 +1,19 @@
 name: Setup Bun Workspace
-description: Set up the pinned Node and Bun toolchain, then install dependencies.
-
-inputs:
-    node-version:
-        description: Node.js version used by build tooling.
-        required: false
-        default: "22.16.0"
-    bun-version:
-        description: Bun version used across CI workflows.
-        required: false
-        default: "1.3.11"
+description: Set up the pinned Node/Bun toolchain and install repo dependencies.
 
 runs:
     using: composite
     steps:
-        - uses: actions/setup-node@v6
+        - name: Set up Node
+          uses: actions/setup-node@v4
           with:
-              node-version: ${{ inputs.node-version }}
+              node-version: 20
 
-        - uses: oven-sh/setup-bun@v2
+        - name: Set up Bun
+          uses: oven-sh/setup-bun@v2
           with:
-              bun-version: ${{ inputs.bun-version }}
+              bun-version: 1.3.12
 
-        - shell: bash
+        - name: Install dependencies
+          shell: bash
           run: bun install --frozen-lockfile

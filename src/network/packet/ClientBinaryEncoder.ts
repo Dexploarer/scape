@@ -184,11 +184,26 @@ export class ClientBinaryEncoder {
         return this.buffer.toPacket(ClientPacketId.LOGOUT);
     }
 
-    encodeLogin(username: string, password: string, revision: number): Uint8Array {
+    encodeLogin(
+        username: string,
+        password: string,
+        revision: number,
+        options?: {
+            sessionToken?: string;
+            worldCharacterId?: string;
+        },
+    ): Uint8Array {
         this.buffer.reset();
         this.buffer.writeString(username ?? "");
         this.buffer.writeString(password ?? "");
         this.buffer.writeInt(revision);
+        const sessionToken = options?.sessionToken?.trim();
+        const hasHostedSession = !!sessionToken;
+        this.buffer.writeBoolean(hasHostedSession);
+        if (hasHostedSession) {
+            this.buffer.writeString(sessionToken!);
+            this.buffer.writeString(options?.worldCharacterId ?? "");
+        }
         return this.buffer.toPacket(ClientPacketId.LOGIN);
     }
 
@@ -295,6 +310,7 @@ export class ClientBinaryEncoder {
         this.buffer.writeInt(payload.quantity ?? 1);
         this.buffer.writeString(payload.option ?? "");
         this.buffer.writeByte(payload.opNum ?? 0);
+        this.buffer.writeByte(payload.modifierFlags ?? 0);
         return this.buffer.toPacket(ClientPacketId.GROUND_ITEM_ACTION);
     }
 
@@ -531,7 +547,10 @@ export function encodeClientMessage(msg: { type: string; payload: any }): Uint8A
             return clientEncoder.encodeLogout();
 
         case "login":
-            return clientEncoder.encodeLogin(payload.username, payload.password, payload.revision);
+            return clientEncoder.encodeLogin(payload.username, payload.password, payload.revision, {
+                sessionToken: payload.sessionToken,
+                worldCharacterId: payload.worldCharacterId,
+            });
 
         case "walk":
             return clientEncoder.encodeWalk(

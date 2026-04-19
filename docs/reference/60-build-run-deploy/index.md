@@ -24,4 +24,4 @@ The rest is handled by `bun install`.
 
 ## Rule of thumb
 
-Run `bun run dev` and three processes come up: the game server on `:43594`, the React dev client on `:3000`, and a bot agent that random-walks around the world. Open `http://localhost:3000` and you're in.
+Run `bun run dev` and three processes come up: the game server on `:43594`, the React dev client on `:3000`, and the `agent-dev` browser launcher. In the common case it opens `http://localhost:3000` for you with auto-login enabled.

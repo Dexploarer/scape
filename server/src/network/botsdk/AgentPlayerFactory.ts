@@ -21,10 +21,10 @@
  *   5. Attach the `AgentComponent` so the agent layer (perception emitter,
  *      action router) recognizes the entity as agent-controlled.
  *
- * The factory is **synchronous** and returns a structured `{ok, ...}`
- * result rather than throwing — it's called directly from the bot-SDK
- * message loop, which needs to convert failures into TOON error frames
- * without losing the cause.
+ * The factory returns a structured `{ok, ...}` result rather than throwing.
+ * It performs an async warmup step for persistence backends that lazy-load
+ * world branches (for example SpacetimeDB), then resumes fully synchronous
+ * game-state application once local caches are ready.
  */
 
 import {
@@ -46,13 +46,13 @@ import { logger } from "../../utils/logger";
 export interface AgentSpawnRequest {
     /** Stable agent id from the milady runtime. */
     agentId: string;
-    /** In-game display name (becomes the account username). */
-    displayName: string;
+    /** In-game display name (becomes the account username in password mode). */
+    displayName?: string;
     /** Plaintext password for scrypt verification / auto-registration. */
     password?: string;
     /** Hosted Milady/ElizaOS session token. Mutually exclusive with password mode. */
     sessionToken?: string;
-    /** World-scoped character branch for hosted sessions. */
+    /** Hosted world-scoped character branch. */
     worldCharacterId?: string;
     /** Controller mode for the first session. */
     controller: "llm" | "user" | "hybrid";
@@ -81,7 +81,7 @@ export class AgentPlayerFactory {
      * persisted game state, create the in-world entity, and attach the
      * agent component.
      */
-    spawn(request: AgentSpawnRequest): AgentSpawnResult {
+    async spawn(request: AgentSpawnRequest): Promise<AgentSpawnResult> {
         const players = this.deps.players();
         if (!players) {
             return {
@@ -91,22 +91,29 @@ export class AgentPlayerFactory {
             };
         }
 
-        const hostedTokenMode = typeof request.sessionToken === "string" && request.sessionToken.length > 0;
-        if (hostedTokenMode && typeof request.password === "string" && request.password.length > 0) {
+        const hostedTokenMode =
+            typeof request.sessionToken === "string" && request.sessionToken.length > 0;
+        if (
+            hostedTokenMode &&
+            typeof request.password === "string" &&
+            request.password.length > 0
+        ) {
             return {
                 ok: false,
                 code: "mixed_auth_modes",
                 message: "Use either password auth or hosted session auth, not both.",
             };
         }
-        if (!hostedTokenMode && (typeof request.password !== "string" || request.password.length === 0)) {
+        if (
+            !hostedTokenMode &&
+            (typeof request.password !== "string" || request.password.length === 0)
+        ) {
             return {
                 ok: false,
                 code: "missing_password",
                 message: "password must be a non-empty string.",
             };
         }
-
         let resolvedDisplayName = request.displayName;
         let normalized = normalizePlayerAccountName(resolvedDisplayName);
         if (!hostedTokenMode && !normalized) {
@@ -116,13 +123,14 @@ export class AgentPlayerFactory {
                 message: "displayName must be a non-empty string.",
             };
         }
+        let hostedWorldCharacterId: string | undefined;
+        let hostedPrincipalId: string | undefined;
+        let created = false;
 
         // 1. Verify auth mode. Password mode shares the normal account
         //    store; hosted mode trusts a short-lived world ticket.
         //    human logins go through, same minimum-length rules, same
         //    registration-on-first-login semantics.
-        let hostedWorldCharacterId: string | undefined;
-        let authCreated = false;
         if (hostedTokenMode) {
             const hosted = this.deps.hostedSessionService?.verify(request.sessionToken, {
                 kind: "agent",
@@ -147,6 +155,7 @@ export class AgentPlayerFactory {
                 };
             }
             hostedWorldCharacterId = hosted.claims.worldCharacterId;
+            hostedPrincipalId = hosted.claims.principalId;
         } else {
             const authResult: AccountAuthResult = this.deps.accountStore.verifyOrRegister(
                 normalized!,
@@ -181,7 +190,7 @@ export class AgentPlayerFactory {
                         message: "Account store error; try again.",
                     };
                 case "ok":
-                    authCreated = authResult.created;
+                    created = authResult.created;
                     break;
             }
         }
@@ -194,6 +203,7 @@ export class AgentPlayerFactory {
                 message: `"${normalized}" is already logged in.`,
             };
         }
+
         const finalDisplayName = normalized!;
 
         // 3. Create the headless entity at the gamemode default spawn.
@@ -225,7 +235,15 @@ export class AgentPlayerFactory {
             worldCharacterId: hostedWorldCharacterId,
         });
         player.__saveKey = saveKey;
+        player.__principalId = hostedPrincipalId;
+        player.__worldCharacterId = hostedWorldCharacterId;
         try {
+            await this.deps.playerPersistence.warmKey?.(saveKey, {
+                worldId: this.deps.worldId,
+                displayName: finalDisplayName,
+                principalId: hostedPrincipalId,
+                worldCharacterId: hostedWorldCharacterId,
+            });
             this.deps.playerPersistence.applyToPlayer(player, saveKey);
         } catch (err) {
             logger.warn("[agent] failed to apply persistent vars", err);
@@ -260,6 +278,7 @@ export class AgentPlayerFactory {
             connected: true,
             lastHeardFrom: Date.now(),
             lastEmittedAt: 0,
+            recentEvents: [],
         };
         player.agent = component;
 
@@ -267,7 +286,7 @@ export class AgentPlayerFactory {
             `[agent] spawned agent id=${request.agentId} name="${finalDisplayName}" playerId=${player.id} world=${this.deps.worldId} hosted=${hostedTokenMode}`,
         );
 
-        return { ok: true, player, created: authCreated, saveKey };
+        return { ok: true, player, created, saveKey };
     }
 
     /**

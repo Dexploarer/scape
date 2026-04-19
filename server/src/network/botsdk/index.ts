@@ -4,13 +4,22 @@
  * details subject to churn.
  */
 
-export { BotSdkServer, type BotSdkServerOptions, type BotSdkServerDeps } from "./BotSdkServer";
+export {
+    BotSdkServer,
+    type BotSdkJournalSnapshot,
+    type BotSdkProposalDecisionResult,
+    type BotSdkScriptBroadcastResult,
+    type BotSdkServerOptions,
+    type BotSdkServerDeps,
+} from "./BotSdkServer";
 export { BotSdkActionRouter, type ActionDispatchResult } from "./BotSdkActionRouter";
 export { AgentPlayerFactory, type AgentSpawnRequest, type AgentSpawnResult } from "./AgentPlayerFactory";
 export { decodeClientFrame, encodeServerFrame } from "./BotSdkCodec";
 export type {
+    ActionResultFrame,
     BotSdkFeature,
     ClientFrame,
+    EventFrame,
     RuntimeEventFrame,
     ServerFrame,
     SpawnFrame,

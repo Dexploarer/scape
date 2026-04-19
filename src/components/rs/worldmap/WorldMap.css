@@ -15,6 +15,34 @@
     position: absolute;
 }
 
+.worldmap-marker {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    border: 2px solid rgba(12, 16, 24, 0.92);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22);
+    pointer-events: none;
+    z-index: 2;
+}
+
+.worldmap-marker.selected {
+    transform: scale(1.25);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.45);
+}
+
+.worldmap-marker.tone-gold {
+    background: #d9a44a;
+}
+
+.worldmap-marker.tone-cyan {
+    background: #4dbfcb;
+}
+
+.worldmap-marker.tone-rose {
+    background: #d66c86;
+}
+
 .worldmap-drag {
     position: absolute;
     left: 0;

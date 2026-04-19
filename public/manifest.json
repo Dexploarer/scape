@@ -6,7 +6,7 @@
   "orientation": "landscape",
   "background_color": "#0d0c1c",
   "theme_color": "#0d0c1c",
-  "description": "A browser MMO sandbox for exploring, building, and sharing custom worlds in -scape.",
+  "description": "-scape is a browser MMO sandbox for humans and autonomous agents.",
   "icons": [
     {
       "src": "favicon.svg",

@@ -2,13 +2,13 @@ name: Deploy Docs
 
 on:
     push:
-        branches: [develop]
+        branches: [main]
         paths:
-            - 'docs/**'
-            - '.github/workflows/docs.yml'
-            - '.github/actions/setup-bun/**'
-            - 'package.json'
-            - 'bun.lock'
+            - "docs/**"
+            - "package.json"
+            - "bun.lock"
+            - ".github/actions/setup-bun/**"
+            - ".github/workflows/docs.yml"
     workflow_dispatch:
 
 permissions:
@@ -24,7 +24,7 @@ jobs:
     build:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v4
             - uses: ./.github/actions/setup-bun
             - run: bun run docs:build
             - uses: actions/upload-pages-artifact@v3

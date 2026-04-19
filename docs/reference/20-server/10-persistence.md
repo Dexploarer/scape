@@ -1,141 +1,129 @@
 # 20.10 — Persistence
 
-The server saves every player account as a JSON blob. That's the entire persistence story — no database, no migrations framework, no ORM. This page documents the mechanics.
+Persistence is split into two separate seams:
+
+1. **Authentication records** — usernames, password hashes, ban flags.
+2. **Gameplay state** — inventory, bank, skills, varps, collection log, location, and other player vars.
+
+That split is intentional. Account auth can move to Postgres without changing gameplay-state storage, and wiping gameplay state does not have to wipe login credentials.
 
 ## `AccountStore` (`server/src/game/state/AccountStore.ts`)
 
-The main persistence surface. Provides:
+`AccountStore` is the auth-record interface. It provides:
 
-- `load(username): AccountRecord | null` — read an account by username.
-- `save(username, record)` — write an account.
-- `exists(username): boolean`.
-- `list(): string[]` — used by debug tools.
+- `verifyOrRegister(username, password)` — verify an existing account or auto-register a new one.
+- `exists(username)` — auth-record existence check.
+- `size()` — number of known accounts.
 
-The default implementation is `JsonAccountStore` (also in the same file or a sibling) which reads and writes individual JSON files from a directory configured by `config.accountsFilePath`. One file per account.
+The default implementation is `JsonAccountStore`, which stores all auth records in a single JSON file at `config.accountsFilePath` (default `server/data/accounts.json`). If `DATABASE_URL` is set, `createAccountStore()` can switch auth storage to `PostgresAccountStore` instead.
 
 ### `AccountRecord`
 
-The JSON shape on disk is the output of `PlayerStateSerializer.toJson(player)` plus account-level fields:
+An auth record is a small object keyed by normalized username:
 
 ```json
 {
-  "version": 1,
-  "account": {
-    "username": "shaw",
-    "passwordHash": "…",
-    "createdAt": "2026-01-01T00:00:00Z",
-    "lastLoginAt": "2026-04-09T…"
-  },
-  "character": {
-    "position": { "x": 3222, "y": 3218, "plane": 0 },
-    "inventory": { /* … */ },
-    "bank": { /* … */ },
-    "skills": { /* … */ },
-    "equipment": { /* … */ },
-    "prayers": { /* … */ },
-    "varps": { /* … */ },
-    "collectionLog": { /* … */ },
-    // …
-  }
+  "username": "shaw",
+  "passwordHash": "...",
+  "passwordSalt": "...",
+  "algorithm": "scrypt-n16384-r8-p1-64",
+  "createdAt": 1772688000000,
+  "lastLoginAt": 1775370000000,
+  "banned": false
 }
 ```
 
-Exact field layout is defined by each sub-state's `serialize()`. If you want to inspect a saved account, just `cat` its JSON.
+Passwords are hashed with Node's built-in `scrypt`. Plaintext passwords are never persisted.
 
 ## `PersistenceProvider` (`server/src/game/state/PersistenceProvider.ts`)
 
-An interface above `AccountStore` that lets you swap the backing store. In theory you could drop in a Postgres implementation by writing one that implements the same shape. In practice, the JSON store is sufficient for current scale.
+`PersistenceProvider` is the gameplay-state interface. It provides:
+
+- `applyToPlayer(player, key)` — merge persisted state into a live `PlayerState`.
+- `hasKey(key)` — whether saved gameplay state exists for that player key.
+- `saveSnapshot(key, player)` — write one player's gameplay state immediately.
+- `savePlayers(entries)` — bulk-save multiple players during autosave.
+
+The default implementation is `PlayerPersistence`.
 
 ## `PlayerPersistence` (`server/src/game/state/PlayerPersistence.ts`)
 
-The coordinator between `PlayerState` and `AccountStore`. Used by login (for load) and autosave (for save).
+`PlayerPersistence` is the default JSON gameplay-state backend. `WSServer` constructs it with the current gamemode data dir:
 
-Load flow:
+```ts
+new PlayerPersistence({
+  dataDir: getGamemodeDataDir(this.gamemode.id),
+});
+```
+
+That means the default files are:
+
+- `server/data/gamemodes/<id>/player-state.json` — saved gameplay state by player key.
+- `server/data/gamemodes/<id>/player-defaults.json` — starter/default values merged into new or partially-populated saves.
+
+### Load flow
 
 ```
 LoginHandshakeService
- └── PlayerPersistence.load(username)
-      ├── AccountStore.load(username) → AccountRecord | null
-      ├── PlayerStateSerializer.fromJson(record.character) → PlayerState
-      ├── Attach account-level state
-      └── Return ready-to-use PlayerState
+ ├── accountStore.verifyOrRegister(username, password)
+ ├── construct PlayerState
+ └── playerPersistence.applyToPlayer(player, key)
+      ├── merge player-defaults.json
+      ├── merge player-state.json[key]
+      └── player.applyPersistentVars(snapshot)
 ```
 
-Save flow:
+### Save flow
 
 ```
-TickFrameService.maybeRunAutosave
- └── for each dirty player:
-      └── PlayerPersistence.save(player)
-           ├── PlayerStateSerializer.toJson(player) → jsonCharacter
-           ├── Merge with account-level fields → AccountRecord
-           └── AccountStore.save(username, record)
+TickFrameService.runAutosave(...)
+ └── persistenceProvider.savePlayers([{ key, player }, ...])
+      ├── player.exportPersistentVars()
+      ├── sanitize / normalize fields
+      └── write player-state.json
 ```
 
 ## Autosave
 
-Autosave runs during the tick, in the broadcast phase. It's gated on:
+Autosave runs from `TickFrameService`. Dirty gameplay state is batched and flushed through `PersistenceProvider.savePlayers(...)`. Account auth writes are separate: `JsonAccountStore` writes on account creation and successful login timestamp updates.
 
-- Whether the player is dirty (tracked via `PersistentSubState.markDirty()`).
-- How long it's been since the last save for that player (rate-limit to avoid pounding disk).
-- A per-tick budget so saving doesn't exceed the tick's time budget.
+## Versioning and compatibility
 
-If the save budget is exceeded for a tick, remaining dirty players are carried over to the next tick. The autosave loop is intentionally simple and non-reentrant.
+Gameplay-state compatibility lives in the `PlayerState` import/export path, plus the sanitizers inside `PlayerPersistence`. When you add a new persistent gameplay field:
 
-## Passwords
-
-Passwords are hashed before storage. The current hash is a salted bcrypt (or equivalent — check `AuthenticationService.ts` for the exact implementation). Verification happens in `AuthenticationService.verifyPassword(plain, hashed)`.
-
-Never store, log, or echo the plaintext password. The login handler takes it as input, passes it to the authentication service, and never keeps it around.
-
-## Versioning and migrations
-
-Each sub-state writes a version number as part of its serialized output. On load:
-
-```ts
-if (saved.version === 1) {
-    return { ...saved, version: 2, extraField: defaultValue };
-}
-```
-
-Migrations are written case-by-case inside the sub-state's `deserialize` method. There's no central migration runner. If you add a field to a sub-state:
-
-1. Bump the version number.
-2. Add a migration branch for the previous version that fills in the new field with a sensible default.
-3. Update tests.
+1. Add it to `PlayerState.exportPersistentVars()` and `PlayerState.applyPersistentVars()`.
+2. Give it a safe default when absent.
+3. Update the sanitization/merge path in `PlayerPersistence` if the field needs validation.
+4. Update tests.
 
 ## Backups
 
-There is no automatic backup. The `server/data/` directory is the source of truth; if you need backups, use your preferred disk backup tool or container volume backup.
+For local JSON deployments, back up both:
 
-Some operators run the server inside a git repo so each tick's autosave is a commit-able diff — this is not recommended for production (account files grow quickly) but is useful for debugging regressions.
+- `server/data/accounts.json` — auth records.
+- `server/data/gamemodes/<id>/player-state.json` — gameplay state.
 
-## Account deletion
+If auth is moved to Postgres, back up the database plus `player-state.json`.
 
-There is no in-game account delete flow. Delete the JSON file from the disk. The next login will treat the account as nonexistent.
+## Reset / deletion
 
-## Transactional concerns
+- Reset auth accounts: delete `server/data/accounts.json` (or the relevant Postgres rows).
+- Reset gameplay progress for one gamemode: delete `server/data/gamemodes/<id>/player-state.json`.
 
-Writes are **not** atomic with respect to multi-tick state changes. A crash mid-save can leave a JSON file partially written. To mitigate:
-
-- The store writes to a temp file and renames on success. `rename()` is atomic on most filesystems.
-- If you need stricter guarantees (e.g., bank + inventory consistency across a trade), save both players at the end of the trade in a single phase.
-
-## Scaling
-
-The JSON store works fine up to a few thousand players. Beyond that, per-account JSON files become a bottleneck (FS metadata cost, disk I/O on autosave). The intended path when this matters is to implement a `PersistenceProvider` backed by a real database (SQLite via `bun:sqlite` is the easy default given the project uses Bun).
+Those are separate operations.
 
 ---
 
 ## Canonical facts
 
-- **Account store interface**: `server/src/game/state/AccountStore.ts`.
-- **Persistence provider**: `server/src/game/state/PersistenceProvider.ts`.
-- **Player persistence coordinator**: `server/src/game/state/PlayerPersistence.ts`.
-- **Player serializer**: `server/src/game/state/PlayerStateSerializer.ts`.
-- **Accounts directory**: `config.accountsFilePath` (default `server/data/accounts/`).
-- **Dirty tracking**: `server/src/game/state/PersistentSubState.ts`.
-- **Autosave hook**: `TickFrameService.maybeRunAutosave`.
-- **Authentication**: `server/src/network/AuthenticationService.ts`.
-- **Rule**: writes go to a temp file + rename for atomicity.
-- **Rule**: password plaintext is never stored or logged.
+- **Auth record interface**: `server/src/game/state/AccountStore.ts`.
+- **Auth store factory**: `server/src/game/state/createAccountStore.ts`.
+- **Default auth store**: `JsonAccountStore` in `server/src/game/state/AccountStore.ts`.
+- **Optional auth store**: `server/src/game/state/PostgresAccountStore.ts`.
+- **Gameplay-state interface**: `server/src/game/state/PersistenceProvider.ts`.
+- **Gameplay-state backend**: `server/src/game/state/PlayerPersistence.ts`.
+- **Default auth file**: `server/data/accounts.json`.
+- **Default gameplay-state file**: `server/data/gamemodes/<id>/player-state.json`.
+- **Default gameplay defaults file**: `server/data/gamemodes/<id>/player-defaults.json`.
+- **Autosave entrypoint**: `server/src/game/services/TickFrameService.ts`.
+- **Rule**: auth and gameplay state are persisted separately.

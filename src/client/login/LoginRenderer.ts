@@ -9,12 +9,12 @@ import { DEFAULT_SERVER } from "../../util/serverDefaults";
 import { GameState, LoginIndex } from "./GameState";
 import { LoginAction, LoginActions } from "./LoginAction";
 import { LoginScreenAnimation } from "./LoginScreenAnimation";
+import { getServerListUrls, loadServerListEntries } from "./serverListSources";
 import {
-    createDefaultServerDirectoryEntry,
-    fetchServerDirectory,
-    probeServerDirectory,
-    type ServerDirectoryEntry,
-} from "./serverDirectory";
+    getConfiguredWorldServers,
+    getConfiguredWorlds,
+    setConfiguredWorldServers,
+} from "./worldDirectory";
 import type { LoginState } from "./LoginState";
 
 /** Type alias for rendering context (supports both regular and offscreen canvas) */
@@ -116,27 +116,27 @@ enum WorldBackgroundType {
 }
 
 /**
- * Mock world list for testing.
- * In production, this would come from the server.
+ * Server list entry for the server browser.
  */
-const MOCK_WORLDS: World[] = [
-    { id: 301, population: 487, location: 0, activity: "Trade - Free", properties: 0 },
-    { id: 302, population: 1243, location: 0, activity: "Trade - Members", properties: 1 },
-    { id: 303, population: 89, location: 1, activity: "Skill Total 500", properties: 1 },
-    { id: 304, population: 234, location: 1, activity: "PvP World", properties: 1 | 4 },
-    { id: 305, population: 567, location: 0, activity: "Free-to-play", properties: 0 },
-    { id: 306, population: 1890, location: 3, activity: "Members", properties: 1 },
-    { id: 307, population: 45, location: 7, activity: "Skill Total 750", properties: 1 },
-    { id: 308, population: 678, location: 0, activity: "Members", properties: 1 },
-    { id: 309, population: -1, location: 1, activity: "Offline", properties: 0 },
-    { id: 310, population: 432, location: 0, activity: "Members", properties: 1 },
-    { id: 311, population: 123, location: 3, activity: "Free-to-play", properties: 0 },
-    { id: 312, population: 876, location: 7, activity: "Members", properties: 1 },
-    { id: 313, population: 345, location: 0, activity: "Bounty Hunter", properties: 1 },
-    { id: 314, population: 654, location: 1, activity: "Members", properties: 1 },
-    { id: 315, population: 234, location: 0, activity: "Free-to-play", properties: 0 },
-    { id: 316, population: 1567, location: 0, activity: "Members", properties: 1 },
+export interface ServerListEntry {
+    name: string;
+    address: string;
+    secure: boolean;
+    playerCount: number | null;
+    maxPlayers: number;
+}
+
+const FALLBACK_SERVERS: ServerListEntry[] = [
+    {
+        name: DEFAULT_SERVER.name,
+        address: DEFAULT_SERVER.address,
+        secure: DEFAULT_SERVER.secure,
+        playerCount: null,
+        maxPlayers: 2047,
+    },
 ];
+
+const SERVER_LIST_URLS = getServerListUrls(DEFAULT_SERVER);
 
 /**
  * Login screen renderer.
@@ -269,7 +269,7 @@ export class LoginRenderer {
     mouseY: number = 0;
 
     /** Server list entries */
-    serverList: ServerDirectoryEntry[] = [createDefaultServerDirectoryEntry()];
+    serverList: ServerListEntry[] = [...getConfiguredWorldServers()];
 
     /** Whether the remote server list has been fetched */
     serverListFetched: boolean = false;
@@ -282,11 +282,15 @@ export class LoginRenderer {
 
     async fetchServerList(): Promise<void> {
         if (this.serverListFetched) return;
-        try {
-            this.serverList = await fetchServerDirectory();
-        } catch {
-            this.serverList = [createDefaultServerDirectoryEntry()];
-        }
+        const loadedEntries = (await loadServerListEntries(SERVER_LIST_URLS)).map((s) => ({
+            name: s.name ?? "Unknown",
+            address: s.address ?? "",
+            secure: s.secure ?? false,
+            playerCount: null,
+            maxPlayers: s.maxPlayers ?? 2047,
+        }));
+        this.serverList = [...setConfiguredWorldServers(loadedEntries)];
+        this.invalidateWorldDirectoryCaches();
         this.serverListFetched = true;
     }
 
@@ -294,14 +298,52 @@ export class LoginRenderer {
         if (this.probing) return;
         this.probed = false;
         this.probing = true;
-        probeServerDirectory(this.serverList)
-            .then((entries) => {
-                this.serverList = entries;
-            })
-            .finally(() => {
-                this.probing = false;
-                this.probed = true;
+
+        const promises = this.serverList.map(async (server) => {
+            const protocol = server.secure ? "https" : "http";
+            let httpOk = false;
+            try {
+                const res = await fetch(`${protocol}://${server.address}/status`, {
+                    signal: AbortSignal.timeout(8000),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    server.playerCount = typeof data.playerCount === "number" ? data.playerCount : null;
+                    if (typeof data.maxPlayers === "number") server.maxPlayers = data.maxPlayers;
+                    if (typeof data.serverName === "string") server.name = data.serverName;
+                    httpOk = true;
+                }
+            } catch { /* fall through to ws probe */ }
+
+            if (!httpOk) {
+                const wsProto = server.secure ? "wss" : "ws";
+                const alive = await this.probeWebSocket(`${wsProto}://${server.address}`, 5000);
+                server.playerCount = alive ? -1 : null;
+            }
+        });
+
+        Promise.all(promises).finally(() => {
+            this.probing = false;
+            this.probed = true;
+            setConfiguredWorldServers(this.serverList);
+            this.invalidateWorldDirectoryCaches();
+        });
+    }
+
+    private probeWebSocket(url: string, timeoutMs: number): Promise<boolean> {
+        return new Promise((resolve) => {
+            let settled = false;
+            const ws = new WebSocket(url);
+            const timer = setTimeout(() => {
+                if (!settled) { settled = true; ws.close(); resolve(false); }
+            }, timeoutMs);
+            ws.addEventListener("open", () => {
+                if (!settled) { settled = true; clearTimeout(timer); ws.close(); resolve(true); }
             });
+            ws.addEventListener("error", () => {
+                if (!settled) { settled = true; clearTimeout(timer); resolve(false); }
+            });
+        });
     }
 
     /** World sorting option (0=world, 1=players, 2=location, 3=type) */
@@ -562,7 +604,20 @@ export class LoginRenderer {
 
     constructor() {
         // Initialize with default layout
+        this.serverList = [...setConfiguredWorldServers(FALLBACK_SERVERS)];
         this.updateLayout(this.SCENE_WIDTH, this.SCENE_HEIGHT);
+    }
+
+    private invalidateWorldDirectoryCaches(): void {
+        this.cachedSortedWorlds = null;
+        this.cachedSortOption = -1;
+        this.cachedSortDirection = -1;
+        this.worldSelectCache = null;
+        this.worldSelectCacheCtx = null;
+        this.worldSelectCachePage = -1;
+        this.worldSelectCacheSortOption = -1;
+        this.worldSelectCacheSortDirection = -1;
+        this.titleCacheStateHash = "";
     }
 
     // ========== Public Accessors ==========
@@ -1101,6 +1156,8 @@ export class LoginRenderer {
         const buttonY = 291;
         const newUserX = this.loginBoxCenter - 80;
         if (this.isButtonHit(x, y, newUserX, buttonY)) {
+            // Accounts are created on first login, so both welcome buttons
+            // should funnel into the shared credential form.
             return LoginActions.EXISTING_USER;
         }
         const existingUserX = this.loginBoxCenter + 80;
@@ -2683,7 +2740,7 @@ export class LoginRenderer {
 
         // Discord notice
         this.drawCenteredText(
-            ctx, this.fontPlain12!, "World availability refreshes from the configured directory feed",
+            ctx, this.fontPlain12!, "Get your server added through the Discord",
             panelX + panelW / 2, panelY - 8, 0xaaaaaa,
         );
 
@@ -3621,7 +3678,13 @@ export class LoginRenderer {
             return this.cachedSortedWorlds;
         }
 
-        const worlds = [...MOCK_WORLDS];
+        const worlds = getConfiguredWorlds().map((world) => ({
+            id: world.id,
+            population: world.playerCount,
+            location: world.location,
+            activity: world.activity,
+            properties: world.properties,
+        }));
         const ascending = this.worldSortDirection === 0;
 
         worlds.sort((a, b) => {

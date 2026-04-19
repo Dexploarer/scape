@@ -38,22 +38,12 @@ The packet has no payload, so we just write the opcode byte. The length table sa
 
 ## 3. Send it from the client
 
-Somewhere convenient in the client (for example, a menu button handler):
+Wire the request into whichever UI or debug entrypoint already owns the client/network layer. The current codebase does **not** expose a `useServerConnection` React hook anymore; most callsites either:
 
-```ts
-import { useServerConnection } from "../network/useServerConnection";
+- add a dedicated `send*` helper in `src/network/ServerConnection.ts`, or
+- encode a message with `encodeClientMessage(...)` and send it through the active packet socket used by the existing helpers.
 
-export function TipButton() {
-    const conn = useServerConnection();
-    return (
-        <button onClick={() => conn.send(encoder.encodeTipOfTheDay())}>
-            Tip of the day
-        </button>
-    );
-}
-```
-
-`ServerConnection.send(bytes)` pushes the packet into the outbound WebSocket frame queue.
+The important part is not the exact button wiring, but that the outbound bytes come from the same `ClientBinaryEncoder` / `encodeClientMessage(...)` path as the rest of the client packets.
 
 ## 4. Register a server handler
 

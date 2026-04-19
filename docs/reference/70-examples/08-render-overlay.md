@@ -1,102 +1,55 @@
 # 70.8 — Client render overlay
 
-Add a client-side plugin that draws a visual marker on tiles where ground items are present. This is the kind of task the client plugin system (`src/ui/plugins/`) is built for.
+Add a client-side overlay that marks tiles with extra visual information. The current client does **not** use a React hook based overlay registry anymore; overlays are driven by plugin classes under `src/client/plugins/` and rendered through `src/ui/devoverlay/OverlayManager.ts`.
 
 ## Where
 
-Client plugins live under `src/ui/plugins/`. Each one is a self-contained module that registers an overlay renderer. The plugin hub (`src/ui/plugins/pluginhub/`) exposes enable/disable toggles in the settings UI.
+Use these files as the source of truth:
 
-The `tilemarkers` plugin (`src/ui/plugins/tilemarkers/`) is a good reference — it already draws colored squares on tiles, and we're adding similar behavior.
+- `src/client/plugins/grounditems/` — plugin logic fed by ground-item subscriptions.
+- `src/client/plugins/tilemarkers/` — user-managed tile markers with sidebar UI.
+- `src/client/plugins/interacthighlight/` — hover/target highlighting.
+- `src/ui/devoverlay/OverlayManager.ts` — the render-time overlay coordinator.
+- `src/client/sidebar/entries.ts` — sidebar registration for shipped client plugins.
 
-## Create the plugin module
+## Current pattern
 
-`src/ui/plugins/groundItemMarker/GroundItemMarkerPlugin.tsx`:
+The modern pattern is:
 
-```tsx
-import { useEffect } from "react";
-import { useGroundItems } from "../../../network/useServerConnection";
-import { useOverlayRegistry } from "../shared/OverlayRegistry";
-import type { TileOverlayRenderer } from "../shared/types";
+1. Create or extend a plugin class under `src/client/plugins/<name>/`.
+2. Subscribe to the relevant server/client state from `src/network/ServerConnection.ts` or `OsrsClient`.
+3. Convert that state into overlay data the renderer can consume.
+4. Surface plugin settings through `SidebarPlugin.tsx` if the feature is user-configurable.
+5. Register the sidebar entry in `src/client/sidebar/entries.ts` if it should appear in the rail.
 
-const COLOR = [1.0, 0.9, 0.1, 0.6]; // yellow, translucent
+There is no standalone `useOverlayRegistry()` hook and no `src/ui/plugins/pluginhub/PluginRegistry.ts` file in the current codebase.
 
-export function GroundItemMarkerPlugin() {
-    const items = useGroundItems();
-    const overlays = useOverlayRegistry();
+## Concrete reference path
 
-    useEffect(() => {
-        if (!items.length) return;
+If you want a tile-based overlay today:
 
-        const renderer: TileOverlayRenderer = (ctx) => {
-            for (const item of items) {
-                if (item.plane !== ctx.camera.plane) continue;
-                ctx.drawFilledTile(item.worldX, item.worldY, COLOR);
-            }
-        };
+- Start with `src/client/plugins/tilemarkers/TileMarkersPlugin.ts`.
+- Mirror its sidebar wiring from `src/client/plugins/tilemarkers/SidebarPlugin.tsx`.
+- Follow how the plugin feeds overlay state into the renderer and how `OverlayManager` draws it.
 
-        const handle = overlays.register(renderer);
-        return () => handle.unregister();
-    }, [items, overlays]);
+If you want a state-driven overlay keyed off server updates:
 
-    return null;
-}
-```
-
-## What the hooks do
-
-- **`useGroundItems()`** — subscribes to the `groundItems` slice of `ServerConnection`'s state. Re-renders when the ground item list changes.
-- **`useOverlayRegistry()`** — returns the overlay registry for the current scene. Plugins register renderers that are called once per frame with a drawing context.
-- **`TileOverlayRenderer`** — a function that runs per frame and draws into a special overlay pass. It gets a `ctx` with `drawFilledTile(worldX, worldY, color)`, `drawTileBorder(...)`, `drawLine(...)`, and a `camera` with the current plane and view matrix.
-
-The overlay is rendered after the main scene but before the UI, so it shows through the 3D world without being obscured by ground textures.
-
-## Register the plugin
-
-Add to `src/ui/plugins/pluginhub/PluginRegistry.ts` (or equivalent):
-
-```ts
-import { GroundItemMarkerPlugin } from "../groundItemMarker/GroundItemMarkerPlugin";
-
-export const CLIENT_PLUGINS = [
-    // ...existing plugins
-    {
-        id: "ground-item-marker",
-        name: "Ground item markers",
-        description: "Draws a yellow square on tiles that have ground items.",
-        default: true,
-        Component: GroundItemMarkerPlugin,
-    },
-];
-```
-
-The plugin hub reads this list and renders each plugin's component (gated by an enable/disable toggle persisted in local storage).
+- Start with `src/client/plugins/grounditems/GroundItemsPlugin.ts`.
+- Use the exported subscription helpers in `src/network/ServerConnection.ts` (for example `subscribeGroundItems(...)`) instead of a React hook.
 
 ## Result
 
-Log in, drop an item. A translucent yellow square appears on the tile. Drop another — another square. Pick them up — they disappear.
-
-## Variation: fancier markers
-
-Replace `drawFilledTile` with `drawTileBorder` for an outline-only marker. Or call `drawSprite(worldX, worldY, spriteId)` to draw a sprite from the cache on top of the tile — useful for item icons.
-
-For per-item coloring by rarity:
-
-```tsx
-const color = item.value > 10000 ? [0, 1, 0, 0.6] : [1, 1, 0.1, 0.6];
-ctx.drawFilledTile(item.worldX, item.worldY, color);
-```
-
-`item.value` would need to come from a client-side item metadata lookup (`src/cache/ObjTypeLoader`) — the server doesn't send per-item values in the ground item update by default.
+The expected end state is still the same as the old recipe: log in, trigger the underlying condition, and the overlay should appear on the relevant tiles, then disappear when the source state is gone.
 
 ## Performance
 
-Tile overlays are cheap but not free — the drawing is done in immediate mode each frame. For thousands of markers, batch them into a single vertex buffer instead of calling `drawFilledTile` in a loop. The framework has a `BatchedTileOverlay` helper for that case; see `src/ui/plugins/tilemarkers/` for example usage.
+Tile overlays are cheap but not free. If you end up drawing large numbers of markers every frame, copy the batching approach used by the existing tile-marker style code instead of issuing one immediate-mode draw per tile forever.
 
 ## Canonical facts
 
-- **Client plugin root**: `src/ui/plugins/`.
-- **Plugin hub**: `src/ui/plugins/pluginhub/`.
-- **Overlay registry**: `src/ui/plugins/shared/OverlayRegistry.ts` (or equivalent).
-- **Tile overlay API**: `ctx.drawFilledTile(x, y, color)`, `ctx.drawTileBorder(x, y, color)`, `ctx.drawLine(...)`, `ctx.camera.plane`.
-- **Ground items subscription**: `useGroundItems()` from `src/network/useServerConnection.ts`.
-- **Reference plugin**: `src/ui/plugins/tilemarkers/`.
+- **Client plugin root**: `src/client/plugins/`.
+- **Sidebar registration**: `src/client/sidebar/entries.ts`.
+- **Overlay manager**: `src/ui/devoverlay/OverlayManager.ts`.
+- **Ground items reference**: `src/client/plugins/grounditems/`.
+- **Tile markers reference**: `src/client/plugins/tilemarkers/`.
+- **Server subscriptions**: exported helpers in `src/network/ServerConnection.ts`.

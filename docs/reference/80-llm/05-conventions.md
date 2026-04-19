@@ -69,9 +69,9 @@ Never import `src/client/` or `src/ui/` from `server/`. Never import `server/` f
 | Rule |
 |---|
 | Player state is authoritative in-memory during a session and persisted on tick in the broadcast phase. |
-| Never write to disk from a handler synchronously — enqueue via the account store. |
-| Default store is `JsonAccountStore`. Custom backends implement `PersistenceProvider`. |
-| New persistent fields must have a default in `deserializePlayerState` for backward compatibility. |
+| Never write gameplay state from a handler directly — let autosave flush through `PersistenceProvider`. |
+| Auth storage is `AccountStore` (`JsonAccountStore` locally, `PostgresAccountStore` when `DATABASE_URL` is set). Gameplay state is `PersistenceProvider` / `PlayerPersistence`. |
+| New persistent gameplay fields must have safe defaults in the `PlayerState` apply/export path and any needed sanitization in `PlayerPersistence`. |
 
 ## Cache access
 
@@ -112,10 +112,10 @@ Never import `src/client/` or `src/ui/` from `server/`. Never import `server/` f
 
 | Rule |
 |---|
-| Hooks live next to their feature (`useGroundItems`, `useInventory` in `src/network/useServerConnection.ts`). |
+| Subscription helpers live in `src/network/ServerConnection.ts`; feature-specific state lives next to the subsystem that consumes it. |
 | Components are functional + hooks. No class components. |
 | State that needs to survive navigation lives in `ClientState` or a network slice — not in React local state. |
-| Plugins register via `CLIENT_PLUGINS` in `src/ui/plugins/pluginhub/PluginRegistry.ts`. |
+| Sidebar plugins register via `registerDefaultClientSidebarEntries` in `src/client/sidebar/entries.ts`. |
 | Never use `localStorage` directly in game code — go through `BrowserVarcsPersistence` or the plugin hub. |
 
 ## Testing
@@ -151,7 +151,7 @@ Never import `src/client/` or `src/ui/` from `server/`. Never import `server/` f
 |---|---|
 | `REACT_APP_WS_URL` | Client → server WebSocket URL (baked at client build time) |
 | `REACT_APP_SERVER_NAME` | Display name of the server in the client UI |
-| `BOT_SDK_TOKEN` | Secret for the bot-SDK endpoint (`/botsdk` on the main world server, or standalone `43595` in local-only mode) |
+| `BOT_SDK_TOKEN` | Secret for bot-SDK port 43595 |
 | `LOG_LEVEL` | Server logger threshold |
 | `TICK_PROFILE` | `1` to dump per-phase tick timings |
 | `SYNC_DUMP` | `1` to dump PLAYER_SYNC / NPC_INFO bit layouts |

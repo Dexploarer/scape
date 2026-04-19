@@ -270,6 +270,10 @@ export class PlayerState extends Actor {
 
     /** Save key for persistence. */
     __saveKey?: string;
+    /** Global principal backing this player/account branch. */
+    __principalId?: string;
+    /** World-scoped character branch backing this player. */
+    __worldCharacterId?: string;
     /** Composed inventory/bank/shop state */
     readonly items = new PlayerInventoryState();
     /** Composed bank operations system */

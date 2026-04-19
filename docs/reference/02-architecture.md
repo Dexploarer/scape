@@ -159,7 +159,7 @@ Notable details:
 
 ## Persistence
 
-Player state is stored as JSON through `AccountStore`, the abstract interface in `server/src/game/state/`. The default implementation is `JsonAccountStore`, which writes to the file configured by `config.accountsFilePath` (default `server/data/accounts.json`).
+Persistence is split: `AccountStore` handles auth records (default `server/data/accounts.json`), while `PlayerPersistence` handles gameplay state under `server/data/gamemodes/<id>/player-state.json`.
 
 A save roundtrip looks like:
 

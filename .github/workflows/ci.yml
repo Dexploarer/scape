@@ -3,8 +3,6 @@ name: CI
 on:
     pull_request:
     push:
-        branches: [develop]
-    workflow_dispatch:
 
 permissions:
     contents: read
@@ -14,42 +12,25 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
-    test:
+    regression:
         runs-on: ubuntu-latest
-        timeout-minutes: 15
-        steps:
-            - uses: actions/checkout@v6
-            - uses: ./.github/actions/setup-bun
-            - run: bun test
 
-    server-build:
-        runs-on: ubuntu-latest
-        timeout-minutes: 15
         steps:
-            - uses: actions/checkout@v6
-            - uses: ./.github/actions/setup-bun
-            - run: bun run server:build
+            - uses: actions/checkout@v4
 
-    spacetimedb-build:
-        runs-on: ubuntu-latest
-        timeout-minutes: 15
-        steps:
-            - uses: actions/checkout@v6
             - uses: ./.github/actions/setup-bun
-            - run: bun run spacetimedb:build
 
-    client-build:
-        runs-on: ubuntu-latest
-        timeout-minutes: 20
-        steps:
-            - uses: actions/checkout@v6
-            - uses: ./.github/actions/setup-bun
-            - run: bun run build
+            - name: Test suite
+              run: bun test tests/*.test.ts
 
-    docs-build:
-        runs-on: ubuntu-latest
-        timeout-minutes: 15
-        steps:
-            - uses: actions/checkout@v6
-            - uses: ./.github/actions/setup-bun
-            - run: bun run docs:build
+            - name: Server build
+              run: bun run server:build
+
+            - name: SpacetimeDB build
+              run: bun run spacetimedb:build
+
+            - name: Client build
+              run: bun run build
+
+            - name: Docs build
+              run: bun run docs:build

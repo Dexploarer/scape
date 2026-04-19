@@ -2,6 +2,7 @@ import type { Duplex } from "node:stream";
 import http from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
 import { config } from "../config";
+import { HostedSessionIssuerService } from "../auth/HostedSessionIssuerService";
 import { HostedSessionService } from "../auth/HostedSessionService";
 import { GameContext } from "../game/GameContext";
 import { DataLoaderService } from "../game/services/DataLoaderService";
@@ -245,6 +246,7 @@ export class WSServer {
     private playerPersistence!: ManagedPersistenceProvider;
     private accountStore!: AccountStore;
     private hostedSessionService?: HostedSessionService;
+    private hostedSessionIssuerService?: HostedSessionIssuerService;
     private botSdkServer!: BotSdkServer;
     private agentPlayerFactory!: AgentPlayerFactory;
     private botSdkActionRouter!: BotSdkActionRouter;
@@ -655,6 +657,15 @@ export class WSServer {
                 secret: config.hostedSessionSecret,
             });
         }
+        if (this.hostedSessionService && config.hostedSessionIssuerSecret.length > 0) {
+            this.hostedSessionIssuerService = new HostedSessionIssuerService({
+                hostedSessionService: this.hostedSessionService,
+                issuerSecret: config.hostedSessionIssuerSecret,
+                worldId: config.worldId,
+                worldName: config.serverName,
+                gamemodeId: this.gamemode.id,
+            });
+        }
         this.accountSummary = new AccountSummaryTracker(this.svc);
         this.reportGameTime = new ReportGameTimeTracker(this.svc);
         this.actionScheduler = new ActionScheduler((player, action, tick) =>
@@ -829,6 +840,31 @@ export class WSServer {
                         publicWsUrl: process.env.PUBLIC_WS_URL,
                         rawDirectoryJson: process.env.SERVER_DIRECTORY_JSON,
                     })));
+                    return;
+                }
+                if (pathname === "/hosted-session/issue") {
+                    void this.handleHostedSessionIssueRequest(req, res).catch((error) => {
+                        logger.warn("[http] hosted session issuer failed", error);
+                        if (!res.headersSent) {
+                            this.writeJsonResponse(
+                                res,
+                                500,
+                                {
+                                    code: "issuer_error",
+                                    error: "Hosted session issuing failed.",
+                                },
+                                {
+                                    "Access-Control-Allow-Origin": "*",
+                                    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+                                    "Access-Control-Allow-Methods": "POST, OPTIONS",
+                                },
+                            );
+                        } else {
+                            try {
+                                res.end();
+                            } catch {}
+                        }
+                    });
                     return;
                 }
                 // /caches/* — serve OSRS cache files to the client
@@ -1806,6 +1842,167 @@ export class WSServer {
             player.combat.spellId > 0 ? player.combat.spellId : undefined,
         );
     }
+
+    private writeJsonResponse(
+        res: http.ServerResponse,
+        status: number,
+        payload: unknown,
+        headers: Record<string, string> = {},
+    ): void {
+        res.writeHead(status, {
+            "Content-Type": "application/json",
+            ...headers,
+        });
+        res.end(JSON.stringify(payload));
+    }
+
+    private async readJsonRequestBody(
+        req: http.IncomingMessage,
+        maxBytes: number = 16 * 1024,
+    ): Promise<
+        | { ok: true; body: unknown }
+        | { ok: false; status: 400 | 413; payload: { code: string; error: string } }
+    > {
+        return await new Promise((resolve) => {
+            const chunks: string[] = [];
+            let size = 0;
+            let tooLarge = false;
+
+            req.on("data", (chunk: Buffer | string) => {
+                if (tooLarge) return;
+                const text = Buffer.isBuffer(chunk) ? chunk.toString("utf-8") : chunk;
+                size += Buffer.byteLength(text);
+                if (size > maxBytes) {
+                    tooLarge = true;
+                    return;
+                }
+                chunks.push(text);
+            });
+
+            req.on("end", () => {
+                if (tooLarge) {
+                    resolve({
+                        ok: false,
+                        status: 413,
+                        payload: {
+                            code: "body_too_large",
+                            error: `Request body must be <= ${maxBytes} bytes.`,
+                        },
+                    });
+                    return;
+                }
+
+                const raw = chunks.join("").trim();
+                if (raw.length === 0) {
+                    resolve({
+                        ok: false,
+                        status: 400,
+                        payload: {
+                            code: "missing_body",
+                            error: "Request body must be valid JSON.",
+                        },
+                    });
+                    return;
+                }
+
+                try {
+                    resolve({
+                        ok: true,
+                        body: JSON.parse(raw),
+                    });
+                } catch {
+                    resolve({
+                        ok: false,
+                        status: 400,
+                        payload: {
+                            code: "bad_json",
+                            error: "Request body must be valid JSON.",
+                        },
+                    });
+                }
+            });
+
+            req.on("error", () => {
+                resolve({
+                    ok: false,
+                    status: 400,
+                    payload: {
+                        code: "body_read_failed",
+                        error: "Failed to read request body.",
+                    },
+                });
+            });
+        });
+    }
+
+    private async handleHostedSessionIssueRequest(
+        req: http.IncomingMessage,
+        res: http.ServerResponse,
+    ): Promise<void> {
+        const corsHeaders = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+        };
+
+        if ((req.method ?? "GET").toUpperCase() === "OPTIONS") {
+            res.writeHead(204, corsHeaders);
+            res.end();
+            return;
+        }
+
+        if ((req.method ?? "GET").toUpperCase() !== "POST") {
+            this.writeJsonResponse(
+                res,
+                405,
+                {
+                    code: "method_not_allowed",
+                    error: "Use POST for hosted session issuing.",
+                },
+                corsHeaders,
+            );
+            return;
+        }
+
+        if (!this.hostedSessionIssuerService) {
+            this.writeJsonResponse(
+                res,
+                503,
+                {
+                    code: "issuer_disabled",
+                    error: "Hosted session issuing is not enabled on this world.",
+                },
+                corsHeaders,
+            );
+            return;
+        }
+
+        const bodyResult = await this.readJsonRequestBody(req);
+        if (!bodyResult.ok) {
+            this.writeJsonResponse(
+                res,
+                bodyResult.status,
+                bodyResult.payload,
+                corsHeaders,
+            );
+            return;
+        }
+
+        const authorizationHeader = Array.isArray(req.headers.authorization)
+            ? req.headers.authorization[0]
+            : req.headers.authorization;
+        const issueResult = await this.hostedSessionIssuerService.issue(
+            authorizationHeader,
+            bodyResult.body,
+        );
+        this.writeJsonResponse(
+            res,
+            issueResult.status,
+            issueResult.payload,
+            corsHeaders,
+        );
+    }
+
     private createMessageRouter(): MessageRouter {
         const services: MessageRouterServices = {
             getPlayer: (ws) => this.players?.get(ws),

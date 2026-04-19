@@ -58,6 +58,17 @@ export interface WorldMapProps {
 
     getPosition: () => Position;
     loadMapImageUrl: (mapX: number, mapY: number) => string | undefined;
+    markers?: WorldMapMarker[];
+    interactionLabel?: string;
+}
+
+export interface WorldMapMarker {
+    id: string;
+    x: number;
+    y: number;
+    label?: string;
+    tone?: "gold" | "cyan" | "rose";
+    selected?: boolean;
 }
 
 export const WorldMap = memo(function WorldMap(props: WorldMapProps) {
@@ -87,53 +98,67 @@ export const WorldMap = memo(function WorldMap(props: WorldMapProps) {
     const halfWidth = (width / 2) | 0;
     const halfHeight = (height / 2) | 0;
 
-    const animate = useCallback((time: DOMHighResTimeStamp) => {
-        const halfTileSize = tileSize / 2;
-        const imageSize = 64 * tileSize;
+    const animate = useCallback(
+        (time: DOMHighResTimeStamp) => {
+            const halfTileSize = tileSize / 2;
+            const imageSize = 64 * tileSize;
 
-        const mapX = pos.x >> 6;
-        const mapY = pos.y >> 6;
+            const mapX = pos.x >> 6;
+            const mapY = pos.y >> 6;
 
-        const x = halfWidth - (cameraX % 64) * tileSize - halfTileSize;
-        const y = halfHeight - (cameraY % 64) * tileSize - halfTileSize;
+            const x = halfWidth - (cameraX % 64) * tileSize - halfTileSize;
+            const y = halfHeight - (cameraY % 64) * tileSize - halfTileSize;
 
-        const renderStartX = -Math.ceil(x / imageSize) - 1;
-        const renderStartY = -Math.ceil(y / imageSize) - 1;
+            const renderStartX = -Math.ceil(x / imageSize) - 1;
+            const renderStartY = -Math.ceil(y / imageSize) - 1;
 
-        const renderEndX = Math.ceil((width - x) / imageSize) + 1;
-        const renderEndY = Math.ceil((height - y) / imageSize) + 1;
+            const renderEndX = Math.ceil((width - x) / imageSize) + 1;
+            const renderEndY = Math.ceil((height - y) / imageSize) + 1;
 
-        const images: JSX.Element[] = [];
+            const images: JSX.Element[] = [];
 
-        for (let rx = renderStartX; rx < renderEndX; rx++) {
-            for (let ry = renderStartY; ry < renderEndY; ry++) {
-                const imageMapX = mapX + rx;
-                const imageMapY = mapY + ry;
-                const mapId = getMapSquareId(imageMapX, imageMapY);
-                const mapUrl = loadMapImageUrl(imageMapX, imageMapY);
-                if (mapUrl) {
-                    images.push(
-                        <img
-                            key={mapId}
-                            className={`worldmap-image ${imageMapX}_${imageMapY}`}
-                            src={mapUrl}
-                            alt=""
-                            style={{
-                                left: x + rx * imageSize,
-                                bottom: y + ry * imageSize,
-                                width: imageSize,
-                                height: imageSize,
-                            }}
-                        />,
-                    );
+            for (let rx = renderStartX; rx < renderEndX; rx++) {
+                for (let ry = renderStartY; ry < renderEndY; ry++) {
+                    const imageMapX = mapX + rx;
+                    const imageMapY = mapY + ry;
+                    const mapId = getMapSquareId(imageMapX, imageMapY);
+                    const mapUrl = loadMapImageUrl(imageMapX, imageMapY);
+                    if (mapUrl) {
+                        images.push(
+                            <img
+                                key={mapId}
+                                className={`worldmap-image ${imageMapX}_${imageMapY}`}
+                                src={mapUrl}
+                                alt=""
+                                style={{
+                                    left: x + rx * imageSize,
+                                    bottom: y + ry * imageSize,
+                                    width: imageSize,
+                                    height: imageSize,
+                                }}
+                            />,
+                        );
+                    }
                 }
             }
-        }
 
-        setImages(images);
+            setImages(images);
 
-        requestRef.current = requestAnimationFrame(animate);
-    }, [cameraX, cameraY, halfHeight, halfWidth, height, loadMapImageUrl, pos.x, pos.y, tileSize, width]);
+            requestRef.current = requestAnimationFrame(animate);
+        },
+        [
+            cameraX,
+            cameraY,
+            halfHeight,
+            halfWidth,
+            height,
+            loadMapImageUrl,
+            pos.x,
+            pos.y,
+            tileSize,
+            width,
+        ],
+    );
 
     useLayoutEffect(() => {
         requestRef.current = requestAnimationFrame(animate);
@@ -304,11 +329,27 @@ export const WorldMap = memo(function WorldMap(props: WorldMapProps) {
 
     const borderOffsetX = cameraX * tileSize;
     const borderOffsetY = cameraY * tileSize;
+    const markers = props.markers ?? [];
+    const interactionLabel = props.interactionLabel ?? "Click to teleport";
 
     return (
         <div className="worldmap-container">
             <div className="worldmap" ref={ref}>
                 {images}
+                {markers.map((marker) => {
+                    const left = halfWidth + (marker.x - cameraX) * tileSize - 6;
+                    const bottom = halfHeight + (marker.y - cameraY) * tileSize - 6;
+                    return (
+                        <div
+                            key={marker.id}
+                            className={`worldmap-marker tone-${marker.tone ?? "gold"}${
+                                marker.selected ? " selected" : ""
+                            }`}
+                            style={{ left, bottom }}
+                            title={marker.label}
+                        />
+                    );
+                })}
                 {/* <div className=""
                 style={{
                     position: "absolute",
@@ -341,7 +382,7 @@ export const WorldMap = memo(function WorldMap(props: WorldMapProps) {
                     onTouchEnd={onTouchEndTeleport}
                     onWheel={onMouseWheel}
                     onMouseLeave={stopDragging}
-                    title="Click to teleport"
+                    title={interactionLabel}
                     ref={dragRef}
                 ></div>
             </div>

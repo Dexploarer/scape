@@ -2,31 +2,7 @@ import { CacheFiles, ProgressListener } from "../rs/cache/CacheFiles";
 import { CacheInfo, getLatestCache } from "../rs/cache/CacheInfo";
 import { CacheType, detectCacheType } from "../rs/cache/CacheType";
 import { IndexType } from "../rs/cache/IndexType";
-
-/**
- * Where the client fetches OSRS cache files from. Resolved at build
- * time from `REACT_APP_CACHE_URL`, which the deployed static site
- * sets to the game server's HTTPS origin — the game server has an
- * HTTP handler that serves `/caches/*` with CORS (see
- * server/src/network/wsServer.ts).
- *
- * Local dev falls back to the relative path `/caches/`, which the
- * craco dev server wires to `express.static("caches")` in
- * craco.config.js's setupMiddlewares. That keeps `bun run start` a
- * zero-config workflow for LAN testing.
- *
- * Always normalized so `CACHE_PATH + "caches.json"` produces a
- * sensible URL regardless of whether the operator included a
- * trailing slash on the env var.
- */
-const CACHE_PATH = (() => {
-    const raw = process.env.REACT_APP_CACHE_URL?.trim();
-    if (raw && raw.length > 0) {
-        // Strip any trailing slashes and append /caches/ exactly once.
-        return raw.replace(/\/+$/, "") + "/caches/";
-    }
-    return "/caches/";
-})();
+import { getCacheBasePath } from "./assetSources";
 
 function shouldSkipDat2MainCacheWrite(): boolean {
     if (typeof navigator === "undefined") return false;
@@ -65,7 +41,7 @@ export function getIndexName(indexId: number): string {
 }
 
 export async function fetchCacheInfos(): Promise<CacheInfo[]> {
-    const resp = await fetch(CACHE_PATH + "caches.json");
+    const resp = await fetch(`${getCacheBasePath()}/caches.json`);
     return resp.json();
 }
 
@@ -104,7 +80,7 @@ export async function loadCacheFiles(
     extraIndexIds?: number[],
     deferIndices: boolean = false,
 ): Promise<LoadedCache> {
-    const cachePath = CACHE_PATH + info.name + "/";
+    const cachePath = `${getCacheBasePath(info.name)}/`;
 
     const xteasPromise = fetchXteas(cachePath + "keys.json", signal);
 
@@ -176,7 +152,7 @@ export async function loadIndexFile(
     signal?: AbortSignal,
     progressListener?: ProgressListener,
 ): Promise<ArrayBuffer | null> {
-    const cachePath = CACHE_PATH + cache.info.name + "/";
+    const cachePath = `${getCacheBasePath(cache.info.name)}/`;
     const useSharedArrayBuffer =
         typeof SharedArrayBuffer !== "undefined" && globalThis.crossOriginIsolated === true;
 

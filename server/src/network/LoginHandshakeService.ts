@@ -125,7 +125,8 @@ export class LoginHandshakeService {
     ): void {
         const { username, password, revision, sessionToken, worldCharacterId } = payload;
         const normalizedUsername = (username || "").trim().toLowerCase();
-        const hostedTokenMode = typeof sessionToken === "string" && sessionToken.trim().length > 0;
+        const hostedTokenMode =
+            typeof sessionToken === "string" && sessionToken.trim().length > 0;
 
         const sendLoginError = (errorCode: number, error: string) => {
             this.svc.networkLayer.withDirectSendBypass("login_response", () =>
@@ -180,8 +181,7 @@ export class LoginHandshakeService {
                 );
                 return;
             }
-            const hostedSessionService = this.svc.hostedSessionService;
-            const hosted = hostedSessionService?.verify(sessionToken, {
+            const hosted = this.svc.hostedSessionService?.verify(sessionToken, {
                 kind: "human",
                 worldId: this.svc.worldId,
                 worldCharacterId,
@@ -197,12 +197,10 @@ export class LoginHandshakeService {
                 worldId: hosted.claims.worldId,
                 worldCharacterId: hosted.claims.worldCharacterId,
             };
-        } else {
+        } else if (!normalizedUsername || normalizedUsername.length === 0) {
             // 4. Validate username is not empty
-            if (!normalizedUsername || normalizedUsername.length === 0) {
-                sendLoginError(3, "Invalid username or password.");
-                return;
-            }
+            sendLoginError(3, "Invalid username or password.");
+            return;
         }
 
         // 5. Check if already logged in
@@ -214,10 +212,10 @@ export class LoginHandshakeService {
             return;
         }
 
+        // 6. Verify password (auto-registers new account on first login).
+        // Uses generic "Invalid username or password" for wrong-password so we
+        // don't leak which usernames exist.
         if (!hostedTokenMode) {
-            // 6. Verify password (auto-registers new account on first login).
-            // Uses generic "Invalid username or password" for wrong-password so we
-            // don't leak which usernames exist.
             const authResult = this.svc.accountStore.verifyOrRegister(
                 normalizedUsername,
                 password ?? "",
@@ -249,7 +247,7 @@ export class LoginHandshakeService {
                         logger.info(`[login] registered new account "${normalizedUsername}"`);
                     }
                     break;
-                }
+            }
         }
 
         // All checks passed - login successful
@@ -280,7 +278,7 @@ export class LoginHandshakeService {
         );
     }
 
-    handleHandshakeMessage(ws: WebSocket, payload: { name?: string; appearance?: AppearanceSetPacket; displayMode?: number }): void {
+    async handleHandshakeMessage(ws: WebSocket, payload: { name?: string; appearance?: AppearanceSetPacket; displayMode?: number }): Promise<void> {
         const parsed = { type: "handshake" as const, payload };
         try {
             const pendingLogin = this.consumePendingLoginState(ws);
@@ -361,7 +359,15 @@ export class LoginHandshakeService {
                         worldCharacterId: pendingLogin?.worldCharacterId,
                     });
                     p.__saveKey = saveKey;
+                    p.__principalId = pendingLogin?.principalId;
+                    p.__worldCharacterId = pendingLogin?.worldCharacterId;
                     try {
+                        await this.svc.playerPersistence.warmKey?.(saveKey, {
+                            worldId: pendingLogin?.worldId ?? this.svc.worldId,
+                            displayName: name,
+                            principalId: pendingLogin?.principalId,
+                            worldCharacterId: pendingLogin?.worldCharacterId,
+                        });
                         this.svc.playerPersistence.applyToPlayer(p, saveKey);
                     } catch (err) {
                         logger.warn("[player] failed to apply persistent vars", err);
@@ -391,6 +397,8 @@ export class LoginHandshakeService {
                         );
                     }
                 } else {
+                    p.__principalId = pendingLogin?.principalId ?? p.__principalId;
+                    p.__worldCharacterId = pendingLogin?.worldCharacterId ?? p.__worldCharacterId;
                     logger.info(
                         `[handshake] Resuming player ${name} at (${p.tileX}, ${p.tileY})`,
                     );
@@ -911,7 +919,14 @@ export class LoginHandshakeService {
                 this.handleLoginMessage(ws, parsed.payload);
                 return;
             } else if (parsed.type === "handshake") {
-                this.handleHandshakeMessage(ws, parsed.payload as any);
+                void this.handleHandshakeMessage(ws, parsed.payload as any).catch((err) => {
+                    logger.error("[handshake] failed", err);
+                    try {
+                        ws.close(1011, "handshake_failed");
+                    } catch (closeError) {
+                        logger.warn("[handshake] failed to close socket", closeError);
+                    }
+                });
                 return;
             } else {
                 this.svc.messageRouter!.dispatch(ws, parsed) || logger.info(`[binary] Unhandled: ${parsed.type}`);

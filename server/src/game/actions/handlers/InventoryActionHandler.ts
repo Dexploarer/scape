@@ -23,6 +23,10 @@ import type { ServerServices } from "../../ServerServices";
 import type { NpcState } from "../../npc";
 import type { InventoryAddResult, PlayerState } from "../../player";
 import type {
+    ActionScheduleRequest as SharedActionScheduleRequest,
+    ActionScheduleResult,
+} from "./HandlerSupportContracts";
+import type {
     InventoryConsumeActionData,
     InventoryConsumeScriptActionData,
     InventoryEquipActionData,
@@ -31,7 +35,9 @@ import type {
     InventoryUseOnActionData,
     InventoryUseOnTarget,
 } from "../actionPayloads";
-import type { ActionEffect, ActionExecutionResult, ActionRequest } from "../types";
+import type { ActionEffect, ActionExecutionResult } from "../types";
+
+export type { ActionScheduleResult };
 
 // ============================================================================
 // Types
@@ -54,13 +60,7 @@ export type InventoryScheduledActionKind = string;
 
 export type ActionScheduleRequest<
     K extends InventoryScheduledActionKind = InventoryScheduledActionKind,
-> = ActionRequest<K>;
-
-/** Action schedule result. */
-export interface ActionScheduleResult {
-    ok: boolean;
-    reason?: string;
-}
+> = SharedActionScheduleRequest<K>;
 
 /** Equip result. */
 export interface EquipResult {

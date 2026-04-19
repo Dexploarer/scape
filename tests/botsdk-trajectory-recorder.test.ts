@@ -1,108 +1,187 @@
 import { describe, expect, test } from "bun:test";
 
-import type { PlayerState } from "../server/src/game/player";
-import {
-    BotSdkTrajectoryRecorder,
-    MemoryBotSdkTrajectorySink,
-} from "../server/src/network/botsdk/BotSdkTrajectoryRecorder";
+import type {
+    ControlPlaneClient,
+    PutLiveEventPayload,
+    PutPlayerSnapshotPayload,
+    PutTrajectoryStepPayload,
+    TouchLoginAccountPayload,
+    TouchWorldCharacterPayload,
+    UpsertLoginAccountPayload,
+    UpsertPrincipalPayload,
+    UpsertTrajectoryEpisodePayload,
+    UpsertWorldCharacterPayload,
+    UpsertWorldPayload,
+} from "../server/src/controlplane/ControlPlaneClient";
+import { BotSdkTrajectoryRecorder } from "../server/src/network/botsdk/BotSdkTrajectoryRecorder";
 
-function createAgentPlayer(): PlayerState {
+function createFakeControlPlane(): ControlPlaneClient & {
+    trajectoryEpisodes: UpsertTrajectoryEpisodePayload[];
+    trajectorySteps: PutTrajectoryStepPayload[];
+    liveEvents: PutLiveEventPayload[];
+} {
     return {
-        id: 42,
-        name: "trajectory-agent",
-        agent: {
-            identity: {
-                agentId: "agent-42",
-            },
+        trajectoryEpisodes: [],
+        trajectorySteps: [],
+        liveEvents: [],
+        async initialize() {},
+        async disconnect() {},
+        async listLoginAccounts() {
+            return [];
         },
-    } as unknown as PlayerState;
+        async getLoginAccount() {
+            return undefined;
+        },
+        async listWorldCharactersForWorld() {
+            return [];
+        },
+        async getWorldCharacter() {
+            return undefined;
+        },
+        async getWorldCharacterBySaveKey() {
+            return undefined;
+        },
+        async listPlayerSnapshotsForWorld() {
+            return [];
+        },
+        async getPlayerSnapshot() {
+            return undefined;
+        },
+        async getPlayerSnapshotBySaveKey() {
+            return undefined;
+        },
+        async upsertWorld(_payload: UpsertWorldPayload) {},
+        async upsertPrincipal(_payload: UpsertPrincipalPayload) {},
+        async upsertLoginAccount(_payload: UpsertLoginAccountPayload) {},
+        async touchLoginAccount(_payload: TouchLoginAccountPayload) {},
+        async upsertWorldCharacter(_payload: UpsertWorldCharacterPayload) {},
+        async touchWorldCharacter(_payload: TouchWorldCharacterPayload) {},
+        async putPlayerSnapshot(_payload: PutPlayerSnapshotPayload) {},
+        async upsertTrajectoryEpisode(payload: UpsertTrajectoryEpisodePayload) {
+            this.trajectoryEpisodes.push(payload);
+        },
+        async putTrajectoryStep(payload: PutTrajectoryStepPayload) {
+            this.trajectorySteps.push(payload);
+        },
+        async putLiveEvent(payload: PutLiveEventPayload) {
+            this.liveEvents.push(payload);
+        },
+    };
 }
 
 describe("BotSdkTrajectoryRecorder", () => {
-    test("records wake events plus action dispatch/ack envelopes with world scope", () => {
-        let now = 10_000;
-        const sink = new MemoryBotSdkTrajectorySink();
+    test("records a bot session as episode plus ordered trajectory steps", async () => {
+        const controlPlane = createFakeControlPlane();
         const recorder = new BotSdkTrajectoryRecorder({
+            controlPlane,
             worldId: "toonscape",
-            sink,
-            now: () => ++now,
         });
-        const player = createAgentPlayer();
-
-        recorder.recordWakeEvent(player, {
-            event: "skill.xpGain",
-            timestamp: ++now,
-            playerId: player.id,
-            payload: {
-                skillId: 0,
-                xpGained: 25,
+        const player = {
+            id: 77,
+            name: "Toon Agent",
+            tileX: 3200,
+            tileY: 3201,
+            level: 0,
+            __principalId: "principal:agent-77",
+            __worldCharacterId: "toon-77",
+            agent: {
+                identity: {
+                    agentId: "agent-77",
+                    controller: "hybrid",
+                    persona: "helpful fisher",
+                },
             },
-        });
-        recorder.recordActionDispatch(player, {
+        } as any;
+        const action = {
             kind: "action",
             action: "walkTo",
-            x: 3200,
-            z: 3201,
-            correlationId: "c1",
+            x: 3205,
+            z: 3206,
+            correlationId: "corr-1",
+        } as const;
+
+        recorder.recordSpawn(player, "world:toonscape:character:toon-77");
+        recorder.recordActionDispatch(player, action);
+        recorder.recordActionResult(player, action, {
+            success: true,
+            message: "walking toward (3205, 3206)",
         });
-        recorder.recordActionAck(
-            player,
-            {
-                kind: "action",
-                action: "walkTo",
+        recorder.recordPerception(player, {
+            tick: 12,
+            self: {
+                id: 77,
+                name: "Toon Agent",
+                combatLevel: 3,
+                hp: 10,
+                maxHp: 10,
                 x: 3200,
                 z: 3201,
-                correlationId: "c1",
+                level: 0,
+                runEnergy: 100,
+                inCombat: false,
             },
-            {
-                success: true,
-                message: "walking",
+            skills: [],
+            inventory: [],
+            equipment: [],
+            nearbyNpcs: [],
+            nearbyPlayers: [],
+            nearbyGroundItems: [],
+            nearbyObjects: [],
+            recentEvents: [],
+        });
+        recorder.recordRuntimeEvent(player, {
+            kind: "event",
+            name: "skill:levelUp",
+            timestamp: 456,
+            payload: {
+                playerId: 77,
+                skillId: 10,
+                oldLevel: 1,
+                newLevel: 2,
             },
-        );
+        });
+        recorder.recordOperatorCommand(player, {
+            source: "chat",
+            text: "go fish",
+            timestamp: 123,
+            fromPlayerId: 1,
+            fromPlayerName: "alice",
+        });
+        recorder.recordDisconnect(player, "client_disconnect");
+        await recorder.dispose();
 
-        expect(sink.entries).toEqual([
-            {
-                phase: "wake",
-                timestamp: 10001,
-                worldId: "toonscape",
-                playerId: 42,
-                playerName: "trajectory-agent",
-                agentId: "agent-42",
-                event: "skill.xpGain",
-                payload: {
-                    skillId: 0,
-                    xpGained: 25,
-                },
-            },
-            {
-                phase: "action",
-                timestamp: 10002,
-                worldId: "toonscape",
-                playerId: 42,
-                playerName: "trajectory-agent",
-                agentId: "agent-42",
-                action: "walkTo",
-                correlationId: "c1",
-                payload: {
-                    x: 3200,
-                    z: 3201,
-                    run: false,
-                },
-            },
-            {
-                phase: "ack",
-                timestamp: 10003,
-                worldId: "toonscape",
-                playerId: 42,
-                playerName: "trajectory-agent",
-                agentId: "agent-42",
-                action: "walkTo",
-                correlationId: "c1",
-                success: true,
-                payload: {
-                    message: "walking",
-                },
-            },
+        expect(controlPlane.trajectoryEpisodes).toHaveLength(2);
+        expect(controlPlane.trajectoryEpisodes[0]).toMatchObject({
+            world_id: "toonscape",
+            principal_id: "principal:agent-77",
+            world_character_id: "toon-77",
+            agent_id: "agent-77",
+            player_id: 77,
+            session_source: "botsdk",
+            ended_at: undefined,
+        });
+        expect(controlPlane.trajectoryEpisodes.at(-1)?.ended_at).toBeDefined();
+        expect(controlPlane.trajectorySteps.map((step) => step.event_kind)).toEqual([
+            "spawn",
+            "action_dispatch",
+            "action_result",
+            "perception",
+            "runtime_event",
+            "operator_command",
+            "disconnect",
         ]);
+        expect(controlPlane.trajectorySteps.map((step) => step.sequence)).toEqual([
+            1, 2, 3, 4, 5, 6, 7,
+        ]);
+        expect(controlPlane.trajectorySteps[1]).toMatchObject({
+            action_name: "walkTo",
+            correlation_id: "corr-1",
+        });
+        expect(controlPlane.trajectorySteps[2]?.outcome_json).toContain(
+            "walking toward",
+        );
+        expect(controlPlane.trajectorySteps[4]?.payload_json).toContain(
+            "\"name\":\"skill:levelUp\"",
+        );
     });
 });

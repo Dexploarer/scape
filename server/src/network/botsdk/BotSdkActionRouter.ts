@@ -64,6 +64,12 @@ export class BotSdkActionRouter {
                     return this.dropItem(player, frame);
                 case "eatFood":
                     return this.eatFood(player, frame);
+                case "interactObject":
+                case "bankDepositInventory":
+                    return {
+                        success: false,
+                        message: `${frame.action}: not implemented on this server`,
+                    };
                 default: {
                     const exhaustive: never = frame;
                     return {

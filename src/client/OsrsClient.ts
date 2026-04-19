@@ -1,5 +1,7 @@
 import { vec3 } from "gl-matrix";
 
+import { createCacheableImageResponse, createMapImageCacheRequest } from "./MapImageCacheUtil";
+import { getMapImageBasePath } from "./assetSources";
 import { WorldViewManager } from "./worldview/WorldViewManager";
 import {
     type BankServerUpdate,
@@ -64,6 +66,7 @@ import type {
 import {
     sendEmote as netSendEmote,
     sendBankCustomQuantity,
+    sendHostedLogin,
     sendLogin,
     sendLogout,
     sendResumeNameDialog,
@@ -193,6 +196,7 @@ import {
     shouldTransmitAction,
 } from "../ui/widgets/WidgetFlags";
 import { WidgetManager } from "../ui/widgets/WidgetManager";
+import type { WidgetNode } from "../ui/widgets/WidgetNode";
 import { WidgetSessionManager } from "../ui/widgets/WidgetSessionManager";
 import { layoutWidgets } from "../ui/widgets/layout/WidgetLayout";
 import {
@@ -227,11 +231,6 @@ import { OsrsRendererType, createRenderer } from "./GameRenderers";
 import { ClickMode, InputManager } from "./InputManager";
 import { MapManager } from "./MapManager";
 import { PlayerAnimController } from "./PlayerAnimController";
-import {
-    applyPostLogoutLoginState,
-    resolveLogoutTabIntent,
-    type PostLogoutView,
-} from "./logoutTabActions";
 import {
     type TransmitCycles,
     getTransmitCycles,
@@ -269,6 +268,12 @@ import {
     shouldFadeOutLoginMusicForTransition,
     shouldStartScheduledLoginMusic,
 } from "./login";
+import {
+    findConfiguredWorldById,
+    getNextConfiguredWorld,
+    getWorldSwitcherButtonText,
+    type WorldDirectoryEntry,
+} from "./login/worldDirectory";
 import { NpcMovementSync } from "./movement/NpcMovementSync";
 import { PlayerMovementSync } from "./movement/PlayerMovementSync";
 import { createBrowserGroundItemsPluginPersistence } from "./plugins/grounditems/BrowserGroundItemsPluginPersistence";
@@ -353,7 +358,6 @@ function clampRenderDistance(value: number): number {
 const DEFAULT_MAP_RADIUS = deriveMapRadiusFromRenderDistance(DEFAULT_RENDER_DISTANCE);
 const DEFAULT_LOD_DISTANCE = deriveLodDistanceFromRenderDistance(DEFAULT_RENDER_DISTANCE);
 
-const MAP_IMAGE_BASE_PATH = "/map-images";
 const VARBIT_ACCOUNT_TYPE = 1777;
 const VARBIT_POPOUT_OPEN = 13090;
 const VARBIT_POPOUT_PANEL_DESKTOP_DISABLED = 13982;
@@ -545,6 +549,7 @@ export class OsrsClient {
     loginState: LoginState = new LoginState();
     /** Login screen renderer */
     loginRenderer: LoginRenderer = new LoginRenderer();
+    private pendingWorldSwitch: WorldDirectoryEntry | null = null;
 
     mapFileIndex!: MapFileIndex;
 
@@ -777,7 +782,6 @@ export class OsrsClient {
     private clientTickLastNowMs: number = 0;
     private clientTickAccumulatedMs: number = 0;
     private loginMusicStartTimer?: ReturnType<typeof setTimeout>;
-    private logoutRequestInFlight: boolean = false;
 
     /**
      * Autoplay mode — when the login URL carries `?autoplay=1`,
@@ -1143,18 +1147,14 @@ export class OsrsClient {
             osrsRenderer?: GameRenderer;
             osrsClient?: OsrsClient;
         };
-        const productionBuild =
-            typeof process !== "undefined" && process.env?.NODE_ENV === "production";
-        // Default projectile debug flags to off in production builds, on in local development.
+        // Always enable projectile debug flags unless explicitly disabled by user.
         try {
-            if (globalState.DEBUG_PROJECTILES === undefined) {
-                globalState.DEBUG_PROJECTILES = !productionBuild;
-            }
+            if (globalState.DEBUG_PROJECTILES === undefined) globalState.DEBUG_PROJECTILES = true;
             if (globalState.DEBUG_PROJECTILES_VERBOSE === undefined) {
-                globalState.DEBUG_PROJECTILES_VERBOSE = !productionBuild;
+                globalState.DEBUG_PROJECTILES_VERBOSE = true;
             }
             if (globalState.DEBUG_PROJECTILES_TRAJ === undefined) {
-                globalState.DEBUG_PROJECTILES_TRAJ = !productionBuild;
+                globalState.DEBUG_PROJECTILES_TRAJ = true;
             }
         } catch {}
         this.renderer = createRenderer(rendererType, this);
@@ -1234,6 +1234,10 @@ export class OsrsClient {
             window.addEventListener("pagehide", this.handleVarcsPageLifecycleFlush);
             window.addEventListener("beforeunload", this.handleVarcsPageLifecycleFlush);
         }
+        void this.loginRenderer.fetchServerList().then(() => {
+            this.loginRenderer.refreshServerList();
+            this.loginState.syncSelectedWorldWithServer();
+        });
 
         // If cache is provided, initialize immediately
         // Otherwise, OsrsClient stays in DOWNLOADING state until initCache() is called
@@ -3966,10 +3970,6 @@ export class OsrsClient {
             });
         }
 
-        if (this.handleLogoutTabWidgetAction(event)) {
-            return;
-        }
-
         // For draggable widgets (like inventory items), defer action until mouse released
         // This prevents "Use" from triggering on mousedown when the user might be trying to drag
         if (event.source === "primary" && event.widget && this.isWidgetDraggable(event.widget)) {
@@ -6569,12 +6569,8 @@ export class OsrsClient {
                         // Handlers can mutate widget ops (e.g., Mute -> Unmute), but the transmitted action
                         // should reflect what was clicked pre-mutation.
                         const primaryAction = getPrimaryWidgetAction(w);
-                        if (
-                            this.handleLogoutTabWidgetAction({
-                                widget: w,
-                                option: primaryAction.option,
-                            })
-                        ) {
+
+                        if (this.handleLogoutTabWidgetPrimaryAction(w)) {
                             this.clickedWidgetHandled = true;
                             break;
                         }
@@ -9315,6 +9311,75 @@ export class OsrsClient {
         return this.processLoginAction(action);
     }
 
+    private applyServerSelection(server: {
+        address: string;
+        name: string;
+        secure: boolean;
+        id?: number;
+    }): void {
+        this.loginState.serverAddress = server.address;
+        this.loginState.serverName = server.name;
+        this.loginState.serverSecure = server.secure;
+        if (typeof server.id === "number") {
+            this.loginState.worldId = server.id | 0;
+        } else {
+            this.loginState.syncSelectedWorldWithServer();
+        }
+        setServerUrl(`${server.secure ? "wss" : "ws"}://${server.address}`);
+        this.loginState.saveLastServer();
+    }
+
+    private getPendingOrCurrentWorldSwitcherLabel(): string {
+        if (this.pendingWorldSwitch) {
+            return `Switching to ${this.pendingWorldSwitch.name}`;
+        }
+        return getWorldSwitcherButtonText(
+            this.loginState.serverAddress,
+            this.loginState.serverSecure,
+        );
+    }
+
+    getLogoutTabWorldSwitcherLabel(): string {
+        return this.getPendingOrCurrentWorldSwitcherLabel();
+    }
+
+    private queueMainUiWorldSwitch(): boolean {
+        const nextWorld = getNextConfiguredWorld(
+            this.loginState.serverAddress,
+            this.loginState.serverSecure,
+        );
+        if (!nextWorld) {
+            chatHistory.addMessage("game", "No alternate worlds are configured.");
+            return true;
+        }
+
+        this.pendingWorldSwitch = nextWorld;
+        chatHistory.addMessage("game", `Switching to ${nextWorld.name}...`);
+        this.performLogout();
+        return true;
+    }
+
+    private handleLogoutTabWidgetPrimaryAction(widget: WidgetNode): boolean {
+        const widgetId =
+            (typeof (widget as any).id === "number" ? (widget as any).id : widget.uid ?? 0) | 0;
+        if (widgetId === 0) return false;
+        const groupId = (widgetId >>> 16) & 0xffff;
+        const childId = widgetId & 0xffff;
+        if (groupId !== 182) return false;
+
+        if (childId === 8 || childId === 12) {
+            this.pendingWorldSwitch = null;
+            this.performLogout();
+            return true;
+        }
+
+        if (childId === 3 || childId === 7) {
+            return this.queueMainUiWorldSwitch();
+        }
+
+        return false;
+    }
+
     /**
      * Process a login action from the renderer.
      * Handles state changes and returns action string.
@@ -9322,22 +9387,23 @@ export class OsrsClient {
     private processLoginAction(
         action: LoginAction,
     ): "new_user" | "existing_user" | "login" | "cancel" | "connect" | undefined {
+        const openCredentialForm = (): "existing_user" => {
+            this.loginState.promptCredentials();
+            if (isMobileMode) {
+                this.loginState.onMobile = true;
+                this.loginState.currentLoginField = this.loginState.username.length > 0 ? 1 : 0;
+                this.loginState.virtualKeyboardVisible = !this.loginState.canAttemptLogin();
+            } else {
+                this.loginState.virtualKeyboardVisible = false;
+            }
+            return "existing_user";
+        };
         switch (action.type) {
             case "new_user":
-                console.log("[Login] New user clicked - would open registration");
-                this.loginState.virtualKeyboardVisible = false;
-                return "new_user";
+                return openCredentialForm();
 
             case "existing_user":
-                this.loginState.promptCredentials();
-                if (isMobileMode) {
-                    this.loginState.onMobile = true;
-                    this.loginState.currentLoginField = this.loginState.username.length > 0 ? 1 : 0;
-                    this.loginState.virtualKeyboardVisible = !this.loginState.canAttemptLogin();
-                } else {
-                    this.loginState.virtualKeyboardVisible = false;
-                }
-                return "existing_user";
+                return openCredentialForm();
 
             case "login":
                 // Prevent double-clicking login while already connecting
@@ -9437,7 +9503,10 @@ export class OsrsClient {
             case "open_server_list":
                 this.loginState.serverListOpen = true;
                 this.loginState.virtualKeyboardVisible = false;
-                this.loginRenderer.fetchServerList().then(() => this.loginRenderer.refreshServerList());
+                this.loginRenderer.fetchServerList().then(() => {
+                    this.loginRenderer.refreshServerList();
+                    this.loginState.syncSelectedWorldWithServer();
+                });
                 return undefined;
 
             case "close_server_list":
@@ -9452,13 +9521,9 @@ export class OsrsClient {
             case "select_server": {
                 const server = this.loginRenderer.serverList[action.index];
                 if (server) {
-                    this.loginState.serverAddress = server.address;
-                    this.loginState.serverName = server.name;
-                    this.loginState.serverSecure = server.secure;
+                    this.applyServerSelection(server);
                     this.loginState.serverListOpen = false;
                     this.loginState.hoveredServerIndex = -1;
-                    setServerUrl(`${server.secure ? "wss" : "ws"}://${server.address}`);
-                    this.loginState.saveLastServer();
                 }
                 return undefined;
             }
@@ -9473,11 +9538,15 @@ export class OsrsClient {
                 this.loginState.virtualKeyboardVisible = false;
                 return undefined;
 
-            case "select_world":
-                this.loginState.worldId = action.worldId;
+            case "select_world": {
+                const world = findConfiguredWorldById(action.worldId);
+                if (world) {
+                    this.applyServerSelection(world);
+                }
                 this.loginState.worldSelectOpen = false;
                 this.loginState.virtualKeyboardVisible = false;
                 return undefined;
+            }
 
             case "world_page_left":
                 if (this.loginState.worldSelectPage > 0) {
@@ -9516,67 +9585,19 @@ export class OsrsClient {
     }
 
     /**
-     * Attempt auto-login if credentials were provided via URL params (?username=X&password=Y).
+     * Attempt auto-login if credentials or a hosted session were provided via URL params.
      * Called after loading completes.
      */
     private tryAutoLogin(): void {
         try {
-            // Read credentials from URL query params. The dev mprocs
-            // tab `scripts/open-agent-browser.ts` generates an agent
-            // identity, then spawns the browser at
-            //   http://localhost:3000/?username=<agent>&password=<pw>
-            // which lands here. We clear the params immediately via
-            // history.replaceState so a manual refresh goes back to
-            // the normal login screen (and so credentials don't sit
-            // in the browser history bar longer than necessary).
-            //
-            // We deliberately do NOT read `process.env.REACT_APP_*`
-            // here anymore: build-time env var inlining is flaky under
-            // webpack caching, and URL query params are a reliable
-            // runtime signal we control end-to-end.
             const params = new URLSearchParams(window.location.search);
+            const sessionToken = params.get("sessionToken")?.trim();
+            const worldCharacterId = params.get("worldCharacterId")?.trim() || undefined;
             const username = params.get("username");
             const password = params.get("password");
-            if (!username || !password) return;
-
-            // This whole flow exists for the dev-mode mprocs agent
-            // launcher at scripts/agent-dev.ts, which opens the
-            // browser at `http://localhost:3000/?username=…&password=…&autoplay=1`
-            // for zero-friction local testing. Running it against a
-            // production deployment is always wrong:
-            //
-            //   1. It forces the WebSocket URL to `ws://localhost:43594`
-            //      which from a cloud-hosted page obviously fails.
-            //   2. It means credentials ride in the URL on the wire,
-            //      which we don't want outside of a trusted dev host.
-            //
-            // So: hard-gate the auto-login flow on a loopback origin.
-            // Any visitor to the hosted build who still has stale
-            // `?username=&password=` params from an earlier dev launch
-            // has them silently stripped and lands on the normal
-            // login screen, which uses DEFAULT_SERVER from
-            // REACT_APP_WS_URL.
-            const pageHost =
-                typeof window !== "undefined" && window.location
-                    ? window.location.hostname.toLowerCase()
-                    : "";
-            const pageIsLocal =
-                pageHost === "localhost" ||
-                pageHost === "127.0.0.1" ||
-                pageHost === "::1" ||
-                pageHost === "" ||
-                pageHost.endsWith(".localhost");
-            if (!pageIsLocal) {
-                const cleanUrl = new URL(window.location.href);
-                cleanUrl.searchParams.delete("username");
-                cleanUrl.searchParams.delete("password");
-                cleanUrl.searchParams.delete("autoplay");
-                window.history.replaceState({}, "", cleanUrl.toString());
-                console.warn(
-                    "[auto-login] ignored: cannot auto-login against a non-loopback origin",
-                );
-                return;
-            }
+            const hasHostedSession = !!sessionToken;
+            const hasPasswordLogin = !!username && !!password;
+            if (!hasHostedSession && !hasPasswordLogin) return;
 
             // `autoplay=1` flips on the in-browser agent loop. The user
             // and the agent share this tab: once LOGGED_IN fires we
@@ -9585,25 +9606,69 @@ export class OsrsClient {
             this.autoplayEnabled = autoplayParam === "1" || autoplayParam === "true";
 
             const url = new URL(window.location.href);
+            url.searchParams.delete("sessionToken");
+            url.searchParams.delete("worldCharacterId");
             url.searchParams.delete("username");
             url.searchParams.delete("password");
             url.searchParams.delete("autoplay");
             window.history.replaceState({}, "", url.toString());
 
-            // Force localhost — auto-login is strictly a dev-workflow
-            // affordance and we've already confirmed above that we're
-            // on a loopback origin.
+            if (hasHostedSession) {
+                // Hosted Milady/ElizaOS launches should reuse the current
+                // selected world instead of forcing localhost. The token is
+                // already scoped to a specific world/character branch.
+                this.loginState.loginIndex = LoginIndex.LOGIN_FORM;
+                this.loginState.savePersistedLoginState();
+                this.updateGameState(GameState.CONNECTING);
+                sendHostedLogin(sessionToken!, {
+                    worldCharacterId,
+                    revision: this.loadedCache?.info?.revision ?? 0,
+                });
+                console.log(
+                    `[auto-login] hosted session login started${worldCharacterId ? ` for "${worldCharacterId}"` : ""}`,
+                );
+                return;
+            }
+
+            // Read credentials from URL query params. The dev mprocs
+            // tab `scripts/open-agent-browser.ts` generates an agent
+            // identity, then spawns the browser at
+            //   http://localhost:3000/?username=<agent>&password=<pw>
+            // which lands here. This path remains localhost-only on
+            // purpose because it is a dev shortcut, not a hosted flow.
+            //
+            // We deliberately do NOT read `process.env.REACT_APP_*`
+            // here anymore: build-time env var inlining is flaky under
+            // webpack caching, and URL query params are a reliable
+            // runtime signal we control end-to-end.
+            const pageHost =
+                typeof window !== "undefined" && window.location
+                    ? window.location.hostname.toLowerCase()
+                    : "";
+            const pageIsLoopback =
+                pageHost === "localhost" ||
+                pageHost === "127.0.0.1" ||
+                pageHost === "::1" ||
+                pageHost === "" ||
+                pageHost.endsWith(".localhost");
+            if (!pageIsLoopback) {
+                console.warn(
+                    "[auto-login] ignored: cannot auto-login against a non-loopback origin",
+                );
+                return;
+            }
             setServerUrl("ws://localhost:43594");
             this.loginState.serverAddress = "localhost:43594";
             this.loginState.serverName = "Local Development";
             this.loginState.serverSecure = false;
+            this.loginState.syncSelectedWorldWithServer();
 
-            this.loginState.username = username;
-            this.loginState.password = password;
+            this.loginState.username = username!;
+            this.loginState.password = password!;
             this.loginState.loginIndex = LoginIndex.LOGIN_FORM;
             this.loginState.savePersistedLoginState();
             this.updateGameState(GameState.CONNECTING);
-            sendLogin(username.trim(), password, this.loadedCache?.info?.revision ?? 0);
+            sendLogin(username!.trim(), password!, this.loadedCache?.info?.revision ?? 0);
             console.log(`[auto-login] logged in as "${username}" via query params`);
         } catch (err) {
             console.warn("[auto-login] failed:", err);
@@ -9642,28 +9707,43 @@ export class OsrsClient {
      * Perform logout - called by CS2 LOGOUT opcode.
      * Sends logout request to server and waits for consent before completing.
      */
-    performLogout(options: { postLogoutView?: PostLogoutView } = {}): void {
+    performLogout(): void {
         console.log("[OsrsClient] Requesting logout from server...");
-        if (this.logoutRequestInFlight) {
-            console.log("[OsrsClient] Logout already pending, ignoring duplicate request");
-            return;
-        }
-
-        const postLogoutView = options.postLogoutView ?? "welcome";
-        this.logoutRequestInFlight = true;
 
         // Subscribe to logout response (one-shot)
         const unsubscribe = subscribeLogoutResponse((response) => {
             unsubscribe();
-            this.logoutRequestInFlight = false;
 
             if (response.success) {
                 console.log("[OsrsClient] Server approved logout, completing...");
-                this.completeLogout(postLogoutView);
+
+                // Suppress reconnection after intentional logout
+                suppressReconnection();
+
+                // Clear widgets
+                this.widgetManager?.clear();
+
+                // Reset login state
+                this.loginState.reset();
+                this.loginState.loginIndex = LoginIndex.WELCOME;
+
+                // Reset login screen animation state for fresh start
+                this.loginRenderer.resetAnimationState();
+
+                if (this.pendingWorldSwitch) {
+                    this.applyServerSelection(this.pendingWorldSwitch);
+                    this.pendingWorldSwitch = null;
+                }
+
+                // Transition to login screen
+                this.updateGameState(GameState.LOGIN_SCREEN);
+
+                console.log("[OsrsClient] Logout complete - returned to login screen");
             } else {
                 // Server denied logout (e.g., in combat)
                 const reason = response.reason || "You can't log out right now.";
                 console.log(`[OsrsClient] Logout denied: ${reason}`);
+                this.pendingWorldSwitch = null;
 
                 // Show denial message to player via game message (type 0)
                 chatHistory.addMessage("game", reason);
@@ -9671,65 +9751,7 @@ export class OsrsClient {
         });
 
         // Send logout request to server
-        try {
-            sendLogout();
-        } catch (err) {
-            this.logoutRequestInFlight = false;
-            unsubscribe();
-            throw err;
-        }
-    }
-
-    private handleLogoutTabWidgetAction(event: { widget?: any; option?: string }): boolean {
-        const widget = event.widget;
-        if (!widget) {
-            return false;
-        }
-
-        const ids = this.resolveWidgetIdentifiers(widget);
-        const intent = resolveLogoutTabIntent({
-            groupId: ids?.groupId ?? widget.groupId,
-            childId: ids?.childId,
-            contentType:
-                typeof widget.contentType === "number" ? (widget.contentType as number) | 0 : undefined,
-            option: event.option,
-        });
-        if (!intent) {
-            return false;
-        }
-
-        this.performLogout({
-            postLogoutView: intent === "server_list" ? "server_list" : "welcome",
-        });
-        return true;
-    }
-
-    private completeLogout(postLogoutView: PostLogoutView): void {
-        // Suppress reconnection after intentional logout
-        suppressReconnection();
-
-        // Clear widgets
-        this.widgetManager?.clear();
-
-        // Reset login state, then apply the requested login-screen destination.
-        this.loginState.reset();
-        applyPostLogoutLoginState(this.loginState, postLogoutView);
-
-        // Reset login screen animation state for fresh start
-        this.loginRenderer.resetAnimationState();
-
-        // Transition to login screen
-        this.updateGameState(GameState.LOGIN_SCREEN);
-
-        if (postLogoutView === "server_list") {
-            void this.loginRenderer.fetchServerList().then(() => {
-                this.loginRenderer.refreshServerList();
-            });
-        }
-
-        console.log(
-            `[OsrsClient] Logout complete - returned to login screen (${postLogoutView})`,
-        );
+        sendLogout();
     }
 
     /**
@@ -11326,7 +11348,7 @@ export class OsrsClient {
 
     private getMapImageBasePath(): string {
         const cacheName = this.loadedCache?.info?.name;
-        return cacheName ? `${MAP_IMAGE_BASE_PATH}/${cacheName}` : MAP_IMAGE_BASE_PATH;
+        return getMapImageBasePath(cacheName);
     }
 
     private getCachedMapImageUrl(mapX: number, mapY: number): string {
@@ -11410,22 +11432,21 @@ export class OsrsClient {
         }
         if (cache) {
             fetch(url)
-                .then((resp) => {
-                    const contentType = resp.headers.get("Content-Type")?.toLowerCase();
-                    if (!resp.ok || !contentType || !contentType.startsWith("image/")) {
+                .then(async (resp) => {
+                    const cacheableResponse = await createCacheableImageResponse(resp);
+                    if (!cacheableResponse) {
                         return;
                     }
                     const cacheName = this.loadedCache?.info?.name;
                     if (!cacheName) return;
-                    const request = new Request(this.getCachedMapImageUrl(mapX, mapY), {
-                        headers: {
-                            "RS-Cache-Name": cacheName,
-                        },
-                    });
-                    return this.mapImageCache.put(request, resp);
+                    const request = createMapImageCacheRequest(
+                        this.getCachedMapImageUrl(mapX, mapY),
+                        cacheName,
+                    );
+                    return this.mapImageCache.put(request, cacheableResponse);
                 })
                 .catch((err) => {
-                    console.log("[OsrsClient] map image cache fetch failed", err);
+                    console.info("[OsrsClient] map image cache write skipped", err);
                 });
         }
         urls.set(mapId, url);

@@ -107,9 +107,9 @@ Not all sub-states extend it — only the ones that benefit from dirty tracking 
 
 ## Player lifecycle
 
-1. **Login handshake.** `LoginHandshakeService` authenticates, loads the account JSON from `AccountStore`, reconstructs `PlayerState` via `PlayerStateSerializer.fromJson`, adds it to `PlayerManager`, and attaches the WebSocket.
+1. **Login handshake.** `LoginHandshakeService` authenticates through `AccountStore`, constructs a live `PlayerState`, then lets `PlayerPersistence.applyToPlayer(...)` merge saved gameplay state before attaching the player to `PlayerManager`.
 2. **Runtime.** Tick phases read and mutate `PlayerState` through services.
-3. **Save.** Autosave runs periodically (controlled by `TickFrameService.maybeRunAutosave`). It serializes dirty players and writes to the `AccountStore`.
+3. **Save.** Autosave runs periodically (controlled by `TickFrameService`). It serializes dirty players and writes gameplay state through `PersistenceProvider` / `PlayerPersistence`.
 4. **Logout / disconnect.** `PlayerManager.remove(id)` is called. A final save runs before removal. If the disconnect happened mid-combat, the player is marked orphaned and kept in the world until the orphan timer expires (see `runOrphanedPlayersPhase`).
 
 ## Orphaned players

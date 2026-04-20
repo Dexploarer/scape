@@ -2,10 +2,12 @@
  * Bot-SDK wire protocol.
  *
  * Two separate sides — what the plugin sends to the server (`ClientFrame`)
- * and what the server sends back (`ServerFrame`). Both are encoded as TOON
- * at the transport layer. The shapes here are plain structural types; the
- * {@link BotSdkCodec} handles encoding/decoding without mirroring the types
- * manually.
+ * and what the server sends back (`ServerFrame`). The transport can be
+ * either TOON or plain JSON; TOON remains the compact default, while JSON
+ * keeps generic WebSocket clients from other agent frameworks interoperable
+ * without a framework-specific codec. The shapes here are plain structural
+ * types; the {@link BotSdkCodec} handles encoding/decoding without mirroring
+ * the types manually.
  *
  * **Why these shapes are frozen now**: the milady `@elizaos/app-scape`
  * plugin copies these types verbatim into its own `src/sdk/types.ts`.

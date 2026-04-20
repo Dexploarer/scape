@@ -18,7 +18,12 @@ import {
     BotSdkActionRouter,
     type ActionDispatchResult,
 } from "./BotSdkActionRouter";
-import { decodeClientFrame, encodeServerFrame } from "./BotSdkCodec";
+import {
+    decodeClientFrame,
+    encodeServerFrame,
+    guessClientFrameFormat,
+    type BotSdkWireFormat,
+} from "./BotSdkCodec";
 import { BotSdkEventBridge } from "./BotSdkEventBridge";
 import { BotSdkPerceptionEmitter } from "./BotSdkPerceptionEmitter";
 import { BotSdkPerceptionBuilder } from "./BotSdkPerceptionBuilder";
@@ -74,6 +79,14 @@ interface AgentSession {
     authedAt: number;
     saveKey: string;
     features: Set<BotSdkFeature>;
+    wireFormat?: BotSdkWireFormat;
+}
+
+interface BotSdkSocketState {
+    authed: boolean;
+    session?: AgentSession;
+    features: Set<BotSdkFeature>;
+    wireFormat?: BotSdkWireFormat;
 }
 
 const PROTOCOL_VERSION = 1;
@@ -525,11 +538,7 @@ export class BotSdkServer {
     }
 
     private handleConnection(ws: WebSocket): void {
-        const state: {
-            authed: boolean;
-            session?: AgentSession;
-            features: Set<BotSdkFeature>;
-        } = {
+        const state: BotSdkSocketState = {
             authed: false,
             features: new Set<BotSdkFeature>(),
         };
@@ -602,28 +611,50 @@ export class BotSdkServer {
 
     private handleMessage(
         ws: WebSocket,
-        state: {
-            authed: boolean;
-            session?: AgentSession;
-            features: Set<BotSdkFeature>;
-        },
+        state: BotSdkSocketState,
         raw: string,
     ): void {
         const decoded = decodeClientFrame(raw);
         if (!decoded.ok) {
-            this.sendError(ws, "bad_frame", decoded.error);
+            this.sendError(
+                ws,
+                "bad_frame",
+                decoded.error,
+                state.wireFormat ?? guessClientFrameFormat(raw),
+            );
             return;
         }
-        const frame: ClientFrame = decoded.value;
+        if (state.wireFormat && decoded.value.format !== state.wireFormat) {
+            this.sendError(
+                ws,
+                "mixed_frame_formats",
+                "switching between JSON and TOON on one socket is not supported.",
+                state.wireFormat,
+            );
+            ws.close(1008, "mixed_frame_formats");
+            return;
+        }
+        state.wireFormat ??= decoded.value.format;
+        const frame: ClientFrame = decoded.value.frame;
 
         if (!state.authed) {
             if (frame.kind !== "auth") {
-                this.sendError(ws, "unauth", "first frame must be `auth`");
+                this.sendError(
+                    ws,
+                    "unauth",
+                    "first frame must be `auth`",
+                    state.wireFormat,
+                );
                 ws.close(1008, "unauth");
                 return;
             }
             if (frame.token !== this.options.token) {
-                this.sendError(ws, "bad_token", "BOT_SDK_TOKEN mismatch");
+                this.sendError(
+                    ws,
+                    "bad_token",
+                    "BOT_SDK_TOKEN mismatch",
+                    state.wireFormat,
+                );
                 ws.close(1008, "bad_token");
                 return;
             }
@@ -640,7 +671,7 @@ export class BotSdkServer {
                 server: this.options.serverName ?? "xrsps",
                 version: PROTOCOL_VERSION,
                 features: supportedFeatures,
-            });
+            }, state.wireFormat);
             return;
         }
 
@@ -650,7 +681,12 @@ export class BotSdkServer {
             case "spawn":
                 void this.handleSpawn(ws, state, frame).catch((error) => {
                     logger.error("[botsdk] spawn failed", error);
-                    this.sendError(ws, "spawn_failed", "Failed to spawn agent.");
+                    this.sendError(
+                        ws,
+                        "spawn_failed",
+                        "Failed to spawn agent.",
+                        state.wireFormat,
+                    );
                 });
                 return;
             case "action":
@@ -670,11 +706,7 @@ export class BotSdkServer {
 
     private async handleSpawn(
         ws: WebSocket,
-        state: {
-            authed: boolean;
-            session?: AgentSession;
-            features: Set<BotSdkFeature>;
-        },
+        state: BotSdkSocketState,
         frame: SpawnFrame,
     ): Promise<void> {
         if (state.session) {
@@ -682,6 +714,7 @@ export class BotSdkServer {
                 ws,
                 "already_spawned",
                 `agent ${state.session.player.agent?.identity.agentId} already owns this socket`,
+                state.session.wireFormat,
             );
             return;
         }
@@ -692,6 +725,7 @@ export class BotSdkServer {
                 ws,
                 "bad_world",
                 `spawn worldId="${frame.worldId}" does not match server world "${worldId}"`,
+                state.wireFormat,
             );
             return;
         }
@@ -708,7 +742,7 @@ export class BotSdkServer {
             }),
         );
         if (!result.ok) {
-            this.sendError(ws, result.code, result.message);
+            this.sendError(ws, result.code, result.message, state.wireFormat);
             return;
         }
 
@@ -718,6 +752,7 @@ export class BotSdkServer {
             authedAt: Date.now(),
             saveKey: result.saveKey,
             features: new Set(state.features),
+            wireFormat: state.wireFormat ?? "toon",
         };
         state.session = session;
         this.sessions.set(ws, session);
@@ -734,7 +769,7 @@ export class BotSdkServer {
 
     private handleAction(
         ws: WebSocket,
-        state: { authed: boolean; session?: AgentSession },
+        state: BotSdkSocketState,
         frame: AnyActionFrame,
     ): void {
         if (!state.session) {
@@ -742,6 +777,7 @@ export class BotSdkServer {
                 ws,
                 "not_spawned",
                 "must send `spawn` frame before `action`",
+                state.wireFormat,
             );
             return;
         }
@@ -765,7 +801,7 @@ export class BotSdkServer {
 
     private handleScript(
         ws: WebSocket,
-        state: { authed: boolean; session?: AgentSession },
+        state: BotSdkSocketState,
         frame: ScriptFrame,
     ): void {
         const fail = (code: string, message: string) => {
@@ -778,7 +814,7 @@ export class BotSdkServer {
                 });
                 return;
             }
-            this.sendError(ws, code, message);
+            this.sendError(ws, code, message, state.session?.wireFormat ?? state.wireFormat);
         };
 
         if (!state.session) {
@@ -820,7 +856,7 @@ export class BotSdkServer {
 
     private handleProposal(
         ws: WebSocket,
-        state: { authed: boolean; session?: AgentSession },
+        state: BotSdkSocketState,
         frame: ScriptProposalFrame,
     ): void {
         const fail = (code: string, message: string) => {
@@ -833,7 +869,7 @@ export class BotSdkServer {
                 });
                 return;
             }
-            this.sendError(ws, code, message);
+            this.sendError(ws, code, message, state.session?.wireFormat ?? state.wireFormat);
         };
 
         if (!state.session) {
@@ -964,17 +1000,26 @@ export class BotSdkServer {
         return value === "hostedSessions" || value === "liveEvents";
     }
 
-    private sendFrame(ws: WebSocket, frame: ServerFrame): void {
+    private sendFrame(
+        ws: WebSocket,
+        frame: ServerFrame,
+        wireFormat?: BotSdkWireFormat,
+    ): void {
         if (ws.readyState !== WebSocket.OPEN) return;
         try {
-            ws.send(encodeServerFrame(frame));
+            ws.send(encodeServerFrame(frame, wireFormat ?? this.sessions.get(ws)?.wireFormat ?? "toon"));
         } catch (err) {
             logger.warn("[botsdk] failed to send frame:", err);
         }
     }
 
-    private sendError(ws: WebSocket, code: string, message: string): void {
-        this.sendFrame(ws, { kind: "error", code, message });
+    private sendError(
+        ws: WebSocket,
+        code: string,
+        message: string,
+        wireFormat?: BotSdkWireFormat,
+    ): void {
+        this.sendFrame(ws, { kind: "error", code, message }, wireFormat);
     }
 
     private *iterAgentPlayers(): Iterable<PlayerState> {

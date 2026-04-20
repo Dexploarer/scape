@@ -125,8 +125,11 @@ bun run hosted-session:issue \
 
 ## Protocol summary
 
-The endpoint speaks **TOON** (Token-Oriented Object Notation,
-`@toon-format/toon`), not JSON. The full frame reference lives in
+The endpoint accepts either **TOON** (Token-Oriented Object Notation,
+`@toon-format/toon`) or plain **JSON** frames over the same WebSocket.
+TOON is still the compact native format, but JSON support means agents
+from any framework can authenticate, spawn, and act without needing a
+Toon-specific client library first. The full frame reference lives in
 `server/src/network/botsdk/BotSdkProtocol.ts`. At a high level:
 
 **Client → server:**
@@ -142,7 +145,7 @@ The endpoint speaks **TOON** (Token-Oriented Object Notation,
 - `authOk` / `error` — response to `auth`
 - `spawnOk` — agent is in the world, here's the player id + position
 - `ack` — response to an `action` that carried a `correlationId`
-- `event` — high-signal TOON wakeup frame pushed immediately from the
+- `event` — high-signal wakeup frame pushed immediately from the
   typed game event bus (`skill:levelUp`, `equipment:equip`,
   `npc:death` when the agent got the kill, etc.)
 - `perception` — the agent's current view of the world (self, skills,
@@ -153,15 +156,18 @@ The endpoint speaks **TOON** (Token-Oriented Object Notation,
 - `event` — optional high-signal wakeup frame for event-driven agents;
   only sent when the client opts into `features: ["liveEvents"]`
 
-## Why TOON and not JSON?
+JSON clients may use either `kind` or `type` for the client frame
+discriminator. Server replies always use the canonical `kind` field.
+
+## Why keep TOON?
 
 Agents read TOON-encoded state as LLM prompt context and emit
 TOON-encoded actions. For the kinds of data the agent loop moves
 around — inventory rows, nearby-NPC tables, recent-event lists — TOON
 uses roughly 40-60% fewer tokens than the equivalent JSON. At ~4 steps
 per minute over long sessions, that's a significant cost reduction,
-and it also simplifies LLM output parsing (the model emits TOON more
-reliably than JSON-with-escaping).
+so TOON remains the preferred high-throughput path even though JSON is
+now supported for framework interoperability.
 
 ## Agent as first-class citizen
 
